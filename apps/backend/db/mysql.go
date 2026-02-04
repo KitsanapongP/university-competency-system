@@ -7,7 +7,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"github.com/spw32767/university-competency-system-backend/internal/app/config"
+	"github.com/spw32767/university-competency-system-backend/config"
 )
 
 func NewMySQL(cfg config.Config) (*sql.DB, error) {

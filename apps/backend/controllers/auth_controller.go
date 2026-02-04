@@ -1,4 +1,4 @@
-package authmod
+package controllers
 
 import (
 	"encoding/json"
@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/spw32767/university-competency-system-backend/internal/app/auth"
-	"github.com/spw32767/university-competency-system-backend/pkg/response"
+	"github.com/spw32767/university-competency-system-backend/services"
+	"github.com/spw32767/university-competency-system-backend/utils"
 )
 
-type Handler struct {
-	Service *Service
-	JWT     auth.JWTManager
+type AuthController struct {
+	Service *services.Service
+	JWT     utils.JWTManager
 }
 
 type loginReq struct {
@@ -33,34 +33,34 @@ func cookieSecure() bool {
 	return v == "true" || v == "1"
 }
 
-func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
+func (h *AuthController) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
 		return
 	}
 	if req.Email == "" || req.Password == "" {
-		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "email and password required")
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "email and password required")
 		return
 	}
 
 	u, err := h.Service.AuthenticateByEmail(r.Context(), req.Email, req.Password)
 	if err != nil {
-		if err == ErrInvalidCredentials {
-			response.Error(w, http.StatusUnauthorized, "AUTH_INVALID", "invalid credentials")
+		if err == services.ErrInvalidCredentials {
+			utils.Error(w, http.StatusUnauthorized, "AUTH_INVALID", "invalid credentials")
 			return
 		}
-		if err == ErrUserInactive {
-			response.Error(w, http.StatusForbidden, "USER_INACTIVE", "user is inactive")
+		if err == services.ErrUserInactive {
+			utils.Error(w, http.StatusForbidden, "USER_INACTIVE", "user is inactive")
 			return
 		}
-		response.Error(w, http.StatusInternalServerError, "SERVER_ERROR", "login failed")
+		utils.Error(w, http.StatusInternalServerError, "SERVER_ERROR", "login failed")
 		return
 	}
 
 	token, err := h.JWT.Generate(u.UserID, u.Roles, u.FacultyID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "TOKEN_ERROR", "could not generate token")
+		utils.Error(w, http.StatusInternalServerError, "TOKEN_ERROR", "could not generate token")
 		return
 	}
 
@@ -79,22 +79,22 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// ตอบกลับแบบ minimal (ไม่ต้องส่ง token ให้ JS)
-	response.OK(w, map[string]any{
+	utils.OK(w, map[string]any{
 		"ok": true,
 	})
 }
 
-func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
-	claims, ok := auth.ClaimsFromContext(r.Context())
+func (h *AuthController) Me(w http.ResponseWriter, r *http.Request) {
+	claims, ok := utils.ClaimsFromContext(r.Context())
 	if !ok {
-		response.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
 		return
 	}
 
 	// ดึงจาก DB เพื่อให้ได้ display_name/email ล่าสุด + roles ที่ครบ
 	u, err := h.Service.Repo.GetUserWithRolesByID(r.Context(), claims.UserID)
 	if err != nil {
-		response.Error(w, http.StatusUnauthorized, "AUTH_INVALID", "user not found")
+		utils.Error(w, http.StatusUnauthorized, "AUTH_INVALID", "user not found")
 		return
 	}
 	u.PasswordHash = ""
@@ -113,10 +113,10 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		resp["display_name"] = *u.DisplayName
 	}
 
-	response.OK(w, resp)
+	utils.OK(w, resp)
 }
 
-func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+func (h *AuthController) Logout(w http.ResponseWriter, r *http.Request) {
 	// ลบ cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieName(),
@@ -127,7 +127,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		Secure:   cookieSecure(),
 		SameSite: http.SameSiteLaxMode,
 	})
-	response.OK(w, map[string]any{"ok": true})
+	utils.OK(w, map[string]any{"ok": true})
 }
 
 // helper: ใช้ถ้าคุณอยากอ่าน expire จาก env แทน config (optional)

@@ -5,12 +5,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spw32767/university-competency-system-backend/internal/app/auth"
-	"github.com/spw32767/university-competency-system-backend/pkg/response"
+	"github.com/spw32767/university-competency-system-backend/utils"
 )
 
 type AuthMiddleware struct {
-	JWT auth.JWTManager
+	JWT utils.JWTManager
 }
 
 func cookieName() string {
@@ -38,17 +37,17 @@ func (m AuthMiddleware) Required(next http.Handler) http.Handler {
 		}
 
 		if tokenStr == "" {
-			response.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing token")
+			utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing token")
 			return
 		}
 
 		claims, err := m.JWT.Verify(tokenStr)
 		if err != nil {
-			response.Error(w, http.StatusUnauthorized, "AUTH_INVALID", "invalid or expired token")
+			utils.Error(w, http.StatusUnauthorized, "AUTH_INVALID", "invalid or expired token")
 			return
 		}
 
-		ctx := auth.WithClaims(r.Context(), claims)
+		ctx := utils.WithClaims(r.Context(), claims)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

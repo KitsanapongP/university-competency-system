@@ -6,9 +6,9 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"github.com/spw32767/university-competency-system-backend/internal/app/config"
-	appdb "github.com/spw32767/university-competency-system-backend/internal/app/db"
-	"github.com/spw32767/university-competency-system-backend/internal/app/http/router"
+	"github.com/spw32767/university-competency-system-backend/config"
+	appdb "github.com/spw32767/university-competency-system-backend/db"
+	"github.com/spw32767/university-competency-system-backend/routes"
 )
 
 func main() {
@@ -22,7 +22,7 @@ func main() {
 	}
 	defer db.Close()
 
-	r := router.New(db, cfg)
+	r := routes.New(db, cfg)
 
 	log.Printf("API listening on %s", cfg.HTTPAddr)
 	if err := http.ListenAndServe(cfg.HTTPAddr, r); err != nil {

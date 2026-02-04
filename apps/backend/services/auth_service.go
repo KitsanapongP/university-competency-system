@@ -1,10 +1,12 @@
-package authmod
+package services
 
 import (
 	"context"
 	"database/sql"
 	"errors"
 
+	"github.com/spw32767/university-competency-system-backend/models"
+	"github.com/spw32767/university-competency-system-backend/repositories"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -12,14 +14,14 @@ var ErrInvalidCredentials = errors.New("invalid credentials")
 var ErrUserInactive = errors.New("user inactive")
 
 type Service struct {
-	Repo *Repository
+	Repo *repositories.Repository
 }
 
-func NewService(repo *Repository) *Service {
+func NewService(repo *repositories.Repository) *Service {
 	return &Service{Repo: repo}
 }
 
-func (s *Service) AuthenticateByEmail(ctx context.Context, email, password string) (*User, error) {
+func (s *Service) AuthenticateByEmail(ctx context.Context, email, password string) (*models.User, error) {
 	u, err := s.Repo.GetUserWithRolesByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

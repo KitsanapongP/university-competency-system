@@ -1,8 +1,10 @@
-package authmod
+package repositories
 
 import (
 	"context"
 	"database/sql"
+
+	"github.com/spw32767/university-competency-system-backend/models"
 )
 
 type Repository struct {
@@ -14,7 +16,7 @@ func NewRepository(db *sql.DB) *Repository {
 }
 
 // Load user by email and include roles (auth_roles.code)
-func (r *Repository) GetUserWithRolesByEmail(ctx context.Context, email string) (*User, error) {
+func (r *Repository) GetUserWithRolesByEmail(ctx context.Context, email string) (*models.User, error) {
 	// ปรับชื่อคอลัมน์ให้ตรงกับ schema ของคุณถ้าต่าง
 	// ใช้ LEFT JOIN เผื่อบาง account ยังไม่ผูก role (แต่จริง ๆ ควรมี)
 	q := `
@@ -38,7 +40,7 @@ WHERE u.email = ?
 	}
 	defer rows.Close()
 
-	var out *User
+	var out *models.User
 	roleSet := map[string]bool{}
 
 	for rows.Next() {
@@ -60,7 +62,7 @@ WHERE u.email = ?
 		}
 
 		if out == nil {
-			out = &User{
+			out = &models.User{
 				UserID:       userID,
 				Username:     username,
 				IsActive:     isActive,
@@ -97,7 +99,7 @@ WHERE u.email = ?
 	return out, nil
 }
 
-func (r *Repository) GetUserWithRolesByID(ctx context.Context, userID int64) (*User, error) {
+func (r *Repository) GetUserWithRolesByID(ctx context.Context, userID int64) (*models.User, error) {
 	q := `
 SELECT 
 	u.user_id,
@@ -119,7 +121,7 @@ WHERE u.user_id = ?
 	}
 	defer rows.Close()
 
-	var out *User
+	var out *models.User
 	roleSet := map[string]bool{}
 
 	for rows.Next() {
@@ -139,7 +141,7 @@ WHERE u.user_id = ?
 		}
 
 		if out == nil {
-			out = &User{
+			out = &models.User{
 				UserID:       id,
 				Username:     username,
 				IsActive:     isActive,

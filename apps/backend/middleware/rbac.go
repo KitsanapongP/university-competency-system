@@ -3,8 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/spw32767/university-competency-system-backend/internal/app/auth"
-	"github.com/spw32767/university-competency-system-backend/pkg/response"
+	"github.com/spw32767/university-competency-system-backend/utils"
 )
 
 func RequireRoles(roles ...string) func(http.Handler) http.Handler {
@@ -15,9 +14,9 @@ func RequireRoles(roles ...string) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			claims, ok := auth.ClaimsFromContext(r.Context())
+			claims, ok := utils.ClaimsFromContext(r.Context())
 			if !ok {
-				response.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth context")
+				utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth context")
 				return
 			}
 
@@ -30,7 +29,7 @@ func RequireRoles(roles ...string) func(http.Handler) http.Handler {
 			}
 
 			if !has {
-				response.Error(w, http.StatusForbidden, "FORBIDDEN", "insufficient role")
+				utils.Error(w, http.StatusForbidden, "FORBIDDEN", "insufficient role")
 				return
 			}
 			next.ServeHTTP(w, r)

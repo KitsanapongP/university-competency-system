@@ -1,4 +1,4 @@
-package router
+package routes
 
 import (
 	"database/sql"
@@ -6,11 +6,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/spw32767/university-competency-system-backend/internal/app/auth"
-	"github.com/spw32767/university-competency-system-backend/internal/app/config"
-	"github.com/spw32767/university-competency-system-backend/internal/app/http/handler"
-	"github.com/spw32767/university-competency-system-backend/internal/app/http/middleware"
-	authmod "github.com/spw32767/university-competency-system-backend/internal/module/auth"
+	"github.com/spw32767/university-competency-system-backend/config"
+	"github.com/spw32767/university-competency-system-backend/controllers"
+	"github.com/spw32767/university-competency-system-backend/middleware"
+	"github.com/spw32767/university-competency-system-backend/repositories"
+	"github.com/spw32767/university-competency-system-backend/services"
+	"github.com/spw32767/university-competency-system-backend/utils"
 )
 
 func New(db *sql.DB, cfg config.Config) http.Handler {
@@ -22,10 +23,10 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	r.Use(middleware.CORS)
 
 	// Health
-	r.Get("/health", handler.Health)
+	r.Get("/health", controllers.Health)
 
 	// JWT Manager
-	jwtMgr := auth.JWTManager{
+	jwtMgr := utils.JWTManager{
 		Secret:        []byte(cfg.JWTSecret),
 		Issuer:        cfg.JWTIssuer,
 		ExpireMinutes: cfg.JWTExpireMinutes,
@@ -35,9 +36,9 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	authMW := middleware.AuthMiddleware{JWT: jwtMgr}
 
 	// Auth module wiring (DB real)
-	authRepo := authmod.NewRepository(db)
-	authSvc := authmod.NewService(authRepo)
-	authHandler := &authmod.Handler{
+	authRepo := repositories.NewRepository(db)
+	authSvc := services.NewService(authRepo)
+	authHandler := &controllers.AuthController{
 		Service: authSvc,
 		JWT:     jwtMgr,
 	}
