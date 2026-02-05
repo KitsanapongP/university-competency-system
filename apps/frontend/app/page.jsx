@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Award, Activity } from 'lucide-react';
+import Link from 'next/link';
 
 // Config & Data
 import { CHART_COLORS } from '../config/theme';
@@ -17,11 +19,14 @@ import CompetencyStats from '../components/competency/CompetencyStats';
 import CompetencyRadarChart from '../components/competency/CompetencyRadarChart';
 import ActivityDetailPanel from '../components/competency/ActivityDetailPanel';
 import GapAnalysis from '../components/competency/GapAnalysis';
+import { useAuth } from '../providers/auth-provider';
 
 // CSS
 import './Competency.css';
 
 export default function CompetencyPage() {
+    const router = useRouter();
+    const { user, loading, logout } = useAuth();
     const [activePage, setActivePage] = useState('dashboard');
 
     // Dashboard States
@@ -64,6 +69,17 @@ export default function CompetencyPage() {
             body.setAttribute('style', originalBodyStyle);
         };
     }, []);
+
+    useEffect(() => {
+        if (!loading && !user) {
+            router.replace('/login');
+        }
+    }, [loading, user, router]);
+
+    const handleLogout = async () => {
+        await logout();
+        router.push('/login');
+    };
 
     // Toggle Functions
     const toggleCompetency = (id) => {
@@ -215,6 +231,46 @@ export default function CompetencyPage() {
 
     return (
         <CompetencyLayout activePage={activePage} onNavigate={setActivePage}>
+            <div
+                style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: '#f9fafb',
+                    borderBottom: '1px solid #e5e7eb',
+                    gap: '1rem',
+                    flexWrap: 'wrap',
+                }}
+            >
+                {loading ? (
+                    <span>Checking session...</span>
+                ) : user ? (
+                    <>
+                        <div>
+                            <strong>{user.display_name || user.username}</strong>
+                            <span style={{ marginLeft: '0.5rem', color: '#6b7280' }}>
+                                Roles: {user.roles?.join(', ') || 'None'}
+                            </span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            style={{
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: '6px',
+                                border: '1px solid #d1d5db',
+                                backgroundColor: '#fff',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            Logout
+                        </button>
+                    </>
+                ) : (
+                    <Link href="/login">Go to login</Link>
+                )}
+            </div>
 
             {/* DASHBOARD PAGE */}
             {activePage === 'dashboard' && (
