@@ -979,6 +979,10 @@ body:has(.competency-app) {
   padding: 16px 24px;
 }
 
+.course-history-list{
+  padding: 16px 24px;
+}
+
 .activity-item {
   display: flex;
   align-items: center;

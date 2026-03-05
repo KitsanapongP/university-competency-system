@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"strconv"
 )
 
 type CompetencyRepository struct {
@@ -32,6 +33,14 @@ type ActivityRecord struct {
 	StartAt             sql.NullTime
 	MaxPercent          float64
 	EarnedPercent       sql.NullFloat64
+}
+
+type CourseRecord struct {
+    CourseID       int64
+    CompetencyID   int64
+    CourseName     string
+    AcademicYear   string  // ปีการศึกษา (Buddhist Era)
+    Score          sql.NullFloat64
 }
 
 func (r *CompetencyRepository) ResolvePersonID(ctx context.Context, userID int64) (int64, error) {
@@ -195,4 +204,69 @@ ORDER BY s.start_at DESC
 		return nil, err
 	}
 	return items, nil
+}
+
+// เพิ่ม GetCoursesByPerson method ใน CompetencyRepository
+func (r *CompetencyRepository) GetCoursesByPerson(ctx context.Context, personID int64) ([]CourseRecord, error) {
+    rows, err := r.DB.QueryContext(ctx, `
+        SELECT
+            sc.section_competency_id,
+            sc.competency_id,
+            c.name_th,
+            cs.academic_year_be,
+            sc.max_percent,
+            COALESCE(scr.earned_percent, 0) AS earned_percent
+        FROM crs_section_enrollments se
+        JOIN crs_course_sections cs 
+            ON cs.section_id = se.section_id
+            AND cs.deleted_at IS NULL
+        JOIN crs_courses c 
+            ON c.course_id = cs.course_id
+            AND c.deleted_at IS NULL
+        JOIN crs_section_competencies sc 
+            ON sc.section_id = cs.section_id
+            AND sc.deleted_at IS NULL
+        LEFT JOIN score_section_competency_scores scs 
+            ON scs.section_competency_id = sc.section_competency_id
+            AND scs.person_id = ?
+            AND scs.deleted_at IS NULL
+        LEFT JOIN score_section_competency_results scr 
+            ON scr.score_id = scs.section_competency_score_id
+            AND scr.deleted_at IS NULL
+        WHERE se.person_id = ?
+            AND se.deleted_at IS NULL
+            AND se.status IN ('enrolled', 'completed')
+        ORDER BY cs.academic_year_be DESC, c.name_th ASC
+    `, personID, personID)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var items []CourseRecord
+    for rows.Next() {
+        var rec CourseRecord
+        var yearBE int
+        var maxPercent float64
+        var earnedPercent float64
+        if err := rows.Scan(
+            &rec.CourseID,
+            &rec.CompetencyID,
+            &rec.CourseName,
+            &yearBE,
+            &maxPercent,
+            &earnedPercent,
+        ); err != nil {
+            return nil, err
+        }
+        rec.AcademicYear = strconv.Itoa(yearBE)
+        rec.Score.Float64 = earnedPercent
+        rec.Score.Valid = true
+        items = append(items, rec)
+    }
+
+    if err := rows.Err(); err != nil {
+        return nil, err
+    }
+    return items, nil
 }

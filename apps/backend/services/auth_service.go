@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 
 	"github.com/spw32767/university-competency-system-backend/models"
 	"github.com/spw32767/university-competency-system-backend/repositories"
@@ -30,11 +31,15 @@ func (s *Service) AuthenticateByEmail(ctx context.Context, email, password strin
 		return nil, err
 	}
 
+	// debug: log minimal info to help trace login problems
+	log.Printf("AuthenticateByEmail: found user id=%d email=%s active=%v hashlen=%d", u.UserID, email, u.IsActive, len(u.PasswordHash))
+
 	if !u.IsActive {
 		return nil, ErrUserInactive
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
+		log.Printf("AuthenticateByEmail: password compare failed for user id=%d: %v", u.UserID, err)
 		return nil, ErrInvalidCredentials
 	}
 

@@ -17,7 +17,9 @@ const CompetencyFilters = ({
     dateRange,
     setDateRange,
     showRequirement,
-    setShowRequirement
+    setShowRequirement,
+    category,
+    setCategory,
 }) => {
     const { t } = useLanguage();
 
@@ -30,7 +32,27 @@ const CompetencyFilters = ({
                 </h2>
             </div>
 
-            {/* Competency Filter */}
+            {/* Category Filter (Activity vs Course) */}
+            <div className="filter-group">
+                <label>
+                    {t('select_category_label')}
+                </label>
+                <div className="mode-toggle">
+                    <button
+                        className={`mode-btn ${category === 'activity' ? 'active' : ''}`}
+                        onClick={() => setCategory('activity')}
+                    >
+                        {t('activities') || 'Activities'}
+                    </button>
+                    <button
+                        className={`mode-btn ${category === 'course' ? 'active' : ''}`}
+                        onClick={() => setCategory('course')}
+                    >
+                        {t('courses') || 'Courses'}
+                    </button>
+                </div>
+            </div>
+            {/* v>Competency Filter */}
             <div className="filter-group">
                 <label>
                     <Brain size={14} />

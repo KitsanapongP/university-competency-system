@@ -2,19 +2,42 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
-
+1. Clone the repository
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/V33rapat/university-competency-system.git
+cd university-competency-system
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install Golang Follow is document: https://go.dev/doc/install
+
+3. . Install frontend dependencies
+```bash
+cd apps/frontend
+npm install
+```
+
+Environment Variables
+Create a .env file in the backend directory with the following:
+(Wait, I'm making it.)
+
+Run the development server:
+  1. Run backend
+  ```bash
+  cd apps/backend
+  go run ./cmd/api
+  ```
+
+  2. Run Frontend
+  ```bash
+  cd ../frontend
+  npm run dev
+  # or
+  yarn dev
+  # or
+  pnpm dev
+  # or
+  bun dev
+  ```
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
