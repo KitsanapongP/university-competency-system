@@ -1,0 +1,469 @@
+/* ============================================================
+   TemplateManagement.css
+   Dark theme — match กับ Competency.css เดิม
+   ============================================================ */
+
+/* --- Page Layout --- */
+.tm-page {
+    min-height: 100vh;
+    background: #0f1117;
+    color: #e2e8f0;
+    padding: 1.5rem;
+    font-family: 'Sarabun', sans-serif;
+}
+
+/* --- Header --- */
+.tm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+}
+
+.tm-header__title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: #7dd3fc;
+}
+
+.tm-header__title h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* --- 3 Panel Layout --- */
+.tm-panels {
+    display: grid;
+    grid-template-columns: 260px 1fr 1fr;
+    gap: 1rem;
+    height: calc(100vh - 6rem);
+}
+
+.tm-panel {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* --- Panel Header --- */
+.panel-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #2d3748;
+    flex-shrink: 0;
+}
+
+.panel-header h2 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #94a3b8;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.panel-badge {
+    margin-left: auto;
+    background: #2d3748;
+    color: #7dd3fc;
+    font-size: 0.75rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+}
+
+.panel-badge--template {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: #64748b;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.panel-badge--category {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: #7dd3fc;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.panel-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: #475569;
+    font-size: 0.875rem;
+}
+
+/* --- Panel 1: Template List --- */
+.tm-panel--list .template-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 0.5rem;
+}
+
+.template-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border: 1px solid transparent;
+}
+
+.template-item:hover {
+    background: #243044;
+}
+
+.template-item--selected {
+    background: #1e3a5f;
+    border-color: #3b82f6;
+}
+
+.template-item__info {
+    flex: 1;
+    min-width: 0;
+}
+
+.template-item__name {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #e2e8f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.template-item__meta {
+    display: block;
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-top: 0.2rem;
+}
+
+/* --- Panel 2: Category Tree --- */
+.tm-panel--tree .category-tree {
+    overflow-y: auto;
+    flex: 1;
+    padding: 0.5rem 0;
+}
+
+.tree-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 1rem;
+    cursor: pointer;
+    transition: background 0.1s;
+    border-left: 2px solid transparent;
+}
+
+.tree-item:hover {
+    background: #243044;
+}
+
+.tree-item--selected {
+    background: #1e3a5f;
+    border-left-color: #3b82f6;
+}
+
+.tree-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    color: #64748b;
+    flex-shrink: 0;
+}
+
+.tree-code {
+    font-size: 0.7rem;
+    color: #7dd3fc;
+    font-weight: 600;
+    flex-shrink: 0;
+    min-width: 32px;
+}
+
+.tree-name {
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    flex: 1;
+    line-height: 1.4;
+}
+
+.tree-credits {
+    font-size: 0.68rem;
+    color: #475569;
+    flex-shrink: 0;
+}
+
+/* --- Panel 3: Detail --- */
+.tm-panel--detail .detail-body {
+    overflow-y: auto;
+    flex: 1;
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.detail-section__title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 0.75rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* Course Form */
+.course-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Competency List */
+.competency-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.competency-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: #243044;
+    border-radius: 8px;
+    gap: 0.75rem;
+}
+
+.competency-name {
+    font-size: 0.82rem;
+    color: #cbd5e1;
+    flex: 1;
+}
+
+.competency-weight {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.weight-input {
+    width: 60px;
+    background: #1a1f2e;
+    border: 1px solid #3b4a63;
+    border-radius: 6px;
+    color: #e2e8f0;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.82rem;
+    text-align: right;
+}
+
+.weight-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.weight-unit {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.weight-total {
+    margin-top: 0.75rem;
+    font-size: 0.82rem;
+    color: #94a3b8;
+    text-align: right;
+}
+
+.weight-error {
+    color: #ef4444;
+}
+
+/* ============================================================
+   Shared: Buttons & Inputs
+   ============================================================ */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.15s;
+}
+
+.btn--primary {
+    background: #3b82f6;
+    color: #fff;
+}
+
+.btn--primary:hover {
+    background: #2563eb;
+}
+
+.btn--ghost {
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid #2d3748;
+}
+
+.btn--ghost:hover {
+    background: #243044;
+}
+
+.btn--sm {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.78rem;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-bottom: 0.4rem;
+}
+
+.form-input {
+    width: 100%;
+    background: #243044;
+    border: 1px solid #3b4a63;
+    border-radius: 8px;
+    color: #e2e8f0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    box-sizing: border-box;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.form-input::placeholder {
+    color: #475569;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.35rem;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    transition: background 0.15s;
+}
+
+.icon-btn--danger {
+    color: #ef4444;
+}
+
+.icon-btn--danger:hover {
+    background: #7f1d1d30;
+}
+
+/* ============================================================
+   Modal
+   ============================================================ */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+}
+
+.modal-box {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 14px;
+    width: 420px;
+    max-width: 90vw;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #2d3748;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #64748b;
+    display: flex;
+    padding: 0.25rem;
+    border-radius: 6px;
+}
+
+.modal-close:hover {
+    color: #e2e8f0;
+    background: #2d3748;
+}
+
+.modal-body {
+    padding: 1.25rem 1.5rem;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #2d3748;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 1024px) {
+    .tm-panels {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .tm-panel {
+        max-height: 400px;
+    }
+}

@@ -4,7 +4,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 1. Clone the repository
 ```bash
-git clone https://github.com/V33rapat/university-competency-system.git
+git clone https://github.com/KitsanapongP/university-competency-system.git
 cd university-competency-system
 ```
 
