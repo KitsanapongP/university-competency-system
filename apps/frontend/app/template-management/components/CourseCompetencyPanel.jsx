@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Pencil, Plus } from 'lucide-react';
+import { BinaryIcon, Pencil, PencilIcon, Plus, Trash, Trash2 } from 'lucide-react';
 import CompetencyWeightForm from './CompetencyWeightForm';
 
 /**
@@ -48,8 +48,11 @@ export default function CourseCompetencyPanel({
                         {category.code} {category.name}
                     </span>
                 )}
+                <button className="icon-btn icon-btn--danger" title="ลบหมวดวิชา" >
+                    <Trash2 size={14} />
+                </button>
             </div>
-
+                
             {/* Body */}
             {!category ? (
                 <div className="panel-empty">เลือกหมวดวิชาก่อน</div>
