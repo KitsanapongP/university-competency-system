@@ -481,3 +481,49 @@
     min-height: 48px;
     flex: 1;
 }
+
+/* ============================================================
+   Confirm Delete Modal
+   ============================================================ */
+.modal-box--sm { width: 380px; }
+
+.confirm-delete__icon {
+    display: flex;
+    justify-content: center;
+    color: #ef4444;
+    margin-bottom: 1rem;
+}
+
+.confirm-delete__desc {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    margin: 0 0 0.4rem 0;
+}
+
+.confirm-delete__name {
+    text-align: center;
+    color: #e2e8f0;
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin: 0 0 0.75rem 0;
+}
+
+.confirm-delete__warn {
+    text-align: center;
+    color: #f87171;
+    font-size: 0.78rem;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    padding: 0.6rem 0.875rem;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* btn danger */
+.btn--danger {
+    background: #ef4444;
+    color: #fff;
+}
+.btn--danger:hover { background: #dc2626; }
