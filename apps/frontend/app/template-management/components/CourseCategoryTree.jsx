@@ -1,145 +1,162 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronRight, ChevronDown, Plus, GripVertical } from 'lucide-react';
+import { ChevronRight, ChevronDown, Plus, GripVertical, BookOpen, Trash2 } from 'lucide-react';
+
+// ---- global drag state แยกระหว่าง category drag กับ course drag ----
+let globalCatDrag    = null; // { cat, parentId }
+let globalCourseDrag = null; // { course, fromCategoryId }
 
 // ============================================================
-// Recode — คำนวณ code ใหม่ทั้ง subtree หลังจัดเรียง
-// parentCode = "" → root level (1, 2, 3...)
-// parentCode = "1" → children (1.1, 1.2, 1.3...)
+// Helpers
 // ============================================================
-function recodeChildren(children, parentCode) {
-    return children.map((cat, index) => {
-        const newCode = parentCode
-            ? `${parentCode}.${index + 1}`
-            : `${index + 1}`;
-        return {
-            ...cat,
-            code: newCode,
-            children: cat.children?.length > 0
-                ? recodeChildren(cat.children, newCode)
-                : cat.children,
-        };
-    });
-}
-
-// depth ของ code เช่น "1"→0, "1.1"→1, "1.1.1"→2
 function getDepthFromCode(code) {
     if (!code) return 0;
     return code.split('.').length - 1;
 }
-
-// หา next code ของ children ใน parent
 function getNextCode(parentCode, siblings) {
     const next = siblings.length + 1;
     return parentCode ? `${parentCode}.${next}` : `${next}`;
 }
+function recodeChildren(children, parentCode) {
+    return children.map((cat, index) => {
+        const newCode = parentCode ? `${parentCode}.${index + 1}` : `${index + 1}`;
+        return { ...cat, code: newCode, children: cat.children?.length > 0 ? recodeChildren(cat.children, newCode) : cat.children };
+    });
+}
 
 // ============================================================
-// Drag state ระดับ module (ใช้ ref แทน state เพื่อไม่ re-render)
+// CourseItem — แสดงในแถว inline ใต้ tree node
+// รองรับ drag ออกไปยัง category อื่น
 // ============================================================
-let globalDragSource = null; // { cat, parentId }
+function CourseItem({ course, categoryId, onDelete, onCourseDragStart }) {
+    return (
+        <div
+            className="course-row"
+            draggable
+            onDragStart={e => {
+                e.stopPropagation();
+                globalCourseDrag = { course, fromCategoryId: categoryId };
+                onCourseDragStart?.();
+                e.dataTransfer.effectAllowed = 'move';
+            }}
+            onDragEnd={() => { globalCourseDrag = null; }}
+        >
+            <GripVertical size={11} className="course-row__grip" />
+            <BookOpen size={13} className="course-row__icon" />
+            <span className="course-row__code">{course.code}</span>
+            <span className="course-row__name">{course.nameTh}</span>
+            <span className="course-row__credits">{course.credits} หน่วยกิต</span>
+            <button
+                className="icon-btn icon-btn--danger icon-btn--xs"
+                onClick={e => { e.stopPropagation(); onDelete(course.id); }}
+                title="ลบรายวิชา"
+            >
+                <Trash2 size={12} />
+            </button>
+        </div>
+    );
+}
 
 // ============================================================
 // TreeItem
 // ============================================================
 function TreeItem({
-    category,
-    parentId,
-    depth,
-    index,
-    siblings,
-    selectedId,
-    onSelect,
-    editingId,
-    editingName,
-    setEditingName,
-    onRename,
-    onStartEdit,
-    onDrop,          // (sourceInfo, targetInfo, position) → 'before'|'after'|'inside'
+    category, parentId, depth, index, siblings,
+    selectedId, onSelect,
+    editingId, editingName, setEditingName, onRename, onStartEdit,
+    onCatDrop,
+    onCourseDropToCategory,  // (course, fromCatId, toCatId)
+    coursesByCategoryId,
+    onDeleteCourse,
+    creditMap,
+    draggingCourse,          // true เมื่อมี course กำลัง drag อยู่
 }) {
-    const [expanded, setExpanded]   = useState(depth <= 1);
-    const [dragOver, setDragOver]   = useState(null); // 'before'|'after'|'inside'
+    const [expanded,       setExpanded]       = useState(depth <= 1);
+    const [catDragOver,    setCatDragOver]     = useState(null);   // 'before'|'after'|'inside'
+    const [courseDropOver, setCourseDropOver] = useState(false);   // highlight เมื่อ course hover
     const itemRef = useRef(null);
 
     const hasChildren = category.children?.length > 0;
+    const isLeaf      = !hasChildren;
     const isSelected  = selectedId === category.id;
     const isEditing   = editingId  === category.id;
-    const maxDepth    = 2; // 0=root, 1=sub, 2=subsub
+    const maxDepth    = 2;
+    const displayCredits = creditMap?.[category.id] ?? category.requiredCredits;
+    const courses = isLeaf ? (coursesByCategoryId[category.id] || []) : [];
 
-    useEffect(() => {
-        if (hasChildren) setExpanded(true);
-    }, [category.children?.length]);
+    useEffect(() => { if (hasChildren) setExpanded(true); }, [category.children?.length]);
 
-    // ---- Drag source ----
-    const handleDragStart = (e) => {
-        globalDragSource = { cat: category, parentId };
+    // ---- Category drag handlers ----
+    const handleCatDragStart = (e) => {
+        if (globalCourseDrag) return; // ถ้า course กำลัง drag อยู่ไม่ให้ drag category
+        globalCatDrag = { cat: category, parentId };
         e.dataTransfer.effectAllowed = 'move';
         e.stopPropagation();
     };
 
-    // ---- Drag target ----
     const handleDragOver = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!globalDragSource || globalDragSource.cat.id === category.id) return;
+        e.preventDefault(); e.stopPropagation();
 
-        const rect = itemRef.current?.getBoundingClientRect();
-        if (!rect) return;
-
-        const y = e.clientY - rect.top;
-        const h = rect.height;
-
-        let position;
-        if (y < h * 0.25) {
-            position = 'before';
-        } else if (y > h * 0.75) {
-            position = depth < maxDepth ? 'after' : 'after'; // ถ้า depth < max อนุญาต inside ด้วย
-        } else {
-            // กลางๆ → inside (ถ้า depth ไม่เกิน limit)
-            position = depth < maxDepth ? 'inside' : 'after';
+        // Course drag → highlight leaf node เป็นเป้า drop
+        if (globalCourseDrag) {
+            if (isLeaf && globalCourseDrag.fromCategoryId !== category.id) {
+                setCourseDropOver(true);
+            }
+            return;
         }
 
-        setDragOver(position);
+        // Category drag
+        if (!globalCatDrag || globalCatDrag.cat.id === category.id) return;
+        const rect = itemRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const y = e.clientY - rect.top;
+        const h = rect.height;
+        setCatDragOver(y < h * 0.25 ? 'before' : y > h * 0.75 ? 'after' : depth < maxDepth ? 'inside' : 'after');
         e.dataTransfer.dropEffect = 'move';
     };
 
     const handleDragLeave = (e) => {
         e.stopPropagation();
-        setDragOver(null);
+        setCatDragOver(null);
+        setCourseDropOver(false);
     };
 
     const handleDrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!globalDragSource || globalDragSource.cat.id === category.id) {
-            setDragOver(null);
+        e.preventDefault(); e.stopPropagation();
+
+        // Course drop → ย้ายวิชาไป category นี้
+        if (globalCourseDrag) {
+            if (isLeaf && globalCourseDrag.fromCategoryId !== category.id) {
+                onCourseDropToCategory(globalCourseDrag.course, globalCourseDrag.fromCategoryId, category.id);
+            }
+            globalCourseDrag = null;
+            setCourseDropOver(false);
             return;
         }
-        onDrop(
-            globalDragSource,
-            { cat: category, parentId, index, siblings },
-            dragOver || 'after'
-        );
-        setDragOver(null);
-        globalDragSource = null;
+
+        // Category drop
+        if (!globalCatDrag || globalCatDrag.cat.id === category.id) { setCatDragOver(null); return; }
+        onCatDrop(globalCatDrag, { cat: category, parentId, index, siblings }, catDragOver || 'after');
+        setCatDragOver(null);
+        globalCatDrag = null;
     };
 
     return (
         <div className="tree-item-wrapper">
-            {/* Drop indicator — before */}
-            {dragOver === 'before' && <div className="tree-drop-indicator" />}
+            {catDragOver === 'before' && <div className="tree-drop-indicator" />}
 
             <div
                 ref={itemRef}
                 className={[
                     'tree-item',
-                    isSelected  ? 'tree-item--selected' : '',
-                    dragOver === 'inside' ? 'tree-item--dragover-inside' : '',
+                    isSelected          ? 'tree-item--selected'       : '',
+                    catDragOver === 'inside' ? 'tree-item--dragover-inside' : '',
+                    courseDropOver      ? 'tree-item--course-dropover' : '',
                 ].join(' ')}
                 style={{ paddingLeft: `${10 + depth * 16}px` }}
                 draggable
-                onDragStart={handleDragStart}
+                onDragStart={handleCatDragStart}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -148,10 +165,8 @@ function TreeItem({
             >
                 <span className="tree-drag-handle"><GripVertical size={12} /></span>
 
-                <button
-                    className="tree-toggle"
-                    onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
-                >
+                <button className="tree-toggle"
+                    onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}>
                     {hasChildren
                         ? (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />)
                         : <span className="tree-toggle--spacer" />}
@@ -167,7 +182,7 @@ function TreeItem({
                         onChange={e => setEditingName(e.target.value)}
                         onBlur={() => onRename(category.id, editingName)}
                         onKeyDown={e => {
-                            if (e.key === 'Enter')  { e.preventDefault(); onRename(category.id, editingName); }
+                            if (e.key === 'Enter') { e.preventDefault(); onRename(category.id, editingName); }
                             if (e.key === 'Escape') { onRename(category.id, category.name); }
                         }}
                         onClick={e => e.stopPropagation()}
@@ -176,11 +191,31 @@ function TreeItem({
                     <span className="tree-name">{category.name || 'หมวดใหม่'}</span>
                 )}
 
-                <span className="tree-credits">{category.requiredCredits} หน่วยกิต</span>
+                <span className={`tree-credits ${displayCredits > 0 && displayCredits !== category.requiredCredits ? 'tree-credits--live' : ''}`}>
+                    {displayCredits} หน่วยกิต
+                </span>
+
+                {isLeaf && courses.length > 0 && (
+                    <span className="tree-course-badge">{courses.length}</span>
+                )}
             </div>
 
-            {/* Drop indicator — after */}
-            {dragOver === 'after' && <div className="tree-drop-indicator" />}
+            {catDragOver === 'after' && <div className="tree-drop-indicator" />}
+
+            {/* รายวิชา inline เมื่อ selected */}
+            {isLeaf && isSelected && courses.length > 0 && (
+                <div className="course-list-inline" style={{ paddingLeft: `${26 + depth * 16}px` }}>
+                    {courses.map(course => (
+                        <CourseItem
+                            key={course.id}
+                            course={course}
+                            categoryId={category.id}
+                            onDelete={onDeleteCourse}
+                            onCourseDragStart={() => {}}
+                        />
+                    ))}
+                </div>
+            )}
 
             {/* Children */}
             {hasChildren && expanded && (
@@ -200,7 +235,12 @@ function TreeItem({
                             setEditingName={setEditingName}
                             onRename={onRename}
                             onStartEdit={onStartEdit}
-                            onDrop={onDrop}
+                            onCatDrop={onCatDrop}
+                            onCourseDropToCategory={onCourseDropToCategory}
+                            coursesByCategoryId={coursesByCategoryId}
+                            onDeleteCourse={onDeleteCourse}
+                            creditMap={creditMap}
+                            draggingCourse={draggingCourse}
                         />
                     ))}
                 </div>
@@ -218,91 +258,63 @@ export default function CourseCategoryTree({
     onSelect,
     onCreateCategory,
     onRename,
-    onReorder,   // (newCategories) → set state ใน page.js
+    onReorder,
     template,
+    coursesByCategoryId = {},
+    onDeleteCourse,
+    onMoveCourseToCategory,  // (course, fromCatId, toCatId)
+    creditMap = {},
 }) {
-    const [editingId,   setEditingId]   = useState(null);
-    const [editingName, setEditingName] = useState('');
+    const [editingId,      setEditingId]      = useState(null);
+    const [editingName,    setEditingName]     = useState('');
+    const [draggingCourse, setDraggingCourse] = useState(false);
 
-    // auto focus เมื่อมี isNew
-    // เมื่อ categories เปลี่ยน → หา node ที่มี isNew = true → setEditingId เพื่อ auto focus input
-    // เดี๋ยวในอนาคตจะกลับมา Refactor เป็น useRef แทน 
     useEffect(() => {
         const newCat = findNew(categories);
-        if (newCat) {
-            setEditingId(newCat.id);
-            setEditingName('');
-        }
+        if (newCat) { setEditingId(newCat.id); setEditingName(''); }
     }, [categories]);
 
     const handleStartEdit = useCallback((cat) => {
-        setEditingId(cat.id);
-        setEditingName(cat.name);
+        setEditingId(cat.id); setEditingName(cat.name);
     }, []);
-
     const handleRename = useCallback((id, newName) => {
-        onRename(id, newName || 'หมวดใหม่');
-        setEditingId(null);
+        onRename(id, newName || 'หมวดใหม่'); setEditingId(null);
     }, [onRename]);
 
-    // ============================================================
-    // handleDrop — core sortable logic
-    // sourceInfo = { cat, parentId }
-    // targetInfo = { cat, parentId, index, siblings }
-    // position   = 'before' | 'after' | 'inside'
-    // ============================================================
-    const handleDrop = useCallback((sourceInfo, targetInfo, position) => {
-        const { cat: srcCat, parentId: srcParentId } = sourceInfo;
+    const handleCatDrop = useCallback((sourceInfo, targetInfo, position) => {
+        const { cat: srcCat } = sourceInfo;
         const { cat: tgtCat, parentId: tgtParentId, index: tgtIndex } = targetInfo;
-
-        // ไม่ drop ลงใน descendant ตัวเอง
         if (isDescendant(srcCat, tgtCat.id)) return;
-
-        // 1. ลบ source ออกจากที่เดิม
         let newCats = removeNode(categories, srcCat.id);
-
         if (position === 'inside') {
-            // วาง inside target → เป็น child ของ target
             newCats = insertAsChild(newCats, tgtCat.id, srcCat);
         } else {
-            // วาง before/after target → sibling ของ target
-            const insertIdx = position === 'before' ? tgtIndex : tgtIndex + 1;
-            newCats = insertAtIndex(newCats, tgtParentId, srcCat, insertIdx);
+            newCats = insertAtIndex(newCats, tgtParentId, srcCat, position === 'before' ? tgtIndex : tgtIndex + 1);
         }
-
-        // 2. recode ใหม่ทั้ง tree
-        newCats = recodeChildren(newCats, '');
-
-        onReorder(newCats);
+        onReorder(recodeChildren(newCats, ''));
     }, [categories, onReorder]);
 
-    // Drop zone ที่ root level (ด้านล่าง tree ทั้งหมด)
     const handleRootDrop = (e) => {
         e.preventDefault();
-        if (!globalDragSource) return;
-        const { cat: srcCat } = globalDragSource;
-        let newCats = removeNode(categories, srcCat.id);
-        newCats = [...newCats, srcCat];
-        newCats = recodeChildren(newCats, '');
-        onReorder(newCats);
-        globalDragSource = null;
+        if (globalCourseDrag) { globalCourseDrag = null; return; }
+        if (!globalCatDrag) return;
+        let newCats = removeNode(categories, globalCatDrag.cat.id);
+        onReorder(recodeChildren([...newCats, globalCatDrag.cat], ''));
+        globalCatDrag = null;
     };
+
+    const handleCourseDropToCategory = useCallback((course, fromCatId, toCatId) => {
+        onMoveCourseToCategory(course, fromCatId, toCatId);
+        setDraggingCourse(false);
+    }, [onMoveCourseToCategory]);
 
     return (
         <div className="tm-panel tm-panel--tree">
             <div className="panel-header">
                 <h2>หมวดวิชา</h2>
+                {template && <span className="panel-badge--template" title={template.name}>{template.name}</span>}
                 {template && (
-                    <span className="panel-badge--template" title={template.name}>
-                        {template.name}
-                    </span>
-                )}
-                {template && (
-                    <button
-                        className="btn btn--ghost btn--sm"
-                        title="เพิ่มหมวดวิชาใหม่"
-                        onClick={onCreateCategory}
-                    >
+                    <button className="btn btn--ghost btn--sm" title="เพิ่มหมวดวิชาใหม่" onClick={onCreateCategory}>
                         <Plus size={14} />
                     </button>
                 )}
@@ -332,15 +344,16 @@ export default function CourseCategoryTree({
                             setEditingName={setEditingName}
                             onRename={handleRename}
                             onStartEdit={handleStartEdit}
-                            onDrop={handleDrop}
+                            onCatDrop={handleCatDrop}
+                            onCourseDropToCategory={handleCourseDropToCategory}
+                            coursesByCategoryId={coursesByCategoryId}
+                            onDeleteCourse={onDeleteCourse}
+                            creditMap={creditMap}
+                            draggingCourse={draggingCourse}
                         />
                     ))}
-                    {/* drop zone ด้านล่าง */}
-                    <div
-                        className="tree-root-drop-zone"
-                        onDragOver={e => e.preventDefault()}
-                        onDrop={handleRootDrop}
-                    />
+                    <div className="tree-root-drop-zone"
+                        onDragOver={e => e.preventDefault()} onDrop={handleRootDrop} />
                 </div>
             )}
         </div>
@@ -348,50 +361,8 @@ export default function CourseCategoryTree({
 }
 
 // ============================================================
-// Tree operation helpers
+// Tree helpers
 // ============================================================
-
-// ลบ node ออกจาก tree
-function removeNode(cats, id) {
-    return cats
-        .filter(c => c.id !== id)
-        .map(c => ({ ...c, children: removeNode(c.children || [], id) }));
-}
-
-// แทรก node เป็น child ของ targetId
-function insertAsChild(cats, targetId, node) {
-    return cats.map(c => {
-        if (c.id === targetId) {
-            return { ...c, children: [...(c.children || []), node] };
-        }
-        return { ...c, children: insertAsChild(c.children || [], targetId, node) };
-    });
-}
-
-// แทรก node ที่ index ใน parent (parentId=null → root)
-function insertAtIndex(cats, parentId, node, index) {
-    if (parentId === null) {
-        const result = [...cats];
-        result.splice(index, 0, node);
-        return result;
-    }
-    return cats.map(c => {
-        if (c.id === parentId) {
-            const children = [...(c.children || [])];
-            children.splice(index, 0, node);
-            return { ...c, children };
-        }
-        return { ...c, children: insertAtIndex(c.children || [], parentId, node, index) };
-    });
-}
-
-// เช็คว่า node เป็น descendant ของ id หรือไม่
-function isDescendant(node, id) {
-    if (!node.children?.length) return false;
-    return node.children.some(c => c.id === id || isDescendant(c, id));
-}
-
-// หา node ที่มี isNew
 function findNew(cats) {
     for (const cat of cats) {
         if (cat.isNew) return cat;
@@ -399,6 +370,29 @@ function findNew(cats) {
         if (found) return found;
     }
     return null;
+}
+function removeNode(cats, id) {
+    return cats.filter(c => c.id !== id).map(c => ({ ...c, children: removeNode(c.children || [], id) }));
+}
+function insertAsChild(cats, targetId, node) {
+    return cats.map(c => {
+        if (c.id === targetId) return { ...c, children: [...(c.children || []), node] };
+        return { ...c, children: insertAsChild(c.children || [], targetId, node) };
+    });
+}
+function insertAtIndex(cats, parentId, node, index) {
+    if (parentId === null) { const r = [...cats]; r.splice(index, 0, node); return r; }
+    return cats.map(c => {
+        if (c.id === parentId) {
+            const children = [...(c.children || [])]; children.splice(index, 0, node);
+            return { ...c, children };
+        }
+        return { ...c, children: insertAtIndex(c.children || [], parentId, node, index) };
+    });
+}
+function isDescendant(node, id) {
+    if (!node.children?.length) return false;
+    return node.children.some(c => c.id === id || isDescendant(c, id));
 }
 
 export { getNextCode, getDepthFromCode };

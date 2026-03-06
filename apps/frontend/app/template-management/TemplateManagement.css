@@ -527,3 +527,186 @@
     color: #fff;
 }
 .btn--danger:hover { background: #dc2626; }
+
+/* ============================================================
+   Course List — inline in tree + panel
+   ============================================================ */
+
+/* badge จำนวนวิชาใน tree node */
+.tree-course-badge {
+    margin-left: auto;
+    background: rgba(59,130,246,0.2);
+    color: #7dd3fc;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid rgba(59,130,246,0.3);
+    flex-shrink: 0;
+}
+
+/* inline course rows ใต้ tree node */
+.course-list-inline {
+    padding-top: 2px;
+    padding-bottom: 4px;
+}
+
+.course-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.5rem 0.3rem 0;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    border-left: 2px solid #2d3748;
+    margin-left: 8px;
+    padding-left: 8px;
+    transition: background 0.1s;
+}
+
+.course-row:hover { background: #1e2535; border-radius: 4px; }
+.course-row__icon { color: #3b82f6; flex-shrink: 0; }
+.course-row__code { color: #7dd3fc; font-size: 0.7rem; flex-shrink: 0; }
+.course-row__name { flex: 1; color: #cbd5e1; }
+.course-row__credits { font-size: 0.65rem; color: #475569; flex-shrink: 0; }
+
+/* course list ใน Panel 3 */
+.course-panel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.course-panel-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.75rem;
+    background: #243044;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+}
+
+.course-panel-item:hover { border-color: #3b4a63; }
+.course-panel-item--selected {
+    border-color: #3b82f6;
+    background: #1e3a5f;
+}
+
+.course-panel-item__info { flex: 1; min-width: 0; }
+.course-panel-item__code {
+    display: block;
+    font-size: 0.68rem;
+    color: #7dd3fc;
+    font-weight: 600;
+}
+.course-panel-item__name {
+    display: block;
+    font-size: 0.8rem;
+    color: #e2e8f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.course-panel-item__credits {
+    font-size: 0.7rem;
+    color: #64748b;
+    flex-shrink: 0;
+}
+
+/* icon-btn xs */
+.icon-btn--xs { padding: 0.2rem; }
+
+/* info banner */
+.info-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.875rem;
+    background: rgba(239, 68, 68, 0.06);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: 8px;
+    font-size: 0.78rem;
+    color: #f87171;
+}
+
+.info-banner--neutral {
+    background: rgba(59, 130, 246, 0.06);
+    border-color: rgba(59, 130, 246, 0.15);
+    color: #7dd3fc;
+}
+
+/* detail section count + course name */
+.detail-section__count {
+    margin-left: 0.4rem;
+    font-size: 0.68rem;
+    color: #475569;
+    font-weight: 400;
+}
+
+.detail-section__course-name {
+    margin-left: 0.4rem;
+    color: #7dd3fc;
+    font-weight: 600;
+    font-size: 0.72rem;
+}
+
+/* credits ที่คำนวณจากวิชาจริง */
+.tree-credits--live {
+    color: #7dd3fc;
+    font-weight: 600;
+}
+
+/* ============================================================
+   Course drag & drop
+   ============================================================ */
+
+/* grip icon ใน course-row (tree inline) */
+.course-row__grip {
+    color: #3b4a63;
+    cursor: grab;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+.course-row:hover .course-row__grip { opacity: 1; }
+
+/* highlight leaf node เมื่อ course drag มาวางทับ */
+.tree-item--course-dropover {
+    background: #1a3a2a !important;
+    outline: 1px dashed #34d399;
+    border-radius: 6px;
+}
+
+/* drop indicator ระหว่าง course items ใน Panel 3 */
+.sortable-course-wrapper { position: relative; }
+.course-drop-indicator {
+    height: 2px;
+    background: #3b82f6;
+    border-radius: 2px;
+    margin: 2px 0;
+    pointer-events: none;
+}
+
+/* grip ใน course-panel-item */
+.course-panel-item__grip {
+    color: #3b4a63;
+    cursor: grab;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+.course-panel-item:hover .course-panel-item__grip { opacity: 1; }
+
+/* hint text ใน section title */
+.detail-section__hint {
+    margin-left: auto;
+    font-size: 0.65rem;
+    color: #475569;
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
