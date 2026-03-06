@@ -1,74 +1,196 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { MOCK_TEMPLATES, MOCK_COMPETENCIES, MOCK_CATEGORIES } from './mockData';
-import TemplateList        from './components/TemplateList';
-import CourseCategoryTree  from './components/CourseCategoryTree';
+import TemplateList          from './components/TemplateList';
+import CourseCategoryTree, { getNextCode, getDepthFromCode } from './components/CourseCategoryTree';
 import CourseCompetencyPanel from './components/CourseCompetencyPanel';
-import TemplateFormModal   from './components/TemplateFormModal';
+import TemplateFormModal     from './components/TemplateFormModal';
 import './TemplateManagement.css';
 
+// ============================================================
+// Pure recursive helpers (ไว้นอก component เพื่อไม่ recreate)
+// ============================================================
+
+// แทรก child เข้า parent ที่ตรงกับ parentId
+function insertChild(cats, parentId, newChild) {
+    return cats.map(cat => {
+        if (cat.id === parentId) {
+            return { ...cat, children: [...(cat.children || []), newChild] };
+        }
+        if (cat.children?.length > 0) {
+            return { ...cat, children: insertChild(cat.children, parentId, newChild) };
+        }
+        return cat;
+    });
+}
+
+// rename category ด้วย id
+function renameCategory(cats, id, newName) {
+    return cats.map(cat => {
+        if (cat.id === id) return { ...cat, name: newName, isNew: false };
+        if (cat.children?.length > 0) {
+            return { ...cat, children: renameCategory(cat.children, id, newName) };
+        }
+        return cat;
+    });
+}
+
+// หา category จาก id (recursive)
+function findById(cats, id) {
+    for (const cat of cats) {
+        if (cat.id === id) return cat;
+        const found = findById(cat.children || [], id);
+        if (found) return found;
+    }
+    return null;
+}
+
+// ลบ category ออกจาก tree
+function removeById(cats, id) {
+    return cats
+        .filter(cat => cat.id !== id)
+        .map(cat => ({
+            ...cat,
+            children: removeById(cat.children || [], id),
+        }));
+}
+
+// ย้าย sourceId ไปเป็น child ของ targetId (null = root level)
+function moveCategory(cats, sourceId, targetId) {
+    const source = findById(cats, sourceId);
+    if (!source) return cats;
+
+    // ลบออกจากที่เดิม
+    let result = removeById(cats, sourceId);
+
+    if (targetId === null) {
+        // ย้ายไป root level
+        result = [...result, source];
+    } else {
+        // ย้ายเป็น child ของ target
+        result = insertChild(result, targetId, source);
+    }
+    return result;
+}
+
+// หา children โดยตรงของ parentId (หรือ root ถ้า parentId = null)
+function getDirectChildren(cats, parentId) {
+    if (!parentId) return cats;
+    const parent = findById(cats, parentId);
+    return parent?.children || [];
+}
+
+// ============================================================
+// Main Page
+// ============================================================
 export default function TemplateManagementPage() {
-    // ---- State ----
     const [templates,    setTemplates]    = useState(MOCK_TEMPLATES);
     const [competencies, setCompetencies] = useState(MOCK_COMPETENCIES);
+    const [categories,   setCategories]   = useState(MOCK_CATEGORIES);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState(null);
-    const [showModal, setShowModal] = useState(false);
-
-    // เพิ่ม state สำหรับ categories (ย้ายออกจาก MOCK_CATEGORIES)
-    const [categories, setCategories] = useState(MOCK_CATEGORIES);
-
-    // เก็บ weights แยกตาม categoryId → [{ competency, weight }]
+    const [showModal,    setShowModal]    = useState(false);
     const [categoryWeights, setCategoryWeights] = useState({});
 
-    // weights ของ category ที่เลือกอยู่ตอนนี้
+    // id counters
+    const idRef       = useRef(9000);
+    const compIdRef   = useRef(8000);
+    const templateRef = useRef(7000);
+
     const currentWeights = selectedCategory
         ? (categoryWeights[selectedCategory.id] || [])
         : [];
 
-    // ---- Template Handlers ----
-    const handleSelectTemplate = (t) => {
+    // ---- Template ----
+    const handleSelectTemplate = useCallback((t) => {
         setSelectedTemplate(t);
         setSelectedCategory(null);
-    };
+    }, []);
 
-    const handleDeleteTemplate = (id) => {
+    const handleDeleteTemplate = useCallback((id) => {
         setTemplates(prev => prev.filter(t => t.id !== id));
-        if (selectedTemplate?.id === id) {
-            setSelectedTemplate(null);
-            setSelectedCategory(null);
-        }
-    };
+        setSelectedTemplate(prev => prev?.id === id ? null : prev);
+        setSelectedCategory(null);
+    }, []);
 
-    const handleSaveTemplate = ({ name, year }) => {
-        setTemplates(prev => [
-            ...prev,
-            { id: Date.now(), name, year, courseCount: 0 },
-        ]);
+    const handleSaveTemplate = useCallback(({ name, year }) => {
+        const newId = ++templateRef.current;
+        setTemplates(prev => [...prev, { id: newId, name, year, courseCount: 0 }]);
         setShowModal(false);
-    };
+    }, []);
 
-    // ---- Category Handlers ----
-    const handleSelectCategory = (cat) => {
+    // ---- Category ----
+    const handleSelectCategory = useCallback((cat) => {
         setSelectedCategory(cat);
-    };
+    }, []);
 
-    // ---- Competency Handlers ----
+    const createCourseCategory = useCallback(() => {
+        const newId = ++idRef.current;
 
-    // TagInput เปลี่ยน → sync weights (คง weight เดิมถ้ามี)
-    const handleCompetencyChange = (newSelected) => {
+        // คำนวณ code อัตโนมัติ
+        let newCode = '';
+        let parentDepth = 0;
+
+        if (!selectedCategory) {
+            // root level
+            const siblings = getDirectChildren(categories, null);
+            newCode = getNextCode('', siblings);
+            parentDepth = 0;
+        } else {
+            parentDepth = getDepthFromCode(selectedCategory.code);
+
+            // จำกัดแค่ depth 2 (เช่น 1.1.1) ไม่ให้ลึกกว่านี้
+            if (parentDepth >= 2) {
+                alert('ไม่สามารถสร้างหมวดวิชาที่ลึกกว่า 3 ระดับได้');
+                return;
+            }
+
+            const siblings = getDirectChildren(categories, selectedCategory.id);
+            newCode = getNextCode(selectedCategory.code, siblings);
+        }
+
+        const newCategory = {
+            id: newId,
+            code: newCode,
+            name: '',
+            requiredCredits: 0,
+            children: [],
+            isNew: true,
+        };
+
+        if (!selectedCategory) {
+            setCategories(prev => [...prev, newCategory]);
+        } else {
+            setCategories(prev => insertChild(prev, selectedCategory.id, newCategory));
+        }
+
+        setSelectedCategory(newCategory);
+    }, [selectedCategory, categories]);
+
+    const handleRenameCategory = useCallback((id, newName) => {
+        setCategories(prev => renameCategory(prev, id, newName));
+    }, []);
+
+    const handleMoveCategory = useCallback((sourceId, targetId) => {
+        if (!sourceId) return;
+        setCategories(prev => moveCategory(prev, sourceId, targetId));
+    }, []);
+
+    // ---- Competency ----
+    const handleCompetencyChange = useCallback((newSelected) => {
         if (!selectedCategory) return;
-        const prev = categoryWeights[selectedCategory.id] || [];
-        const updated = newSelected.map(comp => {
-            const existing = prev.find(w => w.competency.id === comp.id);
-            return existing ?? { competency: comp, weight: 0 };
+        setCategoryWeights(p => {
+            const prev = p[selectedCategory.id] || [];
+            const updated = newSelected.map(comp => {
+                const existing = prev.find(w => w.competency.id === comp.id);
+                return existing ?? { competency: comp, weight: 0 };
+            });
+            return { ...p, [selectedCategory.id]: updated };
         });
-        setCategoryWeights(p => ({ ...p, [selectedCategory.id]: updated }));
-    };
+    }, [selectedCategory]);
 
-    // กรอก weight ของ competency ตัวใดตัวหนึ่ง
-    const handleWeightChange = (compId, value) => {
+    const handleWeightChange = useCallback((compId, value) => {
         if (!selectedCategory) return;
         setCategoryWeights(p => ({
             ...p,
@@ -78,96 +200,40 @@ export default function TemplateManagementPage() {
                     : w
             ),
         }));
-    };
+    }, [selectedCategory]);
 
-    // สร้าง Competency ใหม่จาก TagInput
-    const handleCreateCompetency = (name) => {
+    const handleCreateCompetency = useCallback((name) => {
         const newComp = {
-            id: Date.now(),
-            code: `custom_${Date.now()}`,
+            id: ++compIdRef.current,
+            code: `custom_${compIdRef.current}`,
             name,
             color: '#7dd3fc',
         };
         setCompetencies(prev => [...prev, newComp]);
         return newComp;
-    };
+    }, []);
 
-    // บันทึก Competency (TODO: ต่อ API)
-    const handleSaveCompetency = () => {
+    const handleSaveCompetency = useCallback(() => {
         console.log('save competency weights:', currentWeights);
         alert('บันทึก Competency เรียบร้อย (mock)');
-    };
+    }, [currentWeights]);
 
-    // เพิ่มรายวิชา (TODO: ต่อ API)
-    const handleAddCourse = (data) => {
+    const handleAddCourse = useCallback((data) => {
         console.log('add course:', data);
         setTemplates(prev => prev.map(t =>
             t.id === selectedTemplate?.id
                 ? { ...t, courseCount: t.courseCount + 1 }
                 : t
         ));
-    };
-
-    // ---- สร้างหมวดวิชาใหม่ ----
-    const createCourseCategory = (templateId) => {
-        const newCategory = {
-            id: Date.now(),
-            code: '',           // ให้กรอกทีหลัง หรือ auto generate
-            name: 'หมวดใหม่',  // ชื่อ default → ให้ rename ทีหลัง
-            requiredCredits: 0,
-            children: [],
-            isNew: true,        // flag สำหรับ auto focus เพื่อให้ rename ทันที
-        };
-
-        if (!selectedCategory) {
-            // ไม่มีเลือก → เพิ่มเป็น root
-            setCategories(prev => [...prev, newCategory]);
-        } else {
-            // มีเลือก → เพิ่มเป็น child ของที่เลือก
-            setCategories(prev => insertChild(prev, selectedCategory.id, newCategory));
-        }
-
-        setSelectedCategory(newCategory);
-    };
-    
-    // recursive helper — หา parent แล้วแทรก child
-    function insertChild(categories, parentId, newChild) {
-        return categories.map(cat => {
-            if (cat.id === parentId) {
-                return { ...cat, children: [...cat.children, newChild] };
-            }
-            if (cat.children?.length > 0) {
-                return { ...cat, children: insertChild(cat.children, parentId, newChild) };
-            }
-            return cat;
-        });
-    }
-
-    const handleRenameCategory = (id, newName) => {
-        setCategories(prev => renameCategory(prev, id, newName));
-    };
-
-    function renameCategory(categories, id, newName) {
-        return categories.map(cat => {
-            if (cat.id === id) return { ...cat, name: newName, isNew: false };
-            if (cat.children?.length > 0) {
-                return { ...cat, children: renameCategory(cat.children, id, newName) };
-            }
-            return cat;
-        });
-    }
+    }, [selectedTemplate]);
 
     return (
         <div className="tm-page">
-            {/* Header */}
             <div className="tm-header">
                 <h1 className="tm-header__title">จัดการ Template หลักสูตร</h1>
             </div>
 
-            {/* 3 Panel Layout */}
             <div className="tm-panels">
-
-                {/* Panel 1 */}
                 <TemplateList
                     templates={templates}
                     selectedId={selectedTemplate?.id}
@@ -176,16 +242,16 @@ export default function TemplateManagementPage() {
                     onClickCreate={() => setShowModal(true)}
                 />
 
-                {/* Panel 2 */}
                 <CourseCategoryTree
                     categories={categories}
                     selectedId={selectedCategory?.id}
-                    onCreateCategory={createCourseCategory} 
-                    onRename={handleRenameCategory}         
+                    onSelect={handleSelectCategory}
+                    onCreateCategory={createCourseCategory}
+                    onRename={handleRenameCategory}
+                    onMoveCategory={handleMoveCategory}
                     template={selectedTemplate}
                 />
 
-                {/* Panel 3 */}
                 <CourseCompetencyPanel
                     category={selectedCategory}
                     competencies={competencies}
@@ -198,7 +264,6 @@ export default function TemplateManagementPage() {
                 />
             </div>
 
-            {/* Modal */}
             {showModal && (
                 <TemplateFormModal
                     onClose={() => setShowModal(false)}

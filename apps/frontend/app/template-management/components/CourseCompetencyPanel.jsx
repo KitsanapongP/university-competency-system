@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import CompetencyWeightForm from './CompetencyWeightForm';
 
 /**
