@@ -1,68 +1,97 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Plus, Trash2, AlertCircle, GripVertical } from 'lucide-react';
-import CompetencyWeightForm from './CompetencyWeightForm';
+import { Plus, Trash2, AlertCircle, GripVertical, Pencil } from 'lucide-react';
+
+// ============================================================
+// CompetencyTags — แถว tags ใต้ชื่อวิชา
+// ============================================================
+function CompetencyTags({ weights = [] }) {
+    if (weights.length === 0) return null;
+    return (
+        <div className="course-competency-tags">
+            {weights.map(({ competency, weight }) => (
+                <span
+                    key={competency.id}
+                    className="competency-tag"
+                    style={{ '--tag-color': competency.color || '#7dd3fc' }}
+                    title={`${competency.name} — ${weight}%`}
+                >
+                    <span className="competency-tag__dot" />
+                    {competency.name}
+                    {weight > 0 && <span className="competency-tag__weight">{weight}%</span>}
+                </span>
+            ))}
+        </div>
+    );
+}
 
 // ============================================================
 // SortableCourseItem — drag to reorder ใน Panel 3
 // ============================================================
-function SortableCourseItem({ course, index, isSelected, onSelect, onDelete, onReorder }) {
-    const [dragOver, setDragOver] = useState(null); // 'before' | 'after'
+function SortableCourseItem({ course, index, onDelete, onReorder, onEdit, lang, weights }) {
+    const [dragOver, setDragOver] = useState(null);
     const itemRef = useRef(null);
-    const dragIdxRef = useRef(null);
 
     const handleDragStart = (e) => {
-        dragIdxRef.current = index;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('courseIndex', String(index));
     };
-
     const handleDragOver = (e) => {
         e.preventDefault();
         const rect = itemRef.current?.getBoundingClientRect();
         if (!rect) return;
-        const y = e.clientY - rect.top;
-        setDragOver(y < rect.height / 2 ? 'before' : 'after');
+        setDragOver(e.clientY - rect.top < rect.height / 2 ? 'before' : 'after');
     };
-
     const handleDrop = (e) => {
         e.preventDefault();
         const fromIdx = parseInt(e.dataTransfer.getData('courseIndex'), 10);
-        if (isNaN(fromIdx) || fromIdx === index) { setDragOver(null); return; }
-        const toIdx = dragOver === 'before' ? index : index + 1;
-        onReorder(fromIdx, toIdx);
+        if (!isNaN(fromIdx) && fromIdx !== index) {
+            onReorder(fromIdx, dragOver === 'before' ? index : index + 1);
+        }
         setDragOver(null);
     };
+
+    const displayName = lang === 'en' && course.nameEn ? course.nameEn : course.nameTh;
 
     return (
         <div className="sortable-course-wrapper">
             {dragOver === 'before' && <div className="course-drop-indicator" />}
             <div
                 ref={itemRef}
-                className={`course-panel-item ${isSelected ? 'course-panel-item--selected' : ''}`}
+                className="course-panel-item"
                 draggable
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={handleDrop}
-                onClick={() => onSelect(course)}
             >
-                <span className="course-panel-item__grip">
-                    <GripVertical size={13} />
-                </span>
-                <div className="course-panel-item__info">
-                    <span className="course-panel-item__code">{course.code}</span>
-                    <span className="course-panel-item__name">{course.nameTh}</span>
+                {/* แถวบน: grip / รหัส / ชื่อ / หน่วยกิต / ปุ่ม */}
+                <div className="course-panel-item__row">
+                    <span className="course-panel-item__grip"><GripVertical size={13} /></span>
+                    <div className="course-panel-item__info">
+                        <span className="course-panel-item__code">{course.code}</span>
+                        <span className="course-panel-item__name">{displayName}</span>
+                    </div>
+                    <span className="course-panel-item__credits">{course.credits} หน่วยกิต</span>
+                    <button
+                        className="icon-btn icon-btn--edit icon-btn--xs"
+                        onClick={e => { e.stopPropagation(); onEdit(course); }}
+                        title="แก้ไขรายวิชา"
+                    >
+                        <Pencil size={13} />
+                    </button>
+                    <button
+                        className="icon-btn icon-btn--danger icon-btn--xs"
+                        onClick={e => { e.stopPropagation(); onDelete(course.id); }}
+                        title="ลบรายวิชา"
+                    >
+                        <Trash2 size={13} />
+                    </button>
                 </div>
-                <span className="course-panel-item__credits">{course.credits} หน่วยกิต</span>
-                <button
-                    className="icon-btn icon-btn--danger icon-btn--xs"
-                    onClick={e => { e.stopPropagation(); onDelete(course.id); }}
-                    title="ลบรายวิชา"
-                >
-                    <Trash2 size={13} />
-                </button>
+
+                {/* แถวล่าง: competency tags */}
+                <CompetencyTags weights={weights} />
             </div>
             {dragOver === 'after' && <div className="course-drop-indicator" />}
         </div>
@@ -74,36 +103,21 @@ function SortableCourseItem({ course, index, isSelected, onSelect, onDelete, onR
 // ============================================================
 export default function CourseCompetencyPanel({
     category,
-    competencies = [],
-    selectedWeights = [],
     courses = [],
-    selectedCourse,
-    onSelectCourse,
-    onCompetencyChange,
-    onWeightChange,
-    onCreateCompetency,
-    onSaveCompetency,
-    onAddCourse,
+    courseWeightsMap = {},  // { [courseId]: [{ competency, weight }] }
     onDeleteCourse,
     onDeleteCategory,
-    onReorderCourses,   // (fromIdx, toIdx) → จัดลำดับใหม่
+    onReorderCourses,
+    onOpenAddModal,
+    onOpenEditModal,
+    lang = 'th',
 }) {
-    const [courseForm, setCourseForm] = useState({
-        code: '', nameTh: '', nameEn: '', credits: '',
-    });
-
     const isLeaf = category && !category.children?.length;
-
-    const handleAddCourse = () => {
-        if (!courseForm.code.trim() || !courseForm.nameTh.trim()) return;
-        onAddCourse({ ...courseForm, credits: Number(courseForm.credits) || 3 });
-        setCourseForm({ code: '', nameTh: '', nameEn: '', credits: '' });
-    };
 
     return (
         <div className="tm-panel tm-panel--detail">
 
-            {/* Header */}
+            {/* ── Header ── */}
             <div className="panel-header">
                 <h2>รายวิชา & Competency</h2>
                 {category && (
@@ -122,49 +136,35 @@ export default function CourseCompetencyPanel({
                 )}
             </div>
 
-            {/* Body */}
+            {/* ── Body ── */}
             {!category ? (
                 <div className="panel-empty">เลือกหมวดวิชาก่อน</div>
+            ) : !isLeaf ? (
+                <div className="panel-empty">
+                    <AlertCircle size={20} opacity={0.4} />
+                    <span>สามารถเพิ่มรายวิชาได้เฉพาะหมวดวิชาย่อยที่สุดเท่านั้น</span>
+                </div>
             ) : (
                 <div className="detail-body">
 
-                    {/* เพิ่มรายวิชา */}
-                    <div className="detail-section">
-                        <h3 className="detail-section__title"><Plus size={14} /> เพิ่มรายวิชา</h3>
-                        {!isLeaf ? (
-                            <div className="info-banner">
-                                <AlertCircle size={14} />
-                                สามารถเพิ่มรายวิชาได้เฉพาะหมวดวิชาย่อยที่สุดเท่านั้น
-                            </div>
-                        ) : (
-                            <div className="course-form">
-                                <input className="form-input" placeholder="รหัสวิชา เช่น CP351001"
-                                    value={courseForm.code}
-                                    onChange={e => setCourseForm(p => ({ ...p, code: e.target.value }))} />
-                                <input className="form-input" placeholder="ชื่อวิชาภาษาไทย"
-                                    value={courseForm.nameTh}
-                                    onChange={e => setCourseForm(p => ({ ...p, nameTh: e.target.value }))} />
-                                <input className="form-input" placeholder="ชื่อวิชาภาษาอังกฤษ"
-                                    value={courseForm.nameEn}
-                                    onChange={e => setCourseForm(p => ({ ...p, nameEn: e.target.value }))} />
-                                <input className="form-input" type="number" placeholder="หน่วยกิต"
-                                    min={1} max={6}
-                                    value={courseForm.credits}
-                                    onChange={e => setCourseForm(p => ({ ...p, credits: e.target.value }))} />
-                                <button className="btn btn--primary btn--sm" onClick={handleAddCourse}>
-                                    <Plus size={14} /> เพิ่มวิชา
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    {/* ปุ่มเพิ่มวิชา */}
+                    <button className="btn btn--primary btn--add-course" onClick={onOpenAddModal}>
+                        <Plus size={15} /> เพิ่มรายวิชา
+                    </button>
 
-                    {/* รายการวิชา — sortable */}
-                    {isLeaf && courses.length > 0 && (
+                    {/* รายการวิชา */}
+                    {courses.length === 0 ? (
+                        <div className="panel-empty panel-empty--sm">
+                            <span>ยังไม่มีรายวิชาในหมวดนี้</span>
+                        </div>
+                    ) : (
                         <div className="detail-section">
                             <h3 className="detail-section__title">
                                 รายวิชาในหมวดนี้
                                 <span className="detail-section__count">{courses.length} วิชา</span>
-                                <span className="detail-section__hint">ลาก <GripVertical size={11} /> เพื่อเรียงลำดับหรือย้ายหมวด</span>
+                                <span className="detail-section__hint">
+                                    ลาก <GripVertical size={11} /> เพื่อเรียงลำดับ
+                                </span>
                             </h3>
                             <div className="course-panel-list">
                                 {courses.map((course, i) => (
@@ -172,40 +172,162 @@ export default function CourseCompetencyPanel({
                                         key={course.id}
                                         course={course}
                                         index={i}
-                                        isSelected={selectedCourse?.id === course.id}
-                                        onSelect={onSelectCourse}
+                                        weights={courseWeightsMap[course.id] || []}
                                         onDelete={onDeleteCourse}
                                         onReorder={onReorderCourses}
+                                        onEdit={onOpenEditModal}
+                                        lang={lang}
                                     />
                                 ))}
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+        </div>
+    );
+    }
+    
+/*
+export function SortableCourseItem({ course, index, onDelete, onReorder, onEdit, lang }) {
+    const [dragOver, setDragOver] = useState(null);
+    const itemRef = useRef(null);
 
-                    {/* Competency ของวิชาที่เลือก */}
-                    {selectedCourse && (
+    const handleDragStart = (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('courseIndex', String(index));
+    };
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        const rect = itemRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        setDragOver(e.clientY - rect.top < rect.height / 2 ? 'before' : 'after');
+    };
+    const handleDrop = (e) => {
+        e.preventDefault();
+        const fromIdx = parseInt(e.dataTransfer.getData('courseIndex'), 10);
+        if (!isNaN(fromIdx) && fromIdx !== index) {
+            onReorder(fromIdx, dragOver === 'before' ? index : index + 1);
+        }
+        setDragOver(null);
+    };
+
+    const displayName = lang === 'en' && course.nameEn ? course.nameEn : course.nameTh;
+
+    return (
+        <div className="sortable-course-wrapper">
+            {dragOver === 'before' && <div className="course-drop-indicator" />}
+            <div
+                ref={itemRef}
+                className="course-panel-item"
+                draggable
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={handleDrop}
+            >
+                <span className="course-panel-item__grip"><GripVertical size={13} /></span>
+                <div className="course-panel-item__info">
+                    <span className="course-panel-item__code">{course.code}</span>
+                    <span className="course-panel-item__name">{displayName}</span>
+                </div>
+                <span className="course-panel-item__credits">{course.credits} หน่วยกิต</span>
+                <button
+                    className="icon-btn icon-btn--edit icon-btn--xs"
+                    onClick={e => { e.stopPropagation(); onEdit(course); }}
+                    title="แก้ไขรายวิชา"
+                >
+                    <Pencil size={13} />
+                </button>
+                <button
+                    className="icon-btn icon-btn--danger icon-btn--xs"
+                    onClick={e => { e.stopPropagation(); onDelete(course.id); }}
+                    title="ลบรายวิชา"
+                >
+                    <Trash2 size={13} />
+                </button>
+            </div>
+            {dragOver === 'after' && <div className="course-drop-indicator" />}
+        </div>
+    );
+}
+
+============================================================
+CourseCompetencyPanel — Panel 3
+============================================================
+export default function CourseCompetencyPanel({
+    category,
+    courses = [],
+    onDeleteCourse,
+    onDeleteCategory,
+    onReorderCourses,
+    onOpenAddModal,     // () → เปิด modal เพิ่มวิชา
+    onOpenEditModal,    // (course) → เปิด modal แก้ไขวิชา
+    lang = 'th',        // 'th' | 'en' — ภาษาที่แสดงชื่อวิชา
+}) {
+    const isLeaf = category && !category.children?.length;
+
+    return (
+        <div className="tm-panel tm-panel--detail">
+
+            <div className="panel-header">
+                <h2>รายวิชา & Competency</h2>
+                {category && (
+                    <>
+                        <span className="panel-badge--category" title={category.name}>
+                            {category.code} {category.name}
+                        </span>
+                        <button
+                            className="icon-btn icon-btn--danger"
+                            title="ลบหมวดวิชานี้"
+                            onClick={() => onDeleteCategory(category)}
+                        >
+                            <Trash2 size={15} />
+                        </button>
+                    </>
+                )}
+            </div>
+
+            {!category ? (
+                <div className="panel-empty">เลือกหมวดวิชาก่อน</div>
+            ) : !isLeaf ? (
+                <div className="panel-empty">
+                    <AlertCircle size={20} opacity={0.4} />
+                    <span>สามารถเพิ่มรายวิชาได้เฉพาะหมวดวิชาย่อยที่สุดเท่านั้น</span>
+                </div>
+            ) : (
+                <div className="detail-body">
+
+                    <button className="btn btn--primary btn--add-course" onClick={onOpenAddModal}>
+                        <Plus size={15} /> เพิ่มรายวิชา
+                    </button>
+                    
+                    {courses.length === 0 ? (
+                        <div className="panel-empty panel-empty--sm">
+                            <span>ยังไม่มีรายวิชาในหมวดนี้</span>
+                        </div>
+                    ) : (
                         <div className="detail-section">
                             <h3 className="detail-section__title">
-                                Competency ของ
-                                <span className="detail-section__course-name">
-                                    {selectedCourse.code} {selectedCourse.nameTh}
+                                รายวิชาในหมวดนี้
+                                <span className="detail-section__count">{courses.length} วิชา</span>
+                                <span className="detail-section__hint">
+                                    ลาก <GripVertical size={11} /> เพื่อเรียงลำดับ
                                 </span>
                             </h3>
-                            <CompetencyWeightForm
-                                competencies={competencies}
-                                selectedWeights={selectedWeights}
-                                onCompetencyChange={onCompetencyChange}
-                                onWeightChange={onWeightChange}
-                                onCreateCompetency={onCreateCompetency}
-                                onSave={onSaveCompetency}
-                            />
-                        </div>
-                    )}
-
-                    {isLeaf && courses.length > 0 && !selectedCourse && (
-                        <div className="info-banner info-banner--neutral">
-                            <AlertCircle size={14} />
-                            คลิกที่รายวิชาเพื่อผูก Competency
+                            <div className="course-panel-list">
+                                {courses.map((course, i) => (
+                                    <SortableCourseItem
+                                        key={course.id}
+                                        course={course}
+                                        index={i}
+                                        onDelete={onDeleteCourse}
+                                        onReorder={onReorderCourses}
+                                        onEdit={onOpenEditModal}
+                                        lang={lang}
+                                    />
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -213,3 +335,4 @@ export default function CourseCompetencyPanel({
         </div>
     );
 }
+*/

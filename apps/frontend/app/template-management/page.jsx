@@ -7,6 +7,7 @@ import CourseCategoryTree, { getNextCode, getDepthFromCode } from './components/
 import CourseCompetencyPanel from './components/CourseCompetencyPanel';
 import TemplateFormModal     from './components/TemplateFormModal';
 import ConfirmDeleteModal    from './components/ConfirmDeleteModal';
+import CourseFormModal       from './components/CourseFormModal';
 import './TemplateManagement.css';
 
 // ============================================================
@@ -91,6 +92,8 @@ export default function TemplateManagementPage() {
     const [showModal,        setShowModal]         = useState(false);
     const [deletingCategory, setDeletingCategory] = useState(null);
     const [deletingCourse,   setDeletingCourse]   = useState(null);
+    // modal เพิ่ม/แก้ไขวิชา — { mode: 'add'|'edit', course?: course }
+    const [courseModal,      setCourseModal]      = useState(null);
 
     const [categoriesByTemplate, setCategoriesByTemplate] = useState(() => {
         const initial = {};
@@ -279,7 +282,50 @@ export default function TemplateManagementPage() {
         setDeletingCourse(null);
     }, [deletingCourse, selectedTemplate, selectedCategory, selectedCourse, updateCurrentCourses]);
 
-    // ---- ย้ายวิชาไปยัง category อื่น (drag จาก tree) ----
+    // ---- Modal เพิ่ม/แก้ไขวิชา ----
+    const handleOpenAddModal  = useCallback(() => {
+        setCourseModal({ mode: 'add' });
+    }, []);
+
+    const handleOpenEditModal = useCallback((course) => {
+        const weights = weightsByTemplate[selectedTemplate?.id]?.[course.id] || [];
+        setCourseModal({ mode: 'edit', course, initialWeights: weights });
+    }, [weightsByTemplate, selectedTemplate]);
+
+    const handleSaveCourseModal = useCallback(({ form, weights }) => {
+        if (!selectedTemplate || !selectedCategory) return;
+
+        if (courseModal?.mode === 'add') {
+            // TODO (Backend): POST /api/templates/:templateId/categories/:categoryId/courses
+            const newCourse = { id: ++courseIdRef.current, ...form };
+            updateCurrentCourses(prev => ({
+                ...prev,
+                [selectedCategory.id]: [...(prev[selectedCategory.id] || []), newCourse],
+            }));
+            // บันทึก weights ของวิชาใหม่
+            if (weights.length > 0) {
+                setWeightsByTemplate(p => ({
+                    ...p,
+                    [selectedTemplate.id]: { ...(p[selectedTemplate.id] || {}), [newCourse.id]: weights },
+                }));
+            }
+        } else if (courseModal?.mode === 'edit') {
+            // TODO (Backend): PATCH /api/courses/:courseId  body: { code, nameTh, nameEn, credits }
+            const updatedCourse = { ...courseModal.course, ...form };
+            updateCurrentCourses(prev => ({
+                ...prev,
+                [selectedCategory.id]: (prev[selectedCategory.id] || []).map(c =>
+                    c.id === updatedCourse.id ? updatedCourse : c
+                ),
+            }));
+            // TODO (Backend): PUT /api/courses/:courseId/competencies
+            setWeightsByTemplate(p => ({
+                ...p,
+                [selectedTemplate.id]: { ...(p[selectedTemplate.id] || {}), [updatedCourse.id]: weights },
+            }));
+        }
+        setCourseModal(null);
+    }, [courseModal, selectedTemplate, selectedCategory, updateCurrentCourses]);
     const handleMoveCourseToCategory = useCallback((course, fromCatId, toCatId) => {
         if (!selectedTemplate || fromCatId === toCatId) return;
         // TODO (Backend): PATCH /api/courses/:courseId/move
@@ -387,19 +433,13 @@ export default function TemplateManagementPage() {
 
                 <CourseCompetencyPanel
                     category={selectedCategory}
-                    competencies={competencies}
-                    selectedWeights={currentWeights}
                     courses={currentCourses}
-                    selectedCourse={selectedCourse}
-                    onSelectCourse={setSelectedCourse}
-                    onCompetencyChange={handleCompetencyChange}
-                    onWeightChange={handleWeightChange}
-                    onCreateCompetency={handleCreateCompetency}
-                    onSaveCompetency={handleSaveCompetency}
-                    onAddCourse={handleAddCourse}
+                    courseWeightsMap={weightsByTemplate[selectedTemplate?.id] || {}}
                     onDeleteCourse={handleRequestDeleteCourse}
                     onDeleteCategory={handleRequestDeleteCategory}
                     onReorderCourses={handleReorderCourses}
+                    onOpenAddModal={handleOpenAddModal}
+                    onOpenEditModal={handleOpenEditModal}
                 />
             </div>
 
@@ -419,6 +459,17 @@ export default function TemplateManagementPage() {
                     label="รายวิชา"
                     onConfirm={handleConfirmDeleteCourse}
                     onCancel={() => setDeletingCourse(null)}
+                />
+            )}
+            {courseModal && (
+                <CourseFormModal
+                    mode={courseModal.mode}
+                    course={courseModal.course}
+                    initialWeights={courseModal.initialWeights || []}
+                    competencies={competencies}
+                    onSave={handleSaveCourseModal}
+                    onCancel={() => setCourseModal(null)}
+                    onCreateCompetency={handleCreateCompetency}
                 />
             )}
         </div>

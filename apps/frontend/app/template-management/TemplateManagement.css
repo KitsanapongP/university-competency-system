@@ -710,3 +710,208 @@
     align-items: center;
     gap: 2px;
 }
+
+/* ============================================================
+   Edit Course Modal
+   ============================================================ */
+.edit-course-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-label {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-weight: 500;
+    margin-top: 0.25rem;
+}
+
+.form-label--required { color: #f87171; }
+
+.form-input--sm { max-width: 120px; }
+
+/* icon-btn edit */
+.icon-btn--edit {
+    color: #94a3b8;
+}
+.icon-btn--edit:hover {
+    color: #7dd3fc;
+    background: rgba(125, 211, 252, 0.1);
+}
+
+/* btn disabled */
+.btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   CourseFormModal
+   ============================================================ */
+.modal-box--course {
+    width: min(860px, 95vw);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 2-column layout: ข้อมูลวิชา | competency */
+.cfm-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+@media (max-width: 600px) {
+    .cfm-grid { grid-template-columns: 1fr; }
+}
+
+.cfm-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.cfm-section__title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cfm-section__hint {
+    font-size: 0.7rem;
+    color: #475569;
+    font-weight: 400;
+    text-transform: none;
+}
+
+/* field + label + error */
+.cfm-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 0.5rem;
+}
+.cfm-label {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+.cfm-required { color: #f87171; }
+.cfm-error {
+    font-size: 0.7rem;
+    color: #f87171;
+}
+.cfm-field--error .form-input {
+    border-color: #f87171 !important;
+    background: rgba(248, 113, 113, 0.05);
+}
+
+/* weights inside modal */
+.cfm-weights {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.cfm-weights__label {
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-bottom: 0.25rem;
+}
+
+/* panel 3 — ปุ่มเพิ่มวิชา full width */
+.btn--add-course {
+    width: 100%;
+    justify-content: center;
+    margin-bottom: 1rem;
+    padding: 0.6rem;
+    font-size: 0.85rem;
+}
+
+/* panel empty small */
+.panel-empty--sm {
+    padding: 1.5rem 0;
+    font-size: 0.8rem;
+    color: #475569;
+}
+
+/* btn saved state */
+.btn--saved {
+    background: #059669 !important;
+    pointer-events: none;
+}
+
+/* icon-btn edit */
+.icon-btn--edit {
+    color: #94a3b8;
+}
+.icon-btn--edit:hover {
+    color: #7dd3fc;
+    background: rgba(125, 211, 252, 0.1);
+}
+
+/* btn disabled */
+.btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   Competency tags ใต้ชื่อวิชาใน Panel 3
+   ============================================================ */
+.course-panel-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0.55rem 0.65rem;
+}
+
+.course-panel-item__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.course-competency-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+    padding-left: 20px; /* indent ให้ตรงกับชื่อวิชา */
+}
+
+.competency-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.67rem;
+    font-weight: 500;
+    background: color-mix(in srgb, var(--tag-color) 15%, transparent);
+    color: var(--tag-color);
+    border: 1px solid color-mix(in srgb, var(--tag-color) 35%, transparent);
+    white-space: nowrap;
+}
+
+.competency-tag__dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--tag-color);
+    flex-shrink: 0;
+}
+
+.competency-tag__weight {
+    opacity: 0.75;
+    font-size: 0.62rem;
+    margin-left: 1px;
+}
