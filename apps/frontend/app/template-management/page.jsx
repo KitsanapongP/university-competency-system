@@ -1,104 +1,108 @@
 'use client';
 
 import { useState, useCallback, useRef, useMemo } from 'react';
+import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck } from 'lucide-react';
 import { MOCK_TEMPLATES, MOCK_COMPETENCIES, MOCK_CATEGORIES } from './mockData';
-import TemplateList          from './components/TemplateList';
-import CourseCategoryTree, { getNextCode, getDepthFromCode } from './components/CourseCategoryTree';
-import CourseCompetencyPanel from './components/CourseCompetencyPanel';
-import TemplateFormModal     from './components/TemplateFormModal';
-import ConfirmDeleteModal    from './components/ConfirmDeleteModal';
-import CourseFormModal       from './components/CourseFormModal';
+import CategoryCoursePanel  from './components/CategoryCoursePanel';
+import TemplateFormModal    from './components/TemplateFormModal';
+import ConfirmDeleteModal   from './components/ConfirmDeleteModal';
 import './TemplateManagement.css';
 
 // ============================================================
 // Pure helpers
 // ============================================================
 function insertChild(cats, parentId, newChild) {
-    return cats.map(cat => {
-        if (cat.id === parentId) return { ...cat, children: [...(cat.children || []), newChild] };
-        if (cat.children?.length > 0) return { ...cat, children: insertChild(cat.children, parentId, newChild) };
-        return cat;
+    return cats.map(c => {
+        if (c.id === parentId) return { ...c, children: [...(c.children || []), newChild] };
+        if (c.children?.length) return { ...c, children: insertChild(c.children, parentId, newChild) };
+        return c;
     });
 }
-function renameCategory(cats, id, newName) {
-    return cats.map(cat => {
-        if (cat.id === id) return { ...cat, name: newName, isNew: false };
-        if (cat.children?.length > 0) return { ...cat, children: renameCategory(cat.children, id, newName) };
-        return cat;
+function renameCategory(cats, id, name) {
+    return cats.map(c => {
+        if (c.id === id) return { ...c, name, isNew: false };
+        if (c.children?.length) return { ...c, children: renameCategory(c.children, id, name) };
+        return c;
     });
 }
 function removeCategory(cats, id) {
-    const filtered = cats.filter(c => c.id !== id);
-    return recodeSiblings(filtered.map(c => ({ ...c, children: removeCategory(c.children || [], id) })));
+    return recodeSiblings(
+        cats.filter(c => c.id !== id)
+            .map(c => ({ ...c, children: removeCategory(c.children || [], id) }))
+    );
 }
 function recodeSiblings(cats, parentCode = '') {
-    return cats.map((cat, index) => {
-        const newCode = parentCode ? `${parentCode}.${index + 1}` : `${index + 1}`;
-        return { ...cat, code: newCode, children: cat.children?.length > 0 ? recodeSiblings(cat.children, newCode) : cat.children };
+    return cats.map((c, i) => {
+        const code = parentCode ? `${parentCode}.${i + 1}` : `${i + 1}`;
+        return { ...c, code, children: c.children?.length ? recodeSiblings(c.children, code) : c.children };
     });
 }
 function findById(cats, id) {
-    for (const cat of cats) {
-        if (cat.id === id) return cat;
-        const found = findById(cat.children || [], id);
-        if (found) return found;
+    for (const c of cats) {
+        if (c.id === id) return c;
+        const f = findById(c.children || [], id);
+        if (f) return f;
     }
     return null;
 }
+function collectIds(cat) { return [cat.id, ...(cat.children || []).flatMap(collectIds)]; }
+function isDescendantOf(node, id) { return (node.children || []).some(c => c.id === id || isDescendantOf(c, id)); }
 function getDirectChildren(cats, parentId) {
     if (!parentId) return cats;
     return findById(cats, parentId)?.children || [];
 }
-function isDescendantOf(node, id) {
-    if (!node?.children?.length) return false;
-    return node.children.some(c => c.id === id || isDescendantOf(c, id));
+function getNextCode(parentCode, siblings) {
+    return parentCode ? `${parentCode}.${siblings.length + 1}` : `${siblings.length + 1}`;
 }
-function collectIds(cat) {
-    const ids = [cat.id];
-    for (const child of cat.children || []) ids.push(...collectIds(child));
-    return ids;
-}
+function getDepthFromCode(code) { return code ? code.split('.').length - 1 : 0; }
 
-// คำนวณ credits ของ subtree
-function calcSubtreeCredits(category, coursesByCatId) {
-    const ownCredits = (coursesByCatId[category.id] || [])
-        .reduce((sum, c) => sum + (Number(c.credits) || 0), 0);
-    return ownCredits + (category.children || [])
-        .reduce((sum, child) => sum + calcSubtreeCredits(child, coursesByCatId), 0);
-}
-function buildCreditMap(cats, coursesByCatId) {
-    const map = {};
-    function walk(cat) {
-        map[cat.id] = calcSubtreeCredits(cat, coursesByCatId);
-        (cat.children || []).forEach(walk);
-    }
-    cats.forEach(walk);
-    return map;
-}
-function countTotalCourses(coursesByCatId) {
-    return Object.values(coursesByCatId || {})
-        .reduce((sum, courses) => sum + (courses?.length || 0), 0);
+// ============================================================
+// TemplateCard — การ์ดแสดงใน list view
+// ============================================================
+function TemplateCard({ template, courseCount, onOpen, onDelete }) {
+    return (
+        <div className="tpl-card" onClick={() => onOpen(template)}>
+            <div className="tpl-card__icon">
+                <BookOpenCheck size={28} />
+            </div>
+            <div className="tpl-card__body">
+                <span className="tpl-card__name">{template.name}</span>
+                <div className="tpl-card__meta">
+                    <span><CalendarDays size={12}/> ปี {template.year}</span>
+                    <span><BookOpen size={12}/> {courseCount} วิชา</span>
+                </div>
+            </div>
+            <button
+                className="icon-btn icon-btn--danger tpl-card__delete"
+                title="ลบ Template"
+                onClick={e => { e.stopPropagation(); onDelete(template); }}
+            >
+                <Trash2 size={15}/>
+            </button>
+        </div>
+    );
 }
 
 // ============================================================
 // Main Page
 // ============================================================
 export default function TemplateManagementPage() {
+    // ── view: 'list' | 'editor' ──
+    const [view, setView] = useState('list');
+
     const [templates,    setTemplates]    = useState(MOCK_TEMPLATES);
     const [competencies, setCompetencies] = useState(MOCK_COMPETENCIES);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState(null);
-    const [selectedCourse,   setSelectedCourse]   = useState(null);
-    const [showModal,        setShowModal]         = useState(false);
-    const [deletingCategory, setDeletingCategory] = useState(null);
-    const [deletingCourse,   setDeletingCourse]   = useState(null);
-    // modal เพิ่ม/แก้ไขวิชา — { mode: 'add'|'edit', course?: course }
-    const [courseModal,      setCourseModal]      = useState(null);
+    const [showTemplateModal, setShowTemplateModal] = useState(false);
+    const [deletingTemplate,  setDeletingTemplate]  = useState(null);
+    const [deletingCategory,  setDeletingCategory]  = useState(null);
+    const [deletingCourse,    setDeletingCourse]    = useState(null);
 
     const [categoriesByTemplate, setCategoriesByTemplate] = useState(() => {
-        const initial = {};
-        MOCK_TEMPLATES.forEach(t => { initial[t.id] = JSON.parse(JSON.stringify(MOCK_CATEGORIES)); });
-        return initial;
+        const m = {};
+        MOCK_TEMPLATES.forEach(t => { m[t.id] = JSON.parse(JSON.stringify(MOCK_CATEGORIES)); });
+        return m;
     });
     const [coursesByTemplate,  setCoursesByTemplate]  = useState({});
     const [weightsByTemplate,  setWeightsByTemplate]  = useState({});
@@ -108,22 +112,10 @@ export default function TemplateManagementPage() {
     const templateRef = useRef(7000);
     const courseIdRef = useRef(5000);
 
-    const currentCategories   = selectedTemplate ? (categoriesByTemplate[selectedTemplate.id] || []) : [];
-    const currentCoursesByCat = selectedTemplate ? (coursesByTemplate[selectedTemplate.id] || {}) : {};
-    const currentCourses      = (selectedTemplate && selectedCategory)
-        ? (currentCoursesByCat[selectedCategory.id] || []) : [];
-    const currentWeights      = (selectedTemplate && selectedCourse)
-        ? (weightsByTemplate[selectedTemplate.id]?.[selectedCourse.id] || []) : [];
-
-    const creditMap = useMemo(
-        () => buildCreditMap(currentCategories, currentCoursesByCat),
-        [currentCategories, currentCoursesByCat]
-    );
-    const courseCountMap = useMemo(() => {
-        const map = {};
-        templates.forEach(t => { map[t.id] = countTotalCourses(coursesByTemplate[t.id]); });
-        return map;
-    }, [templates, coursesByTemplate]);
+    // ── Derived ──
+    const currentCategories      = selectedTemplate ? (categoriesByTemplate[selectedTemplate.id] || []) : [];
+    const currentCoursesByCat    = selectedTemplate ? (coursesByTemplate[selectedTemplate.id] || {}) : {};
+    const currentWeightsByCourse = selectedTemplate ? (weightsByTemplate[selectedTemplate.id] || {}) : {};
 
     const updateCurrentCategories = useCallback((updater) => {
         if (!selectedTemplate) return;
@@ -143,308 +135,280 @@ export default function TemplateManagementPage() {
         }));
     }, [selectedTemplate]);
 
+    // ── Credit map ──
+    const creditMap = useMemo(() => {
+        const map = {};
+        function calc(cat) {
+            const own = (currentCoursesByCat[cat.id] || []).reduce((s, c) => s + (Number(c.credits) || 0), 0);
+            const child = (cat.children || []).reduce((s, ch) => s + calc(ch), 0);
+            map[cat.id] = own + child;
+            return map[cat.id];
+        }
+        currentCategories.forEach(calc);
+        return map;
+    }, [currentCategories, currentCoursesByCat]);
+
+    const courseCountMap = useMemo(() => {
+        const m = {};
+        templates.forEach(t => {
+            m[t.id] = Object.values(coursesByTemplate[t.id] || {}).reduce((s, a) => s + a.length, 0);
+        });
+        return m;
+    }, [templates, coursesByTemplate]);
+
     // ============================================================
-    // Template Handlers
+    // Template handlers
     // ============================================================
-    const handleSelectTemplate = useCallback((t) => {
-        setSelectedTemplate(t); setSelectedCategory(null); setSelectedCourse(null);
+    const handleOpenTemplate = useCallback((t) => {
+        setSelectedTemplate(t);
+        setSelectedCategory(null);
+        setView('editor');
     }, []);
 
-    const handleDeleteTemplate = useCallback((id) => {
-        // TODO (Backend): DELETE /api/templates/:id
-        setTemplates(prev => prev.filter(t => t.id !== id));
-        setCategoriesByTemplate(prev => { const n = { ...prev }; delete n[id]; return n; });
-        setCoursesByTemplate(prev => { const n = { ...prev }; delete n[id]; return n; });
-        setWeightsByTemplate(prev => { const n = { ...prev }; delete n[id]; return n; });
-        setSelectedTemplate(prev => prev?.id === id ? null : prev);
-        setSelectedCategory(null); setSelectedCourse(null);
+    const handleBackToList = useCallback(() => {
+        setView('list');
+        setSelectedTemplate(null);
+        setSelectedCategory(null);
     }, []);
+
+    const handleRequestDeleteTemplate = useCallback((t) => setDeletingTemplate(t), []);
+    const handleConfirmDeleteTemplate  = useCallback(() => {
+        if (!deletingTemplate) return;
+        const id = deletingTemplate.id;
+        setTemplates(p => p.filter(t => t.id !== id));
+        setCategoriesByTemplate(p => { const n = { ...p }; delete n[id]; return n; });
+        setCoursesByTemplate(p => { const n = { ...p }; delete n[id]; return n; });
+        setWeightsByTemplate(p => { const n = { ...p }; delete n[id]; return n; });
+        if (selectedTemplate?.id === id) handleBackToList();
+        setDeletingTemplate(null);
+    }, [deletingTemplate, selectedTemplate, handleBackToList]);
 
     const handleSaveTemplate = useCallback(({ name, year }) => {
-        // TODO (Backend): POST /api/templates  body: { name, year }
-        const newId = ++templateRef.current;
-        setTemplates(prev => [...prev, { id: newId, name, year }]);
-        setCategoriesByTemplate(prev => ({ ...prev, [newId]: [] }));
-        setShowModal(false);
+        const id = ++templateRef.current;
+        const newTemplate = { id, name, year };
+        setTemplates(p => [...p, newTemplate]);
+        setCategoriesByTemplate(p => ({ ...p, [id]: [] }));
+        setShowTemplateModal(false);
+        // เปิด editor ทันทีหลังสร้าง
+        setSelectedTemplate(newTemplate);
+        setSelectedCategory(null);
+        setView('editor');
     }, []);
 
     // ============================================================
-    // Category Handlers
+    // Category handlers
     // ============================================================
-    const handleSelectCategory = useCallback((cat) => {
-        setSelectedCategory(cat); setSelectedCourse(null);
-    }, []);
+    const handleSelectCategory = useCallback((cat) => setSelectedCategory(cat), []);
 
-    const createCourseCategory = useCallback(() => {
-        // TODO (Backend): POST /api/templates/:templateId/categories
-        //   body: { name, code, requiredCredits, parentId }
-        //
-        // TODO (Backend) — Auto-move courses:
-        //   ถ้า parentId มีวิชาอยู่แล้ว ให้ย้ายวิชาเหล่านั้นไปยัง category ใหม่
-        //   PATCH /api/templates/:templateId/courses/move
-        //     body: { courseIds: [...], toCategoryId: newCategory.id }
+    const handleCreateCategory = useCallback(() => {
         const newId = ++idRef.current;
-        let newCode = '';
         if (!selectedCategory) {
-            newCode = getNextCode('', getDirectChildren(currentCategories, null));
+            const code = getNextCode('', getDirectChildren(currentCategories, null));
+            const newCat = { id: newId, code, name: '', requiredCredits: 0, children: [], isNew: true };
+            updateCurrentCategories(p => [...p, newCat]);
+            setSelectedCategory(newCat);
         } else {
-            const parentDepth = getDepthFromCode(selectedCategory.code);
-            if (parentDepth >= 2) { alert('ไม่สามารถสร้างหมวดวิชาที่ลึกกว่า 3 ระดับได้'); return; }
-            newCode = getNextCode(selectedCategory.code, getDirectChildren(currentCategories, selectedCategory.id));
+            if (getDepthFromCode(selectedCategory.code) >= 3) {
+                alert('ไม่สามารถสร้างหมวดวิชาที่ลึกกว่า 4 ระดับได้'); return;
+            }
+            const existing = currentCoursesByCat[selectedCategory.id] || [];
+            const code = getNextCode(selectedCategory.code, getDirectChildren(currentCategories, selectedCategory.id));
+            const newCat = { id: newId, code, name: '', requiredCredits: 0, children: [], isNew: true };
+            if (existing.length > 0 && selectedTemplate) {
+                setCoursesByTemplate(p => {
+                    const tpl = p[selectedTemplate.id] || {};
+                    return { ...p, [selectedTemplate.id]: { ...tpl, [selectedCategory.id]: [], [newId]: existing } };
+                });
+            }
+            updateCurrentCategories(p => insertChild(p, selectedCategory.id, newCat));
+            setSelectedCategory(newCat);
         }
-        const newCategory = { id: newId, code: newCode, name: '', requiredCredits: 0, children: [], isNew: true };
+    }, [selectedCategory, currentCategories, currentCoursesByCat, updateCurrentCategories, selectedTemplate]);
 
-        // ย้ายวิชาอัตโนมัติถ้า parent มีวิชาอยู่แล้ว
-        const parentCatId      = selectedCategory?.id;
-        const existingCourses  = parentCatId ? (coursesByTemplate[selectedTemplate?.id]?.[parentCatId] || []) : [];
-        if (existingCourses.length > 0 && selectedTemplate) {
-            setCoursesByTemplate(prev => {
-                const tpl = prev[selectedTemplate.id] || {};
-                return { ...prev, [selectedTemplate.id]: { ...tpl, [parentCatId]: [], [newId]: existingCourses } };
-            });
-        }
-
-        if (!selectedCategory) {
-            updateCurrentCategories(prev => [...prev, newCategory]);
-        } else {
-            updateCurrentCategories(prev => insertChild(prev, selectedCategory.id, newCategory));
-        }
-        setSelectedCategory(newCategory); setSelectedCourse(null);
-    }, [selectedCategory, currentCategories, updateCurrentCategories, coursesByTemplate, selectedTemplate]);
-
-    const handleRenameCategory = useCallback((id, newName) => {
-        // TODO (Backend): PATCH /api/templates/:templateId/categories/:id  body: { name }
-        updateCurrentCategories(prev => renameCategory(prev, id, newName));
+    const handleRenameCategory = useCallback((id, name) => {
+        updateCurrentCategories(p => renameCategory(p, id, name || 'หมวดใหม่'));
     }, [updateCurrentCategories]);
 
-    const handleReorder = useCallback((newCategories) => {
-        // TODO (Backend): PATCH /api/templates/:templateId/categories/reorder  body: { categories }
-        updateCurrentCategories(newCategories);
-        setSelectedCategory(prev => prev ? findById(newCategories, prev.id) || null : null);
+    const handleReorderCategories = useCallback((newCats) => {
+        updateCurrentCategories(newCats);
+        setSelectedCategory(p => p ? findById(newCats, p.id) || null : null);
     }, [updateCurrentCategories]);
 
-    // ---- Delete Category ----
-    const handleRequestDeleteCategory = useCallback((cat) => { setDeletingCategory(cat); }, []);
-    const handleConfirmDeleteCategory = useCallback(() => {
+    const handleRequestDeleteCategory = useCallback((cat) => setDeletingCategory(cat), []);
+    const handleConfirmDeleteCategory  = useCallback(() => {
         if (!deletingCategory || !selectedTemplate) return;
-        // TODO (Backend): DELETE /api/templates/:templateId/categories/:id
-        const deletedIds = collectIds(deletingCategory);
-        setCoursesByTemplate(prev => {
-            const tpl = { ...prev[selectedTemplate.id] };
-            deletedIds.forEach(id => delete tpl[id]);
-            return { ...prev, [selectedTemplate.id]: tpl };
+        const ids = collectIds(deletingCategory);
+        setCoursesByTemplate(p => {
+            const tpl = { ...p[selectedTemplate.id] };
+            ids.forEach(id => delete tpl[id]);
+            return { ...p, [selectedTemplate.id]: tpl };
         });
-        setWeightsByTemplate(prev => {
-            const tpl = { ...prev[selectedTemplate.id] };
-            deletedIds.forEach(id => delete tpl[id]);
-            return { ...prev, [selectedTemplate.id]: tpl };
-        });
-        updateCurrentCategories(prev => removeCategory(prev, deletingCategory.id));
+        updateCurrentCategories(p => removeCategory(p, deletingCategory.id));
         if (selectedCategory?.id === deletingCategory.id || isDescendantOf(deletingCategory, selectedCategory?.id)) {
-            setSelectedCategory(null); setSelectedCourse(null);
+            setSelectedCategory(null);
         }
         setDeletingCategory(null);
     }, [deletingCategory, selectedTemplate, selectedCategory, updateCurrentCategories]);
 
     // ============================================================
-    // Course Handlers
+    // Course handlers
     // ============================================================
-    const handleAddCourse = useCallback((data) => {
-        if (!selectedTemplate || !selectedCategory) return;
-        // TODO (Backend): POST /api/templates/:templateId/categories/:categoryId/courses
-        //   body: { code, nameTh, nameEn, credits }
-        const newCourse = { id: ++courseIdRef.current, ...data };
-        updateCurrentCourses(prev => {
-            const existing = prev[selectedCategory.id] || [];
-            return { ...prev, [selectedCategory.id]: [...existing, newCourse] };
-        });
-    }, [selectedTemplate, selectedCategory, updateCurrentCourses]);
+    const handleAddCourse = useCallback((catId, data) => {
+        if (!selectedTemplate) return;
+        const course = { id: ++courseIdRef.current, ...data };
+        updateCurrentCourses(p => ({ ...p, [catId]: [...(p[catId] || []), course] }));
+    }, [selectedTemplate, updateCurrentCourses]);
 
-    const handleRequestDeleteCourse = useCallback((courseId) => {
-        const course = (coursesByTemplate[selectedTemplate?.id]?.[selectedCategory?.id] || [])
-            .find(c => c.id === courseId);
-        if (course) setDeletingCourse(course);
-    }, [coursesByTemplate, selectedTemplate, selectedCategory]);
-
-    const handleConfirmDeleteCourse = useCallback(() => {
-        if (!deletingCourse || !selectedTemplate || !selectedCategory) return;
-        // TODO (Backend): DELETE /api/courses/:courseId
-        updateCurrentCourses(prev => ({
-            ...prev,
-            [selectedCategory.id]: (prev[selectedCategory.id] || []).filter(c => c.id !== deletingCourse.id),
+    const handleUpdateCourse = useCallback((catId, updatedCourse) => {
+        updateCurrentCourses(p => ({
+            ...p,
+            [catId]: (p[catId] || []).map(c => c.id === updatedCourse.id ? updatedCourse : c),
         }));
-        setWeightsByTemplate(prev => {
-            const tpl = { ...prev[selectedTemplate.id] };
-            delete tpl[deletingCourse.id];
-            return { ...prev, [selectedTemplate.id]: tpl };
-        });
-        if (selectedCourse?.id === deletingCourse.id) setSelectedCourse(null);
-        setDeletingCourse(null);
-    }, [deletingCourse, selectedTemplate, selectedCategory, selectedCourse, updateCurrentCourses]);
+    }, [updateCurrentCourses]);
 
-    // ---- Modal เพิ่ม/แก้ไขวิชา ----
-    const handleOpenAddModal  = useCallback(() => {
-        setCourseModal({ mode: 'add' });
+    const handleRequestDeleteCourse = useCallback((catId, course) => {
+        setDeletingCourse({ ...course, _catId: catId });
     }, []);
 
-    const handleOpenEditModal = useCallback((course) => {
-        const weights = weightsByTemplate[selectedTemplate?.id]?.[course.id] || [];
-        setCourseModal({ mode: 'edit', course, initialWeights: weights });
-    }, [weightsByTemplate, selectedTemplate]);
-
-    const handleSaveCourseModal = useCallback(({ form, weights }) => {
-        if (!selectedTemplate || !selectedCategory) return;
-
-        if (courseModal?.mode === 'add') {
-            // TODO (Backend): POST /api/templates/:templateId/categories/:categoryId/courses
-            const newCourse = { id: ++courseIdRef.current, ...form };
-            updateCurrentCourses(prev => ({
-                ...prev,
-                [selectedCategory.id]: [...(prev[selectedCategory.id] || []), newCourse],
-            }));
-            // บันทึก weights ของวิชาใหม่
-            if (weights.length > 0) {
-                setWeightsByTemplate(p => ({
-                    ...p,
-                    [selectedTemplate.id]: { ...(p[selectedTemplate.id] || {}), [newCourse.id]: weights },
-                }));
-            }
-        } else if (courseModal?.mode === 'edit') {
-            // TODO (Backend): PATCH /api/courses/:courseId  body: { code, nameTh, nameEn, credits }
-            const updatedCourse = { ...courseModal.course, ...form };
-            updateCurrentCourses(prev => ({
-                ...prev,
-                [selectedCategory.id]: (prev[selectedCategory.id] || []).map(c =>
-                    c.id === updatedCourse.id ? updatedCourse : c
-                ),
-            }));
-            // TODO (Backend): PUT /api/courses/:courseId/competencies
-            setWeightsByTemplate(p => ({
-                ...p,
-                [selectedTemplate.id]: { ...(p[selectedTemplate.id] || {}), [updatedCourse.id]: weights },
-            }));
-        }
-        setCourseModal(null);
-    }, [courseModal, selectedTemplate, selectedCategory, updateCurrentCourses]);
-    const handleMoveCourseToCategory = useCallback((course, fromCatId, toCatId) => {
-        if (!selectedTemplate || fromCatId === toCatId) return;
-        // TODO (Backend): PATCH /api/courses/:courseId/move
-        //   body: { toCategoryId }
-        updateCurrentCourses(prev => {
-            const fromList = (prev[fromCatId] || []).filter(c => c.id !== course.id);
-            const toList   = [...(prev[toCatId] || []), course];
-            return { ...prev, [fromCatId]: fromList, [toCatId]: toList };
+    const handleConfirmDeleteCourse = useCallback(() => {
+        if (!deletingCourse || !selectedTemplate) return;
+        const catId = deletingCourse._catId;
+        updateCurrentCourses(p => ({ ...p, [catId]: (p[catId] || []).filter(c => c.id !== deletingCourse.id) }));
+        setWeightsByTemplate(p => {
+            const tpl = { ...(p[selectedTemplate.id] || {}) };
+            delete tpl[deletingCourse.id];
+            return { ...p, [selectedTemplate.id]: tpl };
         });
-        // ถ้า course ที่ย้ายเป็นตัวที่ selected อยู่ → clear เพราะย้ายออกจาก category นี้แล้ว
-        if (selectedCourse?.id === course.id) setSelectedCourse(null);
-    }, [selectedTemplate, selectedCourse, updateCurrentCourses]);
-
-    // ---- เรียงลำดับวิชาใน category เดิม (drag ใน Panel 3) ----
-    const handleReorderCourses = useCallback((fromIdx, toIdx) => {
-        if (!selectedTemplate || !selectedCategory) return;
-        // TODO (Backend): PATCH /api/templates/:templateId/categories/:categoryId/courses/reorder
-        //   body: { courseIds: [...] }  ส่ง array ของ id ตามลำดับใหม่
-        updateCurrentCourses(prev => {
-            const list = [...(prev[selectedCategory.id] || [])];
-            const [moved] = list.splice(fromIdx, 1);
-            const insertAt = toIdx > fromIdx ? toIdx - 1 : toIdx;
-            list.splice(insertAt, 0, moved);
-            return { ...prev, [selectedCategory.id]: list };
-        });
-    }, [selectedTemplate, selectedCategory, updateCurrentCourses]);
+        setDeletingCourse(null);
+    }, [deletingCourse, selectedTemplate, updateCurrentCourses]);
 
     // ============================================================
-    // Competency Handlers
+    // Competency / Weight handlers
     // ============================================================
-    const handleCompetencyChange = useCallback((newSelected) => {
-        if (!selectedTemplate || !selectedCourse) return;
-        // TODO (Backend): PUT /api/courses/:courseId/competencies  body: { competencies: [{ id, weight }] }
+    const handleSetWeight = useCallback((courseId, compId, weight) => {
+        if (!selectedTemplate) return;
         setWeightsByTemplate(p => {
-            const tw   = p[selectedTemplate.id] || {};
-            const prev = tw[selectedCourse.id] || [];
-            const updated = newSelected.map(comp => {
-                const existing = prev.find(w => w.competency.id === comp.id);
-                return existing ?? { competency: comp, weight: 0 };
-            });
-            return { ...p, [selectedTemplate.id]: { ...tw, [selectedCourse.id]: updated } };
+            const tpl    = p[selectedTemplate.id] || {};
+            const course = { ...(tpl[courseId] || {}), [compId]: weight };
+            return { ...p, [selectedTemplate.id]: { ...tpl, [courseId]: course } };
         });
-    }, [selectedTemplate, selectedCourse]);
+    }, [selectedTemplate]);
 
-    const handleWeightChange = useCallback((compId, value) => {
-        if (!selectedTemplate || !selectedCourse) return;
-        setWeightsByTemplate(p => {
-            const tw = p[selectedTemplate.id] || {};
-            return {
-                ...p,
-                [selectedTemplate.id]: {
-                    ...tw,
-                    [selectedCourse.id]: (tw[selectedCourse.id] || []).map(w =>
-                        w.competency.id === compId
-                            ? { ...w, weight: Math.min(100, Math.max(0, Number(value) || 0)) }
-                            : w
-                    ),
-                },
-            };
-        });
-    }, [selectedTemplate, selectedCourse]);
-
-    const handleCreateCompetency = useCallback((name) => {
-        // TODO (Backend): POST /api/competencies  body: { name, code }
-        const newComp = { id: ++compIdRef.current, code: `custom_${compIdRef.current}`, name, color: '#7dd3fc' };
-        setCompetencies(prev => [...prev, newComp]);
+    const handleAddCompetency = useCallback((name, color) => {
+        const newComp = { id: ++compIdRef.current, code: `custom_${compIdRef.current}`, name, color: color || '#7dd3fc' };
+        setCompetencies(p => [...p, newComp]);
         return newComp;
     }, []);
 
-    const handleSaveCompetency = useCallback(() => {
-        // TODO (Backend): PUT /api/courses/:courseId/competencies  body: { weights: [{ competencyId, weight }] }
-        console.log('save:', { templateId: selectedTemplate?.id, courseId: selectedCourse?.id, weights: currentWeights });
-        alert('บันทึก Competency เรียบร้อย (mock)');
-    }, [selectedTemplate, selectedCourse, currentWeights]);
+    // ============================================================
+    // Render
+    // ============================================================
 
+    // ── List View ──
+    if (view === 'list') {
+        return (
+            <div className="tm-page">
+                <div className="tpl-list-view">
+                    {/* Header */}
+                    <div className="tpl-list-view__header">
+                        <div>
+                            <h1 className="tm-header__title">จัดการ Template หลักสูตร</h1>
+                            <p className="tpl-list-view__sub">เลือก Template ที่ต้องการแก้ไข หรือสร้าง Template ใหม่</p>
+                        </div>
+                    </div>
+
+                    {/* Cards */}
+                    {templates.length === 0 ? (
+                        <div className="tpl-list-view__empty">
+                            <BookOpenCheck size={48} opacity={0.2}/>
+                            <p>ยังไม่มี Template — กดปุ่ม "สร้าง Template ใหม่" เพื่อเริ่ม</p>
+                            <button className="btn btn--primary" onClick={() => setShowTemplateModal(true)}>
+                                <Plus size={15}/> สร้าง Template ใหม่
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="tpl-card-grid">
+                            {templates.map(t => (
+                                <TemplateCard
+                                    key={t.id}
+                                    template={t}
+                                    courseCount={courseCountMap[t.id] ?? 0}
+                                    onOpen={handleOpenTemplate}
+                                    onDelete={handleRequestDeleteTemplate}
+                                />
+                            ))}
+                            {/* + Create card */}
+                            <div className="tpl-card tpl-card--create" onClick={() => setShowTemplateModal(true)}>
+                                <Plus size={28} opacity={0.4}/>
+                                <span>สร้าง Template ใหม่</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Modals */}
+                {showTemplateModal && (
+                    <TemplateFormModal onClose={() => setShowTemplateModal(false)} onSave={handleSaveTemplate}/>
+                )}
+                {deletingTemplate && (
+                    <ConfirmDeleteModal
+                        category={{ code:'', name: deletingTemplate.name }}
+                        label="Template"
+                        onConfirm={handleConfirmDeleteTemplate}
+                        onCancel={() => setDeletingTemplate(null)}
+                    />
+                )}
+            </div>
+        );
+    }
+
+    // ── Editor View ──
     return (
-        <div className="tm-page">
-            <div className="tm-header">
-                <h1 className="tm-header__title">จัดการ Template หลักสูตร</h1>
+        <div className="tm-page tm-page--editor">
+            {/* Topbar */}
+            <div className="editor-topbar">
+                <button className="btn btn--ghost btn--sm editor-topbar__back" onClick={handleBackToList}>
+                    <ArrowLeft size={15}/> Template ทั้งหมด
+                </button>
+                <span className="editor-topbar__title">{selectedTemplate?.name}</span>
+                <div style={{ marginLeft:'auto', display:'flex', gap:'0.5rem' }}>
+                    <button className="icon-btn icon-btn--danger icon-btn--xs"
+                        title="ลบ Template นี้"
+                        onClick={() => handleRequestDeleteTemplate(selectedTemplate)}>
+                        <Trash2 size={14}/>
+                    </button>
+                </div>
             </div>
 
-            <div className="tm-panels">
-                <TemplateList
-                    templates={templates}
-                    selectedId={selectedTemplate?.id}
-                    onSelect={handleSelectTemplate}
-                    onDelete={handleDeleteTemplate}
-                    onClickCreate={() => setShowModal(true)}
-                    courseCountMap={courseCountMap}
-                />
+            {/* Panel 2 full-width */}
+            <CategoryCoursePanel
+                template={selectedTemplate}
+                categories={currentCategories}
+                selectedCategory={selectedCategory}
+                coursesByCategoryId={currentCoursesByCat}
+                weightsByCourseId={currentWeightsByCourse}
+                competencies={competencies}
+                creditMap={creditMap}
+                onSelectCategory={handleSelectCategory}
+                onCreateCategory={handleCreateCategory}
+                onRenameCategory={handleRenameCategory}
+                onReorderCategories={handleReorderCategories}
+                onDeleteCategory={handleRequestDeleteCategory}
+                onAddCourse={handleAddCourse}
+                onUpdateCourse={handleUpdateCourse}
+                onDeleteCourse={handleRequestDeleteCourse}
+                onSetWeight={handleSetWeight}
+                onAddCompetency={handleAddCompetency}
+            />
 
-                <CourseCategoryTree
-                    categories={currentCategories}
-                    selectedId={selectedCategory?.id}
-                    onSelect={handleSelectCategory}
-                    onCreateCategory={createCourseCategory}
-                    onRename={handleRenameCategory}
-                    onReorder={handleReorder}
-                    template={selectedTemplate}
-                    coursesByCategoryId={currentCoursesByCat}
-                    onDeleteCourse={handleRequestDeleteCourse}
-                    onMoveCourseToCategory={handleMoveCourseToCategory}
-                    creditMap={creditMap}
+            {/* Modals */}
+            {deletingTemplate && (
+                <ConfirmDeleteModal
+                    category={{ code:'', name: deletingTemplate.name }}
+                    label="Template"
+                    onConfirm={handleConfirmDeleteTemplate}
+                    onCancel={() => setDeletingTemplate(null)}
                 />
-
-                <CourseCompetencyPanel
-                    category={selectedCategory}
-                    courses={currentCourses}
-                    courseWeightsMap={weightsByTemplate[selectedTemplate?.id] || {}}
-                    onDeleteCourse={handleRequestDeleteCourse}
-                    onDeleteCategory={handleRequestDeleteCategory}
-                    onReorderCourses={handleReorderCourses}
-                    onOpenAddModal={handleOpenAddModal}
-                    onOpenEditModal={handleOpenEditModal}
-                />
-            </div>
-
-            {showModal && (
-                <TemplateFormModal onClose={() => setShowModal(false)} onSave={handleSaveTemplate} />
             )}
             {deletingCategory && (
                 <ConfirmDeleteModal
@@ -459,17 +423,6 @@ export default function TemplateManagementPage() {
                     label="รายวิชา"
                     onConfirm={handleConfirmDeleteCourse}
                     onCancel={() => setDeletingCourse(null)}
-                />
-            )}
-            {courseModal && (
-                <CourseFormModal
-                    mode={courseModal.mode}
-                    course={courseModal.course}
-                    initialWeights={courseModal.initialWeights || []}
-                    competencies={competencies}
-                    onSave={handleSaveCourseModal}
-                    onCancel={() => setCourseModal(null)}
-                    onCreateCompetency={handleCreateCompetency}
                 />
             )}
         </div>

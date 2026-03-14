@@ -915,3 +915,897 @@
     font-size: 0.62rem;
     margin-left: 1px;
 }
+
+/* ============================================================
+   2-Panel Layout
+   ============================================================ */
+.tm-panels--2col {
+    grid-template-columns: 260px 1fr;
+    height: calc(100vh - 5.5rem);
+}
+
+/* ============================================================
+   CategoryCoursePanel (ccp)
+   ============================================================ */
+.ccp-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.ccp-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ── Tree sidebar ── */
+.ccp-tree {
+    width: 260px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #2d3748;
+}
+
+.ccp-tree__header {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #2d3748;
+    flex-shrink: 0;
+}
+
+.ccp-tree__scroll {
+    overflow-y: auto;
+    flex: 1;
+    padding: 0.5rem 0;
+}
+
+/* ── Divider ── */
+.ccp-divider {
+    display: none; /* ใช้ border-right ของ .ccp-tree แทน */
+}
+
+/* ── Sheet area ── */
+.ccp-sheet {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.ccp-sheet__header {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid #2d3748;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+.ccp-sheet__cat {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #7dd3fc;
+    white-space: nowrap;
+}
+
+.ccp-sheet__hint {
+    font-size: 0.7rem;
+    color: #475569;
+}
+
+/* ============================================================
+   Spreadsheet Table
+   ============================================================ */
+.ss-wrapper {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.ss-scroll {
+    flex: 1;
+    overflow: auto;
+}
+
+.ss-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.8rem;
+    table-layout: fixed;
+}
+
+/* Header */
+.ss-th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #151a27;
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 0.625rem;
+    border-bottom: 2px solid #2d3748;
+    border-right: 1px solid #2d3748;
+    white-space: nowrap;
+    text-align: left;
+}
+.ss-th--grip   { width: 28px; padding: 0; }
+.ss-th--wide   { width: 200px; }
+.ss-th--num    { width: 80px; text-align: center; }
+.ss-th--actions{ width: 64px; }
+.ss-th--comp   {
+    width: 90px;
+    text-align: center;
+    color: var(--comp-color);
+    border-bottom: 2px solid var(--comp-color);
+}
+
+.ss-comp-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+
+.ss-comp-name {
+    font-size: 0.65rem;
+    display: inline-block;
+    max-width: 70px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+/* Rows */
+.ss-row {
+    border-bottom: 1px solid #1e2535;
+    transition: background 0.1s;
+}
+.ss-row:hover { background: #1e2535; }
+.ss-row--editing { background: #1a2540 !important; }
+
+.ss-cell {
+    padding: 0.4rem 0.625rem;
+    border-right: 1px solid #2d3748;
+    vertical-align: middle;
+    color: #cbd5e1;
+    cursor: default;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ss-cell--grip    { width: 28px; padding: 0 4px; text-align: center; color: #334155; cursor: grab; }
+.ss-cell--num     { text-align: center; width: 80px; }
+.ss-cell--check   { text-align: center; }
+.ss-cell--actions { width: 64px; text-align: center; white-space: nowrap; }
+.ss-cell--wide    { width: 200px; }
+
+.ss-code { font-family: monospace; color: #7dd3fc; font-size: 0.78rem; }
+.ss-placeholder { color: #334155; font-style: italic; }
+
+/* Editable input inside cell */
+.ss-input {
+    width: 100%;
+    background: #0f1117;
+    border: 1px solid #3b82f6;
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+    color: #e2e8f0;
+    font-size: 0.8rem;
+    font-family: inherit;
+    outline: none;
+}
+.ss-input--num { text-align: center; }
+
+/* Competency checkbox */
+.ss-checkbox {
+    width: 20px; height: 20px;
+    border-radius: 5px;
+    border: 1.5px solid #334155;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    color: #fff;
+}
+.ss-checkbox:hover:not(.ss-checkbox--disabled) {
+    border-color: #94a3b8;
+    background: #1e293b;
+}
+.ss-checkbox--checked {
+    background: var(--cb-color, #3b82f6);
+    border-color: var(--cb-color, #3b82f6);
+}
+.ss-checkbox--disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+}
+
+/* Empty state */
+.ss-empty {
+    padding: 2rem;
+    text-align: center;
+    color: #475569;
+    font-size: 0.8rem;
+}
+
+/* Footer */
+.ss-footer {
+    border-top: 1px solid #2d3748;
+    padding: 0.5rem 0.75rem;
+    flex-shrink: 0;
+}
+
+.ss-add-row-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    border: 1px dashed #334155;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+.ss-add-row-btn:hover {
+    color: #7dd3fc;
+    border-color: #7dd3fc;
+}
+
+/* cfm-input (ใช้ใน AddCompetencyModal) */
+.cfm-input {
+    width: 100%;
+    background: #0f1117;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    padding: 0.45rem 0.75rem;
+    color: #e2e8f0;
+    font-size: 0.85rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+}
+.cfm-input:focus { border-color: #3b82f6; }
+
+/* btn--sm */
+.btn--sm {
+    padding: 0.3rem 0.65rem;
+    font-size: 0.78rem;
+}
+
+/* ============================================================
+   WeightSidePanel
+   ============================================================ */
+.ccp-sheet__inner {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.ccp-sheet__content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Side panel */
+.wp-panel {
+    width: 240px;
+    flex-shrink: 0;
+    border-left: 1px solid #2d3748;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #151a27;
+}
+
+.wp-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.625rem 0.875rem;
+    border-bottom: 1px solid #2d3748;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+
+.wp-course-name {
+    padding: 0.5rem 0.875rem 0.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.wp-course-th {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wp-hint {
+    font-size: 0.68rem;
+    color: #475569;
+    padding: 0 0.875rem 0.5rem;
+    line-height: 1.4;
+    margin: 0;
+}
+
+.wp-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.25rem 0;
+}
+
+.wp-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.4rem 0.875rem;
+    transition: background 0.1s;
+}
+
+.wp-row:hover { background: #1e2535; }
+.wp-row--active { background: #1a2540; }
+
+.wp-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.wp-comp-name {
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wp-weight-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.wp-weight-input {
+    width: 48px;
+    background: #0f1117;
+    border: 1px solid #3b82f6;
+    border-radius: 5px;
+    padding: 0.2rem 0.4rem;
+    color: #e2e8f0;
+    font-size: 0.78rem;
+    font-family: inherit;
+    text-align: center;
+    outline: none;
+}
+
+.wp-weight-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+.wp-pct {
+    font-size: 0.72rem;
+    color: #64748b;
+}
+
+/* Total bar */
+.wp-total {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.5rem 0.875rem;
+    border-top: 1px solid #2d3748;
+    font-size: 0.75rem;
+    color: #64748b;
+    flex-shrink: 0;
+}
+
+.wp-total__num {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-left: auto;
+}
+
+.wp-total--ok   .wp-total__num { color: #22c55e; }
+.wp-total--over .wp-total__num { color: #ef4444; }
+
+.wp-total__warn {
+    font-size: 0.68rem;
+    color: #ef4444;
+}
+
+/* Competency summary column */
+.ss-th--comp-summary { min-width: 160px; }
+.ss-cell--comp-summary {
+    min-width: 160px;
+    cursor: pointer;
+}
+
+.ss-comp-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+.ss-comp-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--pill-color) 18%, transparent);
+    color: var(--pill-color);
+    border: 1px solid color-mix(in srgb, var(--pill-color) 35%, transparent);
+}
+
+.ss-comp-empty {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.7rem;
+    color: #475569;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+.ss-comp-empty:hover { color: #7dd3fc; }
+
+/* Selected row */
+.ss-row--selected {
+    background: #1a2540 !important;
+    outline: 1px solid #3b82f6;
+    outline-offset: -1px;
+}
+
+/* ============================================================
+   Weight input cells — แบบ B (input number per competency col)
+   ============================================================ */
+.ss-th--weight {
+    width: 88px;
+    text-align: center;
+    color: var(--comp-color);
+    border-bottom: 2px solid var(--comp-color);
+}
+
+.ss-cell--weight {
+    text-align: center;
+    padding: 0.3rem 0.4rem;
+}
+
+.ss-weight-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    padding: 1px 3px;
+    transition: border-color 0.15s;
+}
+
+.ss-weight-wrap--active {
+    border-color: color-mix(in srgb, var(--wc) 40%, transparent);
+    background: color-mix(in srgb, var(--wc) 8%, transparent);
+}
+
+.ss-weight-wrap--locked {
+    opacity: 0.25;
+}
+
+.ss-weight-input {
+    width: 42px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #cbd5e1;
+    font-size: 0.78rem;
+    font-family: monospace;
+    text-align: center;
+    padding: 0;
+    /* hide spinner arrows */
+    -moz-appearance: textfield;
+}
+.ss-weight-input::-webkit-outer-spin-button,
+.ss-weight-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+.ss-weight-wrap--active .ss-weight-input {
+    color: var(--wc);
+    font-weight: 600;
+}
+
+.ss-weight-input::placeholder { color: #334155; }
+
+.ss-weight-pct {
+    font-size: 0.68rem;
+    color: inherit;
+    opacity: 0.7;
+    line-height: 1;
+}
+
+/* ลบ CSS เก่าที่ไม่ใช้แล้ว */
+.ss-cell--comp-summary { display: none; }
+.ss-th--comp-summary   { display: none; }
+
+/* ============================================================
+   Panel 1 — Collapse
+   ============================================================ */
+.tm-panel--collapsed {
+    width: 44px !important;
+    min-width: 44px !important;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.tm-panels--p1collapsed {
+    grid-template-columns: 44px 1fr !important;
+}
+
+.panel-collapse-btn {
+    color: #64748b;
+    transition: color 0.15s;
+}
+.panel-collapse-btn:hover { color: #7dd3fc; }
+
+/* ============================================================
+   Tree header — ปุ่ม + หมวดวิชา
+   ============================================================ */
+.ccp-tree__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #2d3748;
+    flex-shrink: 0;
+    gap: 0.5rem;
+}
+
+.ccp-tree__add-btn {
+    padding: 0.2rem 0.5rem !important;
+    font-size: 0.72rem !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   Sheet header — ชื่อหมวด + ปุ่มเพิ่มวิชา
+   ============================================================ */
+.ccp-sheet__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.55rem 1rem;
+    border-bottom: 1px solid #2d3748;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+.ccp-sheet__header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+/* ============================================================
+   Spreadsheet — fix column min-width ป้องกัน collapse ที่ zoom > 90%
+   ============================================================ */
+.ss-table {
+    table-layout: auto !important; /* ให้ browser จัดสรรตามเนื้อหา */
+    min-width: 600px;              /* กัน table แคบเกิน */
+}
+
+.ss-th,
+.ss-cell {
+    white-space: nowrap;
+}
+
+/* รหัสวิชา — กำหนด min-width ชัดเจน */
+.ss-th:nth-child(2),
+.ss-cell:nth-child(2) {
+    min-width: 100px;
+}
+
+/* ชื่อไทย / อังกฤษ */
+.ss-th--wide,
+.ss-cell--wide {
+    min-width: 160px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* หน่วยกิต */
+.ss-th--num,
+.ss-cell--num {
+    min-width: 72px;
+    width: 72px;
+}
+
+/* Weight columns */
+.ss-th--weight,
+.ss-cell--weight {
+    min-width: 80px;
+    width: 80px;
+}
+
+/* ============================================================
+   Template List View
+   ============================================================ */
+.tpl-list-view {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1.5rem 0;
+}
+
+.tpl-list-view__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.tpl-list-view__sub {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin: 0.25rem 0 0;
+}
+
+.tpl-list-view__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    color: #475569;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+/* ── Card grid ── */
+.tpl-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.tpl-card {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 14px;
+    padding: 1.25rem 1.25rem 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.12s;
+    position: relative;
+}
+
+.tpl-card:hover {
+    border-color: #3b82f6;
+    background: #1e2640;
+    transform: translateY(-2px);
+}
+
+.tpl-card__icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 10px;
+    background: rgba(59,130,246,0.12);
+    color: #7dd3fc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tpl-card__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.tpl-card__name {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    white-space: normal;
+    text-overflow: ellipsis;
+    margin-bottom: 0.3rem;
+}
+
+.tpl-card__meta {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.73rem;
+    color: #64748b;
+}
+
+.tpl-card__meta span {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.tpl-card__delete {
+    opacity: 0;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+}
+.tpl-card:hover .tpl-card__delete { opacity: 1; }
+
+/* Create card */
+.tpl-card--create {
+    border-style: dashed;
+    border-color: #334155;
+    background: transparent;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.5rem;
+    color: #475569;
+    font-size: 0.82rem;
+    min-height: 90px;
+}
+.tpl-card--create:hover {
+    border-color: #7dd3fc;
+    color: #7dd3fc;
+    background: rgba(125,211,252,0.04);
+    transform: translateY(-2px);
+}
+
+/* ============================================================
+   Editor View
+   ============================================================ */
+.tm-page--editor {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - var(--admin-navbar-h, 52px));
+}
+
+/* Topbar */
+.editor-topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1.25rem;
+    background: #151a27;
+    border-bottom: 1px solid #2d3748;
+    flex-shrink: 0;
+}
+
+.editor-topbar__back {
+    color: #94a3b8;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+.editor-topbar__back:hover { color: #7dd3fc; }
+
+.editor-topbar__title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 400px;
+}
+
+.editor-topbar__year {
+    font-size: 0.75rem;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+/* ทำให้ CategoryCoursePanel เต็มพื้นที่ editor */
+.tm-page--editor .ccp-panel {
+    flex: 1;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    min-height: 0;
+}
+
+/* ============================================================
+   Total column — per row
+   ============================================================ */
+.ss-th--total {
+    width: 64px;
+    min-width: 64px;
+    text-align: center;
+    color: #64748b;
+    border-left: 2px solid #2d3748;
+}
+
+.ss-cell--total {
+    text-align: center;
+    border-left: 2px solid #2d3748;
+    font-variant-numeric: tabular-nums;
+}
+
+.ss-row-total {
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-family: monospace;
+}
+
+.ss-row-total--ok      { color: #4ade80; background: rgba(74,222,128,0.1); }
+.ss-row-total--over    { color: #f87171; background: rgba(248,113,113,0.1); }
+.ss-row-total--partial { color: #fbbf24; background: rgba(251,191,36,0.1); }
+
+/* ============================================================
+   tfoot — Total per competency
+   ============================================================ */
+.ss-tfoot-row {
+    border-top: 2px solid #334155;
+    background: #151a27;
+}
+
+.ss-tfoot-cell {
+    padding: 0.5rem 0.625rem;
+    border-right: 1px solid #2d3748;
+    text-align: center;
+}
+
+.ss-tfoot-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+.ss-tfoot-cell--comp {
+    border-bottom: 2px solid color-mix(in srgb, var(--tc) 50%, transparent);
+}
+
+.ss-tfoot-total {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--tc);
+    font-family: monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+.tree-label{
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    flex: 1;
+    line-height: 1.4;
+}

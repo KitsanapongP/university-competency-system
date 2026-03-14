@@ -38,7 +38,7 @@ export default function ConfirmDeleteModal({
                         <AlertTriangle size={36} />
                     </div>
                     <p className="confirm-delete__desc">
-                        คุณต้องการลบ{label}นี้ใช่หรือไม่?
+                        คุณต้องการลบ {label} นี้ใช่หรือไม่?
                     </p>
                     <p className="confirm-delete__name">
                         {category?.code} {category?.name}
@@ -46,7 +46,9 @@ export default function ConfirmDeleteModal({
                     <p className="confirm-delete__warn">
                         {isCourse
                             ? 'รายวิชานี้และข้อมูล Competency ที่ผูกไว้จะถูกลบไปด้วย และไม่สามารถกู้คืนได้'
-                            : 'หมวดวิชาย่อยและรายวิชาทั้งหมดที่อยู่ภายในจะถูกลบไปด้วย และไม่สามารถกู้คืนได้'
+                            : label === 'Template'
+                                ? 'หมวดวิชา รายวิชา และ Competency ทั้งหมดใน Template นี้จะถูกลบไปด้วย และไม่สามารถกู้คืนได้'
+                                : 'หมวดวิชาย่อยและรายวิชาทั้งหมดที่อยู่ภายในจะถูกลบไปด้วย และไม่สามารถกู้คืนได้'
                         }
                     </p>
                 </div>
@@ -57,7 +59,7 @@ export default function ConfirmDeleteModal({
                         ยกเลิก
                     </button>
                     <button className="btn btn--danger" onClick={onConfirm}>
-                        <Trash2 size={15} /> ลบ{label}
+                        <Trash2 size={15} /> ลบ {label}
                     </button>
                 </div>
 
