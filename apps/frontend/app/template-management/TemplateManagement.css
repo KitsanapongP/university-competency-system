@@ -1641,7 +1641,8 @@
     font-size: 0.88rem;
     font-weight: 600;
     color: #e2e8f0;
-    white-space: normal;
+    white-space: nowrap;
+    overflow: hidden;
     text-overflow: ellipsis;
     margin-bottom: 0.3rem;
 }
@@ -1801,6 +1802,351 @@
     color: var(--tc);
     font-family: monospace;
     font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Drag & Drop — Tree
+   ============================================================ */
+.tree-drag-handle {
+    display: flex;
+    align-items: center;
+    color: #334155;
+    cursor: grab;
+    padding: 0 3px 0 0;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+.tree-item:hover .tree-drag-handle { opacity: 1; }
+.tree-item:active .tree-drag-handle { cursor: grabbing; }
+
+.tree-item--dragging {
+    opacity: 0.4;
+}
+
+.tree-drop-line {
+    height: 2px;
+    background: #3b82f6;
+    border-radius: 2px;
+    margin: 1px 0.5rem;
+    box-shadow: 0 0 6px rgba(59,130,246,0.5);
+}
+
+/* ============================================================
+   Drag & Drop — Spreadsheet rows
+   ============================================================ */
+.ss-row--dragging {
+    opacity: 0.35;
+}
+
+.ss-row--dragging td {
+    background: #1a2540 !important;
+}
+
+.ss-drop-row td {
+    padding: 0;
+    height: 2px;
+    background: #3b82f6;
+    box-shadow: 0 0 6px rgba(59,130,246,0.5);
+}
+
+/* ============================================================
+   View Mode Toggle
+   ============================================================ */
+.ccp-sheet__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid #2d3748;
+    flex-shrink: 0;
+    background: #151a27;
+}
+
+.view-toggle {
+    display: flex;
+    background: #0f1117;
+    border: 1px solid #2d3748;
+    border-radius: 7px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.view-toggle__btn {
+    padding: 0.25rem 0.75rem;
+    border-radius: 5px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.view-toggle__btn:hover { color: #94a3b8; }
+
+.view-toggle__btn--active {
+    background: #1e3a5f;
+    color: #7dd3fc;
+}
+
+/* ============================================================
+   All Categories View
+   ============================================================ */
+.all-cat-view {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* sticky thead */
+.all-cat-view__thead-wrap {
+    flex-shrink: 0;
+    overflow: hidden;
+    border-bottom: 2px solid #334155;
+}
+
+.all-cat-view__thead-wrap .ss-table {
+    margin-bottom: -1px;
+}
+
+/* scrollable body */
+.all-cat-view__body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+}
+
+/* ============================================================
+   Category Section (in all-view)
+   ============================================================ */
+.cat-section {
+    border-bottom: 2px solid #1e2535;
+}
+
+.cat-section:last-child {
+    border-bottom: none;
+}
+
+.cat-section__header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 1rem 0.55rem 0.75rem;
+    background: #1a1f2e;
+    border-bottom: 1px solid #2d3748;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.cat-section__title-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.cat-section__code {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #7dd3fc;
+    font-family: monospace;
+    flex-shrink: 0;
+}
+
+.cat-section__name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cat-section__path {
+    font-size: 0.68rem;
+    color: #475569;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+}
+
+.cat-section__add-btn {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.cat-section__table {
+    width: 100%;
+}
+
+.cat-section__empty {
+    padding: 0.875rem 1rem !important;
+    font-size: 0.75rem !important;
+    text-align: left !important;
+    color: #334155 !important;
+}
+
+/* ============================================================
+   tfoot — ปรับใหม่ (ไม่มี total col แล้ว)
+   ============================================================ */
+.ss-tfoot-cell--label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    text-align: left;
+    padding-left: 0.75rem;
+}
+
+.ss-tfoot-zero {
+    color: #334155;
+    font-size: 0.75rem;
+}
+
+/* ซ่อน total column CSS เดิมที่ไม่ใช้แล้ว */
+.ss-th--total,
+.ss-cell--total,
+.ss-row-total,
+.ss-row-total--ok,
+.ss-row-total--over,
+.ss-row-total--partial { display: none; }
+
+/* ============================================================
+   All-cat view — table เดียว ไม่แยก thead
+   ============================================================ */
+.all-cat-view {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.all-cat-view__scroll {
+    flex: 1;
+    overflow: auto;
+}
+
+.all-cat-table {
+    width: 100%;
+}
+
+/* thead sticky ของ table เดียว */
+.all-cat-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+/* Section header row ภายใน tbody */
+.all-cat-section-hdr {
+    position: sticky;
+    top: 37px; /* ความสูง thead */
+    z-index: 2;
+}
+
+.all-cat-section-hdr__cell {
+    background: #1a1f2e;
+    border-bottom: 1px solid #2d3748;
+    border-top: 2px solid #2d3748;
+    padding: 0;
+}
+
+/* section แรกไม่ต้องมี border-top */
+.all-cat-section-hdr:first-child .all-cat-section-hdr__cell {
+    border-top: none;
+}
+
+.all-cat-section-hdr__inner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem 0.5rem 0.5rem;
+}
+
+/* ============================================================
+   Global Competency Summary bar
+   ============================================================ */
+.global-comp-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    padding: 0 0.5rem;
+    scrollbar-width: none;
+}
+.global-comp-summary::-webkit-scrollbar { display: none; }
+
+.global-comp-summary__label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.global-comp-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px 3px 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--cc) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--cc) 30%, transparent);
+    white-space: nowrap;
+    flex-shrink: 0;
+    cursor: default;
+}
+
+.global-comp-chip__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.global-comp-chip__name {
+    font-size: 0.68rem;
+    color: color-mix(in srgb, var(--cc) 85%, #94a3b8);
+    max-width: 72px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.global-comp-chip__val {
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: monospace;
+    color: var(--cc);
+    min-width: 18px;
+    text-align: right;
+}
+
+/* toolbar ต้องไม่ wrap */
+.ccp-sheet__toolbar {
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+/* thead ใช้ box-shadow แทน border-bottom เพื่อให้เส้นโชว์เหนือ sticky section header */
+.all-cat-table thead tr {
+    box-shadow: 0 2px 0 #334155;
+}
+
+.all-cat-table thead th {
+    border-bottom: none;
 }
 
 .tree-label{
