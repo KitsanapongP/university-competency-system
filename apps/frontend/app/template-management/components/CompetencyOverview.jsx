@@ -133,6 +133,7 @@ export default function CompetencyOverview({
     const coursesWithComp = allCourses.filter(c =>
         competencies.some(comp => (Number(weightsByCourseId[c.id]?.[comp.id]) || 0) > 0)
     ).length;
+    const credits = allCourses.reduce((sum, c) => sum + (Number(c.credits) || 0), 0);
 
     const labels = totals.map(t => t.comp.name);
     const data   = totals.map(t => t.total);
@@ -154,6 +155,14 @@ export default function CompetencyOverview({
                         <div className="ov-stat">
                             <span className="ov-stat__val">{totalCourses}</span>
                             <span className="ov-stat__label">วิชาทั้งหมด</span>
+                        </div>
+                        <div className="ov-stat">
+                            <span className="ov-stat__val">{categories.length}</span>
+                            <span className="ov-stat__label">หมวดวิชา</span>
+                        </div>
+                        <div className="ov-stat">
+                            <span className="ov-stat__val">{credits}</span>
+                            <span className="ov-stat__label">หน่วยกิตรวม</span>
                         </div>
                         <div className="ov-stat">
                             <span className="ov-stat__val">{coursesWithComp}</span>

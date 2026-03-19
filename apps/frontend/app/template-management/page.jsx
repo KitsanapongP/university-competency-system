@@ -185,10 +185,19 @@ export default function TemplateManagementPage() {
         setDeletingTemplate(null);
     }, [deletingTemplate, selectedTemplate, handleBackToList]);
 
-    const handleSaveTemplate = useCallback(({ name, year, masterData, competencyIds }) => {
+    const handleSaveTemplate = useCallback(({ name, year, masterData, competencyIds, newCompetencies }) => {
         const id = ++templateRef.current;
         const newTemplate = { id, name, year };
         setTemplates(p => [...p, newTemplate]);
+
+        // เพิ่ม competencies ใหม่ที่สร้างใน modal เข้า global state
+        if (newCompetencies?.length) {
+            setCompetencies(p => {
+                const existingIds = new Set(p.map(c => c.id));
+                const toAdd = newCompetencies.filter(c => !existingIds.has(c.id));
+                return toAdd.length ? [...p, ...toAdd] : p;
+            });
+        }
 
         // ถ้ามี masterData → แปลง categories และ courses จาก master
         if (masterData) {

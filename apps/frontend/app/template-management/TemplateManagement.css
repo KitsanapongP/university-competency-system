@@ -2800,6 +2800,104 @@
     width: 100%;
 }
 
+/* ============================================================
+   Step2 — Add Competency inline form
+   ============================================================ */
+.tfm-step2-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.tfm-add-comp-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.tfm-add-comp-form {
+    background: #151a27;
+    border: 1px solid #2d3748;
+    border-radius: 10px;
+    padding: 0.875rem 1rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+/* Color section */
+.tfm-color-section {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    flex-wrap: wrap;
+}
+
+.tfm-color-preview {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 2px solid rgba(255,255,255,0.15);
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+
+.tfm-preset-colors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.tfm-preset-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.1s, border-color 0.1s;
+    padding: 0;
+}
+
+.tfm-preset-dot:hover { transform: scale(1.2); }
+
+.tfm-preset-dot--active {
+    border-color: #fff;
+    transform: scale(1.15);
+}
+
+.tfm-custom-color {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: #2d3748;
+    cursor: pointer;
+    border: 1px solid #334155;
+    transition: background 0.15s;
+}
+
+.tfm-custom-color:hover { background: #334155; }
+
+.tfm-custom-color__icon { font-size: 0.85rem; line-height: 1; }
+
+/* Name + buttons row */
+.tfm-add-comp-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tfm-comp-name-input {
+    flex: 1;
+    padding: 0.4rem 0.75rem !important;
+    font-size: 0.83rem !important;
+}
+
 .tree-item{
     font-size: 0.7rem;
 }

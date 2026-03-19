@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search, Plus } from 'lucide-react';
 import { MOCK_COURSE_MASTERS, MOCK_COMPETENCIES } from '../mockData';
 
 // ============================================================
@@ -188,9 +188,27 @@ function Step1({ form, setForm }) {
 }
 
 // ============================================================
+// สีสำหรับสุ่ม
+// ============================================================
+const PRESET_COLORS = [
+    '#ec4899','#3b82f6','#06b6d4','#f59e0b',
+    '#10b981','#8b5cf6','#ef4444','#f97316',
+    '#14b8a6','#a855f7','#84cc16','#0ea5e9',
+];
+
+function randomColor(excludeColors = []) {
+    const pool = PRESET_COLORS.filter(c => !excludeColors.includes(c));
+    return pool[Math.floor(Math.random() * pool.length)] || PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+}
+
+// ============================================================
 // Step 2 — เลือก Competency
 // ============================================================
-function Step2({ form, setForm, allCompetencies }) {
+function Step2({ form, setForm, allCompetencies, onAddCompetency }) {
+    const [newName,  setNewName]  = useState('');
+    const [newColor, setNewColor] = useState(() => randomColor(allCompetencies.map(c => c.color)));
+    const [adding,   setAdding]   = useState(false);
+
     const toggle = (id) => {
         setForm(p => {
             const set = new Set(p.competencyIds);
@@ -200,9 +218,75 @@ function Step2({ form, setForm, allCompetencies }) {
         });
     };
 
+    const handleAdd = () => {
+        if (!newName.trim()) return;
+        const added = onAddCompetency(newName.trim(), newColor);
+        // auto-select ที่เพิ่งสร้าง
+        setForm(p => {
+            const set = new Set(p.competencyIds);
+            set.add(added.id);
+            return { ...p, competencyIds: set };
+        });
+        setNewName('');
+        setNewColor(randomColor(allCompetencies.map(c => c.color)));
+        setAdding(false);
+    };
+
     return (
         <div className="tfm-step2">
-            <p className="tfm-hint">เลือก Competency ที่ต้องการผูกกับรายวิชาในหลักสูตรนี้ (เลือกได้หลายตัว)</p>
+            <div className="tfm-step2-header">
+                <p className="tfm-hint" style={{margin:0}}>เลือก Competency ที่ต้องการผูกกับรายวิชาในหลักสูตรนี้ (เลือกได้หลายตัว)</p>
+                <button className="btn btn--ghost btn--sm tfm-add-comp-btn"
+                    onClick={() => setAdding(p => !p)}>
+                    <Plus size={13}/> เพิ่ม Competency
+                </button>
+            </div>
+
+            {/* Inline form เพิ่ม Competency ใหม่ */}
+            {adding && (
+                <div className="tfm-add-comp-form">
+                    {/* Color picker + swatch */}
+                    <div className="tfm-color-section">
+                        <div className="tfm-color-preview" style={{ background: newColor }}/>
+                        <div className="tfm-preset-colors">
+                            {PRESET_COLORS.map(c => (
+                                <button key={c}
+                                    className={`tfm-preset-dot ${newColor === c ? 'tfm-preset-dot--active' : ''}`}
+                                    style={{ background: c }}
+                                    onClick={() => setNewColor(c)}
+                                    title={c}
+                                />
+                            ))}
+                        </div>
+                        <label className="tfm-custom-color" title="เลือกสีเอง">
+                            <input type="color" value={newColor}
+                                onChange={e => setNewColor(e.target.value)}
+                                style={{ opacity:0, position:'absolute', width:1, height:1 }}/>
+                            <span className="tfm-custom-color__icon">🎨</span>
+                        </label>
+                    </div>
+
+                    {/* ชื่อ + ปุ่ม */}
+                    <div className="tfm-add-comp-row">
+                        <input
+                            className="cfm-input tfm-comp-name-input"
+                            value={newName}
+                            onChange={e => setNewName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setAdding(false); }}
+                            placeholder="ชื่อ Competency..."
+                            autoFocus
+                        />
+                        <button className="btn btn--primary btn--sm" onClick={handleAdd} disabled={!newName.trim()}>
+                            <Check size={13}/> เพิ่ม
+                        </button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => setAdding(false)}>
+                            ยกเลิก
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Grid การ์ด */}
             <div className="tfm-comp-grid">
                 {allCompetencies.map(comp => {
                     const selected = form.competencyIds.has(comp.id);
@@ -219,6 +303,7 @@ function Step2({ form, setForm, allCompetencies }) {
                     );
                 })}
             </div>
+
             {form.competencyIds.size === 0 && (
                 <p className="tfm-warn">⚠ กรุณาเลือก Competency อย่างน้อย 1 ตัว</p>
             )}
@@ -234,9 +319,18 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = M
     const [form, setForm] = useState({
         name:          '',
         year:          2568,
-        masterId:      null,   // null = สร้างใหม่
+        masterId:      null,
         competencyIds: new Set(),
     });
+    // local competencies — เริ่มจาก allCompetencies แต่เพิ่มได้ใน Step2
+    const [localComps, setLocalComps] = useState(allCompetencies);
+    const localCompIdRef = useRef(9900);
+
+    const handleAddCompetency = (name, color) => {
+        const newComp = { id: ++localCompIdRef.current, code: `new_${localCompIdRef.current}`, name, color };
+        setLocalComps(p => [...p, newComp]);
+        return newComp;
+    };
 
     const canNext = step === 1
         ? form.name.trim().length > 0
@@ -246,51 +340,45 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = M
         if (!canNext) return;
         const master = MOCK_COURSE_MASTERS.find(m => m.id === form.masterId) ?? null;
         onSave({
-            name:          form.name.trim(),
-            year:          form.year,
-            masterId:      form.masterId,
-            masterData:    master,
-            competencyIds: [...form.competencyIds],
+            name:              form.name.trim(),
+            year:              form.year,
+            masterId:          form.masterId,
+            masterData:        master,
+            competencyIds:     [...form.competencyIds],
+            newCompetencies:   localComps.filter(c => !allCompetencies.find(a => a.id === c.id)),
         });
     };
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-box modal-box--tfm" onClick={e => e.stopPropagation()}>
-
-                {/* Header */}
                 <div className="modal-header">
                     <h3>สร้าง Template ใหม่</h3>
                     <button className="modal-close" onClick={onClose}><X size={18}/></button>
                 </div>
-
-                {/* Step indicator */}
                 <div style={{ padding: '0.75rem 1.5rem 0' }}>
                     <StepIndicator step={step}/>
                 </div>
-
-                {/* Body */}
                 <div className="modal-body tfm-body">
                     {step === 1 && <Step1 form={form} setForm={setForm}/>}
-                    {step === 2 && <Step2 form={form} setForm={setForm} allCompetencies={allCompetencies}/>}
+                    {step === 2 && (
+                        <Step2
+                            form={form}
+                            setForm={setForm}
+                            allCompetencies={localComps}
+                            onAddCompetency={handleAddCompetency}
+                        />
+                    )}
                 </div>
-
-                {/* Footer */}
                 <div className="modal-footer">
-                    {step === 1 ? (
-                        <button className="btn btn--ghost" onClick={onClose}>ยกเลิก</button>
-                    ) : (
-                        <button className="btn btn--ghost" onClick={() => setStep(1)}>← ย้อนกลับ</button>
-                    )}
-                    {step === 1 ? (
-                        <button className="btn btn--primary" disabled={!canNext} onClick={() => setStep(2)}>
-                            ถัดไป →
-                        </button>
-                    ) : (
-                        <button className="btn btn--primary" disabled={!canNext} onClick={handleSave}>
-                            <Check size={15}/> สร้าง Template
-                        </button>
-                    )}
+                    {step === 1
+                        ? <button className="btn btn--ghost" onClick={onClose}>ยกเลิก</button>
+                        : <button className="btn btn--ghost" onClick={() => setStep(1)}>← ย้อนกลับ</button>
+                    }
+                    {step === 1
+                        ? <button className="btn btn--primary" disabled={!canNext} onClick={() => setStep(2)}>ถัดไป →</button>
+                        : <button className="btn btn--primary" disabled={!canNext} onClick={handleSave}><Check size={15}/> สร้าง Template</button>
+                    }
                 </div>
             </div>
         </div>
