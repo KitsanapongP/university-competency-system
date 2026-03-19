@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     Plus, Trash2, GripVertical, ChevronRight, ChevronDown,
-    BookOpen, AlertCircle, Check, X, Pencil, SlidersHorizontal
+    BookOpen, AlertCircle, Check, X, Pencil, SlidersHorizontal, LockKeyhole
 } from 'lucide-react';
 
 function isLeaf(cat) { return !cat.children?.length; }
@@ -49,88 +49,27 @@ function AddCompetencyModal({ onAdd, onClose }) {
 }
 
 // ============================================================
-// WeightSidePanel
-// weightMap: { [compId]: number }  — 0 = ไม่ได้เลือก
-// ============================================================
-function WeightSidePanel({ course, competencies, weightMap, onToggle, onSetWeight, onClose }) {
-    const checkedIds = competencies.filter(c => (weightMap?.[c.id] || 0) > 0).map(c => c.id);
-    const total = checkedIds.reduce((s, id) => s + (weightMap[id] || 0), 0);
-    const isOver = total > 100;
-    const isOk   = total === 100 && checkedIds.length > 0;
-
-    return (
-        <div className="wp-panel">
-            <div className="wp-header">
-                <SlidersHorizontal size={14}/>
-                <span>Competency Weight</span>
-                <button className="modal-close" style={{ marginLeft:'auto' }} onClick={onClose}><X size={15}/></button>
-            </div>
-            <div className="wp-course-name">
-                <span className="ss-code">{course.code}</span>
-                <span className="wp-course-th">{course.nameTh}</span>
-            </div>
-            <p className="wp-hint">ติ๊กเลือก Competency แล้วใส่ % ที่วิชานี้มีส่วนพัฒนา</p>
-            <div className="wp-list">
-                {competencies.map(comp => {
-                    const checked = (weightMap?.[comp.id] || 0) > 0;
-                    const w       = weightMap?.[comp.id] ?? 0;
-                    return (
-                        <div key={comp.id} className={`wp-row ${checked ? 'wp-row--active' : ''}`}>
-                            <button
-                                className={`ss-checkbox ${checked ? 'ss-checkbox--checked' : ''}`}
-                                style={checked ? { '--cb-color': comp.color } : {}}
-                                onClick={() => onToggle(course.id, comp.id)}
-                            >
-                                {checked && <Check size={10}/>}
-                            </button>
-                            <span className="wp-dot" style={{ background: comp.color }}/>
-                            <span className="wp-comp-name">{comp.name}</span>
-                            {checked && (
-                                <div className="wp-weight-input-wrap">
-                                    <input
-                                        className="wp-weight-input"
-                                        type="number" min={0} max={100}
-                                        value={w || ''}
-                                        placeholder="0"
-                                        onChange={e => {
-                                            const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
-                                            onSetWeight(course.id, comp.id, val);
-                                        }}
-                                    />
-                                    <span className="wp-pct">%</span>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-            <div className={`wp-total ${isOver ? 'wp-total--over' : isOk ? 'wp-total--ok' : ''}`}>
-                <span>รวม</span>
-                <span className="wp-total__num">{total}%</span>
-                {isOver && <span className="wp-total__warn">เกิน 100%</span>}
-                {isOk   && <Check size={12}/>}
-            </div>
-        </div>
-    );
-}
-
-// ============================================================
 // SpreadsheetRow
 // ============================================================
 function SpreadsheetRow({
     course, catId, competencies, weightMap,
-    onUpdate, onDelete, onSetWeight, isNew,
+    onUpdate, onDelete, onSetWeight, isNew, hideEditActions=false, isSetupMode=false,
 }) {
     const codeRef = useRef(null);
     useEffect(() => { if (isNew) codeRef.current?.focus(); }, [isNew]);
 
-    const [editing, setEditing] = useState(!!isNew);
+    const fromMaster = !!course.fromMaster;
+    const locked     = fromMaster || hideEditActions; // master ล็อคทุกอย่าง
+
+    const [editing, setEditing] = useState(!fromMaster && !!isNew);
     const [form, setForm] = useState({
         code: course.code||'', nameTh: course.nameTh||'',
         nameEn: course.nameEn||'', credits: course.credits||'',
     });
 
-    const hasData = !!(course.code?.trim() || course.nameTh?.trim());
+    const hasData       = !!(course.code?.trim() || course.nameTh?.trim());
+    const hasCompetency = hasData && competencies.some(c => (Number(weightMap?.[c.id]) || 0) > 0);
+    const showNoCompWarn = !isSetupMode && hasData && !hasCompetency;
 
     const handleSave = () => {
         if (!form.code.trim() && !form.nameTh.trim()) return;
@@ -145,72 +84,104 @@ function SpreadsheetRow({
         }
     };
 
+    // cell click — master ไม่ให้ edit
+    const handleCellClick = () => { if (!locked) setEditing(true); };
+
     return (
-        <tr className={`ss-row ${editing ? 'ss-row--editing' : ''}`}>
-            <td className="ss-cell ss-cell--grip"><GripVertical size={13}/></td>
+        <React.Fragment>
+            <tr className={`ss-row ${editing ? 'ss-row--editing' : ''} ${fromMaster ? 'ss-row--master' : ''}`}>
+                <td className="ss-cell ss-cell--grip">
+                    {fromMaster
+                        ? <span className="ss-master-badge" title="วิชาจาก Course Master — ไม่สามารถแก้ไขได้">M</span>
+                        : <GripVertical size={13}/>}
+                </td>
 
-            <td className="ss-cell" onClick={() => setEditing(true)}>
-                {editing
-                    ? <input ref={codeRef} className="ss-input" value={form.code}
-                        onChange={e => setForm(p=>({...p,code:e.target.value}))} onKeyDown={handleKey} placeholder="รหัสวิชา"/>
-                    : <span className="ss-code">{course.code || <span className="ss-placeholder">รหัสวิชา</span>}</span>}
-            </td>
+                {/* รหัสวิชา */}
+                <td className="ss-cell" onClick={handleCellClick}>
+                    {editing && !locked
+                        ? <input ref={codeRef} className="ss-input" value={form.code}
+                            onChange={e => setForm(p=>({...p,code:e.target.value}))} onKeyDown={handleKey} placeholder="รหัสวิชา"/>
+                        : <span className="ss-code-wrap">
+                            <span className="ss-code">{course.code || <span className="ss-placeholder">รหัสวิชา</span>}</span>
+                            {showNoCompWarn && (
+                                <span className="ss-no-comp-warn" title="ยังไม่ได้ผูก Competency">
+                                    <AlertCircle size={12}/>
+                                </span>
+                            )}
+                          </span>
+                    }
+                </td>
 
-            <td className="ss-cell ss-cell--wide" onClick={() => setEditing(true)}>
-                {editing
-                    ? <input className="ss-input" value={form.nameTh}
-                        onChange={e => setForm(p=>({...p,nameTh:e.target.value}))} onKeyDown={handleKey} placeholder="ชื่อวิชาภาษาไทย"/>
-                    : <span>{course.nameTh || <span className="ss-placeholder">ชื่อภาษาไทย</span>}</span>}
-            </td>
+                {/* ชื่อไทย */}
+                <td className="ss-cell ss-cell--wide" onClick={handleCellClick}>
+                    {editing && !locked
+                        ? <input className="ss-input" value={form.nameTh}
+                            onChange={e => setForm(p=>({...p,nameTh:e.target.value}))} onKeyDown={handleKey} placeholder="ชื่อวิชาภาษาไทย"/>
+                        : <span>{course.nameTh || <span className="ss-placeholder">ชื่อภาษาไทย</span>}</span>}
+                </td>
 
-            <td className="ss-cell ss-cell--wide" onClick={() => setEditing(true)}>
-                {editing
-                    ? <input className="ss-input" value={form.nameEn}
-                        onChange={e => setForm(p=>({...p,nameEn:e.target.value}))} onKeyDown={handleKey} placeholder="English Name"/>
-                    : <span>{course.nameEn || <span className="ss-placeholder">English Name</span>}</span>}
-            </td>
+                {/* ชื่ออังกฤษ */}
+                <td className="ss-cell ss-cell--wide" onClick={handleCellClick}>
+                    {editing && !locked
+                        ? <input className="ss-input" value={form.nameEn}
+                            onChange={e => setForm(p=>({...p,nameEn:e.target.value}))} onKeyDown={handleKey} placeholder="English Name"/>
+                        : <span>{course.nameEn || <span className="ss-placeholder">English Name</span>}</span>}
+                </td>
 
-            <td className="ss-cell ss-cell--num" onClick={() => setEditing(true)}>
-                {editing
-                    ? <input className="ss-input ss-input--num" type="number" min={0} max={12} value={form.credits}
-                        onChange={e => setForm(p=>({...p,credits:e.target.value}))} onKeyDown={handleKey} placeholder="0"/>
-                    : <span>{course.credits || <span className="ss-placeholder">0</span>}</span>}
-            </td>
+                {/* หน่วยกิต */}
+                <td className="ss-cell ss-cell--num" onClick={handleCellClick}>
+                    {editing && !locked
+                        ? <input className="ss-input ss-input--num" type="number" min={0} max={12} value={form.credits}
+                            onChange={e => setForm(p=>({...p,credits:e.target.value}))} onKeyDown={handleKey} placeholder="0"/>
+                        : <span>{course.credits || <span className="ss-placeholder">0</span>}</span>}
+                </td>
 
-            {competencies.map(comp => {
-                const w = weightMap?.[comp.id] ?? '';
-                const active = w !== '' && Number(w) > 0;
-                return (
-                    <td key={comp.id} className="ss-cell ss-cell--weight">
-                        <div className={`ss-weight-wrap ${active ? 'ss-weight-wrap--active' : ''} ${!hasData ? 'ss-weight-wrap--locked' : ''}`}
-                            style={active ? { '--wc': comp.color } : {}}>
-                            <input
-                                className="ss-weight-input"
-                                type="number" min={0} max={100}
-                                value={w} placeholder="—" disabled={!hasData}
-                                title={!hasData ? 'กรอกข้อมูลวิชาก่อน' : `${comp.name} weight`}
-                                onChange={e => {
-                                    const val = e.target.value === '' ? 0
-                                        : Math.min(100, Math.max(0, Number(e.target.value) || 0));
-                                    onSetWeight(course.id, comp.id, val);
-                                }}
-                            />
-                            {active && <span className="ss-weight-pct">%</span>}
-                        </div>
-                    </td>
-                );
-            })}
+                {/* Weight columns — ซ่อนใน setup mode */}
+                {!isSetupMode && competencies.map(comp => {
+                    const stored = weightMap?.[comp.id] ?? 0;
+                    const active = Number(stored) > 0;
+                    return (
+                        <td key={comp.id} className="ss-cell ss-cell--weight">
+                            <div className={`ss-weight-wrap ${active ? 'ss-weight-wrap--active' : ''} ${!hasData ? 'ss-weight-wrap--locked' : ''}`}
+                                style={active ? { '--wc': comp.color } : {}}>
+                                <input
+                                    className="ss-weight-input"
+                                    type="number" min={0} max={100}
+                                    value={Number(stored)}
+                                    disabled={!hasData}
+                                    title={!hasData ? 'กรอกข้อมูลวิชาก่อน' : `${comp.name} weight`}
+                                    onFocus={e => e.target.select()}
+                                    onChange={e => {
+                                        const raw = e.target.value;
+                                        const val = raw === '' ? 0 : Math.min(100, Math.max(0, parseInt(raw, 10) || 0));
+                                        onSetWeight(course.id, comp.id, val);
+                                    }}
+                                />
+                                {active && <span className="ss-weight-pct">%</span>}
+                            </div>
+                        </td>
+                    );
+                })}
 
-            <td className="ss-cell ss-cell--actions" onClick={e => e.stopPropagation()}>
-                {editing
-                    ? <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={handleSave}><Check size={13}/></button>
-                    : <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={() => setEditing(true)}><Pencil size={12}/></button>
-                }
-                <button className="icon-btn icon-btn--danger icon-btn--xs" onClick={() => onDelete(catId, course)}>
-                    <Trash2 size={12}/>
-                </button>
-            </td>
-        </tr>
+                {/* Actions */}
+                <td className="ss-cell ss-cell--actions" onClick={e => e.stopPropagation()}>
+                    {fromMaster ? (
+                        /* Master: ล็อค icon แทนปุ่ม */
+                        <span className="ss-locked-icon" title="วิชาจาก Course Master">🔒</span>
+                    ) : !hideEditActions && (
+                        <>
+                            {editing
+                                ? <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={handleSave}><Check size={13}/></button>
+                                : <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={() => setEditing(true)}><Pencil size={12}/></button>
+                            }
+                            <button className="icon-btn icon-btn--danger icon-btn--xs" onClick={() => onDelete(catId, course)}>
+                                <Trash2 size={12}/>
+                            </button>
+                        </>
+                    )}
+                </td>
+            </tr>
+        </React.Fragment>
     );
 }
 
@@ -219,9 +190,10 @@ function SpreadsheetRow({
 // ============================================================
 function CourseSpreadsheet({
     catId, courses, competencies, weightsByCourseId,
-    onAddCourse, onUpdateCourse, onDeleteCourse, onSetWeight,
+    onUpdateCourse, onDeleteCourse, onSetWeight,
+    hideEditActions=false, isSetupMode=false,
 }) {
-    const colCount = 1 + 1 + 2 + 1 + competencies.length + 1;
+    const colCount = 1 + 1 + 2 + 1 + (isSetupMode ? 0 : competencies.length) + 1;
 
     return (
         <div className="ss-wrapper">
@@ -234,8 +206,9 @@ function CourseSpreadsheet({
                             <th className="ss-th ss-th--wide">ชื่อวิชา (ไทย)</th>
                             <th className="ss-th ss-th--wide">ชื่อวิชา (Eng)</th>
                             <th className="ss-th ss-th--num">หน่วยกิต</th>
-                            {competencies.map(c => (
-                                <th key={c.id} className="ss-th ss-th--weight" style={{'--comp-color': c.color}} title={c.name}>
+                            {/* Weight columns — ซ่อนใน setup mode */}
+                            {!isSetupMode && competencies.map(c => (
+                                <th key={c.id} className="ss-th ss-th--weight" style={{'--comp-color': c.color}}>
                                     <span className="ss-comp-dot" style={{ background: c.color }}/>
                                     <span className="ss-comp-name">{c.name}</span>
                                 </th>
@@ -260,6 +233,8 @@ function CourseSpreadsheet({
                                 onDelete={onDeleteCourse}
                                 onSetWeight={onSetWeight}
                                 isNew={i === courses.length - 1 && !course.code && !course.nameTh}
+                                hideEditActions={hideEditActions}
+                                isSetupMode={isSetupMode}
                             />
                         ))}
                     </tbody>
@@ -272,89 +247,17 @@ function CourseSpreadsheet({
 // ============================================================
 // Helper — เก็บ leaf categories ทั้งหมดพร้อม path
 // ============================================================
-function collectLeafSections(cats, coursesByCategoryId, parentPath = '') {
+function CollectLeafSections(cats, coursesByCategoryId, parentPath = '') {
     const result = [];
     for (const cat of cats) {
         const path = parentPath ? `${parentPath} › ${cat.name}` : cat.name;
         if (!cat.children?.length) {
             result.push({ cat, path, courses: coursesByCategoryId[cat.id] || [] });
         } else {
-            result.push(...collectLeafSections(cat.children, coursesByCategoryId, path));
+            result.push(...CollectLeafSections(cat.children, coursesByCategoryId, path));
         }
     }
     return result;
-}
-
-// ============================================================
-// CategorySection — 1 หมวดวิชาใน all-view
-// ============================================================
-function CategorySection({
-    cat, path, courses, competencies, weightsByCourseId,
-    onAddCourse, onUpdateCourse, onDeleteCourse, onSetWeight, sectionRef,
-}) {
-    const colCount = 1 + 1 + 2 + 1 + competencies.length + 1 + 1;
-    const compTotals = competencies.map(comp => ({
-        comp,
-        total: courses.reduce((sum, c) => sum + (Number(weightsByCourseId[c.id]?.[comp.id]) || 0), 0),
-    }));
-
-    return (
-        <div className="cat-section" ref={sectionRef} id={`cat-section-${cat.id}`}>
-            {/* Section header */}
-            <div className="cat-section__header">
-                <div className="cat-section__title-wrap">
-                    <span className="cat-section__code">{cat.code}</span>
-                    <span className="cat-section__name">{cat.name || <em style={{color:'#475569'}}>ยังไม่ตั้งชื่อ</em>}</span>
-                    <span className="cat-section__path">{path}</span>
-                </div>
-                <button className="btn btn--ghost btn--sm cat-section__add-btn"
-                    onClick={() => onAddCourse(cat.id, { code:'', nameTh:'', nameEn:'', credits:0 })}>
-                    <Plus size={12}/> เพิ่มวิชา
-                </button>
-            </div>
-
-            {/* Table */}
-            <table className="ss-table cat-section__table">
-                <tbody>
-                    {courses.length === 0 && (
-                        <tr><td colSpan={colCount} className="ss-empty cat-section__empty">
-                            ยังไม่มีรายวิชา
-                        </td></tr>
-                    )}
-                    {courses.map((course, i) => (
-                        <SpreadsheetRow
-                            key={course.id}
-                            course={course}
-                            catId={cat.id}
-                            competencies={competencies}
-                            weightMap={weightsByCourseId[course.id] || {}}
-                            onUpdate={onUpdateCourse}
-                            onDelete={onDeleteCourse}
-                            onSetWeight={onSetWeight}
-                            isNew={i === courses.length - 1 && !course.code && !course.nameTh}
-                        />
-                    ))}
-                </tbody>
-                {courses.length > 0 && (
-                    <tfoot>
-                        <tr className="ss-tfoot-row">
-                            <td className="ss-tfoot-cell ss-tfoot-cell--label" colSpan={5}>
-                                รวม
-                            </td>
-                            {compTotals.map(({ comp, total }) => (
-                                <td key={comp.id} className="ss-tfoot-cell ss-tfoot-cell--comp" style={{ '--tc': comp.color }}>
-                                    {total > 0
-                                        ? <span className="ss-tfoot-total">{total}</span>
-                                        : <span className="ss-tfoot-zero">—</span>}
-                                </td>
-                            ))}
-                            <td className="ss-tfoot-cell"/>
-                        </tr>
-                    </tfoot>
-                )}
-            </table>
-        </div>
-    );
 }
 
 // ============================================================
@@ -364,7 +267,6 @@ function CategorySection({
 // GlobalCompSummary — แถบสรุป competency รวมทุกวิชาทั้งหลักสูตร
 // ============================================================
 function GlobalCompSummary({ categories, coursesByCategoryId, weightsByCourseId, competencies }) {
-    // รวม weight ของแต่ละ competency จากทุกวิชาทุกหมวด
     const totals = competencies.map(comp => {
         let total = 0;
         Object.values(coursesByCategoryId).forEach(courses => {
@@ -375,18 +277,29 @@ function GlobalCompSummary({ categories, coursesByCategoryId, weightsByCourseId,
         return { comp, total };
     });
 
+    const hasAny = totals.some(t => t.total > 0);
+    if (!hasAny) return null;
+
     return (
         <div className="global-comp-summary">
             <span className="global-comp-summary__label">ภาพรวม</span>
-            {totals.map(({ comp, total }) => (
-                <div key={comp.id} className="global-comp-chip"
-                    style={{ '--cc': comp.color }}
-                    title={`${comp.name}: ${total}`}>
-                    <span className="global-comp-chip__dot" style={{ background: comp.color }}/>
-                    <span className="global-comp-chip__name">{comp.name}</span>
-                    <span className="global-comp-chip__val">{total > 0 ? total : '—'}</span>
-                </div>
-            ))}
+            {totals.map(({ comp, total }) => {
+                const isOver = total > 100;
+                return (
+                    <div key={comp.id}
+                        className={`global-comp-chip ${isOver ? 'global-comp-chip--over' : ''}`}
+                        style={{ '--cc': isOver ? '#f87171' : comp.color }}
+                        title={isOver ? `${comp.name}: ${total} — เกิน 100%!` : `${comp.name}: ${total}`}>
+                        {isOver
+                            ? <AlertCircle size={11} style={{ color:'#f87171', flexShrink:0 }}/>
+                            : <span className="global-comp-chip__dot" style={{ background: comp.color }}/>
+                        }
+                        <span className="global-comp-chip__name">{comp.name}</span>
+                        <span className="global-comp-chip__val">{total > 0 ? total : '—'}</span>
+                        {isOver && <span className="global-comp-chip__warn">เกิน</span>}
+                    </div>
+                );
+            })}
         </div>
     );
 }
@@ -394,11 +307,11 @@ function GlobalCompSummary({ categories, coursesByCategoryId, weightsByCourseId,
 function AllCategoriesView({
     categories, coursesByCategoryId, competencies, weightsByCourseId,
     onAddCourse, onUpdateCourse, onDeleteCourse, onSetWeight,
-    scrollToCatId,
+    scrollToCatId, hideEditActions=false, isSetupMode=false,
 }) {
     const sectionRefs = useRef({});
-    const sections = collectLeafSections(categories, coursesByCategoryId);
-    const colCount = 1 + 1 + 2 + 1 + competencies.length + 1;
+    const sections = CollectLeafSections(categories, coursesByCategoryId);
+    const colCount = 1 + 1 + 2 + 1 + (isSetupMode ? 0 : competencies.length) + 1;
 
     useEffect(() => {
         if (scrollToCatId && sectionRefs.current[scrollToCatId]) {
@@ -418,7 +331,6 @@ function AllCategoriesView({
     return (
         <div className="all-cat-view">
             <div className="all-cat-view__scroll">
-                {/* table เดียว — thead sticky + ทุก section อยู่ใน tbody เดียวกัน */}
                 <table className="ss-table all-cat-table">
                     <thead>
                         <tr>
@@ -427,7 +339,7 @@ function AllCategoriesView({
                             <th className="ss-th ss-th--wide">ชื่อวิชา (ไทย)</th>
                             <th className="ss-th ss-th--wide">ชื่อวิชา (Eng)</th>
                             <th className="ss-th ss-th--num">หน่วยกิต</th>
-                            {competencies.map(c => (
+                            {!isSetupMode && competencies.map(c => (
                                 <th key={c.id} className="ss-th ss-th--weight" style={{'--comp-color': c.color}}>
                                     <span className="ss-comp-dot" style={{ background: c.color }}/>
                                     <span className="ss-comp-name">{c.name}</span>
@@ -439,9 +351,7 @@ function AllCategoriesView({
                     <tbody>
                         {sections.map(({ cat, path, courses }) => (
                             <React.Fragment key={cat.id}>
-                                {/* Section header row */}
-                                <tr key={`hdr-${cat.id}`}
-                                    ref={el => { sectionRefs.current[cat.id] = el; }}
+                                <tr ref={el => { sectionRefs.current[cat.id] = el; }}
                                     className="all-cat-section-hdr"
                                     id={`cat-section-${cat.id}`}>
                                     <td colSpan={colCount} className="all-cat-section-hdr__cell">
@@ -449,15 +359,17 @@ function AllCategoriesView({
                                             <span className="cat-section__code">{cat.code}</span>
                                             <span className="cat-section__name">{cat.name || <em style={{color:'#475569'}}>ยังไม่ตั้งชื่อ</em>}</span>
                                             <span className="cat-section__path">{path}</span>
-                                            <button className="btn btn--ghost btn--sm cat-section__add-btn"
-                                                onClick={() => onAddCourse(cat.id, { code:'', nameTh:'', nameEn:'', credits:0 })}>
-                                                <Plus size={12}/> เพิ่มวิชา
-                                            </button>
+                                            {/* เพิ่มวิชาใหม่ได้เสมอ (ไม่ใช่ master course) */}
+                                            {!hideEditActions && (
+                                                <button className="btn btn--ghost btn--sm cat-section__add-btn"
+                                                    onClick={() => onAddCourse(cat.id, { code:'', nameTh:'', nameEn:'', credits:0 })}>
+                                                    <Plus size={12}/> เพิ่มวิชา
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
 
-                                {/* Course rows */}
                                 {courses.length === 0 ? (
                                     <tr key={`empty-${cat.id}`}>
                                         <td colSpan={colCount} className="ss-empty cat-section__empty">
@@ -476,6 +388,8 @@ function AllCategoriesView({
                                             onDelete={onDeleteCourse}
                                             onSetWeight={onSetWeight}
                                             isNew={i === courses.length - 1 && !course.code && !course.nameTh}
+                                            hideEditActions={hideEditActions}
+                                            isSetupMode={isSetupMode}
                                         />
                                     ))
                                 )}
@@ -489,9 +403,11 @@ function AllCategoriesView({
 }
 
 
-function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, onSelect, onRename, onCreateChild, onDelete }) {
+function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, onSelect, onRename, onCreateChild, onDelete, hideActions=false }) {
     const [expanded, setExpanded] = useState(true);
-    const [renaming, setRenaming] = useState(cat.isNew || false);
+    const fromMaster = !!cat.fromMaster;
+
+    const [renaming, setRenaming] = useState(!fromMaster && (cat.isNew || false));
     const [nameVal,  setNameVal]  = useState(cat.name);
     const inputRef = useRef(null);
     useEffect(() => { if (renaming) inputRef.current?.focus(); }, [renaming]);
@@ -505,36 +421,77 @@ function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, on
 
     return (
         <div className="tree-item-wrap">
-            <div className={`tree-item ${selectedId === cat.id ? 'tree-item--selected' : ''}`}
+            <div
+                className={`tree-item ${selectedId === cat.id ? 'tree-item--selected' : ''} ${fromMaster ? 'tree-item--master' : ''}`}
                 style={{ paddingLeft: `${0.5 + depth * 1}rem` }}
                 onClick={() => { onSelect(cat); if (hasChildren) setExpanded(p=>!p); }}
-                onDoubleClick={e => { e.stopPropagation(); setRenaming(true); setNameVal(cat.name); }}>
+                onDoubleClick={e => {
+                    e.stopPropagation();
+                    // master ห้าม rename
+                    if (!fromMaster && !hideActions) { setRenaming(true); setNameVal(cat.name); }
+                }}
+            >
                 <span className="tree-toggle">
-                    {hasChildren ? (expanded ? <ChevronDown size={13}/> : <ChevronRight size={13}/>) : <span style={{width:13}}/>}
+                    {hasChildren
+                        ? (expanded ? <ChevronDown size={13}/> : <ChevronRight size={13}/>)
+                        : <span style={{width:13}}/>}
                 </span>
+
                 {renaming
                     ? <input ref={inputRef} className="tree-name-input" value={nameVal}
                         onChange={e => setNameVal(e.target.value)} onBlur={confirm}
                         onKeyDown={e => { if (e.key==='Enter') confirm(); if (e.key==='Escape') setRenaming(false); e.stopPropagation(); }}
                         onClick={e => e.stopPropagation()}/>
-                    : <span className="tree-label">{cat.code} {cat.name || <em style={{color:'#64748b'}}>ยังไม่ตั้งชื่อ</em>}</span>
+                    : <span className={`tree-label ${fromMaster ? 'tree-label--master' : ''}`}>
+                        {cat.code} {cat.name || <em style={{color:'#64748b'}}>ยังไม่ตั้งชื่อ</em>}
+                      </span>
                 }
+
                 <div className="tree-item__meta">
                     {leaf && courseCount > 0 && <span className="tree-course-badge">{courseCount} วิชา</span>}
                     {credits > 0 && <span className="tree-credits tree-credits--live">{credits} หน่วยกิต</span>}
                 </div>
+
                 <div className="tree-item__actions" onClick={e => e.stopPropagation()}>
-                    <button className="icon-btn icon-btn--danger icon-btn--xs" onClick={() => onDelete(cat)}>
-                        <Trash2 size={12}/>
-                    </button>
+                    {fromMaster ? (
+                        /* Master: ล็อค icon + ยังอนุญาตให้เพิ่มหมวดย่อยใหม่ได้ */
+                        <>
+                            {/* <LockKeyhole size={12}/> */}
+                            {depth < 2 && !hideActions && (
+                                <button className="icon-btn icon-btn--xs"
+                                    title="เพิ่มหมวดย่อยใหม่ (ไม่ใช่ Master)"
+                                    onClick={() => onCreateChild(cat)}>
+                                    <Plus size={12}/>
+                                </button>
+                            )}
+
+                        </>
+                    ) : !hideActions && (
+                        /* Non-master: ปุ่มเพิ่มหมวดย่อย + ปุ่มลบ */
+                        <>
+                            {depth < 2 && (
+                                <button className="icon-btn icon-btn--xs"
+                                    title="เพิ่มหมวดย่อย"
+                                    onClick={() => onCreateChild(cat)}>
+                                    <Plus size={12}/>
+                                </button>
+                            )}
+                            <button className="icon-btn icon-btn--danger icon-btn--xs"
+                                onClick={() => onDelete(cat)}>
+                                <Trash2 size={12}/>
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
+
             {expanded && hasChildren && (
                 <div className="tree-children">
                     {cat.children.map(child => (
                         <TreeItem key={child.id} cat={child} depth={depth+1}
                             selectedId={selectedId} coursesByCategoryId={coursesByCategoryId} creditMap={creditMap}
-                            onSelect={onSelect} onRename={onRename} onCreateChild={onCreateChild} onDelete={onDelete}/>
+                            onSelect={onSelect} onRename={onRename} onCreateChild={onCreateChild} onDelete={onDelete}
+                            hideActions={hideActions}/>
                     ))}
                 </div>
             )}
@@ -551,19 +508,20 @@ export default function CategoryCoursePanel({
     onSelectCategory, onCreateCategory, onRenameCategory, onDeleteCategory,
     onAddCourse, onUpdateCourse, onDeleteCourse,
     onToggleCompetency, onSetWeight, onAddCompetency,
+    mode = 'setup', // 'setup' | 'weight'
 }) {
     const [showAddComp,  setShowAddComp]  = useState(false);
-    const [viewMode,     setViewMode]     = useState('single'); // 'single' | 'all'
+    const [viewMode,     setViewMode]     = useState('single');
     const [scrollToCatId, setScrollToCatId] = useState(null);
+
+    const isWeightMode = mode === 'weight';
 
     const leaf    = selectedCategory && isLeaf(selectedCategory);
     const courses = selectedCategory ? (coursesByCategoryId[selectedCategory.id] || []) : [];
 
-    // เมื่อคลิก tree ใน all-view → scroll ไปยัง section นั้น
     const handleSelectInAll = (cat) => {
         onSelectCategory(cat);
         setScrollToCatId(cat.id);
-        // reset หลัง scroll
         setTimeout(() => setScrollToCatId(null), 800);
     };
 
@@ -577,10 +535,13 @@ export default function CategoryCoursePanel({
                     <div className="ccp-tree">
                         <div className="ccp-tree__header">
                             <span>โครงสร้างหมวดวิชา</span>
-                            <button className="btn btn--primary btn--sm ccp-tree__add-btn"
-                                onClick={onCreateCategory} title="เพิ่มหมวดวิชา">
-                                <Plus size={12}/> หมวดวิชา
-                            </button>
+                            {/* ซ่อนปุ่ม + หมวดวิชาใน weight mode */}
+                            {!isWeightMode && (
+                                <button className="btn btn--primary btn--sm ccp-tree__add-btn"
+                                    onClick={onCreateCategory} title="เพิ่มหมวดวิชา">
+                                    <Plus size={12}/> หมวดวิชา
+                                </button>
+                            )}
                         </div>
                         <div className="ccp-tree__scroll">
                             {categories.length === 0
@@ -596,7 +557,8 @@ export default function CategoryCoursePanel({
                                         }}
                                         onRename={onRenameCategory}
                                         onCreateChild={parent => { onSelectCategory(parent); onCreateCategory(); }}
-                                        onDelete={onDeleteCategory}/>
+                                        onDelete={onDeleteCategory}
+                                        hideActions={isWeightMode}/>
                                 ))
                             }
                         </div>
@@ -606,37 +568,19 @@ export default function CategoryCoursePanel({
                     <div className="ccp-sheet">
                         {/* Sheet toolbar */}
                         <div className="ccp-sheet__toolbar">
-                            {/* View mode toggle */}
                             <div className="view-toggle">
-                                <button
-                                    className={`view-toggle__btn ${viewMode === 'single' ? 'view-toggle__btn--active' : ''}`}
-                                    onClick={() => setViewMode('single')}
-                                >หมวดที่เลือก</button>
-                                <button
-                                    className={`view-toggle__btn ${viewMode === 'all' ? 'view-toggle__btn--active' : ''}`}
-                                    onClick={() => setViewMode('all')}
-                                >ดูทั้งหมด</button>
+                                <button className={`view-toggle__btn ${viewMode === 'single' ? 'view-toggle__btn--active' : ''}`}
+                                    onClick={() => setViewMode('single')}>หมวดที่เลือก</button>
+                                <button className={`view-toggle__btn ${viewMode === 'all' ? 'view-toggle__btn--active' : ''}`}
+                                    onClick={() => setViewMode('all')}>ดูทั้งหมด</button>
                             </div>
 
-                            {/* Global competency summary */}
                             <GlobalCompSummary
                                 categories={categories}
                                 coursesByCategoryId={coursesByCategoryId}
                                 weightsByCourseId={weightsByCourseId}
                                 competencies={competencies}
                             />
-
-                            <div style={{ marginLeft:'auto', display:'flex', gap:'0.4rem', flexShrink:0 }}>
-                                <button className="btn btn--ghost btn--sm" onClick={() => setShowAddComp(true)}>
-                                    <Plus size={13}/> Competency
-                                </button>
-                                {viewMode === 'single' && leaf && (
-                                    <button className="btn btn--primary btn--sm"
-                                        onClick={() => onAddCourse(selectedCategory.id, { code:'', nameTh:'', nameEn:'', credits:0 })}>
-                                        <Plus size={13}/> เพิ่มรายวิชา
-                                    </button>
-                                )}
-                            </div>
                         </div>
 
                         {/* ── All-view ── */}
@@ -651,9 +595,10 @@ export default function CategoryCoursePanel({
                                 onDeleteCourse={onDeleteCourse}
                                 onSetWeight={onSetWeight}
                                 scrollToCatId={scrollToCatId}
+                                hideEditActions={isWeightMode}
+                                isSetupMode={!isWeightMode}
                             />
                         ) : (
-                            /* ── Single-view ── */
                             !selectedCategory ? (
                                 <div className="panel-empty">
                                     <BookOpen size={22} opacity={0.3}/>
@@ -668,13 +613,20 @@ export default function CategoryCoursePanel({
                                 <div className="ccp-sheet__inner">
                                     <div className="ccp-sheet__header">
                                         <div className="ccp-sheet__header-left">
-                                            <span className="ccp-sheet__cat">
-                                                {selectedCategory.code} {selectedCategory.name}
-                                            </span>
+                                            <span className="ccp-sheet__cat">{selectedCategory.code} {selectedCategory.name}</span>
                                             <span className="ccp-sheet__hint">
-                                                คลิก cell เพื่อแก้ไข · กรอกข้อมูลวิชาก่อนถึงจะใส่ Weight ได้
+                                                {isWeightMode
+                                                    ? 'ใส่ค่า Weight ของแต่ละ Competency ในวิชา'
+                                                    : 'คลิก cell เพื่อแก้ไข · กรอกข้อมูลวิชาก่อนถึงจะใส่ Weight ได้'}
                                             </span>
                                         </div>
+                                        {/* + เพิ่มรายวิชา ใน single view setup mode */}
+                                        {!isWeightMode && (
+                                            <button className="btn btn--primary btn--sm"
+                                                onClick={() => onAddCourse(selectedCategory.id, { code:'', nameTh:'', nameEn:'', credits:0 })}>
+                                                <Plus size={13}/> เพิ่มรายวิชา
+                                            </button>
+                                        )}
                                     </div>
                                     <CourseSpreadsheet
                                         catId={selectedCategory.id}
@@ -685,6 +637,8 @@ export default function CategoryCoursePanel({
                                         onUpdateCourse={onUpdateCourse}
                                         onDeleteCourse={onDeleteCourse}
                                         onSetWeight={onSetWeight}
+                                        hideEditActions={isWeightMode}
+                                        isSetupMode={isWeightMode ? false : true}
                                     />
                                 </div>
                             )
