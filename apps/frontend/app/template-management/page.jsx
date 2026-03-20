@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck,
 import { MOCK_TEMPLATES, MOCK_COMPETENCIES, MOCK_CATEGORIES } from './mockData';
 import CategoryCoursePanel  from './components/CategoryCoursePanel';
 import CompetencyOverview   from './components/CompetencyOverview';
+import ManageCompetencyModal from './components/ManageCompetencyModal';
 import TemplateFormModal    from './components/TemplateFormModal';
 import ConfirmDeleteModal   from './components/ConfirmDeleteModal';
 import './TemplateManagement.css';
@@ -254,28 +255,33 @@ export default function TemplateManagementPage() {
     // Category handlers
     // ============================================================
     const handleSelectCategory = useCallback((cat) => setSelectedCategory(cat), []);
+    const handleDeselectCategory = useCallback(() => setSelectedCategory(null), []);
 
-    const handleCreateCategory = useCallback(() => {
+    // parentId = null → เพิ่มที่ root, parentId = id → เพิ่มเป็นลูกของ parent
+    const handleCreateCategory = useCallback((parentId = selectedCategory?.id ?? null) => {
         const newId = ++idRef.current;
-        if (!selectedCategory) {
+        if (!parentId) {
+            // เพิ่มที่ root level
             const code = getNextCode('', getDirectChildren(currentCategories, null));
             const newCat = { id: newId, code, name: '', requiredCredits: 0, children: [], isNew: true };
             updateCurrentCategories(p => [...p, newCat]);
             setSelectedCategory(newCat);
         } else {
-            if (getDepthFromCode(selectedCategory.code) >= 2) {
+            const parent = findById(currentCategories, parentId);
+            if (!parent) return;
+            if (getDepthFromCode(parent.code) >= 2) {
                 alert('ไม่สามารถสร้างหมวดวิชาที่ลึกกว่า 3 ระดับได้'); return;
             }
-            const existing = currentCoursesByCat[selectedCategory.id] || [];
-            const code = getNextCode(selectedCategory.code, getDirectChildren(currentCategories, selectedCategory.id));
+            const existing = currentCoursesByCat[parentId] || [];
+            const code = getNextCode(parent.code, getDirectChildren(currentCategories, parentId));
             const newCat = { id: newId, code, name: '', requiredCredits: 0, children: [], isNew: true };
             if (existing.length > 0 && selectedTemplate) {
                 setCoursesByTemplate(p => {
                     const tpl = p[selectedTemplate.id] || {};
-                    return { ...p, [selectedTemplate.id]: { ...tpl, [selectedCategory.id]: [], [newId]: existing } };
+                    return { ...p, [selectedTemplate.id]: { ...tpl, [parentId]: [], [newId]: existing } };
                 });
             }
-            updateCurrentCategories(p => insertChild(p, selectedCategory.id, newCat));
+            updateCurrentCategories(p => insertChild(p, parentId, newCat));
             setSelectedCategory(newCat);
         }
     }, [selectedCategory, currentCategories, currentCoursesByCat, updateCurrentCategories, selectedTemplate]);
@@ -360,9 +366,33 @@ export default function TemplateManagementPage() {
     }, [selectedTemplate]);
 
     const handleAddCompetency = useCallback((name, color) => {
-        const newComp = { id: ++compIdRef.current, code: `custom_${compIdRef.current}`, name, color: color || '#7dd3fc' };
+        const newComp = { id: ++compIdRef.current, code: `custom_${compIdRef.current}`, name, color, fromMaster: false };
         setCompetencies(p => [...p, newComp]);
         return newComp;
+    }, []);
+
+    const handleUpdateCompetency = useCallback((updated) => {
+        setCompetencies(p => p.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+    }, []);
+
+    const handleDeleteCompetency = useCallback((id) => {
+        setCompetencies(p => p.filter(c => c.id !== id));
+        // ลบ weights ที่ผูกกับ competency นี้ออกด้วย
+        setWeightsByTemplate(p => {
+            const next = { ...p };
+            Object.keys(next).forEach(tplId => {
+                const tpl = { ...next[tplId] };
+                Object.keys(tpl).forEach(courseId => {
+                    if (tpl[courseId]?.[id] !== undefined) {
+                        const w = { ...tpl[courseId] };
+                        delete w[id];
+                        tpl[courseId] = w;
+                    }
+                });
+                next[tplId] = tpl;
+            });
+            return next;
+        });
     }, []);
 
     // ============================================================
@@ -453,8 +483,8 @@ export default function TemplateManagementPage() {
             <div className="editor-tabs">
                 {[
                     { id:'setup',    label:'ตั้งค่าวิชา',    icon: <Settings size={14}/> },
-                    { id:'weight',   label:'ใส่ Weight',     icon: <SlidersHorizontal size={14}/> },
-                    { id:'overview', label:'ภาพรวม Competency', icon: <BarChart3 size={14}/> },
+                    { id:'weight',   label:'ใส่น้ำหนักสมรรถนะ',     icon: <SlidersHorizontal size={14}/> },
+                    { id:'overview', label:'ภาพรวมสมรรถนะ', icon: <BarChart3 size={14}/> },
                 ].map(tab => (
                     <button key={tab.id}
                         className={`editor-tab ${editorTab === tab.id ? 'editor-tab--active' : ''}`}
@@ -476,6 +506,7 @@ export default function TemplateManagementPage() {
                     competencies={competencies}
                     creditMap={creditMap}
                     onSelectCategory={handleSelectCategory}
+                    onDeselectCategory={handleDeselectCategory}
                     onCreateCategory={handleCreateCategory}
                     onRenameCategory={handleRenameCategory}
                     onReorderCategories={handleReorderCategories}
@@ -486,6 +517,8 @@ export default function TemplateManagementPage() {
                     onDeleteCourse={handleRequestDeleteCourse}
                     onSetWeight={handleSetWeight}
                     onAddCompetency={handleAddCompetency}
+                    onUpdateCompetency={handleUpdateCompetency}
+                    onDeleteCompetency={handleDeleteCompetency}
                     mode="setup"
                 />
             )}
@@ -500,6 +533,7 @@ export default function TemplateManagementPage() {
                     competencies={competencies}
                     creditMap={creditMap}
                     onSelectCategory={handleSelectCategory}
+                    onDeselectCategory={handleDeselectCategory}
                     onCreateCategory={handleCreateCategory}
                     onRenameCategory={handleRenameCategory}
                     onReorderCategories={handleReorderCategories}
@@ -510,6 +544,8 @@ export default function TemplateManagementPage() {
                     onDeleteCourse={handleRequestDeleteCourse}
                     onSetWeight={handleSetWeight}
                     onAddCompetency={handleAddCompetency}
+                    onUpdateCompetency={handleUpdateCompetency}
+                    onDeleteCompetency={handleDeleteCompetency}
                     mode="weight"
                 />
             )}

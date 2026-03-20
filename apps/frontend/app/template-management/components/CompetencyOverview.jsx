@@ -147,8 +147,8 @@ export default function CompetencyOverview({
                 {/* Header */}
                 <div className="ov-header">
                     <div>
-                        <h2 className="ov-title">ภาพรวม Competency</h2>
-                        <p className="ov-sub">ผลรวม Weight ของแต่ละ Competency จากทุกวิชาในหลักสูตร</p>
+                        <h2 className="ov-title">ภาพรวมสมรรถนะ</h2>
+                        <p className="ov-sub">ผลรวมสัดส่วนน้ำหนัก ของแต่ละสมรรถนะ จากทุกวิชาในหลักสูตร</p>
                     </div>
                     {/* Stats */}
                     <div className="ov-stats">
@@ -166,11 +166,11 @@ export default function CompetencyOverview({
                         </div>
                         <div className="ov-stat">
                             <span className="ov-stat__val">{coursesWithComp}</span>
-                            <span className="ov-stat__label">วิชาที่ผูก Competency</span>
+                            <span className="ov-stat__label">วิชาที่ผูกสมรรถนะ</span>
                         </div>
                         <div className="ov-stat">
                             <span className="ov-stat__val">{competencies.length}</span>
-                            <span className="ov-stat__label">Competency</span>
+                            <span className="ov-stat__label">สมรรถนะ</span>
                         </div>
                     </div>
                 </div>
@@ -181,7 +181,7 @@ export default function CompetencyOverview({
                         {!hasData ? (
                             <div className="ov-empty">
                                 <span style={{fontSize:'2rem', opacity:0.2}}>📊</span>
-                                <p>ยังไม่มีข้อมูล Weight — ไปที่แท็บ "ใส่ Weight" เพื่อเริ่ม</p>
+                                <p>ยังไม่มีข้อมูลน้ำหนัก — ไปที่แท็บ "ใส่น้ำหนักสมรรถนะ" เพื่อเริ่ม</p>
                             </div>
                         ) : (
                             <RadarChart labels={labels} data={data} colors={colors} size={340}/>

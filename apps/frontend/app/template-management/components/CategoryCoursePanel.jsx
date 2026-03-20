@@ -3,17 +3,37 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     Plus, Trash2, GripVertical, ChevronRight, ChevronDown,
-    BookOpen, AlertCircle, Check, X, Pencil, SlidersHorizontal, LockKeyhole
+    BookOpen, AlertCircle, Check, X, Pencil, SlidersHorizontal, Lock
 } from 'lucide-react';
+import ManageCompetencyModal from './ManageCompetencyModal';
 
 function isLeaf(cat) { return !cat.children?.length; }
 
 // ============================================================
 // AddCompetencyModal
 // ============================================================
-function AddCompetencyModal({ onAdd, onClose }) {
-    const [name, setName]   = useState('');
-    const [color, setColor] = useState('#7dd3fc');
+// ============================================================
+// Preset colors สำหรับ Competency
+// ============================================================
+const COMP_PRESET_COLORS = [
+    '#ec4899','#3b82f6','#06b6d4','#f59e0b',
+    '#10b981','#8b5cf6','#ef4444','#f97316',
+    '#14b8a6','#a855f7','#84cc16','#0ea5e9',
+];
+
+function pickRandomColor(existing = []) {
+    const pool = COMP_PRESET_COLORS.filter(c => !existing.includes(c));
+    const src  = pool.length ? pool : COMP_PRESET_COLORS;
+    return src[Math.floor(Math.random() * src.length)];
+}
+
+// ============================================================
+// AddCompetencyModal
+// ============================================================
+function AddCompetencyModal({ onAdd, onClose, existingColors = [] }) {
+    const [name,  setName]  = useState('');
+    const [color, setColor] = useState(() => pickRandomColor(existingColors));
+
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
@@ -25,14 +45,41 @@ function AddCompetencyModal({ onAdd, onClose }) {
                     <div className="cfm-field">
                         <label className="cfm-label">ชื่อ Competency <span className="cfm-required">*</span></label>
                         <input className="cfm-input" value={name} autoFocus
-                            onChange={e => setName(e.target.value)} placeholder="เช่น ความคิดสร้างสรรค์"/>
+                            onChange={e => setName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && name.trim()) { onAdd(name.trim(), color); onClose(); } }}
+                            placeholder="เช่น ความคิดสร้างสรรค์"/>
                     </div>
                     <div className="cfm-field">
                         <label className="cfm-label">สี</label>
-                        <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
-                            <input type="color" value={color} onChange={e => setColor(e.target.value)}
-                                style={{ width:36, height:36, border:'none', borderRadius:6, cursor:'pointer' }}/>
-                            <span style={{ fontSize:'0.8rem', color:'#94a3b8' }}>{color}</span>
+                        {/* Preview + Preset swatches */}
+                        <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', flexWrap:'wrap' }}>
+                            <div style={{ width:28, height:28, borderRadius:7, background:color, border:'2px solid rgba(255,255,255,0.15)', flexShrink:0 }}/>
+                            <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+                                {COMP_PRESET_COLORS.map(c => (
+                                    <button key={c}
+                                        style={{
+                                            width:20, height:20, borderRadius:'50%', background:c, border:`2px solid ${color===c?'#fff':'transparent'}`,
+                                            cursor:'pointer', padding:0, transform: color===c?'scale(1.2)':'scale(1)', transition:'transform 0.1s',
+                                        }}
+                                        onClick={() => setColor(c)}
+                                        title={c}
+                                    />
+                                ))}
+                            </div>
+                            {/* Custom color picker */}
+                            <label style={{ position:'relative', cursor:'pointer' }} title="เลือกสีเอง">
+                                <input type="color" value={color} onChange={e => setColor(e.target.value)}
+                                    style={{ opacity:0, position:'absolute', width:1, height:1 }}/>
+                                <div style={{
+                                    width:28, height:28, borderRadius:7, background:'#2d3748', border:'1px solid #334155',
+                                    display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.85rem'
+                                }}>🎨</div>
+                            </label>
+                            {/* สุ่มสีใหม่ */}
+                            <button style={{
+                                width:28, height:28, borderRadius:7, background:'#2d3748', border:'1px solid #334155',
+                                cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.85rem'
+                            }} onClick={() => setColor(pickRandomColor(existingColors))} title="สุ่มสี">🎲</button>
                         </div>
                     </div>
                 </div>
@@ -190,7 +237,7 @@ function SpreadsheetRow({
 // ============================================================
 function CourseSpreadsheet({
     catId, courses, competencies, weightsByCourseId,
-    onUpdateCourse, onDeleteCourse, onSetWeight,
+    onAddCourse, onUpdateCourse, onDeleteCourse, onSetWeight,
     hideEditActions=false, isSetupMode=false,
 }) {
     const colCount = 1 + 1 + 2 + 1 + (isSetupMode ? 0 : competencies.length) + 1;
@@ -247,18 +294,19 @@ function CourseSpreadsheet({
 // ============================================================
 // Helper — เก็บ leaf categories ทั้งหมดพร้อม path
 // ============================================================
-function CollectLeafSections(cats, coursesByCategoryId, parentPath = '') {
+function collectLeafSections(cats, coursesByCategoryId, parentPath = '') {
     const result = [];
     for (const cat of cats) {
         const path = parentPath ? `${parentPath} › ${cat.name}` : cat.name;
         if (!cat.children?.length) {
             result.push({ cat, path, courses: coursesByCategoryId[cat.id] || [] });
         } else {
-            result.push(...CollectLeafSections(cat.children, coursesByCategoryId, path));
+            result.push(...collectLeafSections(cat.children, coursesByCategoryId, path));
         }
     }
     return result;
 }
+
 
 // ============================================================
 // AllCategoriesView — แสดงทุกหมวดในครั้งเดียว
@@ -310,7 +358,7 @@ function AllCategoriesView({
     scrollToCatId, hideEditActions=false, isSetupMode=false,
 }) {
     const sectionRefs = useRef({});
-    const sections = CollectLeafSections(categories, coursesByCategoryId);
+    const sections = collectLeafSections(categories, coursesByCategoryId);
     const colCount = 1 + 1 + 2 + 1 + (isSetupMode ? 0 : competencies.length) + 1;
 
     useEffect(() => {
@@ -424,7 +472,7 @@ function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, on
             <div
                 className={`tree-item ${selectedId === cat.id ? 'tree-item--selected' : ''} ${fromMaster ? 'tree-item--master' : ''}`}
                 style={{ paddingLeft: `${0.5 + depth * 1}rem` }}
-                onClick={() => { onSelect(cat); if (hasChildren) setExpanded(p=>!p); }}
+                onClick={e => { e.stopPropagation(); onSelect(cat); if (hasChildren) setExpanded(p=>!p); }}
                 onDoubleClick={e => {
                     e.stopPropagation();
                     // master ห้าม rename
@@ -456,7 +504,6 @@ function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, on
                     {fromMaster ? (
                         /* Master: ล็อค icon + ยังอนุญาตให้เพิ่มหมวดย่อยใหม่ได้ */
                         <>
-                            {/* <LockKeyhole size={12}/> */}
                             {depth < 2 && !hideActions && (
                                 <button className="icon-btn icon-btn--xs"
                                     title="เพิ่มหมวดย่อยใหม่ (ไม่ใช่ Master)"
@@ -464,7 +511,7 @@ function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, on
                                     <Plus size={12}/>
                                 </button>
                             )}
-
+                            <span className="tree-master-lock" title="หมวดวิชาจาก Course Master — ไม่สามารถแก้ไขหรือลบได้">🔒</span>
                         </>
                     ) : !hideActions && (
                         /* Non-master: ปุ่มเพิ่มหมวดย่อย + ปุ่มลบ */
@@ -505,14 +552,15 @@ function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, on
 export default function CategoryCoursePanel({
     template, categories=[], selectedCategory,
     coursesByCategoryId={}, weightsByCourseId={}, competencies=[], creditMap={},
-    onSelectCategory, onCreateCategory, onRenameCategory, onDeleteCategory,
+    onSelectCategory, onDeselectCategory, onCreateCategory, onRenameCategory, onDeleteCategory,
     onAddCourse, onUpdateCourse, onDeleteCourse,
-    onToggleCompetency, onSetWeight, onAddCompetency,
-    mode = 'setup', // 'setup' | 'weight'
+    onToggleCompetency, onSetWeight, onAddCompetency, onUpdateCompetency, onDeleteCompetency,
+    mode = 'setup',
 }) {
-    const [showAddComp,  setShowAddComp]  = useState(false);
-    const [viewMode,     setViewMode]     = useState('single');
-    const [scrollToCatId, setScrollToCatId] = useState(null);
+    const [showAddComp,    setShowAddComp]    = useState(false);
+    const [showManageComp, setShowManageComp] = useState(false);
+    const [viewMode,       setViewMode]       = useState('single');
+    const [scrollToCatId,  setScrollToCatId]  = useState(null);
 
     const isWeightMode = mode === 'weight';
 
@@ -535,15 +583,17 @@ export default function CategoryCoursePanel({
                     <div className="ccp-tree">
                         <div className="ccp-tree__header">
                             <span>โครงสร้างหมวดวิชา</span>
-                            {/* ซ่อนปุ่ม + หมวดวิชาใน weight mode */}
                             {!isWeightMode && (
                                 <button className="btn btn--primary btn--sm ccp-tree__add-btn"
-                                    onClick={onCreateCategory} title="เพิ่มหมวดวิชา">
+                                    onClick={() => onCreateCategory(selectedCategory?.id ?? null)}
+                                    title="เพิ่มหมวดวิชา">
                                     <Plus size={12}/> หมวดวิชา
                                 </button>
                             )}
                         </div>
-                        <div className="ccp-tree__scroll">
+                        {/* คลิกพื้นที่ว่างใน scroll → deselect */}
+                        <div className="ccp-tree__scroll"
+                            onClick={() => onDeselectCategory?.()}>
                             {categories.length === 0
                                 ? <div className="panel-empty panel-empty--sm">กด "+ หมวดวิชา" เพื่อเริ่ม</div>
                                 : categories.map(cat => (
@@ -556,7 +606,7 @@ export default function CategoryCoursePanel({
                                             else onSelectCategory(c);
                                         }}
                                         onRename={onRenameCategory}
-                                        onCreateChild={parent => { onSelectCategory(parent); onCreateCategory(); }}
+                                        onCreateChild={parent => onCreateCategory(parent.id)}
                                         onDelete={onDeleteCategory}
                                         hideActions={isWeightMode}/>
                                 ))
@@ -581,6 +631,21 @@ export default function CategoryCoursePanel({
                                 weightsByCourseId={weightsByCourseId}
                                 competencies={competencies}
                             />
+                            
+                            <div style={{ marginLeft:'auto', display:'flex', gap:'0.4rem', flexShrink:0 }}>
+                                {/* จัดการ Competency — แสดงทุกเฉพาะหน้าตั้งค่า Weight */}
+                                {isWeightMode && (
+                                    <button className="btn btn--primary btn--sm" onClick={() => setShowManageComp(true)}>
+                                        <Plus size={13}/> เพิ่มสมรรถนะ
+                                    </button>
+                                )}
+                                {!isWeightMode && (
+                                    <button className="btn btn--primary btn--sm"
+                                        onClick={() => onAddCourse(selectedCategory.id, { code:'', nameTh:'', nameEn:'', credits:0 })}>
+                                        <Plus size={13}/> เพิ่มรายวิชา
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {/* ── All-view ── */}
@@ -616,17 +681,10 @@ export default function CategoryCoursePanel({
                                             <span className="ccp-sheet__cat">{selectedCategory.code} {selectedCategory.name}</span>
                                             <span className="ccp-sheet__hint">
                                                 {isWeightMode
-                                                    ? 'ใส่ค่า Weight ของแต่ละ Competency ในวิชา'
-                                                    : 'คลิก cell เพื่อแก้ไข · กรอกข้อมูลวิชาก่อนถึงจะใส่ Weight ได้'}
+                                                    ? 'ใส่ค่าน้ำหนักของแต่ละสมรรถนะในวิชา'
+                                                    : 'คลิกเลือกเพื่อแก้ไขหรือกรอกข้อมูลวิชาก่อนถึงจะใส่ค่าน้ำหนักได้'}
                                             </span>
                                         </div>
-                                        {/* + เพิ่มรายวิชา ใน single view setup mode */}
-                                        {!isWeightMode && (
-                                            <button className="btn btn--primary btn--sm"
-                                                onClick={() => onAddCourse(selectedCategory.id, { code:'', nameTh:'', nameEn:'', credits:0 })}>
-                                                <Plus size={13}/> เพิ่มรายวิชา
-                                            </button>
-                                        )}
                                     </div>
                                     <CourseSpreadsheet
                                         catId={selectedCategory.id}
@@ -647,8 +705,21 @@ export default function CategoryCoursePanel({
                 </div>
             )}
 
+            {showManageComp && (
+                <ManageCompetencyModal
+                    competencies={competencies}
+                    onClose={() => setShowManageComp(false)}
+                    onUpdate={onUpdateCompetency}
+                    onDelete={onDeleteCompetency}
+                    onAdd={onAddCompetency}
+                />
+            )}
             {showAddComp && (
-                <AddCompetencyModal onAdd={onAddCompetency} onClose={() => setShowAddComp(false)}/>
+                <AddCompetencyModal
+                    onAdd={onAddCompetency}
+                    onClose={() => setShowAddComp(false)}
+                    existingColors={competencies.map(c => c.color)}
+                />
             )}
         </div>
     );

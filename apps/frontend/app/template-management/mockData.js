@@ -8,12 +8,12 @@ export const MOCK_TEMPLATES = [
 ];
 
 export const MOCK_COMPETENCIES = [
-    { id: 1, code: 'tst_comm',  name: 'การสื่อสาร',       color: '#ec4899' },
-    { id: 2, code: 'tst_ct',    name: 'คิดเชิงวิพากษ์',   color: '#3b82f6' },
-    { id: 3, code: 'tst_team',  name: 'ทำงานเป็นทีม',     color: '#06b6d4' },
-    { id: 4, code: 'tst_lead',  name: 'ภาวะผู้นำ',        color: '#f59e0b' },
-    { id: 5, code: 'tst_ethic', name: 'คุณธรรมจริยธรรม',  color: '#10b981' },
-    { id: 6, code: 'tst_digi',  name: 'ทักษะดิจิทัล',     color: '#8b5cf6' },
+    { id: 1, code: 'tst_comm',  name: 'การสื่อสาร',       color: '#ec4899', fromMaster: true },
+    { id: 2, code: 'tst_ct',    name: 'คิดเชิงวิพากษ์',   color: '#3b82f6', fromMaster: true },
+    { id: 3, code: 'tst_team',  name: 'ทำงานเป็นทีม',     color: '#06b6d4', fromMaster: true },
+    { id: 4, code: 'tst_lead',  name: 'ภาวะผู้นำ',        color: '#f59e0b', fromMaster: true },
+    { id: 5, code: 'tst_ethic', name: 'คุณธรรมจริยธรรม',  color: '#10b981', fromMaster: true },
+    { id: 6, code: 'tst_digi',  name: 'ทักษะดิจิทัล',     color: '#8b5cf6', fromMaster: true },
 ];
 
 export const MOCK_CATEGORIES = [
