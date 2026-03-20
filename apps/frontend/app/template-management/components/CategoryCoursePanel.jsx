@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     Plus, Trash2, GripVertical, ChevronRight, ChevronDown,
-    BookOpen, AlertCircle, Check, X, Pencil, SlidersHorizontal, Lock
+    BookOpen, AlertCircle, Check, X, Pencil, LockKeyhole
 } from 'lucide-react';
 import ManageCompetencyModal from './ManageCompetencyModal';
 
@@ -214,7 +214,11 @@ function SpreadsheetRow({
                 <td className="ss-cell ss-cell--actions" onClick={e => e.stopPropagation()}>
                     {fromMaster ? (
                         /* Master: ล็อค icon แทนปุ่ม */
-                        <span className="ss-locked-icon" title="วิชาจาก Course Master">🔒</span>
+                        isSetupMode && (
+                            <span className="ss-locked-icon" title="วิชาจาก Course Master">
+                                <LockKeyhole size={12}/>
+                            </span>
+                        )
                     ) : !hideEditActions && (
                         <>
                             {editing
@@ -409,9 +413,9 @@ function AllCategoriesView({
                                             <span className="cat-section__path">{path}</span>
                                             {/* เพิ่มวิชาใหม่ได้เสมอ (ไม่ใช่ master course) */}
                                             {!hideEditActions && (
-                                                <button className="btn btn--ghost btn--sm cat-section__add-btn"
+                                                <button className="btn btn--primary btn--sm cat-section__add-btn"
                                                     onClick={() => onAddCourse(cat.id, { code:'', nameTh:'', nameEn:'', credits:0 })}>
-                                                    <Plus size={12}/> เพิ่มวิชา
+                                                    <Plus size={12}/> เพิ่มรายวิชา
                                                 </button>
                                             )}
                                         </div>
@@ -504,14 +508,16 @@ function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, on
                     {fromMaster ? (
                         /* Master: ล็อค icon + ยังอนุญาตให้เพิ่มหมวดย่อยใหม่ได้ */
                         <>
-                            {depth < 2 && !hideActions && (
+                            {depth < 3 && hideActions && (
                                 <button className="icon-btn icon-btn--xs"
                                     title="เพิ่มหมวดย่อยใหม่ (ไม่ใช่ Master)"
                                     onClick={() => onCreateChild(cat)}>
                                     <Plus size={12}/>
                                 </button>
                             )}
-                            <span className="tree-master-lock" title="หมวดวิชาจาก Course Master — ไม่สามารถแก้ไขหรือลบได้">🔒</span>
+                            <span className="tree-master-lock" title="หมวดวิชาจาก Course Master — ไม่สามารถแก้ไขหรือลบได้">
+                                <LockKeyhole size={12}/>
+                            </span>
                         </>
                     ) : !hideActions && (
                         /* Non-master: ปุ่มเพิ่มหมวดย่อย + ปุ่มลบ */
@@ -636,10 +642,10 @@ export default function CategoryCoursePanel({
                                 {/* จัดการ Competency — แสดงทุกเฉพาะหน้าตั้งค่า Weight */}
                                 {isWeightMode && (
                                     <button className="btn btn--primary btn--sm" onClick={() => setShowManageComp(true)}>
-                                        <Plus size={13}/> เพิ่มสมรรถนะ
+                                        <Pencil size={13}/> จัดการสมรรถนะ
                                     </button>
                                 )}
-                                {!isWeightMode && (
+                                {!isWeightMode && leaf && viewMode === 'single' && (
                                     <button className="btn btn--primary btn--sm"
                                         onClick={() => onAddCourse(selectedCategory.id, { code:'', nameTh:'', nameEn:'', credits:0 })}>
                                         <Plus size={13}/> เพิ่มรายวิชา

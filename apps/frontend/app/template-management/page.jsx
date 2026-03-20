@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, Settings, SlidersHorizontal, BarChart3 } from 'lucide-react';
+import { Plus, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, Settings, SlidersHorizontal, BarChart3 } from 'lucide-react';
 import { MOCK_TEMPLATES, MOCK_COMPETENCIES, MOCK_CATEGORIES } from './mockData';
 import CategoryCoursePanel  from './components/CategoryCoursePanel';
 import CompetencyOverview   from './components/CompetencyOverview';
-import ManageCompetencyModal from './components/ManageCompetencyModal';
 import TemplateFormModal    from './components/TemplateFormModal';
 import ConfirmDeleteModal   from './components/ConfirmDeleteModal';
 import './TemplateManagement.css';
@@ -269,8 +268,8 @@ export default function TemplateManagementPage() {
         } else {
             const parent = findById(currentCategories, parentId);
             if (!parent) return;
-            if (getDepthFromCode(parent.code) >= 2) {
-                alert('ไม่สามารถสร้างหมวดวิชาที่ลึกกว่า 3 ระดับได้'); return;
+            if (getDepthFromCode(parent.code) >= 3) {
+                alert('ไม่สามารถสร้างหมวดวิชาที่ลึกกว่า 4 ระดับได้'); return;
             }
             const existing = currentCoursesByCat[parentId] || [];
             const code = getNextCode(parent.code, getDirectChildren(currentCategories, parentId));

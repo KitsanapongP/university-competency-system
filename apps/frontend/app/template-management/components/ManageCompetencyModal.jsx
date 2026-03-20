@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Plus, Pencil, Trash2, Check, Lock } from 'lucide-react';
+import { X, Plus, Pencil, Trash2, Check, Lock, Palette} from 'lucide-react';
 
 const PRESET_COLORS = [
     '#ec4899','#3b82f6','#06b6d4','#f59e0b',
@@ -36,7 +36,7 @@ function ColorPicker({ value, onChange }) {
                 <label className="mcp-icon-btn" title="เลือกสีเอง">
                     <input type="color" value={value} onChange={e => onChange(e.target.value)}
                         style={{ opacity:0, position:'absolute', width:1, height:1 }}/>
-                    🎨
+                    <Palette size={16}/>
                 </label>
                 <button className="mcp-icon-btn" onClick={() => onChange(pickRandom())} title="สุ่มสี">🎲</button>
             </div>
