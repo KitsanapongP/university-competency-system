@@ -108,6 +108,7 @@ function CompetencyRow({ comp, onUpdate, onDelete }) {
     );
 }
 
+/*
 // ============================================================
 // AddCompetencyRow — แถวเพิ่มใหม่ด้านล่าง
 // ============================================================
@@ -154,6 +155,7 @@ function AddCompetencyRow({ existingColors, onAdd }) {
         </div>
     );
 }
+*/
 
 // ============================================================
 // ManageCompetencyModal — main export
@@ -184,10 +186,10 @@ export default function ManageCompetencyModal({ competencies, onClose, onUpdate,
                         ))}
                     </div>
 
-                    <AddCompetencyRow
+                    {/* <AddCompetencyRow
                         existingColors={competencies.map(c => c.color)}
                         onAdd={onAdd}
-                    />
+                    /> */}
                 </div>
 
                 <div className="modal-footer">

@@ -123,6 +123,8 @@ export default function CompetencyOverview({
     coursesByCategoryId = {},
     weightsByCourseId = {},
     competencies = [],
+    templateName = '',
+    templateYear = '',
 }) {
     const totals  = useMemo(() =>
         calcGlobalTotals(coursesByCategoryId, weightsByCourseId, competencies),
@@ -147,7 +149,13 @@ export default function CompetencyOverview({
                 {/* Header */}
                 <div className="ov-header">
                     <div>
-                        <h2 className="ov-title">ภาพรวมสมรรถนะ</h2>
+                        {(templateName || templateYear) && (
+                            <div className="ov-template-info">
+                                {templateName && <span className="ov-template-name">{templateName}</span>}
+                                {templateYear && <span className="ov-template-year">ปี {templateYear}</span>}
+                            </div>
+                        )}
+                        <h1 className="ov-title">ภาพรวมสมรรถนะ</h1>
                         <p className="ov-sub">ผลรวมสัดส่วนน้ำหนัก ของแต่ละสมรรถนะ จากทุกวิชาในหลักสูตร</p>
                     </div>
                     {/* Stats */}

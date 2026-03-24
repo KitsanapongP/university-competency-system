@@ -236,10 +236,6 @@ function Step2({ form, setForm, allCompetencies, onAddCompetency }) {
         <div className="tfm-step2">
             <div className="tfm-step2-header">
                 <p className="tfm-hint" style={{margin:0}}>เลือก Competency ที่ต้องการผูกกับรายวิชาในหลักสูตรนี้ (เลือกได้หลายตัว)</p>
-                <button className="btn btn--ghost btn--sm tfm-add-comp-btn"
-                    onClick={() => setAdding(p => !p)}>
-                    <Plus size={13}/> เพิ่ม Competency
-                </button>
             </div>
 
             {/* Inline form เพิ่ม Competency ใหม่ */}

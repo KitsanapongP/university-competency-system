@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     Plus, Trash2, GripVertical, ChevronRight, ChevronDown,
-    BookOpen, AlertCircle, Check, X, Pencil, LockKeyhole
+    BookOpen, AlertCircle, Check, X, Pencil, LockKeyhole, TriangleAlert  
 } from 'lucide-react';
 import ManageCompetencyModal from './ManageCompetencyModal';
 
@@ -116,7 +116,9 @@ function SpreadsheetRow({
 
     const hasData       = !!(course.code?.trim() || course.nameTh?.trim());
     const hasCompetency = hasData && competencies.some(c => (Number(weightMap?.[c.id]) || 0) > 0);
+
     const showNoCompWarn = !isSetupMode && hasData && !hasCompetency;
+    const showCoreCourseBadge = hasData && !!course.isCoreCourse;
 
     const handleSave = () => {
         if (!form.code.trim() && !form.nameTh.trim()) return;
@@ -150,6 +152,11 @@ function SpreadsheetRow({
                             onChange={e => setForm(p=>({...p,code:e.target.value}))} onKeyDown={handleKey} placeholder="รหัสวิชา"/>
                         : <span className="ss-code-wrap">
                             <span className="ss-code">{course.code || <span className="ss-placeholder">รหัสวิชา</span>}</span>
+                            {showCoreCourseBadge && (
+                                <span className="ss-core-course-badge" title="วิชาหลัก">
+                                    <span style={{ fontSize:'0.65rem', color:'#fbd100' }}>วิชาบังคับ</span>
+                                </span>
+                            )}
                             {showNoCompWarn && (
                                 <span className="ss-no-comp-warn" title="ยังไม่ได้ผูก Competency">
                                     <AlertCircle size={12}/>
@@ -188,9 +195,9 @@ function SpreadsheetRow({
                     const stored = weightMap?.[comp.id] ?? 0;
                     const active = Number(stored) > 0;
                     return (
-                        <td key={comp.id} className="ss-cell ss-cell--weight">
-                            <div className={`ss-weight-wrap ${active ? 'ss-weight-wrap--active' : ''} ${!hasData ? 'ss-weight-wrap--locked' : ''}`}
-                                style={active ? { '--wc': comp.color } : {}}>
+                        <td key={comp.id} className="ss-cell ss-cell--weight"
+                            style={{ '--wc': comp.color }}>
+                            <div className={`ss-weight-wrap ${active ? 'ss-weight-wrap--active' : ''} ${!hasData ? 'ss-weight-wrap--locked' : ''}`}>
                                 <input
                                     className="ss-weight-input"
                                     type="number" min={0} max={100}

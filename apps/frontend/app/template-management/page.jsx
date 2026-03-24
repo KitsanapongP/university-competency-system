@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { Plus, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, Settings, SlidersHorizontal, BarChart3 } from 'lucide-react';
+import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, Settings, SlidersHorizontal, BarChart3 } from 'lucide-react';
 import { MOCK_TEMPLATES, MOCK_COMPETENCIES, MOCK_CATEGORIES } from './mockData';
 import CategoryCoursePanel  from './components/CategoryCoursePanel';
 import CompetencyOverview   from './components/CompetencyOverview';
@@ -91,6 +91,8 @@ export default function TemplateManagementPage() {
     // ── view: 'list' | 'editor' ──
     const [view, setView] = useState('list');
     const [editorTab, setEditorTab] = useState('setup'); // 'setup' | 'weight' | 'overview'
+    const [editingTitle, setEditingTitle] = useState(false);
+    const [titleVal,     setTitleVal]     = useState('');
 
     const [templates,    setTemplates]    = useState(MOCK_TEMPLATES);
     const [competencies, setCompetencies] = useState(MOCK_COMPETENCIES);
@@ -174,7 +176,15 @@ export default function TemplateManagementPage() {
     }, []);
 
     const handleRequestDeleteTemplate = useCallback((t) => setDeletingTemplate(t), []);
-    const handleConfirmDeleteTemplate  = useCallback(() => {
+
+    const handleSaveTitle = useCallback(() => {
+        const trimmed = titleVal.trim();
+        if (trimmed && selectedTemplate) {
+            setTemplates(p => p.map(t => t.id === selectedTemplate.id ? { ...t, name: trimmed } : t));
+            setSelectedTemplate(p => ({ ...p, name: trimmed }));
+        }
+        setEditingTitle(false);
+    }, [titleVal, selectedTemplate]);    const handleConfirmDeleteTemplate  = useCallback(() => {
         if (!deletingTemplate) return;
         const id = deletingTemplate.id;
         setTemplates(p => p.filter(t => t.id !== id));
@@ -222,6 +232,7 @@ export default function TemplateManagementPage() {
                             nameEn: c.nameEn,
                             credits: c.credits,
                             fromMaster: true,
+                            isCoreCourse: c.isCoreCourse || false,
                         }));
                     }
                     return converted;
@@ -271,7 +282,13 @@ export default function TemplateManagementPage() {
             if (getDepthFromCode(parent.code) >= 3) {
                 alert('ไม่สามารถสร้างหมวดวิชาที่ลึกกว่า 4 ระดับได้'); return;
             }
-            const existing = currentCoursesByCat[parentId] || [];
+            // ถ้า parent มาจาก Master และมีวิชาอยู่แล้ว → ห้ามสร้างหมวดย่อย
+            const parentCourses = currentCoursesByCat[parentId] || [];
+            if (parent.fromMaster && parentCourses.length > 0) {
+                alert(`หมวด "${parent.code} ${parent.name}" มีรายวิชาอยู่แล้ว ไม่สามารถสร้างหมวดย่อยได้`);
+                return;
+            }
+            const existing = parentCourses;
             const code = getNextCode(parent.code, getDirectChildren(currentCategories, parentId));
             const newCat = { id: newId, code, name: '', requiredCredits: 0, children: [], isNew: true };
             if (existing.length > 0 && selectedTemplate) {
@@ -467,7 +484,32 @@ export default function TemplateManagementPage() {
                 <button className="btn btn--ghost btn--sm editor-topbar__back" onClick={handleBackToList}>
                     <ArrowLeft size={15}/> Template ทั้งหมด
                 </button>
-                <span className="editor-topbar__title">{selectedTemplate?.name}</span>
+
+                {editingTitle ? (
+                    <input
+                        className="editor-topbar__title-input"
+                        value={titleVal}
+                        autoFocus
+                        onChange={e => setTitleVal(e.target.value)}
+                        onBlur={handleSaveTitle}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter') handleSaveTitle();
+                            if (e.key === 'Escape') setEditingTitle(false);
+                        }}
+                    />
+                ) : (
+                    <span
+                        className="editor-topbar__title editor-topbar__title--editable"
+                        title="Double-click เพื่อแก้ไขชื่อ"
+                        onDoubleClick={() => {
+                            setTitleVal(selectedTemplate?.name || '');
+                            setEditingTitle(true);
+                        }}
+                    >
+                        {selectedTemplate?.name}
+                    </span>
+                )}
+
                 <span className="editor-topbar__year">ปี {selectedTemplate?.year}</span>
                 <div style={{ marginLeft:'auto', display:'flex', gap:'0.5rem' }}>
                     <button className="icon-btn icon-btn--danger icon-btn--xs"
@@ -555,6 +597,8 @@ export default function TemplateManagementPage() {
                     coursesByCategoryId={currentCoursesByCat}
                     weightsByCourseId={currentWeightsByCourse}
                     competencies={competencies}
+                    templateName={selectedTemplate?.name}
+                    templateYear={selectedTemplate?.year}
                 />
             )}
             {/* Modals */}
