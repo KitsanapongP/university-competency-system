@@ -440,7 +440,7 @@ export default function CompetencyPage() {
                     <div className="profile-grid">
                         <div className="profile-card card">
                             <div className="profile-avatar">KP</div>
-                            <h3>Kitsanapong Panasri</h3>
+                            <h3>Learner Dev</h3>
                             <p>Student ID: 6530xxxxx</p>
                             <p>Faculty of Engineering</p>
                             <p>Computer Engineering</p>
