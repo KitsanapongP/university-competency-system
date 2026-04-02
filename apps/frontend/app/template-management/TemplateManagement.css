@@ -82,7 +82,7 @@
     --tm-text: #1e293b;
     --tm-text-muted: #64748b;
     --tm-card-bg: #ffffff;
-    --tm-card-border: #e2e8f0;
+    --tm-card-border: #2d3748;
     --tm-accent: #3b82f6;
     --tm-accent-light: #2563eb;
     --tm-accent-subtle: #1d4ed8;
@@ -107,7 +107,7 @@
     --tm-form-input-bg: #ffffff;
     --tm-form-input-border: #cbd5e1;
     --tm-form-focus-border: #3b82f6;
-    --tm-modal-border: #e2e8f0;
+    --tm-modal-border: #4b5563;
     --tm-course-row-border: #d1d5db;
     --tm-course-row-hover: #f3f4f6;
     --tm-course-name: #4b5563;
@@ -428,13 +428,39 @@
     font-family: inherit;
 }
 
-.btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn--primary { background: #3b82f6; color: #fff; }
-.btn--primary:not(:disabled):hover { background: #2563eb; }
-.btn--ghost   { background: transparent; color: var(--tm-text-muted); border: 1px solid var(--tm-card-border); }
-.btn--ghost:hover { background: var(--tfm-btn-ghost-hover); }
-.btn--sm  { padding: 0.35rem 0.7rem; font-size: 0.78rem; }
-.btn--full { width: 100%; justify-content: center; }
+.btn:disabled {
+     opacity: 0.45; 
+     cursor: not-allowed; 
+}
+
+.btn--primary { 
+    background: #3b82f6; 
+    color: #fff; 
+}
+
+.btn--primary:not(:disabled):hover { 
+    background: #2563eb; 
+}
+
+.btn--ghost   { 
+    background: transparent; 
+    color: var(--tm-text-muted); 
+    border: 1px solid var(--tm-card-border); 
+}
+
+.btn--ghost:hover { 
+    background: var(--tfm-btn-ghost-hover); 
+}
+
+.btn--sm  { 
+    padding: 0.35rem 0.7rem; 
+    font-size: 0.78rem; 
+}
+
+.btn--full { 
+    width: 100%; 
+    justify-content: center; 
+}
 
 .form-label {
     display: block;
@@ -605,12 +631,27 @@
     margin-bottom: 1rem;
 }
 
+.confirm-active__icon--enabled{
+    display: flex;
+    justify-content: center;
+    color: #10b981;
+    margin-bottom: 1rem;
+}
+
+.confirm-active__icon--disabled{
+    display: flex;
+    justify-content: center;
+    color: #eed202;
+    margin-bottom: 1rem;
+}
+
 .confirm-delete__desc {
     text-align: center;
     color: var(--tm-text-muted);
     font-size: 0.85rem;
     margin: 0 0 0.4rem 0;
 }
+
 
 .confirm-delete__name {
     text-align: center;
@@ -626,6 +667,30 @@
     font-size: 0.78rem;
     background: rgba(239, 68, 68, 0.08);
     border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    padding: 0.6rem 0.875rem;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.confirm-active__warn--enabled{
+    text-align: center;
+    color: #10b981;
+    font-size: 0.78rem;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 8px;
+    padding: 0.6rem 0.875rem;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.confirm-active__warn--disabled{
+    text-align: center;
+    color: #eed202;
+    font-size: 0.78rem;
+    background: rgba(238, 210, 2, 0.08);
+    border: 1px solid rgba(238, 210, 2, 0.2);
     border-radius: 8px;
     padding: 0.6rem 0.875rem;
     margin: 0;
@@ -2438,6 +2503,76 @@
     line-height: 1.5;
 }
 
+/* Academic Years Selector in Modal */
+.tfm-years-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.tfm-years-input-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.tfm-year-input {
+    flex: 1;
+    max-width: 200px;
+    padding: 0.4rem 0.6rem !important;
+    font-size: 0.83rem !important;
+}
+
+.tfm-years-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 32px;
+    padding: 0.5rem;
+    background: var(--tm-bg);
+    border-radius: 8px;
+    border: 1px solid var(--tm-border);
+}
+
+.tfm-year-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.5rem 0.3rem 0.65rem;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--tm-title);
+}
+
+.tfm-year-chip-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.tfm-year-chip-remove:hover {
+    background: rgba(239, 68, 68, 0.3);
+}
+
+.tfm-years-hint {
+    font-size: 0.75rem;
+    color: var(--tm-text-muted);
+    font-style: italic;
+    margin: 0;
+}
+
 /* Search */
 .tfm-search-wrap {
     position: relative;
@@ -3350,4 +3485,421 @@
 
 .card-warning {
   border-color: rgba(245, 158, 11, 0.4);
+}
+
+/* ============================================================
+   TemplateStatusCard (CompetencyOverview)
+   ============================================================ */
+.ov-template-status-card {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    background: var(--tm-card-bg);
+    border: 1px solid var(--tm-card-border);
+    border-radius: 14px;
+    padding: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.ov-status-section,
+.ov-years-section {
+    flex: 1;
+    min-width: 200px;
+}
+
+.ov-status-header,
+.ov-years-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.ov-status-label,
+.ov-years-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--tm-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ov-status-label {
+    text-transform: none;
+    font-weight: 500;
+}
+
+.ov-status-toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.ov-status-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.ov-status-toggle-track {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: var(--tm-border);
+    position: relative;
+    transition: background 0.2s ease;
+}
+
+.ov-status-toggle--active .ov-status-toggle-track {
+    background: #22c55e;
+}
+
+.ov-status-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.ov-status-toggle--active .ov-status-toggle-thumb {
+    transform: translateX(16px);
+}
+
+.ov-status-toggle-text {
+    font-size: 0.8rem;
+    color: var(--tm-text-muted);
+    font-weight: 500;
+}
+
+.ov-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.ov-status-badge--active {
+    background: rgba(34, 197, 94, 0.12);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.ov-status-badge--inactive {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.ov-years-label {
+    color: var(--tm-text);
+    text-transform: none;
+    font-weight: 500;
+}
+
+.ov-years-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--tm-border);
+    background: transparent;
+    color: var(--tm-text-muted);
+    font-size: 0.72rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ov-years-edit-btn:hover {
+    background: var(--tm-hover);
+    color: var(--tm-title);
+    border-color: var(--tm-title);
+}
+
+.ov-years-display {
+    min-height: 36px;
+}
+
+.ov-years-empty {
+    font-size: 0.78rem;
+    color: var(--tm-text-muted);
+    font-style: italic;
+}
+
+.ov-years-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.ov-year-chip-display {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.75rem;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--tm-title);
+}
+
+.ov-years-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.ov-years-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 32px;
+    padding: 0.5rem;
+    background: var(--tm-bg);
+    border-radius: 8px;
+    border: 1px solid var(--tm-border);
+}
+
+.ov-year-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.5rem 0.3rem 0.65rem;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--tm-title);
+}
+
+.ov-year-chip-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.ov-year-chip-remove:hover {
+    background: rgba(239, 68, 68, 0.3);
+}
+
+.ov-years-add {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.ov-year-input {
+    flex: 1;
+    max-width: 140px;
+    padding: 0.4rem 0.6rem;
+    background: var(--tm-form-input-bg);
+    border: 1px solid var(--tm-form-input-border);
+    border-radius: 6px;
+    color: var(--tm-text);
+    font-size: 0.8rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.ov-year-input:focus {
+    border-color: var(--tm-form-focus-border);
+}
+
+.ov-year-input::placeholder {
+    color: var(--tm-text-muted);
+}
+
+.ov-year-add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px dashed var(--tm-border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--tm-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ov-year-add-btn:hover:not(:disabled) {
+    border-color: var(--tm-title);
+    color: var(--tm-title);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.ov-year-add-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.ov-years-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding-top: 0.25rem;
+}
+
+.ov-years-cancel-btn {
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--tm-border);
+    background: transparent;
+    color: var(--tm-text-muted);
+    font-size: 0.78rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ov-years-cancel-btn:hover {
+    background: var(--tm-hover);
+    color: var(--tm-text);
+}
+
+.ov-years-save-btn {
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    border: none;
+    background: #3b82f6;
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.ov-years-save-btn:hover {
+    background: #2563eb;
+}
+
+/* Academic Years Display */
+.ov-academic-years-display {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ov-admission-range-display {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ov-admission-range-value {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.45rem 0.85rem;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--tm-title);
+    min-width: 140px;
+}
+
+.ov-admission-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    color: var(--tm-text-muted);
+    line-height: 1.4;
+}
+
+.ov-admission-hint svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: var(--tm-title);
+    opacity: 0.7;
+}
+
+/* Admission Range Editor */
+.ov-admission-range-inputs {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.ov-year-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.ov-year-input-label {
+    font-size: 0.7rem;
+    color: var(--tm-text-muted);
+    font-weight: 500;
+}
+
+.ov-year-input-group .ov-year-input {
+    width: 110px;
+}
+
+.ov-year-range-separator {
+    font-size: 0.8rem;
+    color: var(--tm-text-muted);
+    padding-bottom: 0.5rem;
+}
+
+.ov-present-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+    color: var(--tm-text-muted);
+    cursor: pointer;
+    margin-top: 0.25rem;
+}
+
+.ov-present-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--tm-accent);
+    cursor: pointer;
+}
+
+@media (max-width: 600px) {
+    .ov-template-status-card {
+        flex-direction: column;
+    }
+    
+    .ov-status-section,
+    .ov-years-section {
+        min-width: 100%;
+    }
 }

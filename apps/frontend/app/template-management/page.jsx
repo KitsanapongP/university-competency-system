@@ -61,6 +61,10 @@ function getDepthFromCode(code) { return code ? code.split('.').length - 1 : 0; 
 // TemplateCard — การ์ดแสดงใน list view
 // ============================================================
 function TemplateCard({ template, courseCount, onOpen, onDelete }) {
+    const yearsDisplay = template.academicYears?.length > 0 
+        ? template.academicYears.join(', ') 
+        : 'ยังไม่กำหนด';
+    
     return (
         <div className="tpl-card" onClick={() => onOpen(template)}>
             <div className="tpl-card__icon">
@@ -69,7 +73,7 @@ function TemplateCard({ template, courseCount, onOpen, onDelete }) {
             <div className="tpl-card__body">
                 <span className="tpl-card__name">{template.name}</span>
                 <div className="tpl-card__meta">
-                    <span><CalendarDays size={12}/> ปี {template.year}</span>
+                    <span><CalendarDays size={12}/> ปีการศึกษา: {yearsDisplay}</span>
                     <span><BookOpen size={12}/> {courseCount} วิชา</span>
                 </div>
             </div>
@@ -97,6 +101,8 @@ export default function TemplateManagementPage() {
     const [templates,    setTemplates]    = useState(MOCK_TEMPLATES);
     const [competencies, setCompetencies] = useState(MOCK_COMPETENCIES);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
+    const [templateStatus, setTemplateStatus] = useState(true);
+    const [academicYears, setAcademicYears] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [showTemplateModal, setShowTemplateModal] = useState(false);
     const [deletingTemplate,  setDeletingTemplate]  = useState(null);
@@ -166,6 +172,8 @@ export default function TemplateManagementPage() {
     const handleOpenTemplate = useCallback((t) => {
         setSelectedTemplate(t);
         setSelectedCategory(null);
+        setTemplateStatus(t.isActive ?? true);
+        setAcademicYears(t.academicYears ?? []);
         setView('editor');
     }, []);
 
@@ -195,10 +203,11 @@ export default function TemplateManagementPage() {
         setDeletingTemplate(null);
     }, [deletingTemplate, selectedTemplate, handleBackToList]);
 
-    const handleSaveTemplate = useCallback(({ name, year, masterData, competencyIds, newCompetencies }) => {
+    const handleSaveTemplate = useCallback(({ name, academicYears, masterData, competencyIds, newCompetencies }) => {
         const id = ++templateRef.current;
-        const newTemplate = { id, name, year };
+        const newTemplate = { id, name, year: academicYears[0] || 2568, academicYears };
         setTemplates(p => [...p, newTemplate]);
+        setAcademicYears(academicYears);
 
         // เพิ่ม competencies ใหม่ที่สร้างใน modal เข้า global state
         if (newCompetencies?.length) {
@@ -391,6 +400,26 @@ export default function TemplateManagementPage() {
         setCompetencies(p => p.map(c => c.id === updated.id ? { ...c, ...updated } : c));
     }, []);
 
+    const handleToggleTemplateStatus = useCallback((newStatus) => {
+        setTemplateStatus(newStatus);
+        if (selectedTemplate) {
+            setTemplates(p => p.map(t => 
+                t.id === selectedTemplate.id ? { ...t, isActive: newStatus } : t
+            ));
+            setSelectedTemplate(p => ({ ...p, isActive: newStatus }));
+        }
+    }, [selectedTemplate]);
+
+    const handleUpdateAcademicYears = useCallback((years) => {
+        setAcademicYears(years);
+        if (selectedTemplate) {
+            setTemplates(p => p.map(t => 
+                t.id === selectedTemplate.id ? { ...t, academicYears: years } : t
+            ));
+            setSelectedTemplate(p => ({ ...p, academicYears: years }));
+        }
+    }, [selectedTemplate]);
+
     const handleDeleteCompetency = useCallback((id) => {
         setCompetencies(p => p.filter(c => c.id !== id));
         // ลบ weights ที่ผูกกับ competency นี้ออกด้วย
@@ -510,7 +539,9 @@ export default function TemplateManagementPage() {
                     </span>
                 )}
 
-                <span className="editor-topbar__year">ปี {selectedTemplate?.year}</span>
+                <span className="editor-topbar__year">
+                    ปีการศึกษา: {selectedTemplate?.academicYears?.join(', ') || 'ยังไม่กำหนด'}
+                </span>
                 <div style={{ marginLeft:'auto', display:'flex', gap:'0.5rem' }}>
                     <button className="icon-btn icon-btn--danger icon-btn--xs"
                         title="ลบ Template นี้"
@@ -598,7 +629,10 @@ export default function TemplateManagementPage() {
                     weightsByCourseId={currentWeightsByCourse}
                     competencies={competencies}
                     templateName={selectedTemplate?.name}
-                    templateYear={selectedTemplate?.year}
+                    templateStatus={templateStatus}
+                    academicYears={academicYears}
+                    onToggleStatus={handleToggleTemplateStatus}
+                    onUpdateAcademicYears={handleUpdateAcademicYears}
                 />
             )}
             {/* Modals */}

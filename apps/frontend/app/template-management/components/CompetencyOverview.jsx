@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useMemo } from 'react';
 import { BookOpen, BookOpenCheck, Award, Layers, FolderOpen, Link2, Unlink, Target } from 'lucide-react';
+import TemplateStatusCard from './TemplateStatusCard';
 
 // ============================================================
 // Helper — รวม weight ทุกวิชาทั้งหลักสูตรต่อ competency
@@ -125,7 +126,10 @@ export default function CompetencyOverview({
     weightsByCourseId = {},
     competencies = [],
     templateName = '',
-    templateYear = '',
+    templateStatus = true,
+    academicYears = [],
+    onToggleStatus,
+    onUpdateAcademicYears,
 }) {
     const totals  = useMemo(() =>
         calcGlobalTotals(coursesByCategoryId, weightsByCourseId, competencies),
@@ -153,12 +157,23 @@ export default function CompetencyOverview({
         <div className="ov-page">
             <div className="ov-container">
                 {/* Header */}
-                {(templateName || templateYear) && (
+                {templateName && (
                     <div className="ov-template-info">
-                        {templateName && <div className="ov-template-name">{templateName}</div>}
-                        <div className="ov-template-text"> Template สำหรับหลักสูตร วิทยาการคอมพิวเตอร์ ปี {templateYear}</div>    
+                        <div className="ov-template-name">{templateName}</div>
+                        <div className="ov-template-text"> 
+                            ปีการศึกษาที่ใช้งาน: {academicYears?.length > 0 ? academicYears.join(', ') : 'ยังไม่กำหนด'}
+                        </div>    
                     </div>
                 )}
+                {/* Status Template */}
+                <TemplateStatusCard
+                    isActive={templateStatus}
+                    academicYears={academicYears}
+                    onToggleStatus={onToggleStatus}
+                    onUpdateAcademicYears={onUpdateAcademicYears}
+                />
+
+                
                 {/* Stats Courses */}
                 <div className="ov-header">
                     <div className="ov-header__top">

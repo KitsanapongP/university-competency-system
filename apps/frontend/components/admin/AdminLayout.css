@@ -55,7 +55,7 @@
     -webkit-backdrop-filter: blur(14px);
     border-bottom: 1px solid var(--admin-navbar-border-light);
     background: var(--admin-navbar-bg-light);
-    transition: background 0.25s, border-color 0.25s;
+    transition: background 0.15s, border-color 0.15s;
 }
 
 .desktop-quick-controls{
@@ -232,7 +232,7 @@
 /* Chevron */
 .admin-nav-profile__chevron {
     color: var(--admin-navbar-sub-light);
-    transition: transform 0.2s;
+    transition: transform 0.15s;
     flex-shrink: 0;
 }
 .admin-nav-profile__chevron.open { transform: rotate(180deg); }

@@ -3,8 +3,8 @@
 // ============================================================
 
 export const MOCK_TEMPLATES = [
-    { id: 1, name: 'หลักสูตรวิทยาการคอมพิวเตอร์ 2568', year: 2568, courseCount: 42 },
-    { id: 2, name: 'หลักสูตรวิศวกรรมซอฟต์แวร์ 2568',   year: 2568, courseCount: 38 },
+    { id: 1, name: 'หลักสูตรวิทยาการคอมพิวเตอร์ 2568', year: 2568, courseCount: 42, isActive: true, academicYears: [2568, 2567, 2566] },
+    { id: 2, name: 'หลักสูตรวิศวกรรมซอฟต์แวร์ 2568',   year: 2568, courseCount: 38, isActive: false, academicYears: [2568] },
 ];
 
 export const MOCK_COMPETENCIES = [

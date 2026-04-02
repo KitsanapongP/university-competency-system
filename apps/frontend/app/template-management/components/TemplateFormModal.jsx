@@ -39,7 +39,7 @@ function CourseMasterTree({ categories, depth = 0 }) {
             {categories.map(cat => {
                 const hasChildren = cat.children?.length > 0;
                 const hasCourses  = cat.courses?.length > 0;
-                const isOpen      = expanded[cat.id] !== false; // default open
+                const isOpen      = expanded[cat.id] !== false;
 
                 return (
                     <div key={cat.id}>
@@ -83,6 +83,67 @@ function CourseMasterTree({ categories, depth = 0 }) {
 }
 
 // ============================================================
+// AcademicYearsSelector — เลือกหลายปีการศึกษา
+// ============================================================
+function AcademicYearsSelector({ years, onChange }) {
+    const [newYear, setNewYear] = useState('');
+
+    const addYear = () => {
+        const year = parseInt(newYear, 10);
+        if (year && !years.includes(year)) {
+            onChange([...years, year].sort((a, b) => b - a));
+            setNewYear('');
+        }
+    };
+
+    const removeYear = (year) => {
+        onChange(years.filter(y => y !== year));
+    };
+
+    return (
+        <div className="tfm-years-selector">
+            <div className="tfm-years-input-row">
+                <input
+                    type="number"
+                    className="cfm-input tfm-year-input"
+                    placeholder="เพิ่มปีการศึกษา (เช่น 2568)"
+                    value={newYear}
+                    onChange={e => setNewYear(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addYear(); }}
+                    min={2560}
+                    max={2600}
+                />
+                <button
+                    className="btn btn--primary btn--sm"
+                    onClick={addYear}
+                    disabled={!newYear}
+                >
+                    <Plus size={14}/> เพิ่ม
+                </button>
+            </div>
+            {years.length > 0 ? (
+                <div className="tfm-years-chips">
+                    {years.map(year => (
+                        <div key={year} className="tfm-year-chip">
+                            <span>ปี {year}</span>
+                            <button
+                                className="tfm-year-chip-remove"
+                                onClick={() => removeYear(year)}
+                                aria-label={`Remove year ${year}`}
+                            >
+                                <X size={12}/>
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <p className="tfm-years-hint">ยังไม่ได้เลือกปีการศึกษา กด &quot;เพิ่ม&quot; เพื่อเลือกปีที่ Template นี้ใช้งาน</p>
+            )}
+        </div>
+    );
+}
+
+// ============================================================
 // Step 1 — ข้อมูลหลักสูตร + เลือก Course Master
 // ============================================================
 function Step1({ form, setForm }) {
@@ -96,29 +157,31 @@ function Step1({ form, setForm }) {
 
     const preview = MOCK_COURSE_MASTERS.find(m => m.id === previewId);
 
+    const updateAcademicYears = (years) => {
+        setForm(p => ({ ...p, academicYears: years }));
+    };
+
     return (
         <div className="tfm-step1">
-            {/* ชื่อ + ปี */}
-            <div className="tfm-row2">
-                <div className="cfm-field">
-                    <label className="cfm-label">ชื่อ Template <span className="cfm-required">*</span></label>
-                    <input className="cfm-input" autoFocus
-                        value={form.name}
-                        onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                        placeholder="เช่น หลักสูตรวิทยาการคอมพิวเตอร์ 2568"
-                    />
-                </div>
-                <div className="cfm-field">
-                    <label className="cfm-label">ปีการศึกษา (พ.ศ.)</label>
-                    <input className="cfm-input" type="number" min={2560} max={2599}
-                        value={form.year}
-                        onChange={e => setForm(p => ({ ...p, year: Number(e.target.value) }))}
-                    />
-                </div>
+            {/* ชื่อ */}
+            <div className="cfm-field">
+                <label className="cfm-label">ชื่อ Template <span className="cfm-required">*</span></label>
+                <input className="cfm-input" autoFocus
+                    value={form.name}
+                    onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                    placeholder="เช่น หลักสูตรวิทยาการคอมพิวเตอร์"
+                />
+            </div>
+
+            {/* ปีการศึกษาที่ใช้งาน */}
+            <div className="cfm-field" style={{ marginTop: '1rem' }}>
+                <label className="cfm-label">ปีการศึกษาที่ใช้งาน (เลือกได้หลายปี)</label>
+                <p className="tfm-hint">เลือกปีการศึกษาที่ Template นี้ใช้ได้ นักศึกษาจะใช้ Template นี้ได้หากปีที่เข้าเรียนตรงกับปีที่เลือก</p>
+                <AcademicYearsSelector years={form.academicYears} onChange={updateAcademicYears}/>
             </div>
 
             {/* เลือก Course Master */}
-            <div className="cfm-field" style={{ marginTop: '0.75rem' }}>
+            <div className="cfm-field" style={{ marginTop: '1.25rem' }}>
                 <label className="cfm-label">Course Master (ไม่บังคับ)</label>
                 <p className="tfm-hint">เลือกหลักสูตรต้นแบบเพื่อนำโครงสร้างหมวดวิชาและรายวิชามาใช้งาน หรือข้ามเพื่อสร้างใหม่ทั้งหมด</p>
             </div>
@@ -221,7 +284,6 @@ function Step2({ form, setForm, allCompetencies, onAddCompetency }) {
     const handleAdd = () => {
         if (!newName.trim()) return;
         const added = onAddCompetency(newName.trim(), newColor);
-        // auto-select ที่เพิ่งสร้าง
         setForm(p => {
             const set = new Set(p.competencyIds);
             set.add(added.id);
@@ -314,11 +376,10 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = M
     const [step, setStep] = useState(1);
     const [form, setForm] = useState({
         name:          '',
-        year:          2568,
+        academicYears: [],
         masterId:      null,
         competencyIds: new Set(),
     });
-    // local competencies — เริ่มจาก allCompetencies แต่เพิ่มได้ใน Step2
     const [localComps, setLocalComps] = useState(allCompetencies);
     const localCompIdRef = useRef(9900);
 
@@ -337,7 +398,7 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = M
         const master = MOCK_COURSE_MASTERS.find(m => m.id === form.masterId) ?? null;
         onSave({
             name:              form.name.trim(),
-            year:              form.year,
+            academicYears:     form.academicYears,
             masterId:          form.masterId,
             masterData:        master,
             competencyIds:     [...form.competencyIds],
