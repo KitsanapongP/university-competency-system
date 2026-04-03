@@ -542,13 +542,6 @@ export default function TemplateManagementPage() {
                 <span className="editor-topbar__year">
                     ปีการศึกษา: {selectedTemplate?.academicYears?.join(', ') || 'ยังไม่กำหนด'}
                 </span>
-                <div style={{ marginLeft:'auto', display:'flex', gap:'0.5rem' }}>
-                    <button className="icon-btn icon-btn--danger icon-btn--xs"
-                        title="ลบ Template นี้"
-                        onClick={() => handleRequestDeleteTemplate(selectedTemplate)}>
-                        <Trash2 size={14}/>
-                    </button>
-                </div>
             </div>
 
             {/* Tab bar */}
@@ -633,6 +626,7 @@ export default function TemplateManagementPage() {
                     academicYears={academicYears}
                     onToggleStatus={handleToggleTemplateStatus}
                     onUpdateAcademicYears={handleUpdateAcademicYears}
+                    onDeleteTemplate={() => handleRequestDeleteTemplate(selectedTemplate)}
                 />
             )}
             {/* Modals */}

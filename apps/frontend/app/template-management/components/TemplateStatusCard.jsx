@@ -67,7 +67,7 @@ export function TemplateStatusCard({
     }, []);
 
     const handleSave = useCallback(() => {
-        const sortedYears = [...tempYears].sort((a, b) => b - a);
+        const sortedYears = [...tempYears].sort((a, b) => a - b);
         onUpdateAcademicYears?.(sortedYears);
         setIsEditing(false);
         setNewYear('');
@@ -76,7 +76,7 @@ export function TemplateStatusCard({
     const handleAddYear = useCallback(() => {
         const year = parseInt(newYear, 10);
         if (year && !tempYears.includes(year)) {
-            setTempYears(prev => [...prev, year].sort((a, b) => b - a));
+            setTempYears(prev => [...prev, year].sort((a, b) => a - b));
             setNewYear('');
         }
     }, [newYear, tempYears]);
@@ -117,7 +117,7 @@ export function TemplateStatusCard({
         }
         return academicYears.join(', ');
     };
-
+         
     return (
         <>
             <div className="ov-template-status-card">

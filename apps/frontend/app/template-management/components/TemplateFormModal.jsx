@@ -91,7 +91,7 @@ function AcademicYearsSelector({ years, onChange }) {
     const addYear = () => {
         const year = parseInt(newYear, 10);
         if (year && !years.includes(year)) {
-            onChange([...years, year].sort((a, b) => b - a));
+            onChange([...years, year].sort((a, b) => a - b));
             setNewYear('');
         }
     };
@@ -202,12 +202,17 @@ function Step1({ form, setForm }) {
                         className={`tfm-master-card ${form.masterId === null ? 'tfm-master-card--selected' : ''}`}
                         onClick={() => { setForm(p => ({ ...p, masterId: null })); setPreviewId(null); }}
                     >
-                        <div className="tfm-master-card__icon">
+                        <div className={`tfm-master-card__icon ${form.masterId === null ? 'tfm-master-card__icon--blue' : ''}`}>
                             <PenLine size={20}/>
                         </div>
                         <div>
-                            <div className="tfm-master-card__name">สร้างใหม่ทั้งหมด</div>
-                            <div className="tfm-master-card__meta">กรอกหมวดวิชาและรายวิชาเอง</div>
+                            <div className={`tfm-master-card__name ${form.masterId === null ? 'tfm-master-card__name--selected' : ''}`}>
+                                สร้างใหม่ทั้งหมด
+                            </div>
+                            <div 
+                                className={`tfm-master-card__meta ${form.masterId === null ? 'tfm-master-card__meta--selected' : ''}`}>
+                                กรอกหมวดวิชาและรายวิชาเอง
+                            </div>
                         </div>
                         {form.masterId === null && <Check size={16} className="tfm-master-card__check"/>}
                     </div>
@@ -217,12 +222,16 @@ function Step1({ form, setForm }) {
                             className={`tfm-master-card ${form.masterId === m.id ? 'tfm-master-card--selected' : ''}`}
                             onClick={() => { setForm(p => ({ ...p, masterId: m.id })); setPreviewId(m.id); }}
                         >
-                            <div className="tfm-master-card__icon tfm-master-card__icon--blue">
+                            <div className={`tfm-master-card__icon ${form.masterId === m.id ? 'tfm-master-card__icon--blue' : ''}`}>
                                 <BookOpenCheck size={20}/>
                             </div>
                             <div>
-                                <div className="tfm-master-card__name">{m.name}</div>
-                                <div className="tfm-master-card__meta">{m.faculty} · ปี {m.year}</div>
+                                <div className={`tfm-master-card__name ${form.masterId === m.id ? 'tfm-master-card__name--selected' : ''}`}>
+                                    {m.name}
+                                </div>
+                                <div className={`tfm-master-card__meta ${form.masterId === m.id ? 'tfm-master-card__meta--selected' : ''}`}>
+                                    {m.faculty} · ปี {m.year}
+                                </div>
                             </div>
                             {form.masterId === m.id && <Check size={16} className="tfm-master-card__check"/>}
                         </div>

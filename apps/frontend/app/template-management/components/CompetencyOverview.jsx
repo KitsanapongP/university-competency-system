@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useMemo } from 'react';
-import { BookOpen, BookOpenCheck, Award, Layers, FolderOpen, Link2, Unlink, Target } from 'lucide-react';
+import { BookOpen, BookOpenCheck, Award, Layers, FolderOpen, Link2, Unlink, Target, Trash2,AlertCircle } from 'lucide-react';
 import TemplateStatusCard from './TemplateStatusCard';
 
 // ============================================================
@@ -130,6 +130,7 @@ export default function CompetencyOverview({
     academicYears = [],
     onToggleStatus,
     onUpdateAcademicYears,
+    onDeleteTemplate,
 }) {
     const totals  = useMemo(() =>
         calcGlobalTotals(coursesByCategoryId, weightsByCourseId, competencies),
@@ -146,6 +147,9 @@ export default function CompetencyOverview({
     const totalnonCoreCourse = allCourses.filter(c => !c.isCoreCourse).length;
     const totalCourseMaster = allCourses.filter(c => c.fromMaster).length;
     const totalnonCourseMaster = allCourses.filter(c => !c.fromMaster).length;
+    const sortedAcademicYears = [...(academicYears || [])]
+        .map(Number)
+        .sort((a, b) => a - b);
 
     const labels = totals.map(t => t.comp.name);
     const data   = totals.map(t => t.total);
@@ -160,9 +164,11 @@ export default function CompetencyOverview({
                 {templateName && (
                     <div className="ov-template-info">
                         <div className="ov-template-name">{templateName}</div>
-                        <div className="ov-template-text"> 
-                            ปีการศึกษาที่ใช้งาน: {academicYears?.length > 0 ? academicYears.join(', ') : 'ยังไม่กำหนด'}
-                        </div>    
+                        <div className="ov-template-text">
+                        ปีการศึกษาที่ใช้งาน: {sortedAcademicYears.length > 0 
+                            ? sortedAcademicYears.join(', ') 
+                            : 'ยังไม่กำหนด'}
+                        </div> 
                     </div>
                 )}
                 {/* Status Template */}
@@ -271,7 +277,15 @@ export default function CompetencyOverview({
                                 <span className="ov-card__value">{coursesWithoutComp}</span>
                                 <span className="ov-card__label">วิชาที่ไม่ผูกสมรรถนะ</span>
                             </div>
-                            <div className="ov-card__badge">{coursesWithoutComp > 0 ? <span className='card-warning'> Needs attention</span>  : ''}</div>
+                            <div className="ov-card__badge">
+                            {coursesWithoutComp > 0 ? (
+                                <>
+                                <AlertCircle size={12} /> โปรดใส่น้ำหนักให้ครบ
+                                </>
+                            ) : (
+                                ''
+                            )}
+                            </div>
                         </div>
                         <div className="ov-card">
                             <div className="ov-card__icon">
@@ -317,6 +331,25 @@ export default function CompetencyOverview({
                                 </div>
                             );
                         })}
+                    </div>
+                </div>
+
+                {/* Danger Zone */}
+                <div className="ov-danger-zone">
+                    <div className="ov-danger-zone__header">
+                        <h1 className="ov-danger-zone__title">โซนอันตราย</h1>
+                        <span className="ov-danger-zone__desc">
+                            โซนลบ Template - เมื่อลบแล้วจะไม่สามารถกู้คืนได้ และข้อมูลทั้งหมดใน Template นี้จะหายไป
+                        </span>
+                    </div>
+                    <div className="ov-danger-zone__content">
+                        <button 
+                            className="ov-delete-template-btn"
+                            onClick={onDeleteTemplate}
+                        >
+                            <Trash2 size={14} />
+                            <span>ลบ Template นี้</span>
+                        </button>
                     </div>
                 </div>
             </div>
