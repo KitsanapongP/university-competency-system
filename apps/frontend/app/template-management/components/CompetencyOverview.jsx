@@ -127,9 +127,10 @@ export default function CompetencyOverview({
     competencies = [],
     templateName = '',
     templateStatus = true,
-    academicYears = [],
+    academicYear = null,
+    courseMasterName = null,
+    courseMasterYear = null,
     onToggleStatus,
-    onUpdateAcademicYears,
     onDeleteTemplate,
 }) {
     const totals  = useMemo(() =>
@@ -147,15 +148,17 @@ export default function CompetencyOverview({
     const totalnonCoreCourse = allCourses.filter(c => !c.isCoreCourse).length;
     const totalCourseMaster = allCourses.filter(c => c.fromMaster).length;
     const totalnonCourseMaster = allCourses.filter(c => !c.fromMaster).length;
-    const sortedAcademicYears = [...(academicYears || [])]
-        .map(Number)
-        .sort((a, b) => a - b);
 
     const labels = totals.map(t => t.comp.name);
     const data   = totals.map(t => t.total);
     const colors = totals.map(t => t.comp.color);
     const maxTotal = Math.max(...data, 0);
     const hasData  = maxTotal > 0;
+
+    const yearDisplay = academicYear ? academicYear : 'ยังไม่กำหนด';
+    const courseMasterDisplay = courseMasterName 
+        ? `${courseMasterName} (${courseMasterYear})` 
+        : null;
 
     return (
         <div className="ov-page">
@@ -165,18 +168,19 @@ export default function CompetencyOverview({
                     <div className="ov-template-info">
                         <div className="ov-template-name">{templateName}</div>
                         <div className="ov-template-text">
-                        ปีการศึกษาที่ใช้งาน: {sortedAcademicYears.length > 0 
-                            ? sortedAcademicYears.join(', ') 
-                            : 'ยังไม่กำหนด'}
+                            {courseMasterDisplay 
+                                ? `${courseMasterDisplay} · ปีการศึกษา ${yearDisplay}`
+                                : `ปีการศึกษา ${yearDisplay}`}
                         </div> 
                     </div>
                 )}
                 {/* Status Template */}
                 <TemplateStatusCard
                     isActive={templateStatus}
-                    academicYears={academicYears}
+                    academicYear={academicYear}
+                    courseMasterName={courseMasterName}
+                    courseMasterYear={courseMasterYear}
                     onToggleStatus={onToggleStatus}
-                    onUpdateAcademicYears={onUpdateAcademicYears}
                 />
 
                 

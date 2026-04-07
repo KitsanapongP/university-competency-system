@@ -518,6 +518,7 @@
 }
 
 .modal-box {
+    overflow-y: auto;
     background: var(--tm-card-bg);
     border: 1px solid var(--tm-card-border);
     border-radius: 14px;
@@ -545,9 +546,23 @@
     border-radius: 6px;
 }
 
-.modal-close:hover { color: var(--tm-text); background: var(--tm-hover); }
-.modal-body   { padding: 1.25rem 1.5rem; }
-.modal-footer { display: flex; justify-content: flex-end; gap: 0.75rem; padding: 1rem 1.5rem; border-top: 1px solid var(--tm-modal-border); }
+.modal-close:hover { 
+    color: var(--tm-text); 
+    background: var(--tm-hover); 
+}
+
+.modal-body { 
+    padding: 1.25rem 1.5rem;
+    overflow-y: auto;
+    min-height: 0;
+}
+.modal-footer { 
+    display: flex; 
+    justify-content: flex-end; 
+    gap: 0.75rem; 
+    padding: 1rem 1.5rem; 
+    border-top: 1px solid var(--tm-modal-border); 
+}
 
 /* ============================================================
    Responsive
@@ -1846,9 +1861,8 @@
 }
 
 .tpl-card__meta {
-    display: flex;
-    gap: 0.75rem;
-    font-size: 0.73rem;
+    gap: 1rem;
+    font-size: 0.68rem;
     color: var(--tm-text-muted);
 }
 
@@ -2419,14 +2433,16 @@
     max-height: 90vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .tfm-body {
     flex: 1;
-    overflow: hidden;
+    overflow-y: auto;
     padding: 1rem 1.5rem 1.25rem;
     display: flex;
     flex-direction: column;
+    min-height: 0;
 }
 
 /* Step indicator */
@@ -2493,10 +2509,10 @@
 
 /* Step 1 layout */
 .tfm-step1 {
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     flex: 1;
-    overflow: hidden;
     min-height: 0;
 }
 
@@ -2708,6 +2724,8 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    width: 618px;
+    height: 300px;
 }
 
 .tfm-master-preview--empty {
@@ -2904,6 +2922,26 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 4px;
+}
+
+.ov-template-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-bottom: 0.5rem;
+}
+
+.ov-template-info-label {
+    font-size: 0.7rem;
+    color: var(--tm-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.ov-template-info-value {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--tm-text);
 }
 
 .ov-template-name {
@@ -3946,7 +3984,7 @@
 }
 
 .ov-danger-zone__desc{
-    font-size: 0.78rem;
+    font-size: 0.82rem;
     color: var(--tm-text);
     flex: 1;
 }

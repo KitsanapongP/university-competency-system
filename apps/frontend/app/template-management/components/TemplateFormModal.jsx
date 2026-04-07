@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search, Plus } from 'lucide-react';
+import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search } from 'lucide-react';
 import { MOCK_COURSE_MASTERS, MOCK_COMPETENCIES } from '../mockData';
 
 // ============================================================
@@ -83,62 +83,28 @@ function CourseMasterTree({ categories, depth = 0 }) {
 }
 
 // ============================================================
-// AcademicYearsSelector — เลือกหลายปีการศึกษา
+// AcademicYearSelector — เลือก 1 ปีการศึกษา
 // ============================================================
-function AcademicYearsSelector({ years, onChange }) {
-    const [newYear, setNewYear] = useState('');
-
-    const addYear = () => {
-        const year = parseInt(newYear, 10);
-        if (year && !years.includes(year)) {
-            onChange([...years, year].sort((a, b) => a - b));
-            setNewYear('');
-        }
-    };
-
-    const removeYear = (year) => {
-        onChange(years.filter(y => y !== year));
-    };
+function AcademicYearSelector({ year, onChange }) {
+    const currentYear = new Date().getFullYear() + 543;
+    const years = [];
+    for (let y = currentYear - 5; y <= currentYear + 2; y++) {
+        years.push(y);
+    }
 
     return (
-        <div className="tfm-years-selector">
-            <div className="tfm-years-input-row">
-                <input
-                    type="number"
-                    className="cfm-input tfm-year-input"
-                    placeholder="เพิ่มปีการศึกษา (เช่น 2568)"
-                    value={newYear}
-                    onChange={e => setNewYear(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') addYear(); }}
-                    min={2560}
-                    max={2600}
-                />
-                <button
-                    className="btn btn--primary btn--sm"
-                    onClick={addYear}
-                    disabled={!newYear}
-                >
-                    <Plus size={14}/> เพิ่ม
-                </button>
-            </div>
-            {years.length > 0 ? (
-                <div className="tfm-years-chips">
-                    {years.map(year => (
-                        <div key={year} className="tfm-year-chip">
-                            <span>ปี {year}</span>
-                            <button
-                                className="tfm-year-chip-remove"
-                                onClick={() => removeYear(year)}
-                                aria-label={`Remove year ${year}`}
-                            >
-                                <X size={12}/>
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <p className="tfm-years-hint">ยังไม่ได้เลือกปีการศึกษา กด &quot;เพิ่ม&quot; เพื่อเลือกปีที่ Template นี้ใช้งาน</p>
-            )}
+        <div className="tfm-year-selector">
+            <label className="cfm-label">ปีการศึกษา <span className="cfm-required">*</span></label>
+            <select
+                className="cfm-input"
+                value={year || ''}
+                onChange={e => onChange(e.target.value ? parseInt(e.target.value, 10) : null)}
+            >
+                <option value="">เลือกปีการศึกษา</option>
+                {years.map(y => (
+                    <option key={y} value={y}>ปีการศึกษา {y}</option>
+                ))}
+            </select>
         </div>
     );
 }
@@ -151,14 +117,21 @@ function Step1({ form, setForm }) {
     const [previewId, setPreviewId] = useState(null);
 
     const filtered = MOCK_COURSE_MASTERS.filter(m =>
-        m.name.toLowerCase().includes(search.toLowerCase()) ||
+        m.nameTh.toLowerCase().includes(search.toLowerCase()) ||
+        m.nameEn.toLowerCase().includes(search.toLowerCase()) ||
         String(m.year).includes(search)
     );
 
     const preview = MOCK_COURSE_MASTERS.find(m => m.id === previewId);
 
-    const updateAcademicYears = (years) => {
-        setForm(p => ({ ...p, academicYears: years }));
+    const handleMasterSelect = (masterId) => {
+        const master = masterId ? MOCK_COURSE_MASTERS.find(m => m.id === masterId) : null;
+        setForm(p => ({ 
+            ...p, 
+            masterId,
+            academicYear: master ? master.year : null
+        }));
+        setPreviewId(masterId);
     };
 
     return (
@@ -173,17 +146,10 @@ function Step1({ form, setForm }) {
                 />
             </div>
 
-            {/* ปีการศึกษาที่ใช้งาน */}
-            <div className="cfm-field" style={{ marginTop: '1rem' }}>
-                <label className="cfm-label">ปีการศึกษาที่ใช้งาน (เลือกได้หลายปี)</label>
-                <p className="tfm-hint">เลือกปีการศึกษาที่ Template นี้ใช้ได้ นักศึกษาจะใช้ Template นี้ได้หากปีที่เข้าเรียนตรงกับปีที่เลือก</p>
-                <AcademicYearsSelector years={form.academicYears} onChange={updateAcademicYears}/>
-            </div>
-
             {/* เลือก Course Master */}
             <div className="cfm-field" style={{ marginTop: '1.25rem' }}>
-                <label className="cfm-label">Course Master (ไม่บังคับ)</label>
-                <p className="tfm-hint">เลือกหลักสูตรต้นแบบเพื่อนำโครงสร้างหมวดวิชาและรายวิชามาใช้งาน หรือข้ามเพื่อสร้างใหม่ทั้งหมด</p>
+                <label className="cfm-label">หลักสูตร <span className="cfm-required">*</span></label>
+                <p className="tfm-hint">เลือกหลักสูตรต้นแบบ ปีการศึกษาจะถูกกำหนดอัตโนมัติตามหลักสูตรที่เลือก</p>
             </div>
 
             {/* Search */}
@@ -200,7 +166,7 @@ function Step1({ form, setForm }) {
                     {/* ตัวเลือก: ไม่เลือก master */}
                     <div
                         className={`tfm-master-card ${form.masterId === null ? 'tfm-master-card--selected' : ''}`}
-                        onClick={() => { setForm(p => ({ ...p, masterId: null })); setPreviewId(null); }}
+                        onClick={() => handleMasterSelect(null)}
                     >
                         <div className={`tfm-master-card__icon ${form.masterId === null ? 'tfm-master-card__icon--blue' : ''}`}>
                             <PenLine size={20}/>
@@ -220,17 +186,17 @@ function Step1({ form, setForm }) {
                     {filtered.map(m => (
                         <div key={m.id}
                             className={`tfm-master-card ${form.masterId === m.id ? 'tfm-master-card--selected' : ''}`}
-                            onClick={() => { setForm(p => ({ ...p, masterId: m.id })); setPreviewId(m.id); }}
+                            onClick={() => handleMasterSelect(m.id)}
                         >
                             <div className={`tfm-master-card__icon ${form.masterId === m.id ? 'tfm-master-card__icon--blue' : ''}`}>
                                 <BookOpenCheck size={20}/>
                             </div>
                             <div>
                                 <div className={`tfm-master-card__name ${form.masterId === m.id ? 'tfm-master-card__name--selected' : ''}`}>
-                                    {m.name}
+                                    {m.nameTh}
                                 </div>
                                 <div className={`tfm-master-card__meta ${form.masterId === m.id ? 'tfm-master-card__meta--selected' : ''}`}>
-                                    {m.faculty} · ปี {m.year}
+                                    {m.faculty}ปี {m.year}
                                 </div>
                             </div>
                             {form.masterId === m.id && <Check size={16} className="tfm-master-card__check"/>}
@@ -242,7 +208,7 @@ function Step1({ form, setForm }) {
                 {preview ? (
                     <div className="tfm-master-preview">
                         <div className="tfm-preview-header">
-                            <span>{preview.name} ({preview.year})</span>
+                            <span>{preview.nameTh} ({preview.year})</span>
                         </div>
                         <div className="tfm-preview-body">
                             <CourseMasterTree categories={preview.categories}/>
@@ -253,6 +219,21 @@ function Step1({ form, setForm }) {
                         <BookOpenCheck size={28} opacity={0.2}/>
                         <span>เลือก Course Master เพื่อดูตัวอย่าง</span>
                     </div>
+                )}
+            </div>
+
+            {/* แสดงปีการศึกษาที่เลือก */}
+            <div className="tfm-selected-year">
+                {form.masterId ? (
+                    <div className="tfm-year-display">
+                        <span className="tfm-year-label">ปีการศึกษา:</span>
+                        <span className="tfm-year-value">{form.academicYear}</span>
+                    </div>
+                ) : (
+                    <AcademicYearSelector
+                        year={form.academicYear}
+                        onChange={(year) => setForm(p => ({ ...p, academicYear: year }))}
+                    />
                 )}
             </div>
         </div>
@@ -385,7 +366,7 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = M
     const [step, setStep] = useState(1);
     const [form, setForm] = useState({
         name:          '',
-        academicYears: [],
+        academicYear:  null,
         masterId:      null,
         competencyIds: new Set(),
     });
@@ -399,7 +380,7 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = M
     };
 
     const canNext = step === 1
-        ? form.name.trim().length > 0
+        ? form.name.trim().length > 0 && form.masterId !== null
         : form.competencyIds.size > 0;
 
     const handleSave = () => {
@@ -407,7 +388,7 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = M
         const master = MOCK_COURSE_MASTERS.find(m => m.id === form.masterId) ?? null;
         onSave({
             name:              form.name.trim(),
-            academicYears:     form.academicYears,
+            academicYear:      form.academicYear,
             masterId:          form.masterId,
             masterData:        master,
             competencyIds:     [...form.competencyIds],

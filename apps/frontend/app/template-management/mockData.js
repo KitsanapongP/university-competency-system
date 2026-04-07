@@ -3,8 +3,8 @@
 // ============================================================
 
 export const MOCK_TEMPLATES = [
-    { id: 1, name: 'หลักสูตรวิทยาการคอมพิวเตอร์ 2568', year: 2568, courseCount: 42, isActive: true, academicYears: [2568, 2567, 2566] },
-    { id: 2, name: 'หลักสูตรวิศวกรรมซอฟต์แวร์ 2568',   year: 2568, courseCount: 38, isActive: false, academicYears: [2568] },
+    { id: 1, name: 'หลักสูตรวิทยาการคอมพิวเตอร์ 2565', year: 2565, academicYear: 2565, isActive: true },
+    { id: 2, name: 'หลักสูตรวิศวกรรมซอฟต์แวร์ 2568', year: 2568, academicYear: 2568, isActive: false },
 ];
 
 export const MOCK_COMPETENCIES = [
@@ -71,9 +71,17 @@ export const MOCK_CATEGORIES = [
 export const MOCK_COURSE_MASTERS = [
     {
         id: 'cm_cs_2565',
-        name: 'วิทยาการคอมพิวเตอร์',
+        nameTh: 'หลักสูตรวิทยาการคอมพิวเตอร์',
+        nameEn: 'Computer Science',
         year: 2565,
-        faculty: 'คณะวิทยาศาสตร์',
+        degreeName: 'วิทยาศาสตรบัณฑิต',
+        degreeNameEn: 'Bachelor of Science',
+        degreeFullNameTh: 'วิทยาศาสตรบัณฑิต (วิทยาการคอมพิวเตอร์)',
+        degreeFullNameEn: 'Bachelor of Science (Computer Science)',
+        degreeAbbrTh: 'วิ.บ. (วิทยาการคอมพิวเตอร์)',
+        degreeAbbrEn: 'B.Sc. (Computer Science)',
+        isActive: true,
+        templateCount: 3,
         categories: [
             {
                 id: 'cm1', code: '1', name: 'หมวดวิชาศึกษาทั่วไป', requiredCredits: 30,
@@ -242,5 +250,90 @@ export const MOCK_COURSE_MASTERS = [
                 courses: [],
             },
         ],
+        stats: {
+            totalCourses: 56,
+            totalCategories: 17,
+            totalCredits: 132,
+            coreCourses: 46,
+            electiveCourses: 10,
+        }
+    },
+    {
+        id: 2,
+        nameTh: 'หลักสูตรวิศวกรรมซอฟต์แวร์',
+        nameEn: 'Software Engineering',
+        year: 2567,
+        degreeName: 'วิศวกรรมบัณฑิต',
+        degreeNameEn: 'Bachelor of Engineering',
+        degreeFullNameTh: 'วิศวกรรมบัณฑิต (วิศวกรรมซอฟต์แวร์)',
+        degreeFullNameEn: 'Bachelor of Engineering (Software Engineering)',
+        degreeAbbrTh: 'วศ.บ. (วิศวกรรมซอฟต์แวร์)',
+        degreeAbbrEn: 'B.Eng. (Software Engineering)',
+        isActive: true,
+        templateCount: 2,
+        categories: [
+            {
+                id: 's1', code: '1', name: 'หมวดวิชาศึกษาทั่วไป', requiredCredits: 30, children: []
+            },
+            {
+                id: 's2', code: '2', name: 'หมวดวิชาเฉพาะ', requiredCredits: 102, children: []
+            },
+        ],
+        stats: {
+            totalCourses: 38,
+            totalCategories: 6,
+            totalCredits: 138,
+            coreCourses: 28,
+            electiveCourses: 10,
+        }
+    },
+    {
+        id: 3,
+        nameTh: 'หลักสูตรเทคโนโลยีสารสนเทศ',
+        nameEn: 'Information Technology',
+        year: 2566,
+        degreeName: 'วิทยาศาสตรบัณฑิต',
+        degreeNameEn: 'Bachelor of Science',
+        degreeFullNameTh: 'วิทยาศาสตรบัณฑิต (เทคโนโลยีสารสนเทศ)',
+        degreeFullNameEn: 'Bachelor of Science (Information Technology)',
+        degreeAbbrTh: 'วิ.บ. (เทคโนโลยีสารสนเทศ)',
+        degreeAbbrEn: 'B.Sc. (Information Technology)',
+        isActive: false,
+        templateCount: 0,
+        categories: [
+            {
+                id: 'i1', code: '1', name: 'หมวดวิชาศึกษาทั่วไป', requiredCredits: 30, children: []
+            },
+            {
+                id: 'i2', code: '2', name: 'หมวดวิชาเฉพาะ', requiredCredits: 90, children: []
+            },
+        ],
+        stats: {
+            totalCourses: 35,
+            totalCategories: 5,
+            totalCredits: 126,
+            coreCourses: 25,
+            electiveCourses: 10,
+        }
     },
 ];
+
+export const EMPTY_COURSE = {
+    nameTh: '',
+    nameEn: '',
+    year: null,
+    degreeName: '',
+    degreeNameEn: '',
+    degreeFullNameTh: '',
+    degreeFullNameEn: '',
+    degreeAbbrTh: '',
+    degreeAbbrEn: '',
+    categories: [],
+    stats: {
+        totalCourses: 0,
+        totalCategories: 0,
+        totalCredits: 0,
+        coreCourses: 0,
+        electiveCourses: 0,
+    }
+};

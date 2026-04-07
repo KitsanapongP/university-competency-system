@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, Settings, SlidersHorizontal, BarChart3 } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, Settings, SlidersHorizontal, BarChart3, Files } from 'lucide-react';
 import { MOCK_TEMPLATES, MOCK_COMPETENCIES, MOCK_CATEGORIES } from './mockData';
 import CategoryCoursePanel  from './components/CategoryCoursePanel';
 import CompetencyOverview   from './components/CompetencyOverview';
@@ -61,9 +62,12 @@ function getDepthFromCode(code) { return code ? code.split('.').length - 1 : 0; 
 // TemplateCard — การ์ดแสดงใน list view
 // ============================================================
 function TemplateCard({ template, courseCount, onOpen, onDelete }) {
-    const yearsDisplay = template.academicYears?.length > 0 
-        ? template.academicYears.join(', ') 
+    const yearDisplay = template.academicYear 
+        ? template.academicYear 
         : 'ยังไม่กำหนด';
+    const courseMasterDisplay = template.masterData 
+        ? `${template.masterData.name} (${template.masterData.year})`
+        : null;
     
     return (
         <div className="tpl-card" onClick={() => onOpen(template)}>
@@ -73,8 +77,15 @@ function TemplateCard({ template, courseCount, onOpen, onDelete }) {
             <div className="tpl-card__body">
                 <span className="tpl-card__name">{template.name}</span>
                 <div className="tpl-card__meta">
-                    <span><CalendarDays size={12}/> ปีการศึกษา: {yearsDisplay}</span>
-                    <span><BookOpen size={12}/> {courseCount} วิชา</span>
+                    {courseMasterDisplay ? (
+                        <>
+                            <span>หลักสูตร: {courseMasterDisplay}</span>
+                            <span>ปีการศึกษา: {yearDisplay}</span>
+                        </>
+                    ) : (
+                        <span> ปีการศึกษา: {yearDisplay}</span>
+                    )}
+                    <span> มีทั้งหมด {courseCount} วิชา</span>
                 </div>
             </div>
             <button
@@ -102,7 +113,6 @@ export default function TemplateManagementPage() {
     const [competencies, setCompetencies] = useState(MOCK_COMPETENCIES);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [templateStatus, setTemplateStatus] = useState(true);
-    const [academicYears, setAcademicYears] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [showTemplateModal, setShowTemplateModal] = useState(false);
     const [deletingTemplate,  setDeletingTemplate]  = useState(null);
@@ -173,7 +183,6 @@ export default function TemplateManagementPage() {
         setSelectedTemplate(t);
         setSelectedCategory(null);
         setTemplateStatus(t.isActive ?? true);
-        setAcademicYears(t.academicYears ?? []);
         setView('editor');
     }, []);
 
@@ -203,11 +212,16 @@ export default function TemplateManagementPage() {
         setDeletingTemplate(null);
     }, [deletingTemplate, selectedTemplate, handleBackToList]);
 
-    const handleSaveTemplate = useCallback(({ name, academicYears, masterData, competencyIds, newCompetencies }) => {
+    const handleSaveTemplate = useCallback(({ name, academicYear, masterData, competencyIds, newCompetencies }) => {
         const id = ++templateRef.current;
-        const newTemplate = { id, name, year: academicYears[0] || 2568, academicYears };
+        const newTemplate = { 
+            id, 
+            name, 
+            year: academicYear || 2568, 
+            academicYear,
+            masterData 
+        };
         setTemplates(p => [...p, newTemplate]);
-        setAcademicYears(academicYears);
 
         // เพิ่ม competencies ใหม่ที่สร้างใน modal เข้า global state
         if (newCompetencies?.length) {
@@ -410,16 +424,6 @@ export default function TemplateManagementPage() {
         }
     }, [selectedTemplate]);
 
-    const handleUpdateAcademicYears = useCallback((years) => {
-        setAcademicYears(years);
-        if (selectedTemplate) {
-            setTemplates(p => p.map(t => 
-                t.id === selectedTemplate.id ? { ...t, academicYears: years } : t
-            ));
-            setSelectedTemplate(p => ({ ...p, academicYears: years }));
-        }
-    }, [selectedTemplate]);
-
     const handleDeleteCompetency = useCallback((id) => {
         setCompetencies(p => p.filter(c => c.id !== id));
         // ลบ weights ที่ผูกกับ competency นี้ออกด้วย
@@ -455,9 +459,14 @@ export default function TemplateManagementPage() {
                             <h1 className="tm-header__title">จัดการ Template หลักสูตร</h1>
                             <p className="tpl-list-view__sub">เลือก Template ที่ต้องการแก้ไข หรือสร้าง Template ใหม่</p>
                         </div>
-                        <button className="btn btn--primary" onClick={() => setShowTemplateModal(true)}>
-                            <Plus size={15}/> สร้าง Template ใหม่
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                            <Link href="/course-management" className="btn btn--ghost">
+                                <Files size={15}/> จัดการหลักสูตร
+                            </Link>
+                            <button className="btn btn--primary" onClick={() => setShowTemplateModal(true)}>
+                                <Plus size={15}/> สร้าง Template ใหม่
+                            </button>
+                        </div>
                     </div>
 
                     {/* Cards */}
@@ -540,7 +549,11 @@ export default function TemplateManagementPage() {
                 )}
 
                 <span className="editor-topbar__year">
-                    ปีการศึกษา: {selectedTemplate?.academicYears?.join(', ') || 'ยังไม่กำหนด'}
+                    {selectedTemplate?.masterData 
+                        ? `${selectedTemplate.masterData.name} (${selectedTemplate.masterData.year})`
+                        : selectedTemplate?.academicYear 
+                            ? `ปีการศึกษา ${selectedTemplate.academicYear}`
+                            : 'ยังไม่กำหนด'}
                 </span>
             </div>
 
@@ -623,9 +636,10 @@ export default function TemplateManagementPage() {
                     competencies={competencies}
                     templateName={selectedTemplate?.name}
                     templateStatus={templateStatus}
-                    academicYears={academicYears}
+                    academicYear={selectedTemplate?.academicYear ?? null}
+                    courseMasterName={selectedTemplate?.masterData?.name ?? null}
+                    courseMasterYear={selectedTemplate?.masterData?.year ?? null}
                     onToggleStatus={handleToggleTemplateStatus}
-                    onUpdateAcademicYears={handleUpdateAcademicYears}
                     onDeleteTemplate={() => handleRequestDeleteTemplate(selectedTemplate)}
                 />
             )}

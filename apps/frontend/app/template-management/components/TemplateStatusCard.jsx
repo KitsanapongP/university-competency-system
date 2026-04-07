@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Calendar, Check, X, Edit3, Plus, AlertCircle, AlertTriangle } from 'lucide-react';
-import ConfirmDeleteModal from './ConfirmDeleteModal';
+import { Check, X, BookOpen } from 'lucide-react';
 
 function ConfirmStatusModal({ isEnabling, onConfirm, onCancel }) {
     return (
@@ -44,57 +43,24 @@ function ConfirmStatusModal({ isEnabling, onConfirm, onCancel }) {
     );
 }
 
+function AlertTriangle({ size }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+    );
+}
+
 export function TemplateStatusCard({
     isActive = false,
-    academicYears = [],
+    academicYear = null,
+    courseMasterName = null,
+    courseMasterYear = null,
     onToggleStatus,
-    onUpdateAcademicYears,
 }) {
-    const [isEditing, setIsEditing] = useState(false);
-    const [tempYears, setTempYears] = useState(() => [...academicYears]);
-    const [newYear, setNewYear] = useState('');
-    const [deletingYear, setDeletingYear] = useState(null);
     const [pendingStatus, setPendingStatus] = useState(null);
-
-    const handleStartEdit = useCallback(() => {
-        setTempYears([...academicYears]);
-        setIsEditing(true);
-    }, [academicYears]);
-
-    const handleCancelEdit = useCallback(() => {
-        setIsEditing(false);
-        setNewYear('');
-    }, []);
-
-    const handleSave = useCallback(() => {
-        const sortedYears = [...tempYears].sort((a, b) => a - b);
-        onUpdateAcademicYears?.(sortedYears);
-        setIsEditing(false);
-        setNewYear('');
-    }, [tempYears, onUpdateAcademicYears]);
-
-    const handleAddYear = useCallback(() => {
-        const year = parseInt(newYear, 10);
-        if (year && !tempYears.includes(year)) {
-            setTempYears(prev => [...prev, year].sort((a, b) => a - b));
-            setNewYear('');
-        }
-    }, [newYear, tempYears]);
-
-    const handleRequestRemoveYear = useCallback((year) => {
-        setDeletingYear(year);
-    }, []);
-
-    const handleConfirmRemoveYear = useCallback(() => {
-        if (deletingYear !== null) {
-            setTempYears(prev => prev.filter(y => y !== deletingYear));
-            setDeletingYear(null);
-        }
-    }, [deletingYear]);
-
-    const handleCancelRemoveYear = useCallback(() => {
-        setDeletingYear(null);
-    }, []);
 
     const handleRequestToggleStatus = useCallback(() => {
         setPendingStatus(!isActive);
@@ -111,13 +77,6 @@ export function TemplateStatusCard({
         setPendingStatus(null);
     }, []);
 
-    const formatYearsList = () => {
-        if (academicYears.length === 0) {
-            return 'ยังไม่กำหนด';
-        }
-        return academicYears.join(', ');
-    };
-         
     return (
         <>
             <div className="ov-template-status-card">
@@ -146,101 +105,31 @@ export function TemplateStatusCard({
                 </div>
 
                 <div className="ov-years-section">
-                    <div className="ov-years-header">
-                        <div className="ov-years-label">
-                            <Calendar size={14} />
-                            <span>ปีการศึกษาที่ใช้งาน</span>
-                        </div>
-                        {!isEditing && (
-                            <button className="ov-years-edit-btn" onClick={handleStartEdit}>
-                                <Edit3 size={12} />
-                                <span>แก้ไข</span>
-                            </button>
+                    <div className="ov-years-display">
+                        {courseMasterName ? (
+                            <div className="ov-template-info">
+                                <div className="ov-template-info-item">
+                                    <span className="ov-status-label">หลักสูตร</span>
+                                    <span className="ov-template-info-value">{courseMasterName}</span>
+                                </div>
+                                <div className="ov-template-info-item">
+                                    <span className="ov-status-label">ปีการศึกษา</span>
+                                    <span className="ov-template-info-value">{academicYear}</span>
+                                </div>
+                            </div>
+                        ) : academicYear ? (
+                            <div className="ov-template-info">
+                                <div className="ov-template-info-item">
+                                    <span className="ov-template-info-label">ปีการศึกษา</span>
+                                    <span className="ov-template-info-value">{academicYear}</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <span className="ov-years-empty">ยังไม่กำหนด</span>
                         )}
                     </div>
-
-                    {isEditing ? (
-                        <div className="ov-years-editor">
-                            <div className="ov-years-list">
-                                {tempYears.length === 0 ? (
-                                    <span className="ov-years-empty">ยังไม่มีปีการศึกษา</span>
-                                ) : (
-                                    tempYears.map(year => (
-                                        <div key={year} className="ov-year-chip">
-                                            <span>ปี {year}</span>
-                                            <button
-                                                className="ov-year-chip-remove"
-                                                onClick={() => handleRequestRemoveYear(year)}
-                                                aria-label={`Remove year ${year}`}
-                                            >
-                                                <X size={10} />
-                                            </button>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                            <div className="ov-years-add">
-                                <input
-                                    type="number"
-                                    className="ov-year-input"
-                                    placeholder="เพิ่มปี พ.ศ."
-                                    value={newYear}
-                                    onChange={e => setNewYear(e.target.value)}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter') handleAddYear();
-                                    }}
-                                    min={2560}
-                                    max={2600}
-                                />
-                                <button
-                                    className="ov-year-add-btn"
-                                    onClick={handleAddYear}
-                                    disabled={!newYear}
-                                >
-                                    <Plus size={14} />
-                                </button>
-                            </div>
-                            <div className="ov-years-actions">
-                                <button className="ov-years-cancel-btn" onClick={handleCancelEdit}>
-                                    ยกเลิก
-                                </button>
-                                <button className="ov-years-save-btn" onClick={handleSave}>
-                                    บันทึก
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="ov-years-display">
-                            {academicYears.length === 0 ? (
-                                <span className="ov-years-empty">ยังไม่กำหนด</span>
-                            ) : (
-                                <div className="ov-academic-years-display">
-                                    <div className="ov-years-chips">
-                                        {academicYears.map(year => (
-                                            <span key={year} className="ov-year-chip-display">
-                                                {year}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <div className="ov-admission-hint">
-                                        <AlertCircle size={12} />
-                                        <span>นักศึกษาที่เข้าเรียนปี {formatYearsList()} สามารถใช้ Template นี้ได้</span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
             </div>
-
-            {deletingYear !== null && (
-                <ConfirmDeleteModal
-                    category={{ code: '', name: `ปีการศึกษา ${deletingYear}` }}
-                    label="ปีการศึกษา"
-                    onConfirm={handleConfirmRemoveYear}
-                    onCancel={handleCancelRemoveYear}
-                />
-            )}
 
             {pendingStatus !== null && (
                 <ConfirmStatusModal
