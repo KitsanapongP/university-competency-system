@@ -58,6 +58,7 @@
 }
 
 /* ---- Page ---- */
+/* Course cards */
 .cm-page {
     min-height: 100vh;
     background: var(--tm-bg);
@@ -81,13 +82,14 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    margin-top: 0.5rem;
 }
 
 .cm-header__title {
     font-size: 1.5rem;
     font-weight: 700;
     color: var(--tm-title);
-    margin: 0;
+    margin-top: 0.5rem;
 }
 
 .cm-header__subtitle {
@@ -99,6 +101,30 @@
 .cm-header__actions {
     display: flex;
     gap: 0.75rem;
+}
+
+.cm-search-wrap {
+    position: relative;
+    width: 100%;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+}
+
+.cm-detail-panel{
+    background: var(--tm-card-bg);
+    border: 1px solid var(--tm-border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    height: max-content ;
+}
+
+.cm-detail-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    gap: 1rem;
 }
 
 /* ---- Buttons ---- */
@@ -597,7 +623,7 @@
     margin: 0 1rem;
 }
 
-.cfm-step--done ~ .cfm-step .cfm-step__line {
+.cfm-step--done .cfm-step__line {
     background: #22c55e;
 }
 
@@ -606,7 +632,7 @@
     border: 1px solid var(--tm-border);
     border-radius: 12px;
     background: var(--tm-card-bg);
-    overflow: hidden;
+    height: max-content;
 }
 
 .cm-cats-header {
@@ -626,8 +652,7 @@
 
 .cm-cats-body {
     padding: 1rem;
-    max-height: 400px;
-    overflow-y: auto;
+    height: max-content;
 }
 
 .cm-cat-item {
@@ -739,6 +764,137 @@
     font-size: 0.9375rem;
     font-weight: 500;
     color: var(--tm-text);
+}
+
+/* ============================================================
+   Spreadsheet Table (from CategoryCoursePanel)
+   ============================================================ */
+.ss-wrapper {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.ss-scroll {
+    flex: 1;
+    overflow: auto;
+}
+
+.ss-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.8rem;
+    table-layout: fixed;
+}
+
+.ss-th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--tm-ss-header-bg);
+    color: var(--tm-text-muted);
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 0.625rem;
+    border-bottom: 2px solid var(--tm-modal-border);
+    border-right: 1px solid var(--tm-modal-border);
+    white-space: nowrap;
+    text-align: left;
+}
+
+.ss-th--grip { width: 28px; padding: 0; }
+.ss-th--wide { width: 200px; }
+.ss-th--num { width: 80px; text-align: center; }
+.ss-th--actions { width: 64px; }
+
+.ss-row {
+    border-bottom: 1px solid var(--tm-border);
+    transition: background 0.1s;
+}
+
+.ss-row:hover { background: var(--tm-tree-hover); }
+.ss-row--editing { background: var(--tm-panel-selected-bg) !important; }
+
+.ss-cell {
+    padding: 0.4rem 0.625rem;
+    border-right: 1px solid var(--tm-modal-border);
+    vertical-align: middle;
+    color: var(--tm-tree-name);
+    cursor: default;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ss-cell--grip { width: 28px; padding: 0 4px; text-align: center; color: var(--tm-text-muted); cursor: grab; }
+.ss-cell--num { text-align: center; width: 80px; }
+.ss-cell--actions { width: 64px; text-align: center; white-space: nowrap; }
+.ss-cell--wide { width: 200px; }
+
+.ss-code { font-family: monospace; color: var(--tm-accent); font-size: 0.78rem; }
+.ss-placeholder { color: var(--tm-text-muted); font-style: italic; }
+
+.ss-input {
+    width: 100%;
+    background: var(--tm-form-input-bg);
+    border: 1px solid var(--tm-form-focus-border);
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+    color: var(--tm-text);
+    font-size: 0.8rem;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.ss-input--num { text-align: center; }
+
+.ss-empty {
+    padding: 2rem;
+    text-align: center;
+    color: var(--tm-text-muted);
+    font-size: 0.8rem;
+}
+
+.icon-btn--xs {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+}
+
+.icon-btn--edit:hover {
+    background: var(--tm-hover);
+    color: var(--tm-accent);
+}
+
+/* ============================================================
+   Pagination
+   ============================================================ */
+.cm-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--tm-border);
+    background: var(--tm-ss-header-bg);
+}
+
+.cm-pagination__info {
+    font-size: 0.8125rem;
+    color: var(--tm-text-muted);
+}
+
+.cm-pagination__buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.cm-pagination .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 /* ---- Responsive ---- */

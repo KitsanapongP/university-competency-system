@@ -56,6 +56,7 @@
     border-bottom: 1px solid var(--admin-navbar-border-light);
     background: var(--admin-navbar-bg-light);
     transition: background 0.15s, border-color 0.15s;
+        
 }
 
 .desktop-quick-controls{

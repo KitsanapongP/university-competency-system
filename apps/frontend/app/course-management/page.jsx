@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
-import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronDown, ChevronRight, Layers, BookOpenCheck, Award } from 'lucide-react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronDown, ChevronRight, Layers, BookOpenCheck, Award, GripVertical, ChevronLeft, ChevronFirst, ChevronLast } from 'lucide-react';
 import { MOCK_COURSE_MASTERS } from '../template-management/mockData.js';
 import CourseFormModal from './components/CourseFormModal';
 import ConfirmDeleteModal from '../template-management/components/ConfirmDeleteModal';
@@ -45,7 +45,9 @@ function getNextCode(parentCode, siblings) {
     return parentCode ? `${parentCode}.${siblings.length + 1}` : `${siblings.length + 1}`;
 }
 
-function getDepthFromCode(code) { return code ? code.split('.').length - 1 : 0; }
+function getDepthFromCode(code) {
+    return code ? code.split('.').length - 1 : 0;
+}
 
 function getDisplayCourses(categories, selectedCategory, showAll) {
     if (showAll) {
@@ -59,9 +61,9 @@ function getDisplayCourses(categories, selectedCategory, showAll) {
         };
         return collectAll(categories);
     }
-    
+
     if (!selectedCategory) return [];
-    
+
     const findAndAggregate = (cats, targetId, currentDepth) => {
         for (const cat of cats) {
             if (cat.id === targetId) {
@@ -88,12 +90,12 @@ function getDisplayCourses(categories, selectedCategory, showAll) {
         }
         return [];
     };
-    
+
     return findAndAggregate(categories, selectedCategory.id, 0);
 }
 
-function isDescendantOf(node, id) { 
-    return (node.children || []).some(c => c.id === id || isDescendantOf(c, id)); 
+function isDescendantOf(node, id) {
+    return (node.children || []).some(c => c.id === id || isDescendantOf(c, id));
 }
 
 function getDirectChildren(cats, parentId) {
@@ -102,7 +104,7 @@ function getDirectChildren(cats, parentId) {
 }
 
 // ============================================================
-// CourseCard — แสดงใน list view
+// CourseCard — แสดงใน list view 
 // ============================================================
 function CourseCard({ course, onEdit, onDuplicate, onDelete, onOpen }) {
     return (
@@ -111,10 +113,6 @@ function CourseCard({ course, onEdit, onDuplicate, onDelete, onOpen }) {
                 <div className="cm-card__icon">
                     <BookOpen size={24} />
                 </div>
-                <span className={`cm-card__badge ${course.isActive ? 'cm-card__badge--active' : 'cm-card__badge--inactive'}`}>
-                    {course.isActive ? <Check size={12} /> : <X size={12} />}
-                    {course.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}
-                </span>
                 <div className="cm-card__actions">
                     <button className="icon-btn" title="แก้ไข" onClick={e => { e.stopPropagation(); onEdit(course); }}>
                         <Pencil size={14} />
@@ -127,7 +125,9 @@ function CourseCard({ course, onEdit, onDuplicate, onDelete, onOpen }) {
                     </button>
                 </div>
             </div>
-            <h3 className="cm-card__title">{course.nameTh}</h3>
+            <h3 className="cm-card__title">
+                {course.nameTh}
+            </h3>
             <p className="cm-card__subtitle">{course.nameEn}</p>
             <div className="cm-card__meta">
                 <span className="cm-card__meta-item">
@@ -156,6 +156,10 @@ function CourseCard({ course, onEdit, onDuplicate, onDelete, onOpen }) {
                     <span className="cm-card__stat-value">{course.stats.totalCredits}</span>
                     <span className="cm-card__stat-label">หน่วยกิต</span>
                 </div>
+                <span className={`cm-card__badge ${course.isActive ? 'cm-card__badge--active' : 'cm-card__badge--inactive'}`}>
+                    {course.isActive ? <Check size={12} /> : <X size={12} />}
+                    {course.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}
+                </span>
             </div>
         </div>
     );
@@ -197,8 +201,8 @@ export default function CourseManagementPage() {
     const filteredCourses = courses.filter(c => {
         const term = search.toLowerCase();
         return c.nameTh.toLowerCase().includes(term) ||
-               c.nameEn.toLowerCase().includes(term) ||
-               String(c.year).includes(term);
+            c.nameEn.toLowerCase().includes(term) ||
+            String(c.year).includes(term);
     });
 
     // Stats
@@ -303,7 +307,7 @@ export default function CourseManagementPage() {
             children: [],
             isNew: true,
         };
-        
+
         if (parentId) {
             setCategories(p => insertChild(p, parentId, newCat));
         } else {
@@ -318,7 +322,7 @@ export default function CourseManagementPage() {
 
     const handleRequestDeleteCategory = useCallback((cat) => {
         setDeletingCategory(cat);
-    }, []);
+    }, [setDeletingCategory]);
 
     const handleConfirmDeleteCategory = useCallback(() => {
         if (!deletingCategory) return;
@@ -327,7 +331,8 @@ export default function CourseManagementPage() {
             setSelectedCategory(null);
         }
         setDeletingCategory(null);
-    }, [deletingCategory, selectedCategory]);
+    }, [deletingCategory, selectedCategory, setCategories, setSelectedCategory, setDeletingCategory]);
+
 
     const handleAddCourse = useCallback((data) => {
         if (!selectedCategory) return;
@@ -361,6 +366,7 @@ export default function CourseManagementPage() {
     // ============================================================
     return (
         <div className="cm-page">
+            {/* หน้าแรก รวมหลักสูตรทั้งหมด */}
             {view === 'list' ? (
                 <>
                     {/* Header */}
@@ -420,7 +426,7 @@ export default function CourseManagementPage() {
                     </div>
 
                     {/* Search */}
-                    <div className="cm-search-wrap" style={{ marginBottom: '1.5rem' }}>
+                    <div className="cm-search-wrap">
                         <Search size={16} style={{ position: 'absolute', left: '1rem', color: 'var(--tm-text-muted)' }} />
                         <input
                             type="text"
@@ -453,12 +459,13 @@ export default function CourseManagementPage() {
             ) : view === 'editor' && selectedCourse ? (
                 <>
                     {/* Editor View */}
+                    {/* หน้ารายละเอียดหลักสูตร */}
                     <div className="cm-header" style={{ marginBottom: '1rem' }}>
                         <div className="cm-header__left">
                             <button className="btn btn--ghost btn--sm" onClick={handleBackToList}>
                                 <ArrowLeft size={16} /> กลับ
                             </button>
-                            <div style={{ marginTop: '0.5rem' }}>
+                            <div className='cm-header__title'>
                                 <h1 className="cm-header__title" style={{ fontSize: '1.25rem' }}>{selectedCourse.nameTh}</h1>
                                 <p className="cm-header__subtitle">{selectedCourse.nameEn} · ปี {selectedCourse.year}</p>
                             </div>
@@ -501,58 +508,60 @@ export default function CourseManagementPage() {
                         </div>
                     </div>
 
-                    {/* Category Tree */}
-                    <div className="cm-cats-tree">
-                        <div className="cm-cats-header">
-                            <span className="cm-cats-header__title">โครงสร้างหลักสูตร</span>
-                            <button className="btn btn--ghost btn--sm" onClick={handleAddCategory}>
-                                <Plus size={14} /> เพิ่มหมวด
-                            </button>
-                        </div>
-                        <div className="cm-cats-body">
-                            {/* All Courses Option */}
-                            <div 
-                                className={`cm-cat-item ${showAllCourses ? 'cm-cat-item--selected' : ''}`}
-                                onClick={handleSelectAllCourses}
-                                style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderRadius: 8, marginBottom: '0.5rem', background: showAllCourses ? 'var(--tm-primary)' : 'transparent', color: showAllCourses ? '#fff' : 'var(--tm-text)' }}
-                            >
-                                <Layers size={16} style={{ marginRight: '0.5rem' }} />
-                                <span style={{ fontWeight: 500 }}>วิชาทั้งหมด</span>
+                    {/* Category Tree and Detail Panel - Side by Side */}
+                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                        <div className="cm-cats-tree" style={{ width: 320, flexShrink: 0 }}>
+                            <div className="cm-cats-header">
+                                <span className="cm-cats-header__title">โครงสร้างหลักสูตร</span>
+                                <button className="btn btn--ghost btn--sm" onClick={handleAddCategory}>
+                                    <Plus size={14} /> เพิ่มหมวด
+                                </button>
                             </div>
-                            
-                            {categories.length === 0 ? (
-                                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--tm-text-muted)' }}>
-                                    <p>ยังไม่มีหมวดวิชา</p>
-                                    <button className="btn btn--primary btn--sm" onClick={handleAddCategory}>
-                                        <Plus size={14} /> เพิ่มหมวดวิชาแรก
-                                    </button>
+                            <div className="cm-cats-body">
+                                {/* All Courses Option */}
+                                <div
+                                    className={`cm-cat-item ${showAllCourses ? 'cm-cat-item--selected' : ''}`}
+                                    onClick={handleSelectAllCourses}
+                                    style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderRadius: 8, marginBottom: '0.5rem', background: showAllCourses ? 'var(--tm-primary)' : 'transparent', color: showAllCourses ? '#fff' : 'var(--tm-text)' }}
+                                >
+                                    <Layers size={16} style={{ marginRight: '0.5rem' }} />
+                                    <span style={{ fontWeight: 500 }}>วิชาทั้งหมด</span>
                                 </div>
-                            ) : (
-                                categories.map(cat => (
-                                    <CategoryItem
-                                        key={cat.id}
-                                        category={cat}
-                                        selectedId={selectedCategory?.id}
-                                        onSelect={handleSelectCategory}
-                                        level={0}
-                                    />
-                                ))
-                            )}
+
+                                {categories.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--tm-text-muted)' }}>
+                                        <p>ยังไม่มีหมวดวิชา</p>
+                                        <button className="btn btn--primary btn--sm" onClick={handleAddCategory}>
+                                            <Plus size={14} /> เพิ่มหมวดวิชาแรก
+                                        </button>
+                                    </div>
+                                ) : (
+                                    categories.map(cat => (
+                                        <CategoryItem
+                                            key={cat.id}
+                                            category={cat}
+                                            selectedId={selectedCategory?.id}
+                                            onSelect={handleSelectCategory}
+                                            level={0}
+                                        />
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Category Detail Panel */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <CategoryDetailPanel
+                                category={showAllCourses ? { id: 'all', code: '', name: 'วิชาทั้งหมดในหลักสูตร' } : selectedCategory}
+                                courses={getDisplayCourses(categories, selectedCategory, showAllCourses)}
+                                onRename={selectedCategory ? handleRenameCategory : () => { }}
+                                onDelete={selectedCategory ? handleRequestDeleteCategory : () => { }}
+                                onAddCourse={handleAddCourse}
+                                onUpdateCourse={handleUpdateCourse}
+                                onDeleteCourse={handleRequestDeleteCourseInEditor}
+                            />
                         </div>
                     </div>
-
-                    {/* Category Detail Panel */}
-                    {(selectedCategory || showAllCourses) && (
-                        <CategoryDetailPanel
-                            category={showAllCourses ? { id: 'all', code: '', name: 'วิชาทั้งหมดในหลักสูตร' } : selectedCategory}
-                            courses={getDisplayCourses(categories, selectedCategory, showAllCourses)}
-                            onRename={selectedCategory ? handleRenameCategory : () => {}}
-                            onDelete={selectedCategory ? handleRequestDeleteCategory : () => {}}
-                            onAddCourse={handleAddCourse}
-                            onUpdateCourse={handleUpdateCourse}
-                            onDeleteCourse={handleRequestDeleteCourseInEditor}
-                        />
-                    )}
                 </>
             ) : null}
 
@@ -630,20 +639,34 @@ function CategoryItem({ category, selectedId, onSelect, level }) {
 }
 
 // ============================================================
-// CategoryDetailPanel — แก้ไขหมวดวิชาและวิชาในหมวด
+// CategoryDetailPanel — Spreadsheet style with Pagination
 // ============================================================
 function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCourse, onUpdateCourse, onDeleteCourse }) {
-    const [editName, setEditName] = useState(category.name);
-    const [credits, setCredits] = useState(category.requiredCredits || 0);
+    const [editName, setEditName] = useState(category?.name || '');
+    const [credits, setCredits] = useState(category?.requiredCredits || 0);
     const [showAddCourse, setShowAddCourse] = useState(false);
     const [newCourse, setNewCourse] = useState({ code: '', nameTh: '', nameEn: '', credits: 0, isCoreCourse: true });
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
+
+    useEffect(() => {
+        setEditName(category?.name || '');
+        setCredits(category?.requiredCredits || 0);
+        setCurrentPage(1);
+    }, [category?.id]);
+
+    const totalPages = Math.ceil(courses.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const paginatedCourses = courses.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
     const handleSaveName = () => {
+        if (!category?.id) return;
         onRename(category.id, editName);
     };
 
     const handleSaveCredits = () => {
-        onRename(category.id, category.name); // Update credits via rename for now
+        if (!category?.id) return;
+        onRename(category.id, category.name);
     };
 
     const handleAddCourse = () => {
@@ -653,85 +676,226 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
         setShowAddCourse(false);
     };
 
+    const handleAddNewCourse = () => {
+        onAddCourse({ code: '', nameTh: '', nameEn: '', credits: 0, isCoreCourse: true, id: `c_new_${Date.now()}` });
+    };
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
+    };
+
     return (
-        <div className="cm-detail-panel" style={{ marginTop: '1.5rem' }}>
-            <div style={{ background: 'var(--tm-card-bg)', border: '1px solid var(--tm-border)', borderRadius: 12, padding: '1.25rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                    <div style={{ flex: 1 }}>
-                        <label className="cfm-label">ชื่อหมวดวิชา</label>
-                        <input
-                            className="cfm-input"
-                            value={editName}
-                            onChange={e => setEditName(e.target.value)}
-                            onBlur={handleSaveName}
-                            onKeyDown={e => e.key === 'Enter' && handleSaveName()}
-                        />
-                    </div>
-                    <div style={{ width: 150, marginLeft: '1rem' }}>
-                        <label className="cfm-label">หน่วยกิต</label>
-                        <input
-                            type="number"
-                            className="cfm-input"
-                            value={credits}
-                            onChange={e => setCredits(parseInt(e.target.value) || 0)}
-                            onBlur={handleSaveCredits}
-                        />
-                    </div>
-                    <button className="btn btn--ghost btn--sm" style={{ marginTop: '1.5rem', marginLeft: '0.5rem' }} onClick={() => onDelete(category)}>
-                        <Trash2 size={14} />
+        <div className="cm-detail-panel">
+            <div className="cm-detail-panel__header">
+                <div style={{ flex: 1 }}>
+                    <label className="cfm-label">ชื่อหมวดวิชา</label>
+                    <input
+                        className="cfm-input"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        onBlur={handleSaveName}
+                        onKeyDown={e => e.key === 'Enter' && handleSaveName()}
+                    />
+                </div>
+                <div style={{ width: 120 }}>
+                    <label className="cfm-label">หน่วยกิต</label>
+                    <div className='cfm-input'> {credits}</div>
+                </div>
+                <button className="btn btn--ghost btn--danger" style={{ marginTop: '1.5rem' }} onClick={() => onDelete(category)}>
+                    <Trash2 size={14} />
+                </button>
+            </div>
+
+            <div style={{ marginTop: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--tm-text)' }}>รายวิชา ({courses.length})</span>
+                    <button className="btn btn--primary btn--sm" onClick={handleAddNewCourse}>
+                        <Plus size={14} /> เพิ่มรายวิชา
                     </button>
                 </div>
 
-                {/* Courses */}
-                <div style={{ marginTop: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                        <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--tm-text)' }}>รายวิชา ({courses.length})</span>
-                        <button className="btn btn--ghost btn--sm" onClick={() => setShowAddCourse(!showAddCourse)}>
-                            <Plus size={14} /> เพิ่มวิชา
+                <div className="ss-wrapper">
+                    <div className="ss-scroll">
+                        <table className="ss-table">
+                            <thead>
+                                <tr>
+                                    <th className="ss-th ss-th--grip"></th>
+                                    <th className="ss-th">รหัสวิชา</th>
+                                    <th className="ss-th ss-th--wide">ชื่อวิชา (ไทย)</th>
+                                    <th className="ss-th ss-th--wide">ชื่อวิชา (Eng)</th>
+                                    <th className="ss-th ss-th--num">หน่วยกิต</th>
+                                    <th className="ss-th ss-th--actions"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {courses.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} className="ss-empty">
+                                            ยังไม่มีรายวิชา — กดปุ่ม "+ เพิ่มรายวิชา" ด้านบน
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    paginatedCourses.map(course => (
+                                        <CourseRow key={course.id} course={course} onDelete={() => onDeleteCourse(course)} />
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Pagination */}
+                <div className="cm-pagination">
+                    {totalPages === 0 ? (
+                        <span className="cm-pagination__info">
+                            หน้า {currentPage} / {1}
+                        </span>
+                    ) : (
+                        <span className="cm-pagination__info">
+                            หน้า {currentPage} / {totalPages}
+                        </span>
+                    )}
+                    <div className="cm-pagination__buttons">
+                        <button
+                            className="btn btn--ghost btn--sm"
+                            onClick={() => handlePageChange(1)}
+                            disabled={currentPage === 1}
+                            title="หน้าแรก"
+                        >
+                            <ChevronFirst size={14} />
+                        </button>
+                        <button
+                            className="btn btn--ghost btn--sm"
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1}
+                            title="ย้อนกลับ"
+                        >
+                            <ChevronLeft size={14} /> ย้อนกลับ
+                        </button>
+                        <button
+                            className="btn btn--ghost btn--sm"
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage === totalPages}
+                            title="ถัดไป"
+                        >
+                            ถัดไป <ChevronRight size={14} />
+                        </button>
+                        <button
+                            className="btn btn--ghost btn--sm"
+                            onClick={() => handlePageChange(totalPages)}
+                            disabled={currentPage === totalPages}
+                            title="หน้าสุดท้าย"
+                        >
+                            <ChevronLast size={14} />
                         </button>
                     </div>
-
-                    {showAddCourse && (
-                        <div style={{ background: 'var(--tm-form-input-bg)', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
-                            <div className="cfm-row" style={{ marginBottom: '0.75rem' }}>
-                                <input className="cfm-input" placeholder="รหัสวิชา" value={newCourse.code} onChange={e => setNewCourse(p => ({ ...p, code: e.target.value }))} />
-                                <input className="cfm-input" placeholder="ชื่อวิชา (ไทย)" value={newCourse.nameTh} onChange={e => setNewCourse(p => ({ ...p, nameTh: e.target.value }))} />
-                            </div>
-                            <div className="cfm-row" style={{ marginBottom: '0.75rem' }}>
-                                <input className="cfm-input" placeholder="ชื่อวิชา (อังกฤษ)" value={newCourse.nameEn} onChange={e => setNewCourse(p => ({ ...p, nameEn: e.target.value }))} />
-                                <input type="number" className="cfm-input" placeholder="หน่วยกิต" value={newCourse.credits} onChange={e => setNewCourse(p => ({ ...p, credits: parseInt(e.target.value) || 0 }))} />
-                            </div>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button className="btn btn--ghost btn--sm" onClick={() => setShowAddCourse(false)}>ยกเลิก</button>
-                                <button className="btn btn--primary btn--sm" onClick={handleAddCourse}>เพิ่ม</button>
-                            </div>
-                        </div>
-                    )}
-
-                    {courses.length === 0 ? (
-                        <p style={{ textAlign: 'center', color: 'var(--tm-text-muted)', padding: '1rem' }}>ยังไม่มีวิชาในหมวดนี้</p>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {courses.map(course => (
-                                <CourseRow key={course.id} course={course} onDelete={() => onDeleteCourse(course)} />
-                            ))}
-                        </div>
-                    )}
                 </div>
             </div>
         </div>
     );
 }
 
+// ============================================================
+// CourseRow — SpreadsheetRow style
+// ============================================================
 function CourseRow({ course, onDelete }) {
+    const [editing, setEditing] = useState(false);
+    const [form, setForm] = useState({
+        code: course.code || '',
+        nameTh: course.nameTh || '',
+        nameEn: course.nameEn || '',
+        credits: course.credits || 0,
+    });
+
+    const handleSave = () => {
+        if (!form.code.trim() && !form.nameTh.trim()) return;
+        setEditing(false);
+    };
+
+    const handleKey = (e) => {
+        if (e.key === 'Enter') handleSave();
+        if (e.key === 'Escape') {
+            setForm({ code: course.code || '', nameTh: course.nameTh || '', nameEn: course.nameEn || '', credits: course.credits || 0 });
+            setEditing(false);
+        }
+    };
+
+    const handleCellClick = () => setEditing(true);
+
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: 'var(--tm-hover)', borderRadius: 8 }}>
-            <span style={{ fontSize: '0.8125rem', color: 'var(--tm-accent)', fontWeight: 500, minWidth: 80 }}>{course.code}</span>
-            <span style={{ flex: 1, fontSize: '0.875rem', color: 'var(--tm-text)' }}>{course.nameTh}</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--tm-text-muted)' }}>{course.credits} หน่วยกิต</span>
-            <button className="icon-btn icon-btn--danger" onClick={onDelete}>
-                <Trash2 size={14} />
-            </button>
-        </div>
+        <tr className={`ss-row ${editing ? 'ss-row--editing' : ''}`}>
+            <td className="ss-cell ss-cell--grip">
+                <GripVertical size={13} />
+            </td>
+            <td className="ss-cell" onClick={handleCellClick}>
+                {editing ? (
+                    <input
+                        className="ss-input"
+                        value={form.code}
+                        onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
+                        onKeyDown={handleKey}
+                        placeholder="รหัสวิชา"
+                    />
+                ) : (
+                    <span className="ss-code">{course.code || <span className="ss-placeholder">รหัสวิชา</span>}</span>
+                )}
+            </td>
+            <td className="ss-cell ss-cell--wide" onClick={handleCellClick}>
+                {editing ? (
+                    <input
+                        className="ss-input"
+                        value={form.nameTh}
+                        onChange={e => setForm(p => ({ ...p, nameTh: e.target.value }))}
+                        onKeyDown={handleKey}
+                        placeholder="ชื่อวิชาภาษาไทย"
+                    />
+                ) : (
+                    <span>{course.nameTh || <span className="ss-placeholder">ชื่อภาษาไทย</span>}</span>
+                )}
+            </td>
+            <td className="ss-cell ss-cell--wide" onClick={handleCellClick}>
+                {editing ? (
+                    <input
+                        className="ss-input"
+                        value={form.nameEn}
+                        onChange={e => setForm(p => ({ ...p, nameEn: e.target.value }))}
+                        onKeyDown={handleKey}
+                        placeholder="English Name"
+                    />
+                ) : (
+                    <span>{course.nameEn || <span className="ss-placeholder">English Name</span>}</span>
+                )}
+            </td>
+            <td className="ss-cell ss-cell--num" onClick={handleCellClick}>
+                {editing ? (
+                    <input
+                        className="ss-input ss-input--num"
+                        type="number"
+                        min={0}
+                        max={12}
+                        value={form.credits}
+                        onChange={e => setForm(p => ({ ...p, credits: parseInt(e.target.value) || 0 }))}
+                        onKeyDown={handleKey}
+                        placeholder="0"
+                    />
+                ) : (
+                    <span>{course.credits || <span className="ss-placeholder">0</span>}</span>
+                )}
+            </td>
+            <td className="ss-cell ss-cell--actions" onClick={e => e.stopPropagation()}>
+                {editing ? (
+                    <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={handleSave}>
+                        <Check size={13} />
+                    </button>
+                ) : (
+                    <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={() => setEditing(true)}>
+                        <Pencil size={12} />
+                    </button>
+                )}
+                <button className="icon-btn icon-btn--danger icon-btn--xs" onClick={() => onDelete(course)}>
+                    <Trash2 size={12} />
+                </button>
+            </td>
+        </tr>
     );
 }

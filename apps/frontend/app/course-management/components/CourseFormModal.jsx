@@ -21,7 +21,7 @@ function StepIndicator({ step }) {
                         <span className="cfm-step__label">{label}</span>
                         {i < steps.length - 1 && <span className="cfm-step__line"/>}
                     </div>
-                );
+                );  
             })}
         </div>
     );

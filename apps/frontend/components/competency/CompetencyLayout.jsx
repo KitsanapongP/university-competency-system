@@ -79,6 +79,7 @@ const CompetencyLayout = ({ children, activePage, onNavigate, user, loading, onL
                                 <span className="logo-text">KKU Competency</span>
                             </div>
 
+                            {/* Desktop Menu */}
                             <div className="nav-menu">
                                 <button
                                     className={`nav-item ${activePage === 'dashboard' ? 'active' : ''}`}
