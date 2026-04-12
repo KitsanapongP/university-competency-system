@@ -9,7 +9,7 @@
     min-height: 100vh;
     background: var(--course-bg);
     color: var(--course-text);
-    padding: 1.5rem 3.5rem 3.5rem 3.5rem;
+    padding: 1.5rem 2rem 3rem;
     font-family: 'Sarabun', sans-serif;
     box-sizing: border-box;
 }
@@ -18,7 +18,7 @@
    Max Width Container
    ============================================================ */
 .course-create-container {
-    max-width: 1200px;
+    max-width: 900px;
     margin: 0 auto;
 }
 
@@ -41,18 +41,21 @@
 .course-form-group {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.25rem;
     max-width: 600px;
+    margin: 0 auto;
 }
 
 /* ============================================================
    Form Container
    ============================================================ */
 .course-form-container {
+    max-width: 800px;
+    margin: 0 auto;
     background: var(--course-card-bg);
     border: 1px solid var(--course-border);
-    border-radius: 8px;
-    padding: 1.5rem;
+    border-radius: 12px;
+    padding: 2rem;
     min-height: 400px;
 }
 
@@ -62,7 +65,10 @@
 .course-form-nav {
     display: flex;
     justify-content: space-between;
-    margin-top: 1.5rem;
+    align-items: center;
+    max-width: 800px;
+    margin: 1rem auto 0;
+    padding-top: 1.5rem;
 }
 
 /* ============================================================
@@ -84,9 +90,11 @@
 }
 
 .course-form-field__label {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 500;
     color: var(--course-text);
+    margin-bottom: 0.375rem;
+    display: block;
 }
 
 .course-form-field__required {
@@ -96,18 +104,19 @@
 
 .course-form-field__input {
     width: 100%;
-    padding: 0.625rem 0.75rem;
+    padding: 0.75rem 1rem;
     border: 1px solid var(--course-form-input-border);
-    border-radius: 6px;
-    font-size: 0.875rem;
+    border-radius: 8px;
+    font-size: 0.9375rem;
     background: var(--course-form-input-bg);
     color: var(--course-text);
+    transition: all 0.2s ease;
 }
 
 .course-form-field__input:focus {
     outline: none;
-    border-color: var(--course-form-focus-border);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: var(--course-accent);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
 .course-form-field__input::placeholder {
@@ -122,6 +131,12 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 1.5rem;
+}
+
+.course-create-header__left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
 }
 
 .course-create-header__title {
@@ -152,6 +167,8 @@
     justify-content: center;
     gap: 0;
     padding: 1rem 0;
+    max-width: 800px;
+    margin: 0 auto;
 }
 
 .course-step {
@@ -206,25 +223,6 @@
     background: #22c55e;
 }
 
-/* ============================================================
-   Form Container
-   ============================================================ */
-.course-form-container {
-    background: var(--course-card-bg);
-    border: 1px solid var(--course-border);
-    border-radius: 8px;
-    padding: 1.5rem;
-    min-height: 400px;
-}
-
-/* ============================================================
-   Form Navigation
-   ============================================================ */
-.course-form-nav {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 1.5rem;
-}
 
 /* ============================================================
    Category Tree
@@ -581,7 +579,18 @@
    ============================================================ */
 @media (max-width: 768px) {
     .course-create-page {
-        padding: 1.5rem;
+        padding: 1rem;
+    }
+
+    .course-create-container,
+    .course-form-container,
+    .course-form-nav,
+    .course-steps {
+        max-width: 100%;
+    }
+
+    .course-form-row {
+        grid-template-columns: 1fr;
     }
 
     .course-overview-stats {

@@ -693,34 +693,35 @@ export default function CreateCoursePage() {
     };
 
     return (
-        <div className='cm-page'>
-            {/* Header */}
-            <div className='cm-header'>
-                <div className='cm-detail-header__left'>
-                    <button
-                        onClick={() => router.push('/course-management')}
-                        className='course-btn course-btn--ghost course-btn--sm'
-                    >
-                        <ArrowLeft size={16} /> กลับ
-                    </button>
-                    <div className='course-list-header__title'>
-                            สร้างหลักสูตรใหม่
+        <div className='course-create-page'>
+            <div className='course-create-container'>
+                {/* Header */}
+                <div className='course-create-header'>
+                    <div className='course-create-header__left'>
+                        <button
+                            onClick={() => router.push('/course-management')}
+                            className='course-btn course-btn--ghost course-btn--sm'
+                        >
+                            <ArrowLeft size={16} /> กลับ
+                        </button>
+                        <div className='course-create-header__title'>
+                                สร้างหลักสูตรใหม่
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Step Indicator */}
-            <StepIndicator step={step} />
+                {/* Step Indicator */}
+                <StepIndicator step={step} />
 
-            {/* Form Steps */}
-            <div className='course-form-container'>
-                {step === 1 && <Step1 form={form} setForm={setForm} />}
-                {step === 2 && <Step2 form={form} setForm={setForm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} />}
-                {step === 3 && <Step3 form={form} />}
-            </div>
+                {/* Form Steps */}
+                <div className='course-form-container'>
+                    {step === 1 && <Step1 form={form} setForm={setForm} />}
+                    {step === 2 && <Step2 form={form} setForm={setForm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} />}
+                    {step === 3 && <Step3 form={form} />}
+                </div>
 
-            {/* Navigation Buttons */}
-            <div className='course-form-nav'>
+                {/* Navigation Buttons */}
+                <div className='course-form-nav'>
                 {step === 1 ? (
                     <div />
                 ) : (
@@ -764,6 +765,7 @@ export default function CreateCoursePage() {
                         </button>
                     )}
                 </div>
+            </div>
             </div>
         </div>
     );

@@ -8,6 +8,7 @@ import CourseFormModal from './components/CourseFormModal';
 import ConfirmDeleteModal from '../template-management/components/ConfirmDeleteModal';
 import './CourseLayout.css';
 import './CourseList.css';
+import './CourseEditor.css';
 
 // ============================================================
 // Helper functions
@@ -408,25 +409,25 @@ export default function CourseManagementPage() {
                             </div>
                         </div>
                         <div className="course-stat-card">
-                            <div className="course-stat-card__icon" style={{ background: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }}>
-                                <Check size={22} />
-                            </div>
-                            <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{activeCourses}</span>
-                                <span className="course-stat-card__label">หลักสูตรใช้งาน</span>
-                            </div>
+                        <div className="course-stat-card__icon course-stat-card__icon--courses">
+                            <BookOpen size={20} />
                         </div>
-                        <div className="course-stat-card">
-                            <div className="course-stat-card__icon" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
-                                <BookOpenCheck size={22} />
-                            </div>
-                            <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{totalTemplates}</span>
-                                <span className="course-stat-card__label">Templates ที่ใช้งาน</span>
-                            </div>
+                        <div className="course-stat-card__content">
+                            <span className="course-stat-card__value">{courses.length}</span>
+                            <span className="course-stat-card__label">หลักสูตร</span>
                         </div>
-                        <div className="course-stat-card">
-                            <div className="course-stat-card__icon" style={{ background: 'rgba(251, 146, 60, 0.15)', color: '#fb923c' }}>
+                    </div>
+                    <div className="course-stat-card">
+                        <div className="course-stat-card__icon course-stat-card__icon--categories">
+                            <Layers size={20} />
+                        </div>
+                        <div className="course-stat-card__content">
+                            <span className="course-stat-card__value">{categories.length}</span>
+                            <span className="course-stat-card__label">หมวดวิชา</span>
+                        </div>
+                    </div>
+                    <div className="course-stat-card">
+                        <div className="course-stat-card__icon course-stat-card__icon--credits">
                                 <Layers size={22} />
                             </div>
                             <div className="course-stat-card__content">
@@ -438,14 +439,13 @@ export default function CourseManagementPage() {
 
                     {/* Search */}
                     <div className="course-search-wrap">
-                        <Search size={16} style={{ position: 'absolute', left: '1rem', color: 'var(--tm-text-muted)' }} />
+                        <Search size={16} className="course-search-icon" />
                         <input
+                            className="cfm-input course-search-input"
                             type="text"
-                            className="cfm-input"
                             placeholder="ค้นหาหลักสูตร..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            style={{ paddingLeft: '2.75rem', maxWidth: '400px' }}
                         />
                     </div>
 
@@ -471,20 +471,20 @@ export default function CourseManagementPage() {
                 <div className="course-editor-page">
                     {/* Editor View */}
                     {/* หน้ารายละเอียดหลักสูตร */}
-                    <div className="course-list-header">
-                        <div className="course-detail-header__left">
-                            <button className="course-btn-back course-btn--ghost course-btn--sm" onClick={handleBackToList}>
+                    <div className="course-editor-header">
+                        <div className="course-editor-header__left">
+                            <button className="course-btn-back" onClick={handleBackToList}>
                                 <ArrowLeft size={16} /> กลับ
                             </button>
-                            <div className='course-list-header__title'>
-                                <h1 className="course-list-header__title">{selectedCourse.nameTh}</h1>
-                                <p className="course-list-header__subtitle">{selectedCourse.nameEn} · ปี {selectedCourse.year}</p>
+                            <div className='course-editor-header__title'>
+                                <h1>{selectedCourse.nameTh}</h1>
+                                <p className="course-editor-header__subtitle">{selectedCourse.nameEn} · ปี {selectedCourse.year}</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Stats Row */}
-                    <div className="course-stats-row" style={{ marginBottom: '1.5rem' }}>
+                    <div className="course-stats-row">
                         <div className="course-stat-card">
                             <div className="course-stat-card__icon">
                                 <BookOpen size={20} />
@@ -515,48 +515,49 @@ export default function CourseManagementPage() {
                     </div>
 
                     {/* Category Tree and Detail Panel - Side by Side */}
-                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-                        <div className="course-category-tree" style={{ width: 320, flexShrink: 0 }}>
-                            <div className="course-category-tree__header">
-                                <span className="course-category-tree__header__title">โครงสร้างหลักสูตร</span>
-                                <button className="course-btn course-btn--ghost course-btn--sm" onClick={handleAddCategory}>
-                                    <Plus size={14} /> เพิ่มหมวด
-                                </button>
-                            </div>
-                            <div className="course-category-tree__body">
-                                {/* All Courses Option */}
-                                <div
-                                    className={`course-tree-item ${showAllCourses ? 'course-tree-item--selected' : ''}`}
-                                    onClick={handleSelectAllCourses}
-                                    style={{ cursor: 'pointer', borderRadius: 8, background: showAllCourses ? 'var(--tm-primary)' : 'transparent', color: showAllCourses ? '#fff' : 'var(--tm-text)' }}
-                                >
-                                    <Layers size={16} style={{ marginRight: '0.5rem' }} />
-                                    <span style={{ fontWeight: 500 }}>วิชาทั้งหมด</span>
+                    <div className="course-editor-panels">
+                        <div className="course-editor-panels__sidebar">
+                            <div className="course-category-tree">
+                                <div className="course-category-tree__header">
+                                    <span className="course-category-tree__title">โครงสร้างหลักสูตร</span>
+                                    <button className="course-btn course-btn--ghost course-btn--sm" onClick={handleAddCategory}>
+                                        <Plus size={14} /> เพิ่มหมวด
+                                    </button>
                                 </div>
-
-                                {categories.length === 0 ? (
-                                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--tm-text-muted)' }}>
-                                        <p>ยังไม่มีหมวดวิชา</p>
-                                        <button className="course-btn course-btn--primary course-btn--sm" onClick={handleAddCategory}>
-                                            <Plus size={14} /> เพิ่มหมวดวิชาแรก
-                                        </button>
+                                <div className="course-category-tree__body">
+                                    {/* All Courses Option */}
+                                    <div
+                                        className={`course-tree-item ${showAllCourses ? 'course-tree-item--selected' : ''} course-all-courses-item ${showAllCourses ? 'course-all-courses-item--selected' : ''}`}
+                                        onClick={handleSelectAllCourses}
+                                    >
+                                        <Layers size={16} />
+                                        <span>วิชาทั้งหมด</span>
                                     </div>
-                                ) : (
-                                    categories.map(cat => (
-                                        <CategoryItem
-                                            key={cat.id}
-                                            category={cat}
-                                            selectedId={selectedCategory?.id}
-                                            onSelect={handleSelectCategory}
-                                            level={0}
-                                        />
-                                    ))
-                                )}
+
+                                    {categories.length === 0 ? (
+                                        <div className="course-tree-empty">
+                                            <p>ยังไม่มีหมวดวิชา</p>
+                                            <button className="course-btn course-btn--primary course-btn--sm course-tree-empty__btn" onClick={handleAddCategory}>
+                                                <Plus size={14} /> เพิ่มหมวดวิชาแรก
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        categories.map(cat => (
+                                            <CategoryItem
+                                                key={cat.id}
+                                                category={cat}
+                                                selectedId={selectedCategory?.id}
+                                                onSelect={handleSelectCategory}
+                                                level={0}
+                                            />
+                                        ))
+                                    )}
+                                </div>
                             </div>
                         </div>
 
                         {/* Category Detail Panel */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="course-editor-panels__content">
                             <CategoryDetailPanel
                                 category={showAllCourses ? { id: 'all', code: '', name: 'วิชาทั้งหมดในหลักสูตร' } : selectedCategory}
                                 courses={getDisplayCourses(categories, selectedCategory, showAllCourses)}
@@ -613,19 +614,18 @@ function CategoryItem({ category, selectedId, onSelect, level }) {
         <div>
             <div
                 className={`course-tree-item ${isSelected ? 'course-tree-item--selected' : ''}`}
-                style={{ paddingLeft: `${0.75 + level * 1.25}rem` }}
+                style={{ '--level': level }}
                 onClick={() => onSelect(category)}
             >
                 {hasChildren ? (
                     <button
-                        className="icon-course-btn"
-                        style={{ width: 20, height: 20 }}
+                        className="icon-course-btn course-tree-expand-btn"
                         onClick={e => { e.stopPropagation(); setExpanded(!expanded); }}
                     >
                         {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </button>
                 ) : (
-                    <span style={{ width: 20 }} />
+                    <span className="course-tree-placeholder" />
                 )}
                 <span className="course-tree-item__code">{category.code}</span>
                 <span className="course-tree-item__name">{category.name}</span>
@@ -693,7 +693,7 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
     return (
         <div className="course-detail-panel">
             <div className="course-detail-panel__header">
-                <div style={{ flex: 1 }}>
+                <div>
                     <label className="cfm-label">ชื่อหมวดวิชา</label>
                     <input
                         className="cfm-input"
@@ -703,18 +703,18 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
                         onKeyDown={e => e.key === 'Enter' && handleSaveName()}
                     />
                 </div>
-                <div style={{ width: 120 }}>
+                <div className="course-detail-panel__credits">
                     <label className="cfm-label">หน่วยกิต</label>
                     <div className='cfm-input'> {credits}</div>
                 </div>
-                <button className="course-btn course-btn--ghost course-btn--danger" style={{ marginTop: '1.5rem' }} onClick={() => onDelete(category)}>
+                <button className="course-btn course-btn--ghost course-btn--danger course-delete-btn" onClick={() => onDelete(category)}>
                     <Trash2 size={14} />
                 </button>
             </div>
 
-            <div style={{ marginTop: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--tm-text)' }}>รายวิชา ({courses.length})</span>
+            <div className="course-detail-panel__courses">
+                <div className="course-detail-panel__courses-header">
+                    <span className="course-detail-panel__courses-title">รายวิชา ({courses.length})</span>
                     <button className="course-btn course-btn--primary course-btn--sm" onClick={handleAddNewCourse}>
                         <Plus size={14} /> เพิ่มรายวิชา
                     </button>
