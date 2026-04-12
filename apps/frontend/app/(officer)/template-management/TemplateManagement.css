@@ -8,7 +8,7 @@
     min-height: 100vh;
     background: var(--tm-bg, #0f1117);
     color: var(--tm-text, #e2e8f0);
-    padding: 1.5rem;
+    padding: 1.5rem 10rem 0 10rem;
     font-family: 'Sarabun', sans-serif;
     box-sizing: border-box;
 }
@@ -129,14 +129,19 @@
 
 /* ---- Header ---- */
 .tm-header {
-    margin-bottom: 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--tm-border);
 }
 
 .tm-header__title {
-    font-size: 1.2rem;
-    font-weight: 600;
+    font-size: 1.5rem;
+    font-weight: 700;
     color: var(--tm-title);
-    margin: 0;
+    margin-top: 0.5rem;
 }
 
 /* ---- 3 Panel Layout ---- */
@@ -1776,17 +1781,7 @@
    Template List View
    ============================================================ */
 .tpl-list-view {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 1.5rem 0;
-}
-
-.tpl-list-view__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 2rem;
+    padding: 1.5rem 10rem 0 10rem;
 }
 
 .tpl-list-view__sub {

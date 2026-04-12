@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronDown, ChevronRight, Layers, BookOpenCheck, Award, GripVertical, ChevronLeft, ChevronFirst, ChevronLast } from 'lucide-react';
 import { MOCK_COURSE_MASTERS } from '../template-management/mockData.js';
 import CourseFormModal from './components/CourseFormModal';
 import ConfirmDeleteModal from '../template-management/components/ConfirmDeleteModal';
-import './CourseManagement.css';
+import './CourseLayout.css';
+import './CourseList.css';
 
 // ============================================================
 // Helper functions
@@ -64,34 +66,43 @@ function getDisplayCourses(categories, selectedCategory, showAll) {
 
     if (!selectedCategory) return [];
 
-    const findAndAggregate = (cats, targetId, currentDepth) => {
+    // หา category และ depth จริงใน tree
+    const findCategory = (cats, targetId, depth = 0) => {
         for (const cat of cats) {
             if (cat.id === targetId) {
-                if (currentDepth >= 2) {
-                    return cat.courses || [];
-                }
-                const result = [...(cat.courses || [])];
-                if (cat.children?.length) {
-                    for (const child of cat.children) {
-                        result.push(...(child.courses || []));
-                        if (child.children?.length) {
-                            for (const grandchild of child.children) {
-                                result.push(...(grandchild.courses || []));
-                            }
-                        }
-                    }
-                }
-                return result;
+                return { category: cat, depth };
             }
             if (cat.children?.length) {
-                const found = findAndAggregate(cat.children, targetId, currentDepth + 1);
+                const found = findCategory(cat.children, targetId, depth + 1);
                 if (found) return found;
             }
         }
-        return [];
+        return null;
     };
 
-    return findAndAggregate(categories, selectedCategory.id, 0);
+    const found = findCategory(categories, selectedCategory.id);
+    if (!found) return [];
+
+    const { category, depth } = found;
+
+    // ถ้า depth >= 2 แสดงเฉพาะ courses ของ category นั้น
+    if (depth >= 2) {
+        return category.courses || [];
+    }
+
+    // ถ้า depth < 2 แสดง courses ของ category + children
+    const result = [...(category.courses || [])];
+    if (category.children?.length) {
+        for (const child of category.children) {
+            result.push(...(child.courses || []));
+            if (child.children?.length) {
+                for (const grandchild of child.children) {
+                    result.push(...(grandchild.courses || []));
+                }
+            }
+        }
+    }
+    return result;
 }
 
 function isDescendantOf(node, id) {
@@ -108,55 +119,55 @@ function getDirectChildren(cats, parentId) {
 // ============================================================
 function CourseCard({ course, onEdit, onDuplicate, onDelete, onOpen }) {
     return (
-        <div className="cm-card" onClick={() => onOpen(course)}>
-            <div className="cm-card__header">
-                <div className="cm-card__icon">
+        <div className="course-card" onClick={() => onOpen(course)}>
+            <div className="course-card__header">
+                <div className="course-card__icon">
                     <BookOpen size={24} />
                 </div>
-                <div className="cm-card__actions">
-                    <button className="icon-btn" title="แก้ไข" onClick={e => { e.stopPropagation(); onEdit(course); }}>
+                <div className="course-card__actions">
+                    <button className="icon-course-btn" title="แก้ไข" onClick={e => { e.stopPropagation(); onEdit(course); }}>
                         <Pencil size={14} />
                     </button>
-                    <button className="icon-btn" title="ทำสำเนา" onClick={e => { e.stopPropagation(); onDuplicate(course); }}>
+                    <button className="icon-course-btn" title="ทำสำเนา" onClick={e => { e.stopPropagation(); onDuplicate(course); }}>
                         <Copy size={14} />
                     </button>
-                    <button className="icon-btn icon-btn--danger" title="ลบ" onClick={e => { e.stopPropagation(); onDelete(course); }}>
+                    <button className="icon-course-btn icon-course-btn--danger" title="ลบ" onClick={e => { e.stopPropagation(); onDelete(course); }}>
                         <Trash2 size={14} />
                     </button>
                 </div>
             </div>
-            <h3 className="cm-card__title">
+            <h3 className="course-card__title">
                 {course.nameTh}
             </h3>
-            <p className="cm-card__subtitle">{course.nameEn}</p>
-            <div className="cm-card__meta">
-                <span className="cm-card__meta-item">
+            <p className="course-card__subtitle">{course.nameEn}</p>
+            <div className="course-card__meta">
+                <span className="course-card__meta-item">
                     <BookOpen size={12} />
                     ปี {course.year}
                 </span>
-                <span className="cm-card__meta-item">
+                <span className="course-card__meta-item">
                     <Award size={12} />
                     {course.degreeName}
                 </span>
-                <span className="cm-card__meta-item">
+                <span className="course-card__meta-item">
                     <Layers size={12} />
                     {course.templateCount} Templates
                 </span>
             </div>
-            <div className="cm-card__stats">
-                <div className="cm-card__stat">
-                    <span className="cm-card__stat-value">{course.stats.totalCourses}</span>
-                    <span className="cm-card__stat-label">วิชา</span>
+            <div className="course-card__stats">
+                <div className="course-card__stat">
+                    <span className="course-card__stat-value">{course.stats.totalCourses}</span>
+                    <span className="course-card__stat-label">วิชา</span>
                 </div>
-                <div className="cm-card__stat">
-                    <span className="cm-card__stat-value">{course.categories.length}</span>
-                    <span className="cm-card__stat-label">หมวด</span>
+                <div className="course-card__stat">
+                    <span className="course-card__stat-value">{course.categories.length}</span>
+                    <span className="course-card__stat-label">หมวด</span>
                 </div>
-                <div className="cm-card__stat">
-                    <span className="cm-card__stat-value">{course.stats.totalCredits}</span>
-                    <span className="cm-card__stat-label">หน่วยกิต</span>
+                <div className="course-card__stat">
+                    <span className="course-card__stat-value">{course.stats.totalCredits}</span>
+                    <span className="course-card__stat-label">หน่วยกิต</span>
                 </div>
-                <span className={`cm-card__badge ${course.isActive ? 'cm-card__badge--active' : 'cm-card__badge--inactive'}`}>
+                <span className={`course-card__badge ${course.isActive ? 'course-card__badge--active' : 'course-card__badge--inactive'}`}>
                     {course.isActive ? <Check size={12} /> : <X size={12} />}
                     {course.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}
                 </span>
@@ -170,13 +181,13 @@ function CourseCard({ course, onEdit, onDuplicate, onDelete, onOpen }) {
 // ============================================================
 function EmptyState({ onCreate }) {
     return (
-        <div className="cm-empty">
-            <div className="cm-empty__icon">
+        <div className="course-empty">
+            <div className="course-empty__icon">
                 <BookOpen size={40} />
             </div>
-            <h3 className="cm-empty__title">ยังไม่มีหลักสูตร</h3>
-            <p className="cm-empty__desc">เริ่มต้นสร้างหลักสูตรแรกของคุณเพื่อจัดการหลักสูตรนักศึกษา</p>
-            <button className="btn btn--primary" onClick={onCreate}>
+            <h3 className="course-empty__title">ยังไม่มีหลักสูตร</h3>
+            <p className="course-empty__desc">เริ่มต้นสร้างหลักสูตรแรกของคุณเพื่อจัดการหลักสูตรนักศึกษา</p>
+            <button className="course-btn course-btn--primary" onClick={onCreate}>
                 <Plus size={16} /> สร้างหลักสูตร
             </button>
         </div>
@@ -187,6 +198,7 @@ function EmptyState({ onCreate }) {
 // Main Page
 // ============================================================
 export default function CourseManagementPage() {
+    const router = useRouter();
     const [view, setView] = useState('list'); // 'list' | 'editor'
     const [courses, setCourses] = useState(MOCK_COURSE_MASTERS);
     const [search, setSearch] = useState('');
@@ -222,9 +234,8 @@ export default function CourseManagementPage() {
     }, []);
 
     const handleCreateCourse = useCallback(() => {
-        setEditingCourse(null);
-        setShowForm(true);
-    }, []);
+        router.push('/course-management/create');
+    }, [router]);
 
     const handleEditCourse = useCallback((course) => {
         setEditingCourse(course);
@@ -365,68 +376,68 @@ export default function CourseManagementPage() {
     // Render
     // ============================================================
     return (
-        <div className="cm-page">
+        <>
             {/* หน้าแรก รวมหลักสูตรทั้งหมด */}
             {view === 'list' ? (
-                <>
+                <div className="course-list-page">
                     {/* Header */}
-                    <div className="cm-header">
-                        <div className="cm-header__left">
-                            <h1 className="cm-header__title">จัดการหลักสูตร</h1>
-                            <p className="cm-header__subtitle">สร้างและจัดการหลักสูตรสำหรับนักศึกษา</p>
+                    <div className="course-list-header">
+                        <div className="course-list-header__left">
+                            <h1 className="course-list-header__title">จัดการหลักสูตร</h1>
+                            <p className="course-list-header__subtitle">สร้างและจัดการหลักสูตรสำหรับนักศึกษา</p>
                         </div>
-                        <div className="cm-header__actions">
-                            <button className="btn btn--ghost">
+                        <div className="course-list-header__actions">
+                            <button className="course-btn course-btn--ghost">
                                 <Upload size={16} /> Import
                             </button>
-                            <button className="btn btn--primary" onClick={handleCreateCourse}>
+                            <button className="course-btn course-btn--primary" onClick={handleCreateCourse}>
                                 <Plus size={16} /> สร้างหลักสูตร
                             </button>
                         </div>
                     </div>
 
                     {/* Stats */}
-                    <div className="cm-stats-row">
-                        <div className="cm-stat-card">
-                            <div className="cm-stat-card__icon">
+                    <div className="course-stats-row">
+                        <div className="course-stat-card">
+                            <div className="course-stat-card__icon">
                                 <BookOpen size={22} />
                             </div>
-                            <div className="cm-stat-card__content">
-                                <span className="cm-stat-card__value">{totalCourses}</span>
-                                <span className="cm-stat-card__label">หลักสูตรทั้งหมด</span>
+                            <div className="course-stat-card__content">
+                                <span className="course-stat-card__value">{totalCourses}</span>
+                                <span className="course-stat-card__label">หลักสูตรทั้งหมด</span>
                             </div>
                         </div>
-                        <div className="cm-stat-card">
-                            <div className="cm-stat-card__icon" style={{ background: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }}>
+                        <div className="course-stat-card">
+                            <div className="course-stat-card__icon" style={{ background: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }}>
                                 <Check size={22} />
                             </div>
-                            <div className="cm-stat-card__content">
-                                <span className="cm-stat-card__value">{activeCourses}</span>
-                                <span className="cm-stat-card__label">หลักสูตรใช้งาน</span>
+                            <div className="course-stat-card__content">
+                                <span className="course-stat-card__value">{activeCourses}</span>
+                                <span className="course-stat-card__label">หลักสูตรใช้งาน</span>
                             </div>
                         </div>
-                        <div className="cm-stat-card">
-                            <div className="cm-stat-card__icon" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
+                        <div className="course-stat-card">
+                            <div className="course-stat-card__icon" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
                                 <BookOpenCheck size={22} />
                             </div>
-                            <div className="cm-stat-card__content">
-                                <span className="cm-stat-card__value">{totalTemplates}</span>
-                                <span className="cm-stat-card__label">Templates ที่ใช้งาน</span>
+                            <div className="course-stat-card__content">
+                                <span className="course-stat-card__value">{totalTemplates}</span>
+                                <span className="course-stat-card__label">Templates ที่ใช้งาน</span>
                             </div>
                         </div>
-                        <div className="cm-stat-card">
-                            <div className="cm-stat-card__icon" style={{ background: 'rgba(251, 146, 60, 0.15)', color: '#fb923c' }}>
+                        <div className="course-stat-card">
+                            <div className="course-stat-card__icon" style={{ background: 'rgba(251, 146, 60, 0.15)', color: '#fb923c' }}>
                                 <Layers size={22} />
                             </div>
-                            <div className="cm-stat-card__content">
-                                <span className="cm-stat-card__value">{courses.reduce((s, c) => s + c.categories.length, 0)}</span>
-                                <span className="cm-stat-card__label">หมวดวิชาทั้งหมด</span>
+                            <div className="course-stat-card__content">
+                                <span className="course-stat-card__value">{courses.reduce((s, c) => s + c.categories.length, 0)}</span>
+                                <span className="course-stat-card__label">หมวดวิชาทั้งหมด</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Search */}
-                    <div className="cm-search-wrap">
+                    <div className="course-search-wrap">
                         <Search size={16} style={{ position: 'absolute', left: '1rem', color: 'var(--tm-text-muted)' }} />
                         <input
                             type="text"
@@ -440,7 +451,7 @@ export default function CourseManagementPage() {
 
                     {/* Course Grid */}
                     {filteredCourses.length > 0 ? (
-                        <div className="cm-grid">
+                        <div className="course-grid">
                             {filteredCourses.map(course => (
                                 <CourseCard
                                     key={course.id}
@@ -455,74 +466,69 @@ export default function CourseManagementPage() {
                     ) : (
                         <EmptyState onCreate={handleCreateCourse} />
                     )}
-                </>
+                </div>
             ) : view === 'editor' && selectedCourse ? (
-                <>
+                <div className="course-editor-page">
                     {/* Editor View */}
                     {/* หน้ารายละเอียดหลักสูตร */}
-                    <div className="cm-header" style={{ marginBottom: '1rem' }}>
-                        <div className="cm-header__left">
-                            <button className="btn btn--ghost btn--sm" onClick={handleBackToList}>
+                    <div className="course-list-header">
+                        <div className="course-detail-header__left">
+                            <button className="course-btn-back course-btn--ghost course-btn--sm" onClick={handleBackToList}>
                                 <ArrowLeft size={16} /> กลับ
                             </button>
-                            <div className='cm-header__title'>
-                                <h1 className="cm-header__title" style={{ fontSize: '1.25rem' }}>{selectedCourse.nameTh}</h1>
-                                <p className="cm-header__subtitle">{selectedCourse.nameEn} · ปี {selectedCourse.year}</p>
+                            <div className='course-list-header__title'>
+                                <h1 className="course-list-header__title">{selectedCourse.nameTh}</h1>
+                                <p className="course-list-header__subtitle">{selectedCourse.nameEn} · ปี {selectedCourse.year}</p>
                             </div>
-                        </div>
-                        <div className="cm-header__actions">
-                            <button className="btn btn--primary btn--sm" onClick={handleCreateCourse}>
-                                <Plus size={16} /> เพิ่มหมวดวิชา
-                            </button>
                         </div>
                     </div>
 
                     {/* Stats Row */}
-                    <div className="cm-stats-row" style={{ marginBottom: '1.5rem' }}>
-                        <div className="cm-stat-card">
-                            <div className="cm-stat-card__icon">
+                    <div className="course-stats-row" style={{ marginBottom: '1.5rem' }}>
+                        <div className="course-stat-card">
+                            <div className="course-stat-card__icon">
                                 <BookOpen size={20} />
                             </div>
-                            <div className="cm-stat-card__content">
-                                <span className="cm-stat-card__value">{Object.values(coursesByCategory).flat().length}</span>
-                                <span className="cm-stat-card__label">วิชา</span>
+                            <div className="course-stat-card__content">
+                                <span className="course-stat-card__value">{Object.values(coursesByCategory).flat().length}</span>
+                                <span className="course-stat-card__label">วิชา</span>
                             </div>
                         </div>
-                        <div className="cm-stat-card">
-                            <div className="cm-stat-card__icon">
+                        <div className="course-stat-card">
+                            <div className="course-stat-card__icon">
                                 <Layers size={20} />
                             </div>
-                            <div className="cm-stat-card__content">
-                                <span className="cm-stat-card__value">{categories.length}</span>
-                                <span className="cm-stat-card__label">หมวดวิชา</span>
+                            <div className="course-stat-card__content">
+                                <span className="course-stat-card__value">{categories.length}</span>
+                                <span className="course-stat-card__label">หมวดวิชา</span>
                             </div>
                         </div>
-                        <div className="cm-stat-card">
-                            <div className="cm-stat-card__icon">
+                        <div className="course-stat-card">
+                            <div className="course-stat-card__icon">
                                 <Award size={20} />
                             </div>
-                            <div className="cm-stat-card__content">
-                                <span className="cm-stat-card__value">{categories.reduce((s, c) => s + (c.requiredCredits || 0), 0)}</span>
-                                <span className="cm-stat-card__label">หน่วยกิตรวม</span>
+                            <div className="course-stat-card__content">
+                                <span className="course-stat-card__value">{categories.reduce((s, c) => s + (c.requiredCredits || 0), 0)}</span>
+                                <span className="course-stat-card__label">หน่วยกิตรวม</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Category Tree and Detail Panel - Side by Side */}
                     <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-                        <div className="cm-cats-tree" style={{ width: 320, flexShrink: 0 }}>
-                            <div className="cm-cats-header">
-                                <span className="cm-cats-header__title">โครงสร้างหลักสูตร</span>
-                                <button className="btn btn--ghost btn--sm" onClick={handleAddCategory}>
+                        <div className="course-category-tree" style={{ width: 320, flexShrink: 0 }}>
+                            <div className="course-category-tree__header">
+                                <span className="course-category-tree__header__title">โครงสร้างหลักสูตร</span>
+                                <button className="course-btn course-btn--ghost course-btn--sm" onClick={handleAddCategory}>
                                     <Plus size={14} /> เพิ่มหมวด
                                 </button>
                             </div>
-                            <div className="cm-cats-body">
+                            <div className="course-category-tree__body">
                                 {/* All Courses Option */}
                                 <div
-                                    className={`cm-cat-item ${showAllCourses ? 'cm-cat-item--selected' : ''}`}
+                                    className={`course-tree-item ${showAllCourses ? 'course-tree-item--selected' : ''}`}
                                     onClick={handleSelectAllCourses}
-                                    style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderRadius: 8, marginBottom: '0.5rem', background: showAllCourses ? 'var(--tm-primary)' : 'transparent', color: showAllCourses ? '#fff' : 'var(--tm-text)' }}
+                                    style={{ cursor: 'pointer', borderRadius: 8, background: showAllCourses ? 'var(--tm-primary)' : 'transparent', color: showAllCourses ? '#fff' : 'var(--tm-text)' }}
                                 >
                                     <Layers size={16} style={{ marginRight: '0.5rem' }} />
                                     <span style={{ fontWeight: 500 }}>วิชาทั้งหมด</span>
@@ -531,7 +537,7 @@ export default function CourseManagementPage() {
                                 {categories.length === 0 ? (
                                     <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--tm-text-muted)' }}>
                                         <p>ยังไม่มีหมวดวิชา</p>
-                                        <button className="btn btn--primary btn--sm" onClick={handleAddCategory}>
+                                        <button className="course-btn course-btn--primary course-btn--sm" onClick={handleAddCategory}>
                                             <Plus size={14} /> เพิ่มหมวดวิชาแรก
                                         </button>
                                     </div>
@@ -562,7 +568,7 @@ export default function CourseManagementPage() {
                             />
                         </div>
                     </div>
-                </>
+                </div>
             ) : null}
 
             {/* Modals */}
@@ -591,7 +597,7 @@ export default function CourseManagementPage() {
                     onCancel={() => setDeletingCategory(null)}
                 />
             )}
-        </div>
+        </>
     );
 }
 
@@ -606,13 +612,13 @@ function CategoryItem({ category, selectedId, onSelect, level }) {
     return (
         <div>
             <div
-                className={`cm-cat-item ${isSelected ? 'cm-cat-item--selected' : ''}`}
+                className={`course-tree-item ${isSelected ? 'course-tree-item--selected' : ''}`}
                 style={{ paddingLeft: `${0.75 + level * 1.25}rem` }}
                 onClick={() => onSelect(category)}
             >
                 {hasChildren ? (
                     <button
-                        className="icon-btn"
+                        className="icon-course-btn"
                         style={{ width: 20, height: 20 }}
                         onClick={e => { e.stopPropagation(); setExpanded(!expanded); }}
                     >
@@ -621,9 +627,9 @@ function CategoryItem({ category, selectedId, onSelect, level }) {
                 ) : (
                     <span style={{ width: 20 }} />
                 )}
-                <span className="cm-cat-item__code">{category.code}</span>
-                <span className="cm-cat-item__name">{category.name}</span>
-                <span className="cm-cat-item__credits">{category.requiredCredits} หน่วยกิต</span>
+                <span className="course-tree-item__code">{category.code}</span>
+                <span className="course-tree-item__name">{category.name}</span>
+                <span className="course-tree-item__credits">{category.requiredCredits} หน่วยกิต</span>
             </div>
             {hasChildren && expanded && category.children.map(child => (
                 <CategoryItem
@@ -685,8 +691,8 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
     };
 
     return (
-        <div className="cm-detail-panel">
-            <div className="cm-detail-panel__header">
+        <div className="course-detail-panel">
+            <div className="course-detail-panel__header">
                 <div style={{ flex: 1 }}>
                     <label className="cfm-label">ชื่อหมวดวิชา</label>
                     <input
@@ -701,7 +707,7 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
                     <label className="cfm-label">หน่วยกิต</label>
                     <div className='cfm-input'> {credits}</div>
                 </div>
-                <button className="btn btn--ghost btn--danger" style={{ marginTop: '1.5rem' }} onClick={() => onDelete(category)}>
+                <button className="course-btn course-btn--ghost course-btn--danger" style={{ marginTop: '1.5rem' }} onClick={() => onDelete(category)}>
                     <Trash2 size={14} />
                 </button>
             </div>
@@ -709,7 +715,7 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
             <div style={{ marginTop: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                     <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--tm-text)' }}>รายวิชา ({courses.length})</span>
-                    <button className="btn btn--primary btn--sm" onClick={handleAddNewCourse}>
+                    <button className="course-btn course-btn--primary course-btn--sm" onClick={handleAddNewCourse}>
                         <Plus size={14} /> เพิ่มรายวิชา
                     </button>
                 </div>
@@ -745,19 +751,19 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
                 </div>
 
                 {/* Pagination */}
-                <div className="cm-pagination">
+                <div className="course-pagination">
                     {totalPages === 0 ? (
-                        <span className="cm-pagination__info">
+                        <span className="course-pagination__info">
                             หน้า {currentPage} / {1}
                         </span>
                     ) : (
-                        <span className="cm-pagination__info">
+                        <span className="course-pagination__info">
                             หน้า {currentPage} / {totalPages}
                         </span>
                     )}
-                    <div className="cm-pagination__buttons">
+                    <div className="course-pagination__buttons">
                         <button
-                            className="btn btn--ghost btn--sm"
+                            className="course-btn course-btn--ghost course-btn--sm"
                             onClick={() => handlePageChange(1)}
                             disabled={currentPage === 1}
                             title="หน้าแรก"
@@ -765,7 +771,7 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
                             <ChevronFirst size={14} />
                         </button>
                         <button
-                            className="btn btn--ghost btn--sm"
+                            className="course-btn course-btn--ghost course-btn--sm"
                             onClick={() => handlePageChange(currentPage - 1)}
                             disabled={currentPage === 1}
                             title="ย้อนกลับ"
@@ -773,7 +779,7 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
                             <ChevronLeft size={14} /> ย้อนกลับ
                         </button>
                         <button
-                            className="btn btn--ghost btn--sm"
+                            className="course-btn course-btn--ghost course-btn--sm"
                             onClick={() => handlePageChange(currentPage + 1)}
                             disabled={currentPage === totalPages}
                             title="ถัดไป"
@@ -781,7 +787,7 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
                             ถัดไป <ChevronRight size={14} />
                         </button>
                         <button
-                            className="btn btn--ghost btn--sm"
+                            className="course-btn course-btn--ghost course-btn--sm"
                             onClick={() => handlePageChange(totalPages)}
                             disabled={currentPage === totalPages}
                             title="หน้าสุดท้าย"
@@ -884,15 +890,15 @@ function CourseRow({ course, onDelete }) {
             </td>
             <td className="ss-cell ss-cell--actions" onClick={e => e.stopPropagation()}>
                 {editing ? (
-                    <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={handleSave}>
+                    <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={handleSave}>
                         <Check size={13} />
                     </button>
                 ) : (
-                    <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={() => setEditing(true)}>
+                    <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={() => setEditing(true)}>
                         <Pencil size={12} />
                     </button>
                 )}
-                <button className="icon-btn icon-btn--danger icon-btn--xs" onClick={() => onDelete(course)}>
+                <button className="icon-course-btn icon-course-btn--danger icon-course-btn--xs" onClick={() => onDelete(course)}>
                     <Trash2 size={12} />
                 </button>
             </td>

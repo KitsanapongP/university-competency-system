@@ -106,10 +106,30 @@ body:has(.competency-app) {
   width: 100%;
 }
 
+.main-content-officer {
+  max-width: 100%;
+  margin: 0;
+  width: 100%;
+}
+
 /* ================================================================
-   NAVBAR
-   ================================================================ */
+    NAVBAR
+    ================================================================ */
 .competency-app .navbar {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: 70px;
+  display: flex;
+  align-items: center;
+}
+
+/* Officer Navbar - padding ต่างกัน */
+.competency-app .navbar-officer {
   background: var(--card);
   border-bottom: 1px solid var(--border);
   position: fixed;
@@ -127,6 +147,15 @@ body:has(.competency-app) {
   align-items: center;
   justify-content: space-between;
   gap: 32px;
+}
+
+/* Officer nav-inner */
+.nav-inner-officer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 24px;
 }
 
 .logo {
@@ -319,6 +348,14 @@ body:has(.competency-app) {
   flex: 1;
   padding: 102px 24px 64px;
   /* 70px navbar + 32px top padding */
+  min-height: 0;
+  overflow: visible;
+}
+
+.competency-app .main-content-officer {
+  flex: 1;
+  padding: 70px 0 0;
+  /* 70px navbar + 10px extra */
   min-height: 0;
   overflow: visible;
 }

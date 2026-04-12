@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../providers/auth-provider';
-import AdminLayout from '../../../components/admin/AdminLayout';
+import { AppLayout } from '../../../components/layout/AppLayout';
+import '../../../app/Competency.css';
 
 export default function CourseManagementLayout({ children }) {
     const router = useRouter();
     const { user, loading, logout } = useAuth();
+    const [activePage, setActivePage] = useState('course-management');
 
     useEffect(() => {
         if (!loading && !user) {
@@ -20,9 +22,20 @@ export default function CourseManagementLayout({ children }) {
         router.push('/login');
     };
 
+    const handleNavigate = (page) => {
+        router.push(`/${page}`);
+    };
+
     return (
-        <AdminLayout user={user} loading={loading} onLogout={handleLogout}>
+        <AppLayout 
+            role="officer"
+            activePage={activePage}
+            onNavigate={handleNavigate}
+            user={user}
+            loading={loading}
+            onLogout={handleLogout}
+        >
             {children}
-        </AdminLayout>
+        </AppLayout>
     );
 }

@@ -1,0 +1,363 @@
+/* ============================================================
+   Course List - หน้ารายการ
+   ============================================================ */
+
+/* ============================================================
+   Page Layout
+   ============================================================ */
+.course-list-page {
+    min-height: 100vh;
+    background: var(--course-bg);
+    color: var(--course-text);
+    padding: 1.5rem 10rem 0 10rem;
+    font-family: 'Sarabun', sans-serif;
+    box-sizing: border-box;
+}
+
+/* ============================================================
+   Header
+   ============================================================ */
+.course-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--course-border);
+}
+
+.course-list-header__left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.course-list-header__title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--course-title);
+    margin-top: 0.5rem;
+}
+
+.course-list-header__subtitle {
+    font-size: 0.875rem;
+    color: var(--course-text-muted);
+    margin: 0;
+}
+
+.course-list-header__actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+/* ============================================================
+   Search
+   ============================================================ */
+.course-search-wrap {
+    position: relative;
+    width: 100%;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+}
+
+/* ============================================================
+   Stats Row
+   ============================================================ */
+.course-stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.course-stat-card {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-card-border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.2s ease;
+}
+
+.course-stat-card:hover {
+    border-color: var(--course-accent);
+    transform: translateY(-2px);
+}
+
+.course-stat-card__icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--course-icon-bg);
+    color: var(--course-icon-color);
+}
+
+.course-stat-card__content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.course-stat-card__value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--course-text);
+}
+
+.course-stat-card__label {
+    font-size: 0.75rem;
+    color: var(--course-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* ============================================================
+   Course Grid
+   ============================================================ */
+.course-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1.25rem;
+}
+
+.course-card {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-card-border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.course-card:hover {
+    border-color: var(--course-accent);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.course-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.course-card__icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--course-icon-bg);
+    color: var(--course-icon-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.course-card__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.course-card__badge--active {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+}
+
+.course-card__badge--inactive {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--course-text-muted);
+}
+
+.course-card__title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--course-text);
+    margin: 0 0 0.5rem;
+}
+
+.course-card__subtitle {
+    font-size: 0.875rem;
+    color: var(--course-text-muted);
+    margin: 0 0 1rem;
+}
+
+.course-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.course-card__meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--course-text-muted);
+}
+
+.course-card__stats {
+    display: flex;
+    gap: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--course-border);
+}
+
+.course-card__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.course-card__stat-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--course-text);
+}
+
+.course-card__stat-label {
+    font-size: 0.6875rem;
+    color: var(--course-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.course-card__actions {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.course-card:hover .course-card__actions {
+    opacity: 1;
+}
+
+/* ============================================================
+   Empty State
+   ============================================================ */
+.course-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    text-align: center;
+}
+
+.course-empty__icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--course-icon-bg);
+    color: var(--course-icon-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    opacity: 0.6;
+}
+
+.course-empty__title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--course-text);
+    margin: 0 0 0.5rem;
+}
+
+.course-empty__desc {
+    font-size: 0.875rem;
+    color: var(--course-text-muted);
+    margin: 0 0 1.5rem;
+}
+
+/* ============================================================
+   Pagination
+   ============================================================ */
+.course-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--course-border);
+    background: var(--course-ss-header-bg);
+}
+
+.course-pagination__info {
+    font-size: 0.8125rem;
+    color: var(--course-text-muted);
+}
+
+.course-pagination__buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* ============================================================
+   Detail Panel
+   ============================================================ */
+.course-detail-panel {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    height: max-content;
+}
+
+.course-detail-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    gap: 1rem;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 768px) {
+    .course-list-page {
+        padding: 1.5rem;
+    }
+
+    .course-stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .course-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .course-list-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .course-list-header__actions {
+        width: 100%;
+    }
+
+    .course-list-header__actions .course-btn {
+        flex: 1;
+    }
+
+    .course-row {
+        grid-template-columns: 1fr;
+    }
+}

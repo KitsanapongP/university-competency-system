@@ -1,0 +1,1120 @@
+/* ============================================================
+   Course Create - หน้าสร้างหลักสูตร
+   ============================================================ */
+
+/* ============================================================
+   Page Layout
+   ============================================================ */
+.course-create-page {
+    min-height: 100vh;
+    background: var(--course-bg);
+    color: var(--course-text);
+    padding: 1.5rem 3.5rem 3.5rem 3.5rem;
+    font-family: 'Sarabun', sans-serif;
+    box-sizing: border-box;
+}
+
+/* ============================================================
+   Max Width Container
+   ============================================================ */
+.course-create-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* ============================================================
+   Form Row - Two Columns
+   ============================================================ */
+.course-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.course-form-row--3 {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+/* ============================================================
+   Form Input Group
+   ============================================================ */
+.course-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-width: 600px;
+}
+
+/* ============================================================
+   Form Container
+   ============================================================ */
+.course-form-container {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    min-height: 400px;
+}
+
+/* ============================================================
+   Form Navigation
+   ============================================================ */
+.course-form-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1.5rem;
+}
+
+/* ============================================================
+   Step Content - Specific
+   ============================================================ */
+.course-step-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* ============================================================
+   Form Field Wrapper
+   ============================================================ */
+.course-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.course-form-field__label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--course-text);
+}
+
+.course-form-field__required {
+    color: #dc2626;
+    margin-left: 0.25rem;
+}
+
+.course-form-field__input {
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--course-form-input-border);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    background: var(--course-form-input-bg);
+    color: var(--course-text);
+}
+
+.course-form-field__input:focus {
+    outline: none;
+    border-color: var(--course-form-focus-border);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.course-form-field__input::placeholder {
+    color: var(--course-text-muted);
+}
+
+/* ============================================================
+   Page Header
+   ============================================================ */
+.course-create-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+}
+
+.course-create-header__title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--course-title);
+}
+
+.course-create-header__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    background: transparent;
+    border: none;
+    color: var(--course-text-muted);
+    cursor: pointer;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+/* ============================================================
+   Step Indicator
+   ============================================================ */
+.course-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 1rem 0;
+}
+
+.course-step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.course-step__num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    background: var(--course-card-border);
+    color: var(--course-text-muted);
+    transition: all 0.2s ease;
+}
+
+.course-step--active .course-step__num {
+    background: var(--course-accent);
+    color: #fff;
+}
+
+.course-step--done .course-step__num {
+    background: #22c55e;
+    color: #fff;
+}
+
+.course-step__label {
+    font-size: 0.875rem;
+    color: var(--course-text-muted);
+    transition: all 0.2s ease;
+}
+
+.course-step--active .course-step__label {
+    color: var(--course-text);
+    font-weight: 500;
+}
+
+.course-step__line {
+    width: 60px;
+    height: 2px;
+    background: var(--course-card-border);
+    margin: 0 1rem;
+}
+
+.course-step--done .course-step__line {
+    background: #22c55e;
+}
+
+/* ============================================================
+   Form Container
+   ============================================================ */
+.course-form-container {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    min-height: 400px;
+}
+
+/* ============================================================
+   Form Navigation
+   ============================================================ */
+.course-form-nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1.5rem;
+}
+
+/* ============================================================
+   Category Tree
+   ============================================================ */
+.course-category-tree {
+    border: 1px solid var(--course-border);
+    border-radius: 12px;
+    background: var(--course-card-bg);
+    height: max-content;
+}
+
+.course-category-tree__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    background: var(--course-ss-header-bg);
+    border-bottom: 1px solid var(--course-border);
+}
+
+.course-category-tree__title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--course-text);
+}
+
+.course-category-tree__body {
+    padding: 0.75rem;
+    overflow-y: auto;
+    max-height: 575px;
+}
+
+/* ============================================================
+   Tree Item
+   ============================================================ */
+.course-tree-item {
+    padding: 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+}
+
+.course-tree-item:hover {
+    background: var(--course-tree-hover);
+}
+
+.course-tree-item--selected {
+    background: var(--course-panel-selected-bg);
+    border: 1px solid var(--course-panel-selected-border);
+}
+
+.course-tree-item__code {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--course-accent);
+    min-width: 24px;
+}
+
+.course-tree-item__name {
+    flex: 1;
+    font-size: 0.75rem;
+    color: var(--course-tree-name);
+}
+
+.course-tree-item__credits {
+    font-size: 0.75rem;
+    color: var(--course-text-muted);
+}
+
+.course-tree-item__actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: auto;
+}
+
+/* ============================================================
+   Spreadsheet Table
+   ============================================================ */
+.course-spreadsheet-wrapper {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.course-spreadsheet-scroll {
+    flex: 1;
+    overflow: auto;
+}
+
+.course-spreadsheet-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.8rem;
+    table-layout: fixed;
+}
+
+.course-spreadsheet-th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--course-ss-header-bg);
+    color: var(--course-text-muted);
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 0.625rem;
+    border-bottom: 2px solid var(--course-modal-border);
+    border-right: 1px solid var(--course-modal-border);
+    white-space: nowrap;
+    text-align: left;
+}
+
+.course-spreadsheet-th--grip { width: 28px; padding: 0; }
+.course-spreadsheet-th--wide { width: 200px; }
+.course-spreadsheet-th--num { width: 80px; text-align: center; }
+.course-spreadsheet-th--actions { width: 64px; }
+
+.course-spreadsheet-row {
+    border-bottom: 1px solid var(--course-border);
+    transition: background 0.1s;
+}
+
+.course-spreadsheet-row:hover { background: var(--course-tree-hover); }
+.course-spreadsheet-row--editing { background: var(--course-panel-selected-bg) !important; }
+
+.course-spreadsheet-cell {
+    padding: 0.4rem 0.625rem;
+    border-right: 1px solid var(--course-modal-border);
+    vertical-align: middle;
+    color: var(--course-tree-name);
+    cursor: default;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.course-spreadsheet-cell--grip { width: 28px; padding: 0 4px; text-align: center; color: var(--course-text-muted); cursor: grab; }
+.course-spreadsheet-cell--num { text-align: center; width: 80px; }
+.course-spreadsheet-cell--actions { width: 64px; text-align: center; white-space: nowrap; }
+.course-spreadsheet-cell--wide { width: 200px; }
+
+.course-spreadsheet-code { font-family: monospace; color: var(--course-accent); font-size: 0.78rem; }
+.course-spreadsheet-placeholder { color: var(--course-text-muted); font-style: italic; }
+
+.course-spreadsheet-input {
+    width: 100%;
+    background: var(--course-form-input-bg);
+    border: 1px solid var(--course-form-focus-border);
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+    color: var(--course-text);
+    font-size: 0.8rem;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.course-spreadsheet-input--num { text-align: center; }
+
+.course-spreadsheet-empty {
+    padding: 2rem;
+    text-align: center;
+    color: var(--course-text-muted);
+    font-size: 0.8rem;
+}
+
+/* ============================================================
+   Overview Stats
+   ============================================================ */
+.course-overview-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.course-overview-stat {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    text-align: center;
+}
+
+.course-overview-stat__value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--course-accent);
+    margin-bottom: 0.25rem;
+}
+
+.course-overview-stat__label {
+    font-size: 0.75rem;
+    color: var(--course-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* ============================================================
+   Overview Info
+   ============================================================ */
+.course-overview-info {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.course-overview-info__title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--course-text);
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--course-border);
+}
+
+.course-overview-info__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.course-overview-info__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.course-overview-info__label {
+    font-size: 0.75rem;
+    color: var(--course-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.course-overview-info__value {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--course-text);
+}
+
+/* ============================================================
+   Course Sheet Panel
+   ============================================================ */
+.course-sheet-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.course-sheet-panel__toolbar {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--course-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.course-sheet-panel__category {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.course-sheet-panel__category-code {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--course-text);
+}
+
+.course-sheet-panel__category-name {
+    font-size: 0.875rem;
+    color: var(--course-text-muted);
+}
+
+.course-sheet-panel__category-input {
+    width: 80px;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.8125rem;
+    background: var(--course-form-input-bg);
+    border: 1px solid var(--course-form-input-border);
+    border-radius: 4px;
+    color: var(--course-text);
+    text-align: center;
+}
+
+.course-sheet-panel__empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--course-text-muted);
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* ============================================================
+   Two Column Panel
+   ============================================================ */
+.course-two-panel {
+    flex: 1;
+    display: flex;
+    gap: 1rem;
+    overflow: hidden;
+}
+
+.course-two-panel__sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.course-two-panel__content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ============================================================
+   Stats Bar
+   ============================================================ */
+.course-stats-bar {
+    display: flex;
+    gap: 1rem;
+    flex-shrink: 0;
+}
+
+.course-stats-bar__item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 768px) {
+    .course-create-page {
+        padding: 1.5rem;
+    }
+
+    .course-overview-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .course-overview-info__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .course-two-panel {
+        flex-direction: column;
+    }
+
+    .course-two-panel__sidebar {
+        width: 100%;
+        max-height: 200px;
+    }
+}
+
+/* ============================================================
+   Step2 - Structure Panel
+   ============================================================ */
+.course-structure-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    height: 100%;
+}
+
+.course-stats-bar {
+    display: flex;
+    gap: 1rem;
+    flex-shrink: 0;
+}
+
+.course-stats-bar__item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+}
+
+.course-stats-bar__icon {
+    color: var(--course-accent);
+}
+
+.course-stats-bar__text {
+    font-size: 0.875rem;
+}
+
+.course-stats-bar__text strong {
+    font-weight: 600;
+}
+
+/* ============================================================
+   Two Column Panel Layout
+   ============================================================ */
+.course-two-panel {
+    flex: 1;
+    display: flex;
+    gap: 1rem;
+    overflow: hidden;
+}
+
+.course-two-panel__sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.course-two-panel__header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--course-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.course-two-panel__title {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.course-two-panel__content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.course-two-panel__toolbar {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--course-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.course-two-panel__body {
+    flex: 1;
+    overflow: auto;
+    padding: 0.5rem;
+}
+
+.course-two-panel__empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--course-text-muted);
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* ============================================================
+   Category Tree in Step2
+   ============================================================ */
+.course-tree-list {
+    flex: 1;
+    overflow: auto;
+    padding: 0.5rem;
+}
+
+.course-tree-empty {
+    padding: 2rem;
+    text-align: center;
+    color: var(--course-text-muted);
+    font-size: 0.8125rem;
+}
+
+/* ============================================================
+   Course Row (Table Row in Step2)
+   ============================================================ */
+.course-row {
+    border-bottom: 1px solid var(--course-border);
+}
+
+.course-row__cell {
+    padding: 0.5rem;
+}
+
+.course-row__cell--grip {
+    width: 30px;
+    cursor: grab;
+    color: var(--course-text-muted);
+}
+
+.course-row__cell--actions {
+    width: 70px;
+    text-align: center;
+}
+
+.course-row__input {
+    width: 100%;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--course-form-input-border);
+    border-radius: 4px;
+    font-size: 0.8125rem;
+    background: var(--course-form-input-bg);
+    color: var(--course-text);
+    outline: none;
+}
+
+.course-row__input:focus {
+    border-color: var(--course-form-focus-border);
+}
+
+.course-row__input--code {
+    width: 80px;
+}
+
+.course-row__input--credits {
+    width: 50px;
+    text-align: center;
+}
+
+.course-row__code {
+    font-family: monospace;
+    font-size: 0.8125rem;
+}
+
+.course-row__placeholder {
+    color: var(--course-text-muted);
+    font-style: italic;
+}
+
+.course-row__text-muted {
+    color: var(--course-text-muted);
+}
+
+.course-row__btn {
+    padding: 0.25rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.course-row__btn--save {
+    background: var(--course-accent);
+    color: white;
+    border-radius: 4px;
+}
+
+.course-row__btn--edit {
+    color: var(--course-text-muted);
+}
+
+.course-row__btn--delete {
+    color: #dc2626;
+    margin-left: 0.25rem;
+}
+
+/* ============================================================
+   Step Indicator (inside component)
+   ============================================================ */
+.course-steps-indicator {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.course-step-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.course-step-indicator__num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--course-card-border);
+    color: var(--course-text-muted);
+}
+
+.course-step-indicator--active .course-step-indicator__num {
+    background: var(--course-accent);
+    color: white;
+}
+
+.course-step-indicator--done .course-step-indicator__num {
+    background: #22c55e;
+    color: white;
+}
+
+.course-step-indicator__label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--course-text);
+}
+
+.course-step-indicator__arrow {
+    color: var(--course-text-muted);
+    opacity: 0.5;
+}
+
+/* ============================================================
+   Step3 - Overview
+   ============================================================ */
+.course-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.course-overview-grid__stat {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    text-align: center;
+}
+
+.course-overview-grid__value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--course-accent);
+}
+
+.course-overview-grid__label {
+    font-size: 0.75rem;
+    color: var(--course-text-muted);
+    margin-top: 0.25rem;
+}
+
+.course-overview-info {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.course-overview-info__title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--course-border);
+}
+
+.course-overview-info__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    font-size: 0.8125rem;
+}
+
+.course-overview-info__label {
+    color: var(--course-text-muted);
+}
+
+.course-overview-info__value {
+    font-weight: 500;
+}
+
+.course-overview-structure {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.course-overview-structure__item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: var(--course-accent);
+    border-radius: 6px;
+}
+
+.course-overview-structure__code {
+    font-weight: 600;
+    color: var(--course-accent);
+    margin-right: 0.5rem;
+}
+
+.course-overview-structure__name {
+    font-size: 0.875rem;
+}
+
+.course-overview-structure__stats {
+    font-size: 0.8125rem;
+    color: var(--course-text-muted);
+}
+
+.course-overview-structure__stats span {
+    margin-left: 1rem;
+}
+
+.course-overview-empty {
+    text-align: center;
+    color: var(--course-text-muted);
+    padding: 1rem;
+}
+
+/* ============================================================
+   Form Navigation Buttons
+   ============================================================ */
+.course-form-nav__left {
+    display: flex;
+}
+
+.course-form-nav__right {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.course-form-nav__btn {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.625rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.course-form-nav__btn--secondary {
+    background: transparent;
+    border: 1px solid var(--course-border);
+    color: var(--course-text);
+}
+
+.course-form-nav__btn--secondary:hover {
+    background: var(--course-hover);
+}
+
+.course-form-nav__btn--primary {
+    background: var(--course-accent);
+    border: none;
+    color: white;
+}
+
+.course-form-nav__btn--primary:hover {
+    background: var(--course-accent-light);
+}
+
+.course-form-nav__btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   Tree Item (Category in Step2)
+   ============================================================ */
+.course-tree-item-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    padding-left: calc(0.5rem + var(--depth, 0) * 1rem);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s;
+}
+
+.course-tree-item-row:hover {
+    background: var(--course-tree-hover);
+}
+
+.course-tree-item-row--selected {
+    background: var(--course-panel-selected-bg);
+    border: 1px solid var(--course-panel-selected-border);
+    color: white;
+}
+
+.course-tree-item-row--selected:hover {
+    background: var(--course-panel-selected-bg);
+}
+
+.course-tree-item-row__expand {
+    width: 14px;
+    display: flex;
+    justify-content: center;
+}
+
+.course-tree-item-row__name {
+    flex: 1;
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.course-tree-item-row__name em {
+    opacity: 0.6;
+}
+
+.course-tree-item-row__credits {
+    font-size: 0.75rem;
+}
+
+.course-tree-item-row--selected .course-tree-item-row__credits {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.course-tree-item-row__actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: auto;
+}
+
+.course-tree-item-row__btn {
+    padding: 0.25rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.course-tree-item-row__btn--add {
+    color: inherit;
+}
+
+.course-tree-item-row__btn--delete {
+    color: #dc2626;
+}
+
+/* ============================================================
+   Toolbar in Step2
+   ============================================================ */
+.course-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.course-toolbar__category {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.course-toolbar__code {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.course-toolbar__name em {
+    opacity: 0.6;
+}
+
+.course-toolbar__credits-input {
+    width: 60px;
+    padding: 0.25rem 0.5rem;
+    text-align: center;
+}
+
+.course-toolbar__placeholder {
+    color: var(--course-text-muted);
+    font-size: 0.875rem;
+}
+
+/* ============================================================
+   Empty Icon
+   ============================================================ */
+.course-empty-icon {
+    opacity: 0.3;
+}

@@ -452,17 +452,13 @@ export default function TemplateManagementPage() {
     if (view === 'list') {
         return (
             <div className="tm-page">
-                <div className="tpl-list-view">
                     {/* Header */}
-                    <div className="tpl-list-view__header">
+                    <div className="tm-header">
                         <div>
                             <h1 className="tm-header__title">จัดการ Template หลักสูตร</h1>
                             <p className="tpl-list-view__sub">เลือก Template ที่ต้องการแก้ไข หรือสร้าง Template ใหม่</p>
                         </div>
                         <div style={{ display: 'flex', gap: '0.75rem' }}>
-                            <Link href="/course-management" className="btn btn--ghost">
-                                <Files size={15}/> จัดการหลักสูตร
-                            </Link>
                             <button className="btn btn--primary" onClick={() => setShowTemplateModal(true)}>
                                 <Plus size={15}/> สร้าง Template ใหม่
                             </button>
@@ -496,7 +492,6 @@ export default function TemplateManagementPage() {
                             </div>
                         </div>
                     )}
-                </div>
 
                 {/* Modals */}
                 {showTemplateModal && (

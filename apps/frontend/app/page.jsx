@@ -20,7 +20,7 @@ import { MONTHS } from '../data/competencyData';
 import { fetchCompetencyDashboard } from '../lib/competency';
 
 // Components
-import CompetencyLayout from '../components/competency/CompetencyLayout';
+import CompetencyLayout from '../components/layout/AppLayout';
 import CompetencyFilters from '../components/competency/CompetencyFilters';
 import CompetencyStats from '../components/competency/CompetencyStats';
 import CompetencyRadarChart from '../components/competency/CompetencyRadarChart';
@@ -360,6 +360,7 @@ export default function CompetencyPage() {
 
     return (
         <CompetencyLayout
+            role="user"
             activePage={activePage}
             onNavigate={setActivePage}
             user={user}
