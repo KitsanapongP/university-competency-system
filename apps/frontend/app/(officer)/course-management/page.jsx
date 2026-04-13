@@ -168,10 +168,12 @@ function CourseCard({ course, onEdit, onDuplicate, onDelete, onOpen }) {
                     <span className="course-card__stat-value">{course.stats.totalCredits}</span>
                     <span className="course-card__stat-label">หน่วยกิต</span>
                 </div>
-                <span className={`course-card__badge ${course.isActive ? 'course-card__badge--active' : 'course-card__badge--inactive'}`}>
-                    {course.isActive ? <Check size={12} /> : <X size={12} />}
-                    {course.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}
-                </span>
+                <div className="course-card__status">
+                    <span className={`course-card__badge ${course.isActive ? 'course-card__badge--active' : 'course-card__badge--inactive'}`}>
+                        {course.isActive ? <Check size={12} /> : <X size={12} />}
+                        {course.isActive ? 'ใช้งาน' : 'ไม่ใช้งาน'}
+                    </span>
+                </div>
             </div>
         </div>
     );

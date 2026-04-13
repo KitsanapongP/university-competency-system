@@ -20,6 +20,11 @@
 .course-create-container {
     max-width: 900px;
     margin: 0 auto;
+    transition: max-width 0.3s ease;
+}
+
+.course-create-container--wide {
+    max-width: 1200px;
 }
 
 /* ============================================================
@@ -57,6 +62,11 @@
     border-radius: 12px;
     padding: 2rem;
     min-height: 400px;
+    transition: max-width 0.3s ease;
+}
+
+.course-form-container--wide {
+    max-width: 1100px;
 }
 
 /* ============================================================
@@ -69,6 +79,11 @@
     max-width: 800px;
     margin: 1rem auto 0;
     padding-top: 1.5rem;
+    transition: max-width 0.3s ease;
+}
+
+.course-create-container--wide ~ .course-form-nav {
+    max-width: 1100px;
 }
 
 /* ============================================================
@@ -127,22 +142,27 @@
    Page Header
    ============================================================ */
 .course-create-header {
-    display: flex;
     align-items: center;
-    justify-content: space-between;
     margin-bottom: 1.5rem;
+    gap: 1rem;
 }
 
-.course-create-header__left {
-    display: flex;
+.course-create-header__center {
+    flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
+    justify-content: center;
 }
 
 .course-create-header__title {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--course-title);
+}
+
+.course-create-header__subtitle{
+    font-size: 0.875rem;
+    color: var(--course-text-muted);
+    margin-top: 0.25rem;
 }
 
 .course-create-header__back {
@@ -165,10 +185,123 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
-    padding: 1rem 0;
-    max-width: 800px;
+    padding: 1.5rem 0;
+    max-width: 600px;
     margin: 0 auto;
+}
+
+.course-step-wrapper {
+    display: flex;
+    align-items: center;
+}
+
+.course-step-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.course-step-item__num {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    background: var(--course-card-border);
+    color: var(--course-text-muted);
+    flex-shrink: 0;
+    transition: all 0.3s ease;
+}
+
+.course-step-item--active .course-step-item__num {
+    background: var(--course-accent);
+    color: white;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+}
+
+.course-step-item--done .course-step-item__num {
+    background: #22c55e;
+    color: white;
+}
+
+.course-step-item__label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--course-text-muted);
+    white-space: nowrap;
+    transition: all 0.3s ease;
+}
+
+.course-step-item--active .course-step-item__label {
+    color: var(--course-text);
+}
+
+.course-step-item--done .course-step-item__label {
+    color: var(--course-text);
+}
+
+.course-step-line {
+    width: 80px;
+    height: 2px;
+    background: var(--course-card-border);
+    margin: 0 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.course-step-line--done {
+    background: #22c55e;
+}
+
+.course-step-item {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.course-step-item__num {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    background: var(--course-card-border);
+    color: var(--course-text-muted);
+    flex-shrink: 0;
+    transition: all 0.3s ease;
+}
+
+.course-step-item--active .course-step-item__num {
+    background: var(--course-accent);
+    color: white;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+}
+
+.course-step-item--done .course-step-item__num {
+    background: #22c55e;
+    color: white;
+}
+
+.course-step-item__label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--course-text-muted);
+    white-space: nowrap;
+    padding: 0 0.75rem;
+    transition: all 0.3s ease;
+}
+
+.course-step-item--active .course-step-item__label {
+    color: var(--course-text);
+}
+
+.course-step-item--done .course-step-item__label {
+    color: var(--course-text);
 }
 
 .course-step {
@@ -609,6 +742,20 @@
         width: 100%;
         max-height: 200px;
     }
+
+    .course-create-header{
+        grid-template-columns: 1fr;
+        text-align: center;
+        gap: 0.75rem
+    }
+
+    .course-create-header__center {
+        order: -1;
+    }
+
+    .course-create-header__right {
+        display: none;
+    }
 }
 
 /* ============================================================
@@ -813,55 +960,6 @@
 .course-row__btn--delete {
     color: #dc2626;
     margin-left: 0.25rem;
-}
-
-/* ============================================================
-   Step Indicator (inside component)
-   ============================================================ */
-.course-steps-indicator {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.course-step-indicator {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.course-step-indicator__num {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 600;
-    background: var(--course-card-border);
-    color: var(--course-text-muted);
-}
-
-.course-step-indicator--active .course-step-indicator__num {
-    background: var(--course-accent);
-    color: white;
-}
-
-.course-step-indicator--done .course-step-indicator__num {
-    background: #22c55e;
-    color: white;
-}
-
-.course-step-indicator__label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--course-text);
-}
-
-.course-step-indicator__arrow {
-    color: var(--course-text-muted);
-    opacity: 0.5;
 }
 
 /* ============================================================

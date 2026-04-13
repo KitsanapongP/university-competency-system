@@ -32,9 +32,11 @@
     gap: 0.75rem;
 }
 
+.course-create-header__center {
+    text-align: center;
+}
+
 .course-editor-header__title {
-    display: flex;
-    flex-direction: column;
     gap: 0.25rem;
 }
 
@@ -229,14 +231,13 @@
 .course-tree-item__code {
     font-weight: 600;
     font-size: 0.8125rem;
-    min-width: 40px;
+    min-width: 1rem;
 }
 
 .course-tree-item__name {
     flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 0.8rem;
+    overflow-wrap: break-word;
 }
 
 .course-tree-item__credits {

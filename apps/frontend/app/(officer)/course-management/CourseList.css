@@ -168,6 +168,7 @@
     border-radius: 20px;
     font-size: 0.75rem;
     font-weight: 500;
+    height: 32px;
 }
 
 .course-card__badge--active {
@@ -221,6 +222,11 @@
     gap: 0.125rem;
 }
 
+.course-card__status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
 .course-card__stat-value {
     font-size: 1rem;
     font-weight: 600;

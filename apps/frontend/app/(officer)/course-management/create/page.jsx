@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Check, ChevronRight, ChevronDown, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, FileText, Pencil, GripVertical } from 'lucide-react';
 import { useLanguage } from '../../../../providers/LanguageContext';
@@ -17,13 +17,17 @@ function StepIndicator({ step }) {
                 const active = step === n;
                 const done = step > n;
                 return (
-                    <div key={n} className={`course-step-indicator ${active ? 'course-step-indicator--active' : ''} ${done ? 'course-step-indicator--done' : ''}`}>
-                        <span className="course-step-indicator__num">
-                            {done ? <Check size={12} /> : n}
-                        </span>
-                        <span className="course-step-indicator__label">{label}</span>
-                        {i < steps.length - 1 && <ChevronRight size={14} className="course-step-indicator__arrow" />}
-                    </div>
+                    <React.Fragment key={n}>
+                        <div className={`course-step-item ${active ? 'course-step-item--active' : ''} ${done ? 'course-step-item--done' : ''}`}>
+                            <span className="course-step-item__num">
+                                {done ? <Check size={12} /> : n}
+                            </span>
+                            <span className="course-step-item__label">{label}</span>
+                        </div>
+                        {i < steps.length - 1 && (
+                            <div className={`course-step-line ${step > i ? 'course-step-line--done' : ''}`} />
+                        )}
+                    </React.Fragment>
                 );
             })}
         </div>
@@ -694,78 +698,76 @@ export default function CreateCoursePage() {
 
     return (
         <div className='course-create-page'>
-            <div className='course-create-container'>
-                {/* Header */}
-                <div className='course-create-header'>
-                    <div className='course-create-header__left'>
-                        <button
-                            onClick={() => router.push('/course-management')}
-                            className='course-btn course-btn--ghost course-btn--sm'
-                        >
-                            <ArrowLeft size={16} /> กลับ
-                        </button>
-                        <div className='course-create-header__title'>
+            <div className={`course-create-container ${step === 2 ? 'course-create-container--wide' : ''}`}>
+                <div className={`course-form-container ${step === 2 ? 'course-form-container--wide' : ''}`}>
+                    {/* Header */}
+                    <div className='course-create-header'>
+                        <div className='course-create-header__center'>
+                            <div className='course-create-header__title'>
                                 สร้างหลักสูตรใหม่
+                            </div>
+                            <div className='course-create-header__subtitle'>
+                                กรอกข้อมูลและจัดโครงสร้างหลักสูตรของคุณ
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Step Indicator */}
-                <StepIndicator step={step} />
+                    {/* Step Indicator */}
+                    <StepIndicator step={step} />
 
-                {/* Form Steps */}
-                <div className='course-form-container'>
+                    {/* Form Steps */}
                     {step === 1 && <Step1 form={form} setForm={setForm} />}
                     {step === 2 && <Step2 form={form} setForm={setForm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} />}
                     {step === 3 && <Step3 form={form} />}
+
                 </div>
 
                 {/* Navigation Buttons */}
                 <div className='course-form-nav'>
-                {step === 1 ? (
-                    <div />
-                ) : (
-                    <button
-                        className='course-form-nav__btn course-form-nav__btn--secondary'
-                        onClick={() => setStep(s => s - 1)}
-                    >
-                        <ArrowLeft size={15} /> ย้อนกลับ
-                    </button>
-                )}
-                <div className='course-form-nav__right'>
-                    <button
-                        className='course-form-nav__btn course-form-nav__btn--secondary'
-                        onClick={() => router.push('/course-management')}
-                    >
-                        ยกเลิก
-                    </button>
-                    {step === 1 && (
+                    {step === 1 ? (
+                        <div />
+                    ) : (
                         <button
-                            className='course-form-nav__btn course-form-nav__btn--primary'
-                            onClick={() => setStep(2)}
-                            disabled={!canNext()}
+                            className='course-form-nav__btn course-form-nav__btn--secondary'
+                            onClick={() => setStep(s => s - 1)}
                         >
-                            ถัดไป <ArrowRight size={15} />
+                            <ArrowLeft size={15} /> ย้อนกลับ
                         </button>
                     )}
-                    {step === 2 && (
+                    <div className='course-form-nav__right'>
                         <button
-                            className='course-form-nav__btn course-form-nav__btn--primary'
-                            onClick={() => setStep(3)}
+                            className='course-form-nav__btn course-form-nav__btn--secondary'
+                            onClick={() => router.push('/course-management')}
                         >
-                            ถัดไป <ArrowRight size={15} />
+                            ยกเลิก
                         </button>
-                    )}
-                    {step === 3 && (
-                        <button
-                            className='course-form-nav__btn course-form-nav__btn--primary'
-                            onClick={handleSave}
-                        >
-                            <Check size={15} /> บันทึกหลักสูตร
-                        </button>
-                    )}
+                        {step === 1 && (
+                            <button
+                                className='course-form-nav__btn course-form-nav__btn--primary'
+                                onClick={() => setStep(2)}
+                                disabled={!canNext()}
+                            >
+                                ถัดไป <ArrowRight size={15} />
+                            </button>
+                        )}
+                        {step === 2 && (
+                            <button
+                                className='course-form-nav__btn course-form-nav__btn--primary'
+                                onClick={() => setStep(3)}
+                            >
+                                ถัดไป <ArrowRight size={15} />
+                            </button>
+                        )}
+                        {step === 3 && (
+                            <button
+                                className='course-form-nav__btn course-form-nav__btn--primary'
+                                onClick={handleSave}
+                            >
+                                <Check size={15} /> บันทึกหลักสูตร
+                            </button>
+                        )}
+                    </div>
                 </div>
-            </div>
             </div>
         </div>
     );
