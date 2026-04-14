@@ -3,6 +3,84 @@
    ============================================================ */
 
 /* ============================================================
+   Modal Styles
+   ============================================================ */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-content {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 400px;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.5rem 1.5rem 0.5rem;
+    text-align: center;
+}
+
+.modal-header h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--course-text);
+    margin: 0;
+}
+
+.modal-icon--warning {
+    color: #dc2626;
+}
+
+.modal-body {
+    padding: 0.5rem 1.5rem 1.5rem;
+    text-align: center;
+}
+
+.modal-body p {
+    margin: 0;
+    color: var(--course-text);
+    font-size: 0.9375rem;
+}
+
+.modal-body__hint {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--course-text-muted);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0 1.5rem 1.5rem;
+}
+
+/* ============================================================
    Page Layout
    ============================================================ */
 .course-create-page {
@@ -478,6 +556,83 @@
 .course-spreadsheet-th--wide { width: 200px; }
 .course-spreadsheet-th--num { width: 80px; text-align: center; }
 .course-spreadsheet-th--actions { width: 64px; }
+.course-spreadsheet-th--checkbox {
+    width: 40px;
+    padding: 0;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.course-spreadsheet-th--checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--course-accent);
+}
+
+.course-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: var(--course-card-bg);
+    border-bottom: 1px solid var(--course-border);
+}
+
+.course-toolbar__left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.course-toolbar__right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.course-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--course-text);
+    cursor: pointer;
+}
+
+.course-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--course-accent);
+}
+
+/* Spreadsheet styles */
+.ss-row { border-bottom: 1px solid var(--course-border); transition: background 0.1s; }
+.ss-row:hover { background: var(--course-tree-hover); }
+.ss-row--editing { background: var(--course-panel-selected-bg) !important; }
+.ss-row--selected { background: rgba(99, 102, 241, 0.08) !important; }
+
+.ss-cell {
+    padding: 0.4rem 0.625rem;
+    border-right: 1px solid var(--course-modal-border);
+    vertical-align: middle;
+    color: var(--course-tree-name);
+    cursor: default;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.8125rem;
+}
+
+.ss-cell--grip    { width: 28px; padding: 0 4px; text-align: center; color: var(--course-text-muted); cursor: grab; }
+.ss-cell--num     { text-align: center; width: 80px; }
+.ss-cell--checkbox { width: 40px; text-align: center; }
+.ss-cell--actions { width: 64px; text-align: center; white-space: nowrap; }
+.ss-cell--wide    { width: 200px; }
+
+.ss-code { font-family: monospace; color: var(--course-accent); font-size: 0.78rem; }
+.ss-placeholder { color: var(--course-text-muted); font-style: italic; }
 
 .course-spreadsheet-row {
     border-bottom: 1px solid var(--course-border);
@@ -850,8 +1005,17 @@
 
 .course-two-panel__body {
     flex: 1;
-    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     padding: 0.5rem;
+}
+
+.course-spreadsheet-scroll {
+    flex: 1;
+    overflow: auto;
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
 }
 
 .course-two-panel__empty {
@@ -1104,6 +1268,16 @@
 
 .course-form-nav__btn--primary:hover {
     background: var(--course-accent-light);
+}
+
+.course-form-nav__btn--danger {
+    background: #ef4444;
+    border: none;
+    color: white;
+}
+
+.course-form-nav__btn--danger:hover {
+    background: #dc2626;
 }
 
 .course-form-nav__btn:disabled {

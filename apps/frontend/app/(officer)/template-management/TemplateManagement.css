@@ -536,7 +536,6 @@
     align-items: center;
     justify-content: space-between;
     padding: 1.1rem 1.5rem;
-    border-bottom: 1px solid var(--tm-modal-border);
 }
 
 .modal-header h3 { margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--tm-text); }
@@ -566,7 +565,6 @@
     justify-content: flex-end; 
     gap: 0.75rem; 
     padding: 1rem 1.5rem; 
-    border-top: 1px solid var(--tm-modal-border); 
 }
 
 /* ============================================================

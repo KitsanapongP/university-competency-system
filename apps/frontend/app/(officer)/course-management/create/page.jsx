@@ -2,11 +2,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Check, ChevronRight, ChevronDown, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, FileText, Pencil, GripVertical } from 'lucide-react';
+import { X, Check, ChevronRight, ChevronDown, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, FileText, Pencil, GripVertical, AlertTriangle } from 'lucide-react';
 import { useLanguage } from '../../../../providers/LanguageContext';
 import '../../../../app/Competency.css';
 import '../CourseLayout.css';
 import '../CourseCreate.css';
+import '../../template-management/TemplateManagement.css';
 
 function StepIndicator({ step }) {
     const steps = ['ข้อมูลหลักสูตร', 'โครงสร้างหลักสูตร', 'ภาพรวม'];
@@ -25,7 +26,7 @@ function StepIndicator({ step }) {
                             <span className="course-step-item__label">{label}</span>
                         </div>
                         {i < steps.length - 1 && (
-                            <div className={`course-step-line ${step > i ? 'course-step-line--done' : ''}`} />
+                            <div className={`course-step-line ${step >= i+2 ? 'course-step-line--done' : ''}`} />
                         )}
                     </React.Fragment>
                 );
@@ -211,6 +212,109 @@ function CourseRow({ course, onUpdate, onDelete }) {
     );
 }
 
+function SpreadsheetRow({ course, isSelected, onToggleSelect, onUpdate, onDelete }) {
+    const [editing, setEditing] = useState(false);
+    const [form, setForm] = useState({
+        code: course.code || '',
+        nameTh: course.nameTh || '',
+        nameEn: course.nameEn || '',
+        credits: course.credits || 0,
+    });
+
+    const handleSave = () => {
+        if (!form.code.trim() && !form.nameTh.trim()) return;
+        onUpdate({ ...course, ...form, credits: Number(form.credits) || 0 });
+        setEditing(false);
+    };
+
+    const handleKey = (e) => {
+        if (e.key === 'Enter') handleSave();
+        if (e.key === 'Escape') {
+            setForm({ code: course.code || '', nameTh: course.nameTh || '', nameEn: course.nameEn || '', credits: course.credits || 0 });
+            setEditing(false);
+        }
+    };
+
+    const handleCellClick = () => setEditing(true);
+
+    return (
+        <tr className={`ss-row ${editing ? 'ss-row--editing' : ''} ${isSelected ? 'ss-row--selected' : ''}`}>
+            <td className="ss-cell ss-cell--checkbox">
+                <input
+                    type="checkbox"
+                    checked={isSelected || false}
+                    onChange={() => onToggleSelect(course.id)}
+                />
+            </td>
+            <td className="ss-cell ss-cell--grip">
+                <GripVertical size={13} />
+            </td>
+            <td className="ss-cell" onClick={handleCellClick}>
+                {editing ? (
+                    <input
+                        className="ss-input"
+                        value={form.code}
+                        onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
+                        onKeyDown={handleKey}
+                        placeholder="รหัสวิชา"
+                    />
+                ) : (
+                    <span className="ss-code">{course.code || <span className="ss-placeholder">รหัสวิชา</span>}</span>
+                )}
+            </td>
+            <td className="ss-cell ss-cell--wide" onClick={handleCellClick}>
+                {editing ? (
+                    <input
+                        className="ss-input"
+                        value={form.nameTh}
+                        onChange={e => setForm(p => ({ ...p, nameTh: e.target.value }))}
+                        onKeyDown={handleKey}
+                        placeholder="ชื่อวิชาภาษาไทย"
+                    />
+                ) : (
+                    <span>{course.nameTh || <span className="ss-placeholder">ชื่อภาษาไทย</span>}</span>
+                )}
+            </td>
+            <td className="ss-cell ss-cell--wide" onClick={handleCellClick}>
+                {editing ? (
+                    <input
+                        className="ss-input"
+                        value={form.nameEn}
+                        onChange={e => setForm(p => ({ ...p, nameEn: e.target.value }))}
+                        onKeyDown={handleKey}
+                        placeholder="English Name"
+                    />
+                ) : (
+                    <span>{course.nameEn || <span className="ss-placeholder">English Name</span>}</span>
+                )}
+            </td>
+            <td className="ss-cell ss-cell--num" onClick={handleCellClick}>
+                {editing ? (
+                    <input
+                        className="ss-input ss-input--num"
+                        type="number"
+                        min={0}
+                        max={12}
+                        value={form.credits}
+                        onChange={e => setForm(p => ({ ...p, credits: parseInt(e.target.value) || 0 }))}
+                        onKeyDown={handleKey}
+                        placeholder="0"
+                    />
+                ) : (
+                    <span>{course.credits || <span className="ss-placeholder">0</span>}</span>
+                )}
+            </td>
+            <td className="ss-cell ss-cell--actions" onClick={e => e.stopPropagation()}>
+                {editing ? (
+                    <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={handleSave}>
+                        <Check size={13} />
+                    </button>
+                ) : null}
+            </td>
+        </tr>
+    );
+}
+
 function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChild, onDelete, handleUpdateCategory }) {
     const [expanded, setExpanded] = useState(true);
     const [renaming, setRenaming] = useState(cat.isNew || false);
@@ -221,24 +325,22 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
 
     const hasChildren = cat.children?.length > 0;
     const isSelected = cat.id === selectedId;
+    
+    const getDepth = (c, d = 0) => {
+        if (!c.children?.length) return d;
+        return Math.max(...c.children.map(ch => getDepth(ch, d + 1)));
+    };
+    
+    const catDepth = getDepth(cat, 0);
+    const canAddChild = catDepth < 3;
 
     const confirm = () => { onRename(cat.id, nameVal || 'หมวดใหม่'); setRenaming(false); };
 
     return (
         <div>
             <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.5rem 0.75rem',
-                    paddingLeft: `${0.5 + depth * 1}rem`,
-                    cursor: 'pointer',
-                    background: isSelected ? 'var(--primary)' : 'transparent',
-                    color: isSelected ? 'white' : 'var(--foreground)',
-                    borderRadius: 6,
-                    transition: 'background 0.15s',
-                }}
+                className={`course-tree-item ${isSelected ? 'course-tree-item--selected' : ''}`}
+                style={{ paddingLeft: `${0.5 + depth * 1}rem` }}
                 onClick={e => { e.stopPropagation(); onSelect(cat); if (hasChildren) setExpanded(p => !p); }}
             >
                 <span style={{ width: 14, display: 'flex', justifyContent: 'center' }}>
@@ -274,7 +376,17 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
                 </span>
 
                 <div style={{ display: 'flex', gap: '0.25rem', marginLeft: 'auto' }} onClick={e => e.stopPropagation()}>
-                    <button onClick={() => onCreateChild(cat)} style={{ padding: '0.25rem', background: 'transparent', border: 'none', cursor: 'pointer', color: isSelected ? 'white' : 'var(--text-muted)' }}>
+                    <button 
+                        onClick={() => canAddChild && onCreateChild(cat)} 
+                        style={{ 
+                            padding: '0.25rem', 
+                            background: 'transparent', 
+                            border: 'none', 
+                            cursor: canAddChild ? 'pointer' : 'not-allowed',
+                            color: canAddChild ? (isSelected ? 'white' : 'var(--text-muted)') : 'var(--text-muted)',
+                            opacity: canAddChild ? 1 : 0.3
+                        }}
+                    >
                         <Plus size={12} />
                     </button>
                     <button onClick={() => onDelete(cat)} style={{ padding: '0.25rem', background: 'transparent', border: 'none', cursor: 'pointer', color: '#dc2626' }}>
@@ -307,12 +419,36 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
 function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     const categories = form.categories || [];
     const coursesByCategory = form.coursesByCategory || {};
-    const courses = selectedCategory ? (coursesByCategory[selectedCategory.id] || []) : [];
+    const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+    const getDepth = (cat, depth = 0) => {
+        if (!cat.children?.length) return depth;
+        return Math.max(...cat.children.map(c => getDepth(c, depth + 1)));
+    };
+
+    const getMaxDepth = (cats, depth = 0) => {
+        if (!cats?.length) return depth - 1;
+        return Math.max(...cats.map(c => getDepth(c, depth)));
+    };
+
+    const maxDepthReached = getMaxDepth(categories) >= 3;
+
+    const getAllCoursesInCategory = (cat) => {
+        const courses = coursesByCategory[cat.id] || [];
+        const childCourses = (cat.children || []).flatMap(c => getAllCoursesInCategory(c));
+        return [...courses, ...childCourses];
+    };
+
+    const courses = selectedCategory ? getAllCoursesInCategory(selectedCategory) : [];
+
+    const isLeafCategory = selectedCategory && !(selectedCategory.children?.length > 0);
 
     const getNextCode = (siblings) => `${siblings.length + 1}`;
     const getNextChildCode = (parentCode, siblings) => `${parentCode}.${siblings.length + 1}`;
 
     const handleAddCategory = () => {
+        if (maxDepthReached) return;
         const code = getNextCode(categories);
         const newCat = {
             id: `cat_${Date.now()}`,
@@ -331,6 +467,9 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     };
 
     const handleAddChildCategory = (parent) => {
+        const parentDepth = getDepth(parent, 0);
+        if (parentDepth >= 3) return;
+
         const siblings = parent.children || [];
         const code = getNextChildCode(parent.code, siblings);
         const newCat = {
@@ -342,6 +481,8 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
             isNew: true,
         };
 
+        const parentCourses = coursesByCategory[parent.id] || [];
+
         const updateCategories = (cats) => cats.map(c => {
             if (c.id === parent.id) {
                 return { ...c, children: [...(c.children || []), newCat] };
@@ -352,10 +493,14 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
             return c;
         });
 
+        const newCoursesByCategory = { ...coursesByCategory };
+        delete newCoursesByCategory[parent.id];
+        newCoursesByCategory[newCat.id] = parentCourses;
+
         setForm(p => ({
             ...p,
             categories: updateCategories(p.categories),
-            coursesByCategory: { ...p.coursesByCategory, [newCat.id]: [] },
+            coursesByCategory: newCoursesByCategory,
         }));
         setSelectedCategory(newCat);
     };
@@ -395,7 +540,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     };
 
     const handleAddCourse = () => {
-        if (!selectedCategory) return;
+        if (!selectedCategory || !isLeafCategory) return;
         const course = { id: `course_${Date.now()}`, code: '', nameTh: '', nameEn: '', credits: 0 };
         setForm(p => ({
             ...p,
@@ -408,14 +553,32 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
 
     const handleUpdateCourse = (updatedCourse) => {
         if (!selectedCategory) return;
+        
+        const findAndUpdateCourse = (cats, courseId, updated) => {
+            return cats.map(c => {
+                const catCourses = coursesByCategory[c.id] || [];
+                const updatedCourses = catCourses.map(cour => 
+                    cour.id === courseId ? updated : cour
+                );
+                if (updatedCourses !== catCourses) {
+                    const newCourses = { ...coursesByCategory, [c.id]: updatedCourses };
+                    return { ...c };
+                }
+                if (c.children?.length) {
+                    return { ...c, children: findAndUpdateCourse(c.children, courseId, updated) };
+                }
+                return c;
+            });
+        };
+
+        const newCoursesByCategory = { ...coursesByCategory };
+        newCoursesByCategory[selectedCategory.id] = (coursesByCategory[selectedCategory.id] || []).map(c =>
+            c.id === updatedCourse.id ? updatedCourse : c
+        );
+
         setForm(p => ({
             ...p,
-            coursesByCategory: {
-                ...p.coursesByCategory,
-                [selectedCategory.id]: (p.coursesByCategory[selectedCategory.id] || []).map(c =>
-                    c.id === updatedCourse.id ? updatedCourse : c
-                ),
-            },
+            coursesByCategory: newCoursesByCategory,
         }));
     };
 
@@ -428,6 +591,39 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                 [selectedCategory.id]: (p.coursesByCategory[selectedCategory.id] || []).filter(c => c.id !== course.id),
             },
         }));
+    };
+
+    const handleToggleCourseSelection = (courseId) => {
+        setSelectedCourseIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(courseId)) {
+                newSet.delete(courseId);
+            } else {
+                newSet.add(courseId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSelectAllCourses = () => {
+        if (selectedCourseIds.size === courses.length) {
+            setSelectedCourseIds(new Set());
+        } else {
+            setSelectedCourseIds(new Set(courses.map(c => c.id)));
+        }
+    };
+
+    const handleDeleteSelectedCourses = () => {
+        if (selectedCourseIds.size === 0) return;
+        setForm(p => ({
+            ...p,
+            coursesByCategory: {
+                ...p.coursesByCategory,
+                [selectedCategory.id]: (p.coursesByCategory[selectedCategory.id] || []).filter(c => !selectedCourseIds.has(c.id)),
+            },
+        }));
+        setSelectedCourseIds(new Set());
+        setShowDeleteModal(false);
     };
 
     const addCredits = (cat, visited = new Set()) => {
@@ -516,45 +712,68 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                         </div>
                         <div>
                             {selectedCategory && (
-                                <button
-                                    className="course-btn course-btn--primary course-btn--sm"
-                                    onClick={handleAddCourse}
-                                >
-                                    <Plus size={13} /> เพิ่มรายวิชา
-                                </button>
+                                selectedCourseIds.size > 0 ? (
+                                    <button
+                                        className="course-btn course-btn--danger course-btn--sm"
+                                        onClick={() => setShowDeleteModal(true)}
+                                    >
+                                        <Trash2 size={13} /> ลบ ({selectedCourseIds.size})
+                                    </button>
+                                ) : (
+                                    <button
+                                        className="course-btn course-btn--primary course-btn--sm"
+                                        onClick={handleAddCourse}
+                                        disabled={!isLeafCategory}
+                                        title={!isLeafCategory ? 'เพิ่มได้เฉพาะหมวดที่อยู่ระดับลึกที่สุด' : ''}
+                                    >
+                                        <Plus size={13} /> เพิ่มรายวิชา
+                                    </button>
+                                )
                             )}
                         </div>
                     </div>
 
                     {selectedCategory ? (
                         <div className="course-two-panel__body">
-                            <table className="course-spreadsheet-table">
-                                <thead>
-                                    <tr>
-                                        <th className="course-spreadsheet-th course-spreadsheet-th--grip"></th>
-                                        <th className="course-spreadsheet-th">รหัสวิชา</th>
-                                        <th className="course-spreadsheet-th course-spreadsheet-th--wide">ชื่อวิชา (ไทย)</th>
-                                        <th className="course-spreadsheet-th course-spreadsheet-th--wide">ชื่อวิชา (Eng)</th>
-                                        <th className="course-spreadsheet-th course-spreadsheet-th--num">หน่วยกิต</th>
-                                        <th className="course-spreadsheet-th course-spreadsheet-th--actions"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {courses.map(course => (
-                                        <CourseRow
-                                            key={course.id}
-                                            course={course}
-                                            onUpdate={handleUpdateCourse}
-                                            onDelete={handleDeleteCourse}
-                                        />
-                                    ))}
-                                </tbody>
-                            </table>
-                            {courses.length === 0 && (
-                                <div className="course-spreadsheet-empty">
-                                    ยังไม่มีรายวิชา — กดปุ่ม "เพิ่มรายวิชา"
-                                </div>
-                            )}
+                            <div className="course-spreadsheet-scroll">
+                                <table className="course-spreadsheet-table">
+                                    <thead>
+                                        <tr>
+                                            <th className="course-spreadsheet-th course-spreadsheet-th--checkbox">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedCourseIds.size === courses.length && courses.length > 0}
+                                                    onChange={handleSelectAllCourses}
+                                                    title="เลือกทั้งหมด"
+                                                />
+                                            </th>
+                                            <th className="course-spreadsheet-th course-spreadsheet-th--grip"></th>
+                                            <th className="course-spreadsheet-th">รหัสวิชา</th>
+                                            <th className="course-spreadsheet-th course-spreadsheet-th--wide">ชื่อวิชา (ไทย)</th>
+                                            <th className="course-spreadsheet-th course-spreadsheet-th--wide">ชื่อวิชา (Eng)</th>
+                                            <th className="course-spreadsheet-th course-spreadsheet-th--num">หน่วยกิต</th>
+                                            <th className="course-spreadsheet-th course-spreadsheet-th--actions"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {courses.map(course => (
+                                            <SpreadsheetRow
+                                                key={course.id}
+                                                course={course}
+                                                isSelected={selectedCourseIds.has(course.id)}
+                                                onToggleSelect={handleToggleCourseSelection}
+                                                onUpdate={handleUpdateCourse}
+                                                onDelete={handleDeleteCourse}
+                                            />
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {courses.length === 0 && (
+                                    <div className="course-spreadsheet-empty">
+                                        ยังไม่มีรายวิชา — กดปุ่ม "เพิ่มรายวิชา"
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ) : (
                         <div className="course-two-panel__empty">
@@ -564,6 +783,36 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                     )}
                 </div>
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && (
+                <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <AlertTriangle size={24} className="modal-icon--warning" />
+                            <h3>ยืนยันการลบวิชา</h3>
+                        </div>
+                        <div className="modal-body">
+                            <p>คุณแน่ใจหรือไม่ที่จะลบวิชาที่เลือก ({selectedCourseIds.size} วิชา)?</p>
+                            <p className="modal-body__hint">การลบวิชาจะไม่สามารถกู้คืนได้</p>
+                        </div>
+                        <div className="modal-footer">
+                            <button
+                                className='course-form-nav__btn course-form-nav__btn--secondary'
+                                onClick={() => setShowDeleteModal(false)}
+                            >
+                                ยกเลิก
+                            </button>
+                            <button
+                                className='course-form-nav__btn course-form-nav__btn--danger'
+                                onClick={handleDeleteSelectedCourses}
+                            >
+                                <Trash2 size={15} /> ยืนยันการลบ
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -671,6 +920,7 @@ export default function CreateCoursePage() {
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(EMPTY_FORM);
     const [selectedCategory, setSelectedCategory] = useState(null);
+    const [showCancelModal, setShowCancelModal] = useState(false);
 
     const canNext = () => {
         if (step === 1) {
@@ -724,23 +974,23 @@ export default function CreateCoursePage() {
 
                 {/* Navigation Buttons */}
                 <div className='course-form-nav'>
-                    {step === 1 ? (
-                        <div />
-                    ) : (
+                    <div className='course-form-nav__left'>
                         <button
-                            className='course-form-nav__btn course-form-nav__btn--secondary'
-                            onClick={() => setStep(s => s - 1)}
+                            className='course-form-nav__btn course-form-nav__btn--danger'
+                            onClick={() => setShowCancelModal(true)}
                         >
-                            <ArrowLeft size={15} /> ย้อนกลับ
+                            <X size={15} /> ยกเลิก
                         </button>
-                    )}
+                    </div>
                     <div className='course-form-nav__right'>
-                        <button
-                            className='course-form-nav__btn course-form-nav__btn--secondary'
-                            onClick={() => router.push('/course-management')}
-                        >
-                            ยกเลิก
-                        </button>
+                        {step > 1 && (
+                            <button
+                                className='course-form-nav__btn course-form-nav__btn--secondary'
+                                onClick={() => setStep(s => s - 1)}
+                            >
+                                <ArrowLeft size={15} /> ย้อนกลับ
+                            </button>
+                        )}
                         {step === 1 && (
                             <button
                                 className='course-form-nav__btn course-form-nav__btn--primary'
@@ -768,6 +1018,39 @@ export default function CreateCoursePage() {
                         )}
                     </div>
                 </div>
+
+                {/* Cancel Confirmation Modal */}
+                {showCancelModal && (
+                    <div className="modal-overlay" onClick={() => setShowCancelModal(false)}>
+                        <div className="modal-content" onClick={e => e.stopPropagation()}>
+                            <div className="modal-header">
+                                <AlertTriangle size={24} className="modal-icon--warning" />
+                                <h3>ยืนยันการยกเลิก</h3>
+                            </div>
+                            <div className="modal-body">
+                                <p>คุณแน่ใจหรือไม่ที่จะยกเลิกการสร้างหลักสูตร?</p>
+                                <p className="modal-body__hint">ข้อมูลที่กรอกไว้ทั้งหมดจะหายไป</p>
+                            </div>
+                            <div className="modal-footer">
+                                <button
+                                    className='course-form-nav__btn course-form-nav__btn--secondary'
+                                    onClick={() => setShowCancelModal(false)}
+                                >
+                                    ยกเลิก
+                                </button>
+                                <button
+                                    className='course-form-nav__btn course-form-nav__btn--danger'
+                                    onClick={() => {
+                                        setShowCancelModal(false);
+                                        router.push('/course-management');
+                                    }}
+                                >
+                                    ยืนยัน
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
