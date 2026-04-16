@@ -1394,8 +1394,149 @@
 }
 
 /* ============================================================
-   Empty Icon
-   ============================================================ */
+    Empty Icon
+    ============================================================ */
 .course-empty-icon {
     opacity: 0.3;
+}
+
+/* ============================================================
+    Detail Panel Toolbar - Row 1
+    ============================================================ */
+.course-detail-toolbar {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--course-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.course-detail-toolbar__left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.course-detail-toolbar__label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--course-text-muted);
+    white-space: nowrap;
+}
+
+.course-detail-toolbar__name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.course-detail-toolbar__name-text {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--course-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.course-detail-toolbar__name-text em {
+    color: var(--course-text-muted);
+    font-style: italic;
+}
+
+.course-detail-toolbar__edit-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--course-text-muted);
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.15s;
+}
+
+.course-detail-toolbar__edit-btn:hover {
+    background: var(--course-hover);
+    color: var(--course-text);
+}
+
+.course-detail-toolbar__name-input {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    border: 1px solid var(--course-form-input-border);
+    border-radius: 4px;
+    background: var(--course-form-input-bg);
+    color: var(--course-text);
+    outline: none;
+    min-width: 150px;
+}
+
+.course-detail-toolbar__name-input:focus {
+    border-color: var(--course-form-focus-border);
+}
+
+.course-detail-toolbar__placeholder {
+    color: var(--course-text-muted);
+    font-size: 0.875rem;
+}
+
+.course-detail-toolbar__right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-shrink: 0;
+}
+
+.course-detail-toolbar__credits {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.course-detail-toolbar__credits-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--course-text-muted);
+}
+
+.course-detail-toolbar__credits-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--course-text);
+    min-width: 24px;
+    text-align: center;
+}
+
+.course-detail-toolbar__delete-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #dc2626;
+    padding: 0.375rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all 0.15s;
+}
+
+.course-detail-toolbar__delete-btn:hover {
+    background: rgba(220, 38, 38, 0.1);
+}
+
+/* ============================================================
+    Detail Panel Courses Header - Row 2
+    ============================================================ */
+.course-detail-courses {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--course-border);
+    display: flex;
+    justify-content: flex-end;
 }

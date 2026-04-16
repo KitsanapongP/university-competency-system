@@ -26,7 +26,7 @@ function StepIndicator({ step }) {
                             <span className="course-step-item__label">{label}</span>
                         </div>
                         {i < steps.length - 1 && (
-                            <div className={`course-step-line ${step >= i+2 ? 'course-step-line--done' : ''}`} />
+                            <div className={`course-step-line ${step >= i + 2 ? 'course-step-line--done' : ''}`} />
                         )}
                     </React.Fragment>
                 );
@@ -37,11 +37,6 @@ function StepIndicator({ step }) {
 
 function Step1({ form, setForm }) {
     const { t } = useLanguage();
-    const currentYear = new Date().getFullYear() + 543;
-    const years = [];
-    for (let y = currentYear - 5; y <= currentYear + 2; y++) {
-        years.push(y);
-    }
 
     return (
         <div className="course-form-group">
@@ -69,16 +64,15 @@ function Step1({ form, setForm }) {
             <div className="course-form-row">
                 <div className="course-form-field">
                     <label className="course-form-field__label">ปีการศึกษา<span className="course-form-field__required">*</span></label>
-                    <select
+                    <input
+                        type="number"
                         className="course-form-field__input"
                         value={form.year || ''}
                         onChange={e => setForm(p => ({ ...p, year: parseInt(e.target.value) || null }))}
-                    >
-                        <option value="">เลือกปีการศึกษา</option>
-                        {years.map(y => (
-                            <option key={y} value={y}>ปีการศึกษา {y}</option>
-                        ))}
-                    </select>
+                        placeholder="เช่น 2568"
+                        min={2500}
+                        max={2600}
+                    />
                 </div>
                 <div className="course-form-field">
                     <label className="course-form-field__label">ชื่อปริญญา (ภาษาไทย)<span className="course-form-field__required">*</span></label>
@@ -212,7 +206,7 @@ function CourseRow({ course, onUpdate, onDelete }) {
     );
 }
 
-function SpreadsheetRow({ course, isSelected, onToggleSelect, onUpdate, onDelete }) {
+function SpreadsheetRow({ course, isSelected, isEditingCourse, onToggleSelect, onUpdate, onDelete, onSetEditing }) {
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState({
         code: course.code || '',
@@ -221,10 +215,30 @@ function SpreadsheetRow({ course, isSelected, onToggleSelect, onUpdate, onDelete
         credits: course.credits || 0,
     });
 
+    useEffect(() => {
+        if (isEditingCourse) {
+            setEditing(true);
+        } else {
+            setEditing(false);
+        }
+    }, [isEditingCourse]);
+
+    useEffect(() => {
+        if (editing) {
+            setForm({
+                code: course.code || '',
+                nameTh: course.nameTh || '',
+                nameEn: course.nameEn || '',
+                credits: course.credits || 0,
+            });
+        }
+    }, [course.code, course.nameTh, course.nameEn, course.credits, editing]);
+
     const handleSave = () => {
         if (!form.code.trim() && !form.nameTh.trim()) return;
         onUpdate({ ...course, ...form, credits: Number(form.credits) || 0 });
         setEditing(false);
+        if (onSetEditing) onSetEditing(null);
     };
 
     const handleKey = (e) => {
@@ -232,6 +246,7 @@ function SpreadsheetRow({ course, isSelected, onToggleSelect, onUpdate, onDelete
         if (e.key === 'Escape') {
             setForm({ code: course.code || '', nameTh: course.nameTh || '', nameEn: course.nameEn || '', credits: course.credits || 0 });
             setEditing(false);
+            if (onSetEditing) onSetEditing(null);
         }
     };
 
@@ -292,13 +307,16 @@ function SpreadsheetRow({ course, isSelected, onToggleSelect, onUpdate, onDelete
                 {editing ? (
                     <input
                         className="ss-input ss-input--num"
-                        type="number"
-                        min={0}
-                        max={12}
+                        type="text"
+                        inputMode="numeric"
                         value={form.credits}
-                        onChange={e => setForm(p => ({ ...p, credits: parseInt(e.target.value) || 0 }))}
+                        onChange={e => {
+                            const val = e.target.value.replace(/[^0-9]/g, '');
+                            setForm(p => ({ ...p, credits: val }));
+                        }}
                         onKeyDown={handleKey}
                         placeholder="0"
+                        autoFocus
                     />
                 ) : (
                     <span>{course.credits || <span className="ss-placeholder">0</span>}</span>
@@ -315,7 +333,7 @@ function SpreadsheetRow({ course, isSelected, onToggleSelect, onUpdate, onDelete
     );
 }
 
-function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChild, onDelete, handleUpdateCategory }) {
+function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChild, onDelete, handleUpdateCategory, getTotalCredits, coursesByCategory }) {
     const [expanded, setExpanded] = useState(true);
     const [renaming, setRenaming] = useState(cat.isNew || false);
     const [nameVal, setNameVal] = useState(cat.name);
@@ -325,14 +343,17 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
 
     const hasChildren = cat.children?.length > 0;
     const isSelected = cat.id === selectedId;
-    
+
     const getDepth = (c, d = 0) => {
         if (!c.children?.length) return d;
         return Math.max(...c.children.map(ch => getDepth(ch, d + 1)));
     };
-    
-    const catDepth = getDepth(cat, 0);
-    const canAddChild = catDepth < 3;
+
+    const subTreeDepth = getDepth(cat, 0);
+    const totalDepth = depth + subTreeDepth;
+    const canAddChild = totalDepth < 3;
+
+    const totalCredits = getTotalCredits ? getTotalCredits(cat) : (cat.requiredCredits || 0);
 
     const confirm = () => { onRename(cat.id, nameVal || 'หมวดใหม่'); setRenaming(false); };
 
@@ -372,27 +393,8 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
                 )}
 
                 <span style={{ fontSize: '0.75rem', color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
-                    {cat.requiredCredits || 0} หน่วยกิต
+                    {totalCredits} หน่วยกิต
                 </span>
-
-                <div style={{ display: 'flex', gap: '0.25rem', marginLeft: 'auto' }} onClick={e => e.stopPropagation()}>
-                    <button 
-                        onClick={() => canAddChild && onCreateChild(cat)} 
-                        style={{ 
-                            padding: '0.25rem', 
-                            background: 'transparent', 
-                            border: 'none', 
-                            cursor: canAddChild ? 'pointer' : 'not-allowed',
-                            color: canAddChild ? (isSelected ? 'white' : 'var(--text-muted)') : 'var(--text-muted)',
-                            opacity: canAddChild ? 1 : 0.3
-                        }}
-                    >
-                        <Plus size={12} />
-                    </button>
-                    <button onClick={() => onDelete(cat)} style={{ padding: '0.25rem', background: 'transparent', border: 'none', cursor: 'pointer', color: '#dc2626' }}>
-                        <Trash2 size={12} />
-                    </button>
-                </div>
             </div>
 
             {expanded && hasChildren && (
@@ -408,6 +410,8 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
                             onCreateChild={onCreateChild}
                             onDelete={onDelete}
                             handleUpdateCategory={handleUpdateCategory}
+                            getTotalCredits={getTotalCredits}
+                            coursesByCategory={coursesByCategory}
                         />
                     ))}
                 </div>
@@ -421,6 +425,11 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     const coursesByCategory = form.coursesByCategory || {};
     const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [editingCourseId, setEditingCourseId] = useState(null);
+    const [showDeleteCategoryModal, setShowDeleteCategoryModal] = useState(false);
+    const [categoryToDelete, setCategoryToDelete] = useState(null);
+    const [editingCategoryName, setEditingCategoryName] = useState(false);
+    const [categoryNameVal, setCategoryNameVal] = useState('');
 
     const getDepth = (cat, depth = 0) => {
         if (!cat.children?.length) return depth;
@@ -432,7 +441,22 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
         return Math.max(...cats.map(c => getDepth(c, depth)));
     };
 
-    const maxDepthReached = getMaxDepth(categories) >= 3;
+    const getCategoryDepth = (cat, cats, currentDepth = 0) => {
+        for (let i = 0; i < cats.length; i++) {
+            if (cats[i].id === cat.id) return currentDepth;
+            if (cats[i].children?.length) {
+                const found = getCategoryDepth(cat, cats[i].children, currentDepth + 1);
+                if (found !== -1) return found;
+            }
+        }
+        return -1;
+    };
+
+    const canAddRootCategory = () => {
+        return true;
+    };
+
+    const maxDepthReached = false;
 
     const getAllCoursesInCategory = (cat) => {
         const courses = coursesByCategory[cat.id] || [];
@@ -448,6 +472,11 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     const getNextChildCode = (parentCode, siblings) => `${parentCode}.${siblings.length + 1}`;
 
     const handleAddCategory = () => {
+        if (selectedCategory) {
+            handleAddChildCategory(selectedCategory);
+            return;
+        }
+
         if (maxDepthReached) return;
         const code = getNextCode(categories);
         const newCat = {
@@ -467,8 +496,12 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     };
 
     const handleAddChildCategory = (parent) => {
-        const parentDepth = getDepth(parent, 0);
-        if (parentDepth >= 3) return;
+        const parentCategoryDepth = getCategoryDepth(parent, categories);
+
+        if (parentCategoryDepth >= 3) {
+            alert('ไม่สามารถสร้างหมวดวิชาลูกได้เกิน 4 ระดับ');
+            return;
+        }
 
         const siblings = parent.children || [];
         const code = getNextChildCode(parent.code, siblings);
@@ -516,6 +549,14 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     };
 
     const handleDeleteCategory = (cat) => {
+        setCategoryToDelete(cat);
+        setShowDeleteCategoryModal(true);
+    };
+
+    const confirmDeleteCategory = () => {
+        if (!categoryToDelete) return;
+
+        const cat = categoryToDelete;
         const deleteFromTree = (cats, id) => cats
             .filter(c => c.id !== id)
             .map(c => ({ ...c, children: c.children ? deleteFromTree(c.children, id) : [] }));
@@ -527,6 +568,9 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
 
         setForm(p => ({ ...p, categories: newCats, coursesByCategory: newCourses }));
         if (selectedCategory?.id === cat.id) setSelectedCategory(null);
+
+        setShowDeleteCategoryModal(false);
+        setCategoryToDelete(null);
     };
 
     const handleUpdateCategory = (id, updates) => {
@@ -541,7 +585,8 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
 
     const handleAddCourse = () => {
         if (!selectedCategory || !isLeafCategory) return;
-        const course = { id: `course_${Date.now()}`, code: '', nameTh: '', nameEn: '', credits: 0 };
+        const courseId = `course_${Date.now()}`;
+        const course = { id: courseId, code: '', nameTh: '', nameEn: '', credits: 0 };
         setForm(p => ({
             ...p,
             coursesByCategory: {
@@ -549,15 +594,16 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                 [selectedCategory.id]: [...(p.coursesByCategory[selectedCategory.id] || []), course],
             },
         }));
+        setEditingCourseId(courseId);
     };
 
     const handleUpdateCourse = (updatedCourse) => {
         if (!selectedCategory) return;
-        
+
         const findAndUpdateCourse = (cats, courseId, updated) => {
             return cats.map(c => {
                 const catCourses = coursesByCategory[c.id] || [];
-                const updatedCourses = catCourses.map(cour => 
+                const updatedCourses = catCourses.map(cour =>
                     cour.id === courseId ? updated : cour
                 );
                 if (updatedCourses !== catCourses) {
@@ -633,7 +679,14 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
             (cat.children || []).reduce((s, ch) => s + addCredits(ch, visited), 0);
     };
 
-    const totalCredits = categories.reduce((sum, c) => sum + addCredits(c), 0);
+    const getCategoryTotalCredits = (cat) => {
+        const catCredits = addCredits(cat);
+        const courses = coursesByCategory[cat.id] || [];
+        const courseCredits = courses.reduce((sum, c) => sum + (c.credits || 0), 0);
+        return catCredits + courseCredits;
+    };
+
+    const totalCredits = categories.reduce((sum, c) => sum + getCategoryTotalCredits(c), 0);
     const totalCourses = Object.values(coursesByCategory).flat().length;
     const totalCategories = categories.length + categories.reduce((sum, c) => sum + (c.children || []).length, 0);
 
@@ -664,6 +717,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                         <button
                             className="course-btn course-btn--primary course-btn--sm"
                             onClick={handleAddCategory}
+                            disabled={selectedCategory ? getCategoryDepth(selectedCategory, categories) >= 3 : false}
                         >
                             <Plus size={12} /> หมวดวิชา
                         </button>
@@ -684,6 +738,8 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                                     onCreateChild={handleAddChildCategory}
                                     onDelete={handleDeleteCategory}
                                     handleUpdateCategory={handleUpdateCategory}
+                                    getTotalCredits={getCategoryTotalCredits}
+                                    coursesByCategory={coursesByCategory}
                                 />
                             ))
                         )}
@@ -692,45 +748,86 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
 
                 {/* Sheet Area */}
                 <div className="course-two-panel__content">
-                    <div className="course-two-panel__toolbar">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    {/* Row 1: Category Name - Credits - Delete Button */}
+                    <div className="course-detail-toolbar">
+                        <div className="course-detail-toolbar__left">
+                            <span className="course-detail-toolbar__label">ชื่อหมวดวิชา</span>
                             {selectedCategory ? (
-                                <>
-                                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{selectedCategory.code} {selectedCategory.name || <em style={{ opacity: 0.6 }}>ยังไม่ตั้งชื่อ</em>}</span>
-                                    <input
-                                        type="number"
-                                        className="course-form-field__input"
-                                        style={{ width: 60, padding: '0.25rem 0.5rem', textAlign: 'center' }}
-                                        value={selectedCategory.requiredCredits || 0}
-                                        onChange={e => handleUpdateCategory(selectedCategory.id, { requiredCredits: parseInt(e.target.value) || 0 })}
-                                        placeholder="หน่วยกิต"
-                                    />
-                                </>
+                                <div className="course-detail-toolbar__name">
+                                    {editingCategoryName ? (
+                                        <input
+                                            autoFocus
+                                            className="course-detail-toolbar__name-input"
+                                            value={categoryNameVal}
+                                            onChange={e => setCategoryNameVal(e.target.value)}
+                                            onBlur={() => {
+                                                handleUpdateCategory(selectedCategory.id, { name: categoryNameVal || 'หมวดใหม่' });
+                                                setEditingCategoryName(false);
+                                            }}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                    handleUpdateCategory(selectedCategory.id, { name: categoryNameVal || 'หมวดใหม่' });
+                                                    setEditingCategoryName(false);
+                                                }
+                                                if (e.key === 'Escape') setEditingCategoryName(false);
+                                            }}
+                                        />
+                                    ) : (
+                                        <>
+                                            <span className="course-detail-toolbar__name-text">
+                                                {selectedCategory.code} {selectedCategory.name || <em>ยังไม่ตั้งชื่อ</em>}
+                                            </span>
+                                            <button
+                                                className="course-detail-toolbar__edit-btn"
+                                                onClick={() => {
+                                                    setCategoryNameVal(selectedCategory.name || '');
+                                                    setEditingCategoryName(true);
+                                                }}
+                                                title="แก้ไขชื่อหมวดวิชา"
+                                            >
+                                                <Pencil size={14} />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             ) : (
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>เลือกหมวดวิชาเพื่อจัดการรายวิชา</span>
+                                <span className="course-detail-toolbar__placeholder">เลือกหมวดวิชาเพื่อจัดการรายวิชา</span>
                             )}
                         </div>
-                        <div>
-                            {selectedCategory && (
-                                selectedCourseIds.size > 0 ? (
-                                    <button
-                                        className="course-btn course-btn--danger course-btn--sm"
-                                        onClick={() => setShowDeleteModal(true)}
-                                    >
-                                        <Trash2 size={13} /> ลบ ({selectedCourseIds.size})
-                                    </button>
-                                ) : (
-                                    <button
-                                        className="course-btn course-btn--primary course-btn--sm"
-                                        onClick={handleAddCourse}
-                                        disabled={!isLeafCategory}
-                                        title={!isLeafCategory ? 'เพิ่มได้เฉพาะหมวดที่อยู่ระดับลึกที่สุด' : ''}
-                                    >
-                                        <Plus size={13} /> เพิ่มรายวิชา
-                                    </button>
-                                )
-                            )}
-                        </div>
+                        {selectedCategory && (
+                            <div className="course-detail-toolbar__right">
+                                <div className="course-detail-toolbar__credits">
+                                    <span className="course-detail-toolbar__credits-label">หน่วยกิต</span>
+                                    <span className="course-detail-toolbar__credits-value">{getCategoryTotalCredits(selectedCategory)}</span>
+                                </div>
+                                <button className="course-detail-toolbar__delete-btn" onClick={() => onDelete(selectedCategory)}>
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Row 2: Add Course Button */}
+                    <div className="course-detail-courses">
+                        {selectedCategory && (
+                            selectedCourseIds.size > 0 ? (
+                                <button
+                                    className="course-btn course-btn--danger course-btn--sm"
+                                    onClick={() => setShowDeleteModal(true)}
+                                >
+                                    <Trash2 size={13} /> ลบ ({selectedCourseIds.size})
+                                </button>
+                            ) : (
+                                <button
+                                    className="course-btn course-btn--primary course-btn--sm"
+                                    onClick={handleAddCourse}
+                                    disabled={!isLeafCategory}
+                                    title={!isLeafCategory ? 'เพิ่มได้เฉพาะหมวดที่อยู่ระดับลึกที่สุด' : ''}
+                                >
+                                    <Plus size={13} /> เพิ่มรายวิชา
+                                </button>
+                            )
+                        )}
                     </div>
 
                     {selectedCategory ? (
@@ -761,9 +858,11 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                                                 key={course.id}
                                                 course={course}
                                                 isSelected={selectedCourseIds.has(course.id)}
+                                                isEditingCourse={editingCourseId === course.id}
                                                 onToggleSelect={handleToggleCourseSelection}
                                                 onUpdate={handleUpdateCourse}
                                                 onDelete={handleDeleteCourse}
+                                                onSetEditing={setEditingCourseId}
                                             />
                                         ))}
                                     </tbody>
@@ -806,6 +905,36 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                             <button
                                 className='course-form-nav__btn course-form-nav__btn--danger'
                                 onClick={handleDeleteSelectedCourses}
+                            >
+                                <Trash2 size={15} /> ยืนยันการลบ
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Category Confirmation Modal */}
+            {showDeleteCategoryModal && categoryToDelete && (
+                <div className="modal-overlay" onClick={() => setShowDeleteCategoryModal(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <AlertTriangle size={24} className="modal-icon--warning" />
+                            <h3>ยืนยันการลบหมวดวิชา</h3>
+                        </div>
+                        <div className="modal-body">
+                            <p>คุณแน่ใจหรือไม่ที่จะลบหมวดวิชา "{categoryToDelete.code} {categoryToDelete.name || 'ยังไม่ตั้งชื่อ'}"?</p>
+                            <p className="modal-body__hint">วิชาทั้งหมดในหมวดนี้จะถูกลบด้วย</p>
+                        </div>
+                        <div className="modal-footer">
+                            <button
+                                className='course-form-nav__btn course-form-nav__btn--secondary'
+                                onClick={() => setShowDeleteCategoryModal(false)}
+                            >
+                                ยกเลิก
+                            </button>
+                            <button
+                                className='course-form-nav__btn course-form-nav__btn--danger'
+                                onClick={confirmDeleteCategory}
                             >
                                 <Trash2 size={15} /> ยืนยันการลบ
                             </button>

@@ -277,6 +277,15 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
     const hasChildren = cat.children?.length > 0;
     const isSelected = cat.id === selectedId;
 
+    const getDepth = (c, d = 0) => {
+        if (!c.children?.length) return d;
+        return Math.max(...c.children.map(ch => getDepth(ch, d + 1)));
+    };
+
+    const subTreeDepth = getDepth(cat, 0);
+    const totalDepth = depth + subTreeDepth;
+    const canAddChild = totalDepth < 3;
+
     const confirm = () => { onRename(cat.id, nameVal || 'หมวดใหม่'); setRenaming(false); };
 
     const totalcredits = (cat.requiredCredits || 0) + (cat.children || []).reduce((sum, ch) => sum + (ch.requiredCredits || 0), 0);
@@ -309,7 +318,8 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
                 </div>
 
                 <div className="tree-item__actions" onClick={e => e.stopPropagation()}>
-                    <button className="icon-btn icon-btn--xs" title="เพิ่มหมวดย่อย" onClick={() => onCreateChild(cat)}>
+                    <button className="icon-btn icon-btn--xs" title="เพิ่มหมวดย่อย" onClick={() => canAddChild && onCreateChild(cat, depth)}
+                        disabled={!canAddChild}>
                         <Plus size={12}/>
                     </button>
                     <button className="icon-btn icon-btn--danger icon-btn--xs" onClick={() => onDelete(cat)}>
@@ -325,7 +335,7 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
                             selectedId={selectedId}
                             onSelect={onSelect}
                             onRename={onRename}
-                            onCreateChild={onCreateChild}
+                            onCreateChild={(childCat) => onCreateChild(childCat, depth)}
                             onDelete={onDelete}
                         />
                     ))}
@@ -352,8 +362,37 @@ function Step2({ form, setForm }) {
     const getNextCode = (siblings) => `${siblings.length + 1}`;
     const getNextChildCode = (parentCode, siblings) => `${parentCode}.${siblings.length + 1}`;
 
-    
+    const getDepth = (c, d = 0) => {
+        if (!c.children?.length) return d;
+        return Math.max(...c.children.map(ch => getDepth(ch, d + 1)));
+    };
+
+    const getCategoryDepth = (cat, cats, currentDepth = 0) => {
+        for (let i = 0; i < cats.length; i++) {
+            if (cats[i].id === cat.id) return currentDepth;
+            if (cats[i].children?.length) {
+                const found = getCategoryDepth(cat, cats[i].children, currentDepth + 1);
+                if (found !== -1) return found;
+            }
+        }
+        return -1;
+    };
+
+    const canAddRootCategory = () => {
+        return true;
+    };
+
+    const canAddChild = (parent) => {
+        const parentCategoryDepth = getCategoryDepth(parent, categories);
+        return parentCategoryDepth < 3;
+    };
+
     const handleAddCategory = () => {
+        if (selectedCategory && canAddChild(selectedCategory)) {
+            handleAddChildCategory(selectedCategory);
+            return;
+        }
+        
         const code = getNextCode(categories);
         const newCat = {
             id: `cat_${Date.now()}`,
@@ -371,7 +410,14 @@ function Step2({ form, setForm }) {
         setSelectedCategory(newCat);
     };
 
-    const handleAddChildCategory = (parent) => {
+    const handleAddChildCategory = (parent, parentDepth = 0) => {
+        const parentCategoryDepth = getCategoryDepth(parent, categories);
+
+        if (parentCategoryDepth >= 3) {
+            alert('ไม่สามารถสร้างหมวดวิชาลูกได้เกิน 4 ระดับ');
+            return;
+        }
+
         const siblings = parent.children || [];
         const code = getNextChildCode(parent.code, siblings);
         const newCat = {
@@ -509,7 +555,12 @@ function Step2({ form, setForm }) {
                     <div className="ccp-tree">
                         <div className="ccp-tree__header">
                             <span>โครงสร้างหมวดวิชา</span>
-                            <button className="btn btn--primary btn--sm ccp-tree__add-btn" onClick={handleAddCategory}>
+                            <button 
+                                className="btn btn--primary btn--sm ccp-tree__add-btn" 
+                                onClick={handleAddCategory}
+                                disabled={selectedCategory ? getCategoryDepth(selectedCategory, categories) >= 3 : false}
+                                title={selectedCategory ? (getCategoryDepth(selectedCategory, categories) >= 3 ? 'หมวดนี้อยู่ระดับสูงสุดแล้ว' : 'เพิ่มหมวดย่อย') : ''}
+                            >
                                 <Plus size={12}/> หมวดวิชา
                             </button>
                         </div>
