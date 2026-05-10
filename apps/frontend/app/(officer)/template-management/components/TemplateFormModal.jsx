@@ -110,7 +110,7 @@ function AcademicYearSelector({ year, onChange }) {
 }
 
 // ============================================================
-// Step 1 — ข้อมูลหลักสูตร + เลือก Course Master
+// Step 1 — ข้อมูลหลักสูตร + เลือก Curriculum Master
 // ============================================================
 function Step1({ form, setForm }) {
     const [search, setSearch] = useState('');
@@ -146,7 +146,7 @@ function Step1({ form, setForm }) {
                 />
             </div>
 
-            {/* เลือก Course Master */}
+            {/* เลือก Curriculum Master */}
             <div className="cfm-field" style={{ marginTop: '1.25rem' }}>
                 <label className="cfm-label">หลักสูตร <span className="cfm-required">*</span></label>
                 <p className="tfm-hint">เลือกหลักสูตรต้นแบบ ปีการศึกษาจะถูกกำหนดอัตโนมัติตามหลักสูตรที่เลือก</p>
@@ -217,7 +217,7 @@ function Step1({ form, setForm }) {
                 ) : (
                     <div className="tfm-master-preview tfm-master-preview--empty">
                         <BookOpenCheck size={28} opacity={0.2}/>
-                        <span>เลือก Course Master เพื่อดูตัวอย่าง</span>
+                        <span>เลือก Curriculum Master เพื่อดูตัวอย่าง</span>
                     </div>
                 )}
             </div>

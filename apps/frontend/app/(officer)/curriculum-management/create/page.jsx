@@ -1072,7 +1072,7 @@ export default function CreateCoursePage() {
 
         console.log('Saving course:', { ...form, stats });
         alert('สร้างหลักสูตรสำเร็จ! (Demo)');
-        router.push('/course-management');
+        router.push('/curriculum-management');
     };
 
     return (
@@ -1171,7 +1171,7 @@ export default function CreateCoursePage() {
                                     className='course-form-nav__btn course-form-nav__btn--danger'
                                     onClick={() => {
                                         setShowCancelModal(false);
-                                        router.push('/course-management');
+                                        router.push('/curriculum-management');
                                     }}
                                 >
                                     ยืนยัน

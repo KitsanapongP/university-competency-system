@@ -20,7 +20,7 @@ const MENU_CONFIG = {
         { id: 'verify', icon: ClipboardCheck, labelKey: 'verify' },
     ],
     officer: [
-        { id: 'course-management', icon: BookOpen, labelKey: 'courses' },
+        { id: 'curriculum-management', icon: BookOpen, labelKey: 'curriculum_management' },
         { id: 'template-management', icon: BookOpen, labelKey: 'templates' },
     ],
     admin: [

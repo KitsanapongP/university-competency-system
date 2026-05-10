@@ -200,7 +200,7 @@ function EmptyState({ onCreate }) {
 // ============================================================
 // Main Page
 // ============================================================
-export default function CourseManagementPage() {
+export default function CurriculumManagementPage() {
     const router = useRouter();
     const [view, setView] = useState('list'); // 'list' | 'editor'
     const [courses, setCourses] = useState(MOCK_COURSE_MASTERS);
@@ -237,7 +237,7 @@ export default function CourseManagementPage() {
     }, []);
 
     const handleCreateCourse = useCallback(() => {
-        router.push('/course-management/create');
+        router.push('/curriculum-management/create');
     }, [router]);
 
     const handleEditCourse = useCallback((course) => {
@@ -285,7 +285,7 @@ export default function CourseManagementPage() {
     }, [editingCourse]);
 
     // ============================================================
-    // Editor View (Category/Course Management)
+    // Editor View (Category/Curriculum Management)
     // ============================================================
     const [categories, setCategories] = useState(selectedCourse?.categories || []);
     const [selectedCategory, setSelectedCategory] = useState(null);

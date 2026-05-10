@@ -66,7 +66,7 @@ export const MOCK_CATEGORIES = [
 ];
 
 // ============================================================
-// MOCK_COURSE_MASTERS — หลักสูตรต้นแบบ (Course Master)
+// MOCK_COURSE_MASTERS — หลักสูตรต้นแบบ (Curriculum Master)
 // ============================================================
 export const MOCK_COURSE_MASTERS = [
     {

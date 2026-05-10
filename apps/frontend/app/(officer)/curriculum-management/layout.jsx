@@ -6,10 +6,10 @@ import { useAuth } from '../../../providers/auth-provider';
 import { AppLayout } from '../../../components/layout/AppLayout';
 import '../../../app/Competency.css';
 
-export default function CourseManagementLayout({ children }) {
+export default function CurriculumManagementLayout({ children }) {
     const router = useRouter();
     const { user, loading, logout } = useAuth();
-    const [activePage, setActivePage] = useState('course-management');
+    const [activePage, setActivePage] = useState('curriculum-management');
 
     useEffect(() => {
         if (!loading && !user) {

@@ -141,7 +141,7 @@ function SpreadsheetRow({
             <tr className={`ss-row ${editing ? 'ss-row--editing' : ''} ${fromMaster ? 'ss-row--master' : ''}`}>
                 <td className="ss-cell ss-cell--grip">
                     {fromMaster
-                        ? <span className="ss-master-badge" title="วิชาจาก Course Master — ไม่สามารถแก้ไขได้">M</span>
+                        ? <span className="ss-master-badge" title="วิชาจาก Curriculum Master — ไม่สามารถแก้ไขได้">M</span>
                         : <GripVertical size={13}/>}
                 </td>
 
@@ -222,7 +222,7 @@ function SpreadsheetRow({
                     {fromMaster ? (
                         /* Master: ล็อค icon แทนปุ่ม */
                         isSetupMode && (
-                            <span className="ss-locked-icon" title="วิชาจาก Course Master">
+                            <span className="ss-locked-icon" title="วิชาจาก Curriculum Master">
                                 <LockKeyhole size={12}/>
                             </span>
                         )
@@ -522,7 +522,7 @@ function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, on
                                     <Plus size={12}/>
                                 </button>
                             )}
-                            <span className="tree-master-lock" title="หมวดวิชาจาก Course Master — ไม่สามารถแก้ไขหรือลบได้">
+                            <span className="tree-master-lock" title="หมวดวิชาจาก Curriculum Master — ไม่สามารถแก้ไขหรือลบได้">
                                 <LockKeyhole size={12}/>
                             </span>
                         </>
