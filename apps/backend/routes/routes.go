@@ -72,6 +72,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 
 			// Curriculum Management Routes
 			pr.Route("/curricula", func(cr chi.Router) {
+				cr.Use(middleware.RequireRoles("admin", "officer"))
 				cr.Get("/", curriculumHandler.GetAll)
 				cr.Get("/{id}", curriculumHandler.GetByID)
 				cr.Post("/", curriculumHandler.Create)

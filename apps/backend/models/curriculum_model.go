@@ -30,7 +30,7 @@ type CourseCategory struct {
 	IsActive        bool       `json:"is_active"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
-	DeletedAt        *time.Time `json:"deleted_at"`
+	DeletedAt       *time.Time `json:"deleted_at"`
 }
 
 type CurriculumCourse struct {
@@ -49,26 +49,30 @@ type CurriculumCourse struct {
 // Request Payloads
 
 type CreateCurriculumPayload struct {
-	MajorID          uint64                   `json:"major_id"`
-	CurriculumNameTH string                   `json:"curriculum_name_th"`
-	CurriculumNameEN *string                  `json:"curriculum_name_en"`
-	CurriculumCode   string                   `json:"curriculum_code"`
-	EffectiveYearBE  uint64                   `json:"effective_year_be"`
-	TotalCredits     int                      `json:"total_credits"`
-	Categories       []CreateCategoryPayload  `json:"categories"`
+	MajorID          uint64                  `json:"major_id"`
+	CurriculumNameTH string                  `json:"curriculum_name_th"`
+	CurriculumNameEN *string                 `json:"curriculum_name_en"`
+	CurriculumCode   string                  `json:"curriculum_code"`
+	EffectiveYearBE  uint64                  `json:"effective_year_be"`
+	Categories       []CreateCategoryPayload `json:"categories"`
 }
 
 type CreateCategoryPayload struct {
-	Code            *string                 `json:"code"`
-	NameTH          string                  `json:"name_th"`
-	NameEN          *string                 `json:"name_en"`
-	RequiredCredits int                     `json:"required_credits"`
-	DisplayOrder    int                     `json:"display_order"`
+	Code            *string                    `json:"code"`
+	NameTH          string                     `json:"name_th"`
+	NameEN          *string                    `json:"name_en"`
+	RequiredCredits int                        `json:"required_credits"`
+	DisplayOrder    int                        `json:"display_order"`
+	Children        []CreateCategoryPayload    `json:"children"`
 	Courses         []CreateCourseInCatPayload `json:"courses"`
 }
 
 type CreateCourseInCatPayload struct {
-	CourseID     uint64 `json:"course_id"`
-	IsRequired   bool   `json:"is_required"`
-	DisplayOrder int    `json:"display_order"`
+	Code         string  `json:"code"`
+	NameTH       string  `json:"name_th"`
+	NameEN       *string `json:"name_en"`
+	Credits      int     `json:"credits"`
+	Description  *string `json:"description"`
+	IsRequired   bool    `json:"is_required"`
+	DisplayOrder int     `json:"display_order"`
 }
