@@ -49,6 +49,12 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 		Service: competencySvc,
 	}
 
+	curriculumRepo := repositories.NewCurriculumRepository(db)
+	curriculumSvc := services.NewCurriculumService(curriculumRepo)
+	curriculumHandler := &controllers.CurriculumController{
+		Service: curriculumSvc,
+	}
+
 	// Versioned API routes
 	r.Route("/api/v1", func(api chi.Router) {
 		// --- Public ---
@@ -63,6 +69,13 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			pr.Post("/auth/logout", authHandler.Logout)
 
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)
+
+			// Curriculum Management Routes
+			pr.Route("/curricula", func(cr chi.Router) {
+				cr.Get("/", curriculumHandler.GetAll)
+				cr.Get("/{id}", curriculumHandler.GetByID)
+				cr.Post("/", curriculumHandler.Create)
+			})
 
 			// Examples (optional)
 			pr.With(middleware.RequireRoles("admin")).Get("/admin/ping", func(w http.ResponseWriter, r *http.Request) {
