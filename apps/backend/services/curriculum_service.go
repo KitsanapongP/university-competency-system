@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/spw32767/university-competency-system-backend/models"
@@ -31,18 +32,18 @@ func NewCurriculumService(repo *repositories.CurriculumRepository) *CurriculumSe
 	return &CurriculumService{Repo: repo}
 }
 
-func (s *CurriculumService) GetActiveCurriculums(ctx context.Context, roles []string, facultyID *int64) ([]*models.Curriculum, error) {
+func (s *CurriculumService) GetCurriculums(ctx context.Context, roles []string, facultyID *int64) ([]*models.Curriculum, error) {
 	if hasRole(roles, "admin") {
-		return s.Repo.GetActiveCurriculums(ctx)
+		return s.Repo.GetCurriculums(ctx)
 	}
 	if !hasRole(roles, "officer") || facultyID == nil || *facultyID <= 0 {
 		return nil, ErrCurriculumForbidden
 	}
 
-	return s.Repo.GetActiveCurriculumsByFaculty(ctx, uint64(*facultyID))
+	return s.Repo.GetCurriculumsByFaculty(ctx, uint64(*facultyID))
 }
 
-func (s *CurriculumService) GetCurriculumByID(ctx context.Context, id uint64, roles []string, facultyID *int64) (*models.Curriculum, error) {
+func (s *CurriculumService) GetCurriculumByID(ctx context.Context, id uint64, roles []string, facultyID *int64) (*models.CurriculumDetail, error) {
 	curriculum, err := s.Repo.GetCurriculumByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrCurriculumNotFound
@@ -64,7 +65,15 @@ func (s *CurriculumService) GetCurriculumByID(ctx context.Context, id uint64, ro
 		}
 	}
 
-	return curriculum, nil
+	categories, err := s.Repo.GetCurriculumCategoryTree(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.CurriculumDetail{
+		Curriculum: *curriculum,
+		Categories: categories,
+	}, nil
 }
 
 func (s *CurriculumService) CreateCurriculum(ctx context.Context, payload models.CreateCurriculumPayload, userID int64, roles []string, facultyID *int64) (*models.Curriculum, error) {
@@ -82,7 +91,7 @@ func (s *CurriculumService) CreateCurriculum(ctx context.Context, payload models
 
 	isAdmin := hasRole(roles, "admin")
 	if !isAdmin {
-		if !hasRole(roles, "officer") || facultyID == nil {
+		if !hasRole(roles, "officer") || facultyID == nil || *facultyID <= 0 {
 			return nil, ErrCurriculumForbidden
 		}
 		if uint64(*facultyID) != majorScope.FacultyID {
@@ -95,11 +104,16 @@ func (s *CurriculumService) CreateCurriculum(ctx context.Context, payload models
 		createdBy = uint64(userID)
 	}
 
-	return s.Repo.CreateCurriculumTx(ctx, payload, repositories.CreateCurriculumOptions{
+	curriculum, err := s.Repo.CreateCurriculumTx(ctx, payload, repositories.CreateCurriculumOptions{
 		FacultyID:   majorScope.FacultyID,
 		CreatedBy:   createdBy,
 		DegreeLevel: majorScope.DegreeLevel,
 	})
+	if errors.Is(err, repositories.ErrCourseNotFoundInScope) {
+		return nil, CurriculumValidationError{Message: "course_id is invalid for this curriculum scope"}
+	}
+
+	return curriculum, err
 }
 
 func validateCreateCurriculumPayload(payload models.CreateCurriculumPayload) error {
@@ -130,22 +144,32 @@ func validateCreateCategories(categories []models.CreateCategoryPayload, seenCou
 		}
 
 		for _, course := range category.Courses {
-			code := strings.TrimSpace(course.Code)
-			if code == "" {
-				return CurriculumValidationError{Message: "course code is required"}
-			}
-			if strings.TrimSpace(course.NameTH) == "" {
-				return CurriculumValidationError{Message: "course name_th is required"}
-			}
 			if course.Credits < 0 {
 				return CurriculumValidationError{Message: "course credits must be zero or greater"}
 			}
 
-			normalizedCode := strings.ToLower(code)
-			if seenCourseCodes[normalizedCode] {
-				return CurriculumValidationError{Message: "duplicate course code in curriculum payload"}
+			if course.CourseID == 0 {
+				code := strings.TrimSpace(course.Code)
+				if code == "" {
+					return CurriculumValidationError{Message: "course code is required when course_id is not provided"}
+				}
+				if strings.TrimSpace(course.NameTH) == "" {
+					return CurriculumValidationError{Message: "course name_th is required when course_id is not provided"}
+				}
+
+				normalizedCode := strings.ToLower(code)
+				if seenCourseCodes[normalizedCode] {
+					return CurriculumValidationError{Message: "duplicate course code in curriculum payload"}
+				}
+				seenCourseCodes[normalizedCode] = true
+				continue
 			}
-			seenCourseCodes[normalizedCode] = true
+
+			normalizedCourseID := "id:" + strconv.FormatUint(course.CourseID, 10)
+			if seenCourseCodes[normalizedCourseID] {
+				return CurriculumValidationError{Message: "duplicate course_id in curriculum payload"}
+			}
+			seenCourseCodes[normalizedCourseID] = true
 		}
 
 		if err := validateCreateCategories(category.Children, seenCourseCodes); err != nil {

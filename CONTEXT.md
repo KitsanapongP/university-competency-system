@@ -65,6 +65,8 @@
 *   **Competency (สมรรถนะ):** ทักษะที่ต้องการประเมิน เช่น การสื่อสาร, การคิดเชิงวิพากษ์, ทักษะดิจิทัล
 *   **Template:** ชุดการตั้งค่าน้ำหนักคะแนนสมรรถนะของกิจกรรม/รายวิชา สำหรับนำไปผูกใช้งานกับนักศึกษาแต่ละ Cohort
 
+*   **Curriculum Template Assignment:** A relationship that applies a Template to a Curriculum for a specific Cohort. It is distinct from the Template itself; the same Template can be reused across cohorts.
+
 ## Current Status (สถานะปัจจุบันของโปรเจค)
 *   **Database Architecture (V11):** โครงสร้างฐานข้อมูล (MySQL) เพิ่งได้รับการ Refactor และปรับจูนจนสมบูรณ์แบบที่สุด (Final V11) โดยแก้ไขปัญหา Data Redundancy แบบหมดจด, เพิ่มการคำนวณแบบยืดหยุ่นโดยไม่มี Limit คะแนน, และรองรับการทำ Cohort-based Requirements & Templates เรียบร้อยแล้ว
 *   **Tech Stack:** 

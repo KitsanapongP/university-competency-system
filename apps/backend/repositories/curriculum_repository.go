@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/spw32767/university-competency-system-backend/models"
@@ -27,9 +28,11 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-const curriculumTotalsJoin = `
+var ErrCourseNotFoundInScope = errors.New("course not found in curriculum scope")
+
+const curriculumStatsJoin = `
 	LEFT JOIN (
-		SELECT curriculum_id, COALESCE(SUM(course_credits), 0) AS total_credits
+		SELECT curriculum_id, COALESCE(SUM(course_credits), 0) AS total_credits, COUNT(*) AS course_count
 		FROM (
 			SELECT cat.curriculum_id, cc.course_id, MAX(cc.credits) AS course_credits
 			FROM crs_curriculum_courses cc
@@ -37,11 +40,26 @@ const curriculumTotalsJoin = `
 			JOIN crs_courses course ON course.course_id = cc.course_id
 			WHERE cc.is_active = 1
 				AND cc.deleted_at IS NULL
+				AND cat.deleted_at IS NULL
 				AND course.deleted_at IS NULL
 			GROUP BY cat.curriculum_id, cc.course_id
 		) distinct_courses
 		GROUP BY curriculum_id
-	) totals ON totals.curriculum_id = c.curriculum_id
+	) course_stats ON course_stats.curriculum_id = c.curriculum_id
+	LEFT JOIN (
+		SELECT curriculum_id, COUNT(*) AS category_count
+		FROM crs_course_categories
+		WHERE deleted_at IS NULL
+		GROUP BY curriculum_id
+	) category_stats ON category_stats.curriculum_id = c.curriculum_id
+	LEFT JOIN (
+		SELECT cct.curriculum_id, COUNT(DISTINCT cct.template_id) AS template_count
+		FROM curri_curriculum_templates cct
+		JOIN comp_templates tpl ON tpl.template_id = cct.template_id
+		WHERE cct.deleted_at IS NULL
+			AND tpl.deleted_at IS NULL
+		GROUP BY cct.curriculum_id
+	) template_stats ON template_stats.curriculum_id = c.curriculum_id
 `
 
 func NewCurriculumRepository(db *sql.DB) *CurriculumRepository {
@@ -62,6 +80,9 @@ func scanCurriculum(scanner rowScanner) (*models.Curriculum, error) {
 		&c.EffectiveYearBE,
 		&c.Status,
 		&c.TotalCredits,
+		&c.CourseCount,
+		&c.CategoryCount,
+		&c.TemplateCount,
 		&c.CreatedAt,
 		&c.UpdatedAt,
 		&deletedAt,
@@ -80,12 +101,17 @@ func scanCurriculum(scanner rowScanner) (*models.Curriculum, error) {
 	return &c, nil
 }
 
-func (r *CurriculumRepository) GetActiveCurriculums(ctx context.Context) ([]*models.Curriculum, error) {
+func (r *CurriculumRepository) GetCurriculums(ctx context.Context) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status, COALESCE(totals.total_credits, 0), c.created_at, c.updated_at, c.deleted_at
+		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+			COALESCE(course_stats.total_credits, 0),
+			COALESCE(course_stats.course_count, 0),
+			COALESCE(category_stats.category_count, 0),
+			COALESCE(template_stats.template_count, 0),
+			c.created_at, c.updated_at, c.deleted_at
 		FROM edu_curricula c
-	` + curriculumTotalsJoin + `
-		WHERE c.status = 'active' AND c.deleted_at IS NULL
+	` + curriculumStatsJoin + `
+		WHERE c.deleted_at IS NULL
 		ORDER BY c.effective_year_be DESC, c.curriculum_id DESC
 	`
 
@@ -110,15 +136,19 @@ func (r *CurriculumRepository) GetActiveCurriculums(ctx context.Context) ([]*mod
 	return curriculums, nil
 }
 
-func (r *CurriculumRepository) GetActiveCurriculumsByFaculty(ctx context.Context, facultyID uint64) ([]*models.Curriculum, error) {
+func (r *CurriculumRepository) GetCurriculumsByFaculty(ctx context.Context, facultyID uint64) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status, COALESCE(totals.total_credits, 0), c.created_at, c.updated_at, c.deleted_at
+		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+			COALESCE(course_stats.total_credits, 0),
+			COALESCE(course_stats.course_count, 0),
+			COALESCE(category_stats.category_count, 0),
+			COALESCE(template_stats.template_count, 0),
+			c.created_at, c.updated_at, c.deleted_at
 		FROM edu_curricula c
-	` + curriculumTotalsJoin + `
+	` + curriculumStatsJoin + `
 		JOIN edu_majors m ON m.major_id = c.major_id
 		JOIN org_departments d ON d.department_id = m.department_id
-		WHERE c.status = 'active'
-			AND c.deleted_at IS NULL
+		WHERE c.deleted_at IS NULL
 			AND m.deleted_at IS NULL
 			AND d.deleted_at IS NULL
 			AND d.faculty_id = ?
@@ -148,9 +178,14 @@ func (r *CurriculumRepository) GetActiveCurriculumsByFaculty(ctx context.Context
 
 func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uint64) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status, COALESCE(totals.total_credits, 0), c.created_at, c.updated_at, c.deleted_at
+		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+			COALESCE(course_stats.total_credits, 0),
+			COALESCE(course_stats.course_count, 0),
+			COALESCE(category_stats.category_count, 0),
+			COALESCE(template_stats.template_count, 0),
+			c.created_at, c.updated_at, c.deleted_at
 		FROM edu_curricula c
-	` + curriculumTotalsJoin + `
+	` + curriculumStatsJoin + `
 		WHERE c.effective_year_be = ? AND c.status = 'active' AND c.deleted_at IS NULL
 		ORDER BY c.curriculum_id DESC
 	`
@@ -178,13 +213,220 @@ func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uin
 
 func (r *CurriculumRepository) GetCurriculumByID(ctx context.Context, id uint64) (*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status, COALESCE(totals.total_credits, 0), c.created_at, c.updated_at, c.deleted_at
+		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+			COALESCE(course_stats.total_credits, 0),
+			COALESCE(course_stats.course_count, 0),
+			COALESCE(category_stats.category_count, 0),
+			COALESCE(template_stats.template_count, 0),
+			c.created_at, c.updated_at, c.deleted_at
 		FROM edu_curricula c
-	` + curriculumTotalsJoin + `
+	` + curriculumStatsJoin + `
 		WHERE c.curriculum_id = ? AND c.deleted_at IS NULL
 	`
 
 	return scanCurriculum(r.DB.QueryRowContext(ctx, query, id))
+}
+
+func (r *CurriculumRepository) GetCurriculumCategoryTree(ctx context.Context, curriculumID uint64) ([]*models.CourseCategoryNode, error) {
+	categories, err := r.getCurriculumCategories(ctx, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	if len(categories) == 0 {
+		return []*models.CourseCategoryNode{}, nil
+	}
+
+	coursesByCategory, err := r.getCurriculumCoursesByCategory(ctx, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+
+	byID := make(map[uint64]*models.CourseCategoryNode, len(categories))
+	for _, category := range categories {
+		category.Children = []*models.CourseCategoryNode{}
+		category.Courses = coursesByCategory[category.CategoryID]
+		if category.Courses == nil {
+			category.Courses = []*models.CurriculumCourseRow{}
+		}
+		byID[category.CategoryID] = category
+	}
+
+	roots := []*models.CourseCategoryNode{}
+	for _, category := range categories {
+		if category.ParentID == nil {
+			roots = append(roots, category)
+			continue
+		}
+
+		parent, ok := byID[*category.ParentID]
+		if !ok {
+			roots = append(roots, category)
+			continue
+		}
+
+		parent.Children = append(parent.Children, category)
+	}
+
+	return roots, nil
+}
+
+func (r *CurriculumRepository) getCurriculumCategories(ctx context.Context, curriculumID uint64) ([]*models.CourseCategoryNode, error) {
+	query := `
+		SELECT category_id, curriculum_id, parent_id, code, name_th, name_en, required_credits, display_order, is_active, created_at, updated_at, deleted_at
+		FROM crs_course_categories
+		WHERE curriculum_id = ?
+			AND deleted_at IS NULL
+		ORDER BY COALESCE(parent_id, 0), display_order, category_id
+	`
+
+	rows, err := r.DB.QueryContext(ctx, query, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	categories := []*models.CourseCategoryNode{}
+	for rows.Next() {
+		category, err := scanCourseCategoryNode(rows)
+		if err != nil {
+			return nil, err
+		}
+		categories = append(categories, category)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return categories, nil
+}
+
+func scanCourseCategoryNode(scanner rowScanner) (*models.CourseCategoryNode, error) {
+	var category models.CourseCategoryNode
+	var parentID sql.NullInt64
+	var code sql.NullString
+	var nameEn sql.NullString
+	var deletedAt sql.NullTime
+
+	if err := scanner.Scan(
+		&category.CategoryID,
+		&category.CurriculumID,
+		&parentID,
+		&code,
+		&category.NameTH,
+		&nameEn,
+		&category.RequiredCredits,
+		&category.DisplayOrder,
+		&category.IsActive,
+		&category.CreatedAt,
+		&category.UpdatedAt,
+		&deletedAt,
+	); err != nil {
+		return nil, err
+	}
+
+	if parentID.Valid {
+		v := uint64(parentID.Int64)
+		category.ParentID = &v
+	}
+	if code.Valid {
+		category.Code = &code.String
+	}
+	if nameEn.Valid {
+		category.NameEN = &nameEn.String
+	}
+	if deletedAt.Valid {
+		category.DeletedAt = &deletedAt.Time
+	}
+
+	return &category, nil
+}
+
+func (r *CurriculumRepository) getCurriculumCoursesByCategory(ctx context.Context, curriculumID uint64) (map[uint64][]*models.CurriculumCourseRow, error) {
+	query := `
+		SELECT
+			cc.curriculum_course_id,
+			cc.category_id,
+			cc.course_id,
+			course.code,
+			course.name_th,
+			course.name_en,
+			cc.credits,
+			course.description,
+			cc.is_required,
+			cc.is_locked,
+			cc.display_order,
+			cc.is_active,
+			cc.created_at,
+			cc.updated_at,
+			cc.deleted_at
+		FROM crs_curriculum_courses cc
+		JOIN crs_course_categories cat ON cat.category_id = cc.category_id
+		JOIN crs_courses course ON course.course_id = cc.course_id
+		WHERE cat.curriculum_id = ?
+			AND cat.deleted_at IS NULL
+			AND cc.deleted_at IS NULL
+			AND course.deleted_at IS NULL
+		ORDER BY cc.category_id, cc.display_order, cc.curriculum_course_id
+	`
+
+	rows, err := r.DB.QueryContext(ctx, query, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	coursesByCategory := map[uint64][]*models.CurriculumCourseRow{}
+	for rows.Next() {
+		course, err := scanCurriculumCourseRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		coursesByCategory[course.CategoryID] = append(coursesByCategory[course.CategoryID], course)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return coursesByCategory, nil
+}
+
+func scanCurriculumCourseRow(scanner rowScanner) (*models.CurriculumCourseRow, error) {
+	var course models.CurriculumCourseRow
+	var nameEn sql.NullString
+	var description sql.NullString
+	var deletedAt sql.NullTime
+
+	if err := scanner.Scan(
+		&course.CurriculumCourseID,
+		&course.CategoryID,
+		&course.CourseID,
+		&course.Code,
+		&course.NameTH,
+		&nameEn,
+		&course.Credits,
+		&description,
+		&course.IsRequired,
+		&course.IsLocked,
+		&course.DisplayOrder,
+		&course.IsActive,
+		&course.CreatedAt,
+		&course.UpdatedAt,
+		&deletedAt,
+	); err != nil {
+		return nil, err
+	}
+
+	if nameEn.Valid {
+		course.NameEN = &nameEn.String
+	}
+	if description.Valid {
+		course.Description = &description.String
+	}
+	if deletedAt.Valid {
+		course.DeletedAt = &deletedAt.Time
+	}
+
+	return &course, nil
 }
 
 func (r *CurriculumRepository) GetMajorScope(ctx context.Context, majorID uint64) (MajorScope, error) {
@@ -254,7 +496,7 @@ func (r *CurriculumRepository) insertCategory(ctx context.Context, tx *sql.Tx, c
 	}
 
 	for _, course := range payload.Courses {
-		courseID, err := r.findOrCreateCourse(ctx, tx, course, opts)
+		courseID, err := r.resolveCourse(ctx, tx, course, opts)
 		if err != nil {
 			return err
 		}
@@ -276,6 +518,40 @@ func (r *CurriculumRepository) insertCategory(ctx context.Context, tx *sql.Tx, c
 	}
 
 	return nil
+}
+
+func (r *CurriculumRepository) resolveCourse(ctx context.Context, tx *sql.Tx, payload models.CreateCourseInCatPayload, opts CreateCurriculumOptions) (uint64, error) {
+	if payload.CourseID > 0 {
+		return r.validateExistingCourse(ctx, tx, payload.CourseID, opts)
+	}
+
+	return r.findOrCreateCourse(ctx, tx, payload, opts)
+}
+
+func (r *CurriculumRepository) validateExistingCourse(ctx context.Context, tx *sql.Tx, courseID uint64, opts CreateCurriculumOptions) (uint64, error) {
+	degreeLevel := opts.DegreeLevel
+	if degreeLevel == "" {
+		degreeLevel = "bachelor"
+	}
+
+	var existingCourseID uint64
+	err := tx.QueryRowContext(ctx, `
+		SELECT course_id
+		FROM crs_courses
+		WHERE course_id = ?
+			AND faculty_id = ?
+			AND degree_level = ?
+			AND deleted_at IS NULL
+		LIMIT 1
+	`, courseID, opts.FacultyID, degreeLevel).Scan(&existingCourseID)
+	if err == nil {
+		return existingCourseID, nil
+	}
+	if err == sql.ErrNoRows {
+		return 0, fmt.Errorf("%w: %d", ErrCourseNotFoundInScope, courseID)
+	}
+
+	return 0, err
 }
 
 func (r *CurriculumRepository) findOrCreateCourse(ctx context.Context, tx *sql.Tx, payload models.CreateCourseInCatPayload, opts CreateCurriculumOptions) (uint64, error) {
@@ -333,6 +609,7 @@ func (r *CurriculumRepository) CalculateCurriculumTotalCredits(ctx context.Conte
 			WHERE cat.curriculum_id = ?
 				AND cc.is_active = 1
 				AND cc.deleted_at IS NULL
+				AND cat.deleted_at IS NULL
 				AND course.deleted_at IS NULL
 			GROUP BY cc.course_id
 		) distinct_courses

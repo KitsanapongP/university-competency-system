@@ -24,7 +24,7 @@ func (c *CurriculumController) GetAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	curricula, err := c.Service.GetActiveCurriculums(r.Context(), claims.Roles, claims.FacultyID)
+	curricula, err := c.Service.GetCurriculums(r.Context(), claims.Roles, claims.FacultyID)
 	if err != nil {
 		writeCurriculumError(w, err)
 		return

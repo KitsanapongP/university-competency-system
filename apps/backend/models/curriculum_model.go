@@ -13,6 +13,9 @@ type Curriculum struct {
 	Status           string     `json:"status"`
 	IsActive         bool       `json:"is_active"`
 	TotalCredits     int        `json:"total_credits"`
+	CourseCount      int        `json:"course_count"`
+	CategoryCount    int        `json:"category_count"`
+	TemplateCount    int        `json:"template_count"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 	DeletedAt        *time.Time `json:"deleted_at"`
@@ -37,6 +40,47 @@ type CurriculumCourse struct {
 	CurriculumCourseID uint64     `json:"curriculum_course_id"`
 	CategoryID         uint64     `json:"category_id"`
 	CourseID           uint64     `json:"course_id"`
+	Credits            int        `json:"credits"`
+	IsRequired         bool       `json:"is_required"`
+	IsLocked           bool       `json:"is_locked"`
+	DisplayOrder       int        `json:"display_order"`
+	IsActive           bool       `json:"is_active"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+	DeletedAt          *time.Time `json:"deleted_at"`
+}
+
+type CurriculumDetail struct {
+	Curriculum
+	Categories []*CourseCategoryNode `json:"categories"`
+}
+
+type CourseCategoryNode struct {
+	CategoryID      uint64                 `json:"category_id"`
+	CurriculumID    uint64                 `json:"curriculum_id"`
+	ParentID        *uint64                `json:"parent_id"`
+	Code            *string                `json:"code"`
+	NameTH          string                 `json:"name_th"`
+	NameEN          *string                `json:"name_en"`
+	RequiredCredits int                    `json:"required_credits"`
+	DisplayOrder    int                    `json:"display_order"`
+	IsActive        bool                   `json:"is_active"`
+	CreatedAt       time.Time              `json:"created_at"`
+	UpdatedAt       time.Time              `json:"updated_at"`
+	DeletedAt       *time.Time             `json:"deleted_at"`
+	Children        []*CourseCategoryNode  `json:"children"`
+	Courses         []*CurriculumCourseRow `json:"courses"`
+}
+
+type CurriculumCourseRow struct {
+	CurriculumCourseID uint64     `json:"curriculum_course_id"`
+	CategoryID         uint64     `json:"category_id"`
+	CourseID           uint64     `json:"course_id"`
+	Code               string     `json:"code"`
+	NameTH             string     `json:"name_th"`
+	NameEN             *string    `json:"name_en"`
+	Credits            int        `json:"credits"`
+	Description        *string    `json:"description"`
 	IsRequired         bool       `json:"is_required"`
 	IsLocked           bool       `json:"is_locked"`
 	DisplayOrder       int        `json:"display_order"`
@@ -68,6 +112,7 @@ type CreateCategoryPayload struct {
 }
 
 type CreateCourseInCatPayload struct {
+	CourseID     uint64  `json:"course_id"`
 	Code         string  `json:"code"`
 	NameTH       string  `json:"name_th"`
 	NameEN       *string `json:"name_en"`
