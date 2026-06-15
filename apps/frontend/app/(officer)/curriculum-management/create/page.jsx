@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Check, ChevronRight, ChevronDown, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, FileText, Pencil, GripVertical, AlertTriangle } from 'lucide-react';
-import { useLanguage } from '../../../../providers/LanguageContext';
+import { createCurriculumFromForm } from '../../../../lib/curriculum';
 import '../../../../app/Competency.css';
 import '../CourseLayout.css';
 import '../CourseCreate.css';
@@ -36,8 +36,6 @@ function StepIndicator({ step }) {
 }
 
 function Step1({ form, setForm }) {
-    const { t } = useLanguage();
-
     return (
         <div className="course-form-group">
             <div className="course-form-field">
@@ -59,6 +57,29 @@ function Step1({ form, setForm }) {
                     onChange={e => setForm(p => ({ ...p, nameEn: e.target.value }))}
                     placeholder="เช่น Computer Science"
                 />
+            </div>
+
+            <div className="course-form-row">
+                <div className="course-form-field">
+                    <label className="course-form-field__label">รหัสหลักสูตร<span className="course-form-field__required">*</span></label>
+                    <input
+                        className="course-form-field__input"
+                        value={form.code}
+                        onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
+                        placeholder="เช่น cp_2568_curriculum"
+                    />
+                </div>
+                <div className="course-form-field">
+                    <label className="course-form-field__label">Major ID<span className="course-form-field__required">*</span></label>
+                    <input
+                        type="number"
+                        className="course-form-field__input"
+                        value={form.majorId || ''}
+                        onChange={e => setForm(p => ({ ...p, majorId: parseInt(e.target.value, 10) || '' }))}
+                        placeholder="เช่น 1"
+                        min={1}
+                    />
+                </div>
             </div>
 
             <div className="course-form-row">
@@ -1030,6 +1051,8 @@ function Step3({ form }) {
 }
 
 const EMPTY_FORM = {
+    code: '',
+    majorId: Number(process.env.NEXT_PUBLIC_DEFAULT_MAJOR_ID || '') || '',
     nameTh: '',
     nameEn: '',
     year: null,
@@ -1045,34 +1068,37 @@ const EMPTY_FORM = {
 
 export default function CreateCoursePage() {
     const router = useRouter();
-    const { t } = useLanguage();
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(EMPTY_FORM);
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [showCancelModal, setShowCancelModal] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     const canNext = () => {
         if (step === 1) {
-            return form.nameTh.trim() && form.nameEn.trim() && form.year && form.degreeName && form.degreeFullNameTh;
+            return form.nameTh.trim() && form.nameEn.trim() && form.code.trim() && form.majorId && form.year && form.degreeName && form.degreeFullNameTh;
         }
         return true;
     };
 
-    const handleSave = () => {
-        const stats = {
-            totalCourses: Object.values(form.coursesByCategory || {}).flat().length,
-            totalCategories: form.categories.length + form.categories.reduce((sum, c) => sum + (c.children || []).length, 0),
-            totalCredits: form.categories.reduce((sum, c) => {
-                const addCredits = (cat) => sum + (cat.requiredCredits || 0) + (cat.children || []).reduce((s, ch) => s + addCredits(ch), 0);
-                return sum + addCredits(c);
-            }, 0),
-            coreCourses: Object.values(form.coursesByCategory || {}).flat().filter(c => c.isCoreCourse).length,
-            electiveCourses: Object.values(form.coursesByCategory || {}).flat().filter(c => !c.isCoreCourse).length,
-        };
+    const handleSave = async () => {
+        setError('');
+        setSuccess('');
+        setSubmitting(true);
 
-        console.log('Saving course:', { ...form, stats });
-        alert('สร้างหลักสูตรสำเร็จ! (Demo)');
-        router.push('/curriculum-management');
+        try {
+            await createCurriculumFromForm(form);
+            setSuccess('สร้างหลักสูตรสำเร็จ');
+            setTimeout(() => {
+                router.push('/curriculum-management?created=1');
+            }, 600);
+        } catch (err) {
+            setError(err?.message || 'ไม่สามารถสร้างหลักสูตรได้');
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -1101,12 +1127,19 @@ export default function CreateCoursePage() {
 
                 </div>
 
+                {(error || success) && (
+                    <div className={`course-create-feedback ${error ? 'course-create-feedback--error' : 'course-create-feedback--success'}`}>
+                        {error || success}
+                    </div>
+                )}
+
                 {/* Navigation Buttons */}
                 <div className='course-form-nav'>
                     <div className='course-form-nav__left'>
                         <button
                             className='course-form-nav__btn course-form-nav__btn--danger'
                             onClick={() => setShowCancelModal(true)}
+                            disabled={submitting}
                         >
                             <X size={15} /> ยกเลิก
                         </button>
@@ -1116,6 +1149,7 @@ export default function CreateCoursePage() {
                             <button
                                 className='course-form-nav__btn course-form-nav__btn--secondary'
                                 onClick={() => setStep(s => s - 1)}
+                                disabled={submitting}
                             >
                                 <ArrowLeft size={15} /> ย้อนกลับ
                             </button>
@@ -1124,7 +1158,7 @@ export default function CreateCoursePage() {
                             <button
                                 className='course-form-nav__btn course-form-nav__btn--primary'
                                 onClick={() => setStep(2)}
-                                disabled={!canNext()}
+                                disabled={!canNext() || submitting}
                             >
                                 ถัดไป <ArrowRight size={15} />
                             </button>
@@ -1133,6 +1167,7 @@ export default function CreateCoursePage() {
                             <button
                                 className='course-form-nav__btn course-form-nav__btn--primary'
                                 onClick={() => setStep(3)}
+                                disabled={submitting}
                             >
                                 ถัดไป <ArrowRight size={15} />
                             </button>
@@ -1141,8 +1176,9 @@ export default function CreateCoursePage() {
                             <button
                                 className='course-form-nav__btn course-form-nav__btn--primary'
                                 onClick={handleSave}
+                                disabled={submitting}
                             >
-                                <Check size={15} /> บันทึกหลักสูตร
+                                <Check size={15} /> {submitting ? 'กำลังบันทึก...' : 'บันทึกหลักสูตร'}
                             </button>
                         )}
                     </div>

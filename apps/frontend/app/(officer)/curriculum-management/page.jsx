@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronDown, ChevronRight, Layers, BookOpenCheck, Award, GripVertical, ChevronLeft, ChevronFirst, ChevronLast } from 'lucide-react';
-import { MOCK_COURSE_MASTERS } from '../template-management/mockData.js';
+import { fetchCurriculumDetail, fetchCurriculums } from '../../../lib/curriculum';
 import CourseFormModal from './components/CourseFormModal';
 import ConfirmDeleteModal from '../template-management/components/ConfirmDeleteModal';
 import './CourseLayout.css';
@@ -161,7 +161,7 @@ function CourseCard({ course, onEdit, onDuplicate, onDelete, onOpen }) {
                     <span className="course-card__stat-label">วิชา</span>
                 </div>
                 <div className="course-card__stat">
-                    <span className="course-card__stat-value">{course.categories.length}</span>
+                    <span className="course-card__stat-value">{course.stats.totalCategories}</span>
                     <span className="course-card__stat-label">หมวด</span>
                 </div>
                 <div className="course-card__stat">
@@ -203,20 +203,49 @@ function EmptyState({ onCreate }) {
 export default function CurriculumManagementPage() {
     const router = useRouter();
     const [view, setView] = useState('list'); // 'list' | 'editor'
-    const [courses, setCourses] = useState(MOCK_COURSE_MASTERS);
+    const [courses, setCourses] = useState([]);
     const [search, setSearch] = useState('');
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [showForm, setShowForm] = useState(false);
     const [editingCourse, setEditingCourse] = useState(null);
     const [deletingCourse, setDeletingCourse] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [detailLoadingId, setDetailLoadingId] = useState(null);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     const courseIdRef = useRef(9000);
+
+    const loadCurriculums = useCallback(async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const data = await fetchCurriculums();
+            setCourses(data);
+        } catch (err) {
+            setError(err?.message || 'ไม่สามารถโหลดข้อมูลหลักสูตรได้');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadCurriculums();
+    }, [loadCurriculums]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('created') === '1') {
+            setSuccess('สร้างหลักสูตรสำเร็จ');
+        }
+    }, []);
 
     // Filter courses
     const filteredCourses = courses.filter(c => {
         const term = search.toLowerCase();
-        return c.nameTh.toLowerCase().includes(term) ||
-            c.nameEn.toLowerCase().includes(term) ||
+        return (c.nameTh || '').toLowerCase().includes(term) ||
+            (c.nameEn || '').toLowerCase().includes(term) ||
+            (c.code || '').toLowerCase().includes(term) ||
             String(c.year).includes(term);
     });
 
@@ -224,16 +253,28 @@ export default function CurriculumManagementPage() {
     const totalCourses = courses.length;
     const activeCourses = courses.filter(c => c.isActive).length;
     const totalTemplates = courses.reduce((sum, c) => sum + c.templateCount, 0);
+    const totalCurriculumCredits = courses.reduce((sum, c) => sum + (c.stats?.totalCredits || 0), 0);
 
     // Handlers
-    const handleOpenCourse = useCallback((course) => {
-        setSelectedCourse(course);
-        setView('editor');
+    const handleOpenCourse = useCallback(async (course) => {
+        setDetailLoadingId(course.id);
+        setError('');
+        try {
+            const detail = await fetchCurriculumDetail(course.curriculumId || course.id);
+            setSelectedCourse(detail);
+            setView('editor');
+        } catch (err) {
+            setError(err?.message || 'ไม่สามารถโหลดรายละเอียดหลักสูตรได้');
+        } finally {
+            setDetailLoadingId(null);
+        }
     }, []);
 
     const handleBackToList = useCallback(() => {
         setView('list');
         setSelectedCourse(null);
+        setSelectedCategory(null);
+        setShowAllCourses(false);
     }, []);
 
     const handleCreateCourse = useCallback(() => {
@@ -292,6 +333,13 @@ export default function CurriculumManagementPage() {
     const [showAllCourses, setShowAllCourses] = useState(false);
     const [coursesByCategory, setCoursesByCategory] = useState({});
     const [deletingCategory, setDeletingCategory] = useState(null);
+
+    useEffect(() => {
+        setCategories(selectedCourse?.categories || []);
+        setCoursesByCategory(selectedCourse?.coursesByCategory || {});
+        setSelectedCategory(null);
+        setShowAllCourses(false);
+    }, [selectedCourse]);
 
     const handleSelectAllCourses = useCallback(() => {
         setSelectedCategory(null);
@@ -370,11 +418,6 @@ export default function CurriculumManagementPage() {
         }));
     }, [selectedCategory]);
 
-    // Load course data when selectedCourse changes
-    if (view === 'editor' && selectedCourse && categories.length === 0 && selectedCourse.categories) {
-        setCategories(selectedCourse.categories);
-    }
-
     // ============================================================
     // Render
     // ============================================================
@@ -415,7 +458,7 @@ export default function CurriculumManagementPage() {
                             <BookOpen size={20} />
                         </div>
                         <div className="course-stat-card__content">
-                            <span className="course-stat-card__value">{courses.length}</span>
+                            <span className="course-stat-card__value">{activeCourses}</span>
                             <span className="course-stat-card__label">หลักสูตร</span>
                         </div>
                     </div>
@@ -424,7 +467,7 @@ export default function CurriculumManagementPage() {
                             <Layers size={20} />
                         </div>
                         <div className="course-stat-card__content">
-                            <span className="course-stat-card__value">{categories.length}</span>
+                            <span className="course-stat-card__value">{totalTemplates}</span>
                             <span className="course-stat-card__label">หมวดวิชา</span>
                         </div>
                     </div>
@@ -433,11 +476,32 @@ export default function CurriculumManagementPage() {
                                 <Layers size={22} />
                             </div>
                             <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{courses.reduce((s, c) => s + c.categories.length, 0)}</span>
+                                <span className="course-stat-card__value">{totalCurriculumCredits}</span>
                                 <span className="course-stat-card__label">หมวดวิชาทั้งหมด</span>
                             </div>
                         </div>
                     </div>
+
+                    {success && (
+                        <div className="course-feedback course-feedback--success">
+                            {success}
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="course-feedback course-feedback--error">
+                            <span>{error}</span>
+                            <button className="course-btn course-btn--ghost course-btn--sm" onClick={loadCurriculums}>
+                                ลองใหม่
+                            </button>
+                        </div>
+                    )}
+
+                    {detailLoadingId && (
+                        <div className="course-feedback course-feedback--info">
+                            กำลังโหลดรายละเอียดหลักสูตร...
+                        </div>
+                    )}
 
                     {/* Search */}
                     <div className="course-search-wrap">
@@ -452,7 +516,11 @@ export default function CurriculumManagementPage() {
                     </div>
 
                     {/* Course Grid */}
-                    {filteredCourses.length > 0 ? (
+                    {loading ? (
+                        <div className="course-loading">
+                            <div className="course-spinner" />
+                        </div>
+                    ) : filteredCourses.length > 0 ? (
                         <div className="course-grid">
                             {filteredCourses.map(course => (
                                 <CourseCard
