@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-sql-driver/mysql"
@@ -82,9 +83,45 @@ func (c *CurriculumController) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeCurriculumError(w http.ResponseWriter, err error) {
+	var validationDetailsErr services.CurriculumValidationDetailsError
+	if errors.As(err, &validationDetailsErr) {
+		utils.JSON(w, http.StatusBadRequest, utils.Envelope{
+			"success": false,
+			"error": utils.Envelope{
+				"code":    "BAD_REQUEST",
+				"message": validationDetailsErr.Message,
+			},
+			"data": validationDetailsErr.Data,
+		})
+		return
+	}
+
 	var validationErr services.CurriculumValidationError
 	if errors.As(err, &validationErr) {
 		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", validationErr.Message)
+		return
+	}
+
+	var confirmationErr services.CurriculumConfirmationRequiredError
+	if errors.As(err, &confirmationErr) {
+		utils.JSON(w, http.StatusConflict, utils.Envelope{
+			"success": false,
+			"error": utils.Envelope{
+				"code":    "CONFIRMATION_REQUIRED",
+				"message": confirmationErr.Message,
+			},
+			"data": confirmationErr.Data,
+		})
+		return
+	}
+
+	var conflictErr services.CurriculumConflictError
+	if errors.As(err, &conflictErr) {
+		code := conflictErr.Code
+		if code == "" {
+			code = "CONFLICT"
+		}
+		utils.Error(w, http.StatusConflict, code, conflictErr.Message)
 		return
 	}
 
@@ -100,7 +137,11 @@ func writeCurriculumError(w http.ResponseWriter, err error) {
 
 	var mysqlErr *mysql.MySQLError
 	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
-		utils.Error(w, http.StatusConflict, "DUPLICATE", "curriculum already exists")
+		message := "curriculum already exists"
+		if strings.Contains(mysqlErr.Message, "uq_crs_courses_curriculum_code_live") {
+			message = "course code already exists in this curriculum"
+		}
+		utils.Error(w, http.StatusConflict, "DUPLICATE", message)
 		return
 	}
 

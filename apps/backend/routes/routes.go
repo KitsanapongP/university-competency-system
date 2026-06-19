@@ -74,8 +74,21 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			pr.Route("/curricula", func(cr chi.Router) {
 				cr.Use(middleware.RequireRoles("admin", "officer"))
 				cr.Get("/", curriculumHandler.GetAll)
-				cr.Get("/{id}", curriculumHandler.GetByID)
 				cr.Post("/", curriculumHandler.Create)
+				cr.Route("/{id}", func(cir chi.Router) {
+					cir.Get("/", curriculumHandler.GetByID)
+					cir.Patch("/status", curriculumHandler.UpdateStatus)
+
+					cir.Post("/categories", curriculumHandler.CreateCategory)
+					cir.Get("/categories/{category_id}/delete-preview", curriculumHandler.GetDeleteCategoryPreview)
+					cir.Patch("/categories/{category_id}", curriculumHandler.UpdateCategory)
+					cir.Delete("/categories/{category_id}", curriculumHandler.DeleteCategory)
+					cir.Post("/categories/{category_id}/courses", curriculumHandler.CreateCourse)
+
+					cir.Patch("/courses/{course_id}", curriculumHandler.UpdateCourse)
+					cir.Patch("/curriculum-courses/{curriculum_course_id}", curriculumHandler.UpdateCurriculumCoursePlacement)
+					cir.Delete("/curriculum-courses/{curriculum_course_id}", curriculumHandler.DeleteCurriculumCoursePlacement)
+				})
 			})
 
 			// Examples (optional)

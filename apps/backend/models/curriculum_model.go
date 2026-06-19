@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"bytes"
+	"encoding/json"
+	"time"
+)
 
 // Core DB Models
 type Curriculum struct {
@@ -119,4 +123,107 @@ type CreateCourseInCatPayload struct {
 	Description  *string `json:"description"`
 	IsRequired   bool    `json:"is_required"`
 	DisplayOrder int     `json:"display_order"`
+}
+
+type OptionalUint64 struct {
+	Set   bool
+	Valid bool
+	Value uint64
+}
+
+func (o *OptionalUint64) UnmarshalJSON(data []byte) error {
+	o.Set = true
+	o.Valid = false
+	o.Value = 0
+
+	if bytes.Equal(data, []byte("null")) {
+		return nil
+	}
+
+	var value uint64
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+
+	o.Valid = true
+	o.Value = value
+	return nil
+}
+
+type UpdateCurriculumStatusPayload struct {
+	Status        string `json:"status"`
+	ConfirmImpact bool   `json:"confirm_impact"`
+}
+
+type CreateCurriculumCategoryPayload struct {
+	ParentID        *uint64 `json:"parent_id"`
+	Code            *string `json:"code"`
+	NameTH          string  `json:"name_th"`
+	NameEN          *string `json:"name_en"`
+	RequiredCredits int     `json:"required_credits"`
+	DisplayOrder    int     `json:"display_order"`
+	ConfirmImpact   bool    `json:"confirm_impact"`
+}
+
+type UpdateCurriculumCategoryPayload struct {
+	ParentID        OptionalUint64 `json:"parent_id"`
+	Code            *string        `json:"code"`
+	NameTH          *string        `json:"name_th"`
+	NameEN          *string        `json:"name_en"`
+	RequiredCredits *int           `json:"required_credits"`
+	DisplayOrder    *int           `json:"display_order"`
+	ConfirmImpact   bool           `json:"confirm_impact"`
+}
+
+type UpdateCurriculumCourseDetailPayload struct {
+	Code          *string `json:"code"`
+	NameTH        *string `json:"name_th"`
+	NameEN        *string `json:"name_en"`
+	Credits       *int    `json:"credits"`
+	Description   *string `json:"description"`
+	ConfirmImpact bool    `json:"confirm_impact"`
+}
+
+type CreateCurriculumCoursePayload struct {
+	Code          string  `json:"code"`
+	NameTH        string  `json:"name_th"`
+	NameEN        *string `json:"name_en"`
+	Credits       int     `json:"credits"`
+	Description   *string `json:"description"`
+	IsRequired    bool    `json:"is_required"`
+	DisplayOrder  int     `json:"display_order"`
+	ConfirmImpact bool    `json:"confirm_impact"`
+}
+
+type UpdateCurriculumCoursePlacementPayload struct {
+	CategoryID    *uint64 `json:"category_id"`
+	IsRequired    *bool   `json:"is_required"`
+	IsLocked      *bool   `json:"is_locked"`
+	DisplayOrder  *int    `json:"display_order"`
+	ConfirmImpact bool    `json:"confirm_impact"`
+}
+
+type AffectedTemplate struct {
+	CurriculumTemplateID uint64 `json:"curriculum_template_id"`
+	TemplateID           uint64 `json:"template_id"`
+	Code                 string `json:"code"`
+	Name                 string `json:"name"`
+	CohortYearBE         uint64 `json:"cohort_year_be"`
+	IsActive             bool   `json:"is_active"`
+	Severity             string `json:"severity"`
+}
+
+type CurriculumImpact struct {
+	AffectedTemplates []AffectedTemplate `json:"affected_templates"`
+}
+
+type DeleteCategoryPreview struct {
+	CategoryID                     uint64             `json:"category_id"`
+	CategoryNameTH                 string             `json:"category_name_th"`
+	SubtreeCategoryIDs             []uint64           `json:"subtree_category_ids"`
+	MoveTargetCategoryID           *uint64            `json:"move_target_category_id"`
+	MoveTargetCategoryNameTH       *string            `json:"move_target_category_name_th"`
+	AffectedCurriculumCourseIDs    []uint64           `json:"affected_curriculum_course_ids"`
+	SoftRemovedCurriculumCourseIDs []uint64           `json:"soft_removed_curriculum_course_ids"`
+	AffectedTemplates              []AffectedTemplate `json:"affected_templates"`
 }
