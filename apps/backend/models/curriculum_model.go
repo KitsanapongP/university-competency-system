@@ -40,7 +40,6 @@ type CurriculumCourse struct {
 	CurriculumCourseID uint64     `json:"curriculum_course_id"`
 	CategoryID         uint64     `json:"category_id"`
 	CourseID           uint64     `json:"course_id"`
-	Credits            int        `json:"credits"`
 	IsRequired         bool       `json:"is_required"`
 	IsLocked           bool       `json:"is_locked"`
 	DisplayOrder       int        `json:"display_order"`

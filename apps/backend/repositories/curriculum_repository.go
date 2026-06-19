@@ -3,7 +3,6 @@ package repositories
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/spw32767/university-competency-system-backend/models"
@@ -28,13 +27,11 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-var ErrCourseNotFoundInScope = errors.New("course not found in curriculum scope")
-
 const curriculumStatsJoin = `
 	LEFT JOIN (
 		SELECT curriculum_id, COALESCE(SUM(course_credits), 0) AS total_credits, COUNT(*) AS course_count
 		FROM (
-			SELECT cat.curriculum_id, cc.course_id, MAX(cc.credits) AS course_credits
+			SELECT cat.curriculum_id, cc.course_id, MAX(course.credits) AS course_credits
 			FROM crs_curriculum_courses cc
 			JOIN crs_course_categories cat ON cat.category_id = cc.category_id
 			JOIN crs_courses course ON course.course_id = cc.course_id
@@ -42,6 +39,7 @@ const curriculumStatsJoin = `
 				AND cc.deleted_at IS NULL
 				AND cat.deleted_at IS NULL
 				AND course.deleted_at IS NULL
+				AND course.curriculum_id = cat.curriculum_id
 			GROUP BY cat.curriculum_id, cc.course_id
 		) distinct_courses
 		GROUP BY curriculum_id
@@ -350,7 +348,7 @@ func (r *CurriculumRepository) getCurriculumCoursesByCategory(ctx context.Contex
 			course.code,
 			course.name_th,
 			course.name_en,
-			cc.credits,
+			course.credits,
 			course.description,
 			cc.is_required,
 			cc.is_locked,
@@ -366,6 +364,7 @@ func (r *CurriculumRepository) getCurriculumCoursesByCategory(ctx context.Contex
 			AND cat.deleted_at IS NULL
 			AND cc.deleted_at IS NULL
 			AND course.deleted_at IS NULL
+			AND course.curriculum_id = cat.curriculum_id
 		ORDER BY cc.category_id, cc.display_order, cc.curriculum_course_id
 	`
 
@@ -457,7 +456,7 @@ func (r *CurriculumRepository) CreateCurriculumTx(ctx context.Context, payload m
 
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO edu_curricula (major_id, code, name_th, name_en, effective_year_be, status)
-		VALUES (?, ?, ?, ?, ?, 'active')
+		VALUES (?, ?, ?, ?, ?, 'draft')
 	`, payload.MajorID, payload.CurriculumCode, payload.CurriculumNameTH, payload.CurriculumNameEN, payload.EffectiveYearBE)
 	if err != nil {
 		return nil, fmt.Errorf("insert curriculum: %w", err)
@@ -496,15 +495,15 @@ func (r *CurriculumRepository) insertCategory(ctx context.Context, tx *sql.Tx, c
 	}
 
 	for _, course := range payload.Courses {
-		courseID, err := r.resolveCourse(ctx, tx, course, opts)
+		courseID, err := r.createCourse(ctx, tx, curriculumID, course, opts)
 		if err != nil {
 			return err
 		}
 
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO crs_curriculum_courses (category_id, course_id, credits, is_required, display_order, is_active)
-			VALUES (?, ?, ?, ?, ?, 1)
-		`, categoryID, courseID, course.Credits, course.IsRequired, course.DisplayOrder)
+			INSERT INTO crs_curriculum_courses (category_id, course_id, is_required, display_order, is_active)
+			VALUES (?, ?, ?, ?, 1)
+		`, categoryID, courseID, course.IsRequired, course.DisplayOrder)
 		if err != nil {
 			return fmt.Errorf("link course %q to category %d: %w", course.Code, categoryID, err)
 		}
@@ -520,61 +519,10 @@ func (r *CurriculumRepository) insertCategory(ctx context.Context, tx *sql.Tx, c
 	return nil
 }
 
-func (r *CurriculumRepository) resolveCourse(ctx context.Context, tx *sql.Tx, payload models.CreateCourseInCatPayload, opts CreateCurriculumOptions) (uint64, error) {
-	if payload.CourseID > 0 {
-		return r.validateExistingCourse(ctx, tx, payload.CourseID, opts)
-	}
-
-	return r.findOrCreateCourse(ctx, tx, payload, opts)
-}
-
-func (r *CurriculumRepository) validateExistingCourse(ctx context.Context, tx *sql.Tx, courseID uint64, opts CreateCurriculumOptions) (uint64, error) {
+func (r *CurriculumRepository) createCourse(ctx context.Context, tx *sql.Tx, curriculumID uint64, payload models.CreateCourseInCatPayload, opts CreateCurriculumOptions) (uint64, error) {
 	degreeLevel := opts.DegreeLevel
 	if degreeLevel == "" {
 		degreeLevel = "bachelor"
-	}
-
-	var existingCourseID uint64
-	err := tx.QueryRowContext(ctx, `
-		SELECT course_id
-		FROM crs_courses
-		WHERE course_id = ?
-			AND faculty_id = ?
-			AND degree_level = ?
-			AND deleted_at IS NULL
-		LIMIT 1
-	`, courseID, opts.FacultyID, degreeLevel).Scan(&existingCourseID)
-	if err == nil {
-		return existingCourseID, nil
-	}
-	if err == sql.ErrNoRows {
-		return 0, fmt.Errorf("%w: %d", ErrCourseNotFoundInScope, courseID)
-	}
-
-	return 0, err
-}
-
-func (r *CurriculumRepository) findOrCreateCourse(ctx context.Context, tx *sql.Tx, payload models.CreateCourseInCatPayload, opts CreateCurriculumOptions) (uint64, error) {
-	degreeLevel := opts.DegreeLevel
-	if degreeLevel == "" {
-		degreeLevel = "bachelor"
-	}
-
-	var existingCourseID uint64
-	err := tx.QueryRowContext(ctx, `
-		SELECT course_id
-		FROM crs_courses
-		WHERE faculty_id = ?
-			AND code = ?
-			AND degree_level = ?
-			AND deleted_at IS NULL
-		LIMIT 1
-	`, opts.FacultyID, payload.Code, degreeLevel).Scan(&existingCourseID)
-	if err == nil {
-		return existingCourseID, nil
-	}
-	if err != sql.ErrNoRows {
-		return 0, err
 	}
 
 	var createdBy sql.NullInt64
@@ -583,9 +531,9 @@ func (r *CurriculumRepository) findOrCreateCourse(ctx context.Context, tx *sql.T
 	}
 
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO crs_courses (faculty_id, degree_level, code, name_th, name_en, credits, description, created_by, status, is_active)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1)
-	`, opts.FacultyID, degreeLevel, payload.Code, payload.NameTH, payload.NameEN, payload.Credits, payload.Description, createdBy)
+		INSERT INTO crs_courses (curriculum_id, faculty_id, degree_level, code, name_th, name_en, credits, description, created_by, status, is_active)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1)
+	`, curriculumID, opts.FacultyID, degreeLevel, payload.Code, payload.NameTH, payload.NameEN, payload.Credits, payload.Description, createdBy)
 	if err != nil {
 		return 0, fmt.Errorf("insert course %q: %w", payload.Code, err)
 	}
@@ -602,7 +550,7 @@ func (r *CurriculumRepository) CalculateCurriculumTotalCredits(ctx context.Conte
 	query := `
 		SELECT COALESCE(SUM(course_credits), 0)
 		FROM (
-			SELECT cc.course_id, MAX(cc.credits) AS course_credits
+			SELECT cc.course_id, MAX(course.credits) AS course_credits
 			FROM crs_curriculum_courses cc
 			JOIN crs_course_categories cat ON cat.category_id = cc.category_id
 			JOIN crs_courses course ON course.course_id = cc.course_id
@@ -611,6 +559,7 @@ func (r *CurriculumRepository) CalculateCurriculumTotalCredits(ctx context.Conte
 				AND cc.deleted_at IS NULL
 				AND cat.deleted_at IS NULL
 				AND course.deleted_at IS NULL
+				AND course.curriculum_id = cat.curriculum_id
 			GROUP BY cc.course_id
 		) distinct_courses
 	`

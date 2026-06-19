@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strconv"
 	"strings"
 
 	"github.com/spw32767/university-competency-system-backend/models"
@@ -109,9 +108,6 @@ func (s *CurriculumService) CreateCurriculum(ctx context.Context, payload models
 		CreatedBy:   createdBy,
 		DegreeLevel: majorScope.DegreeLevel,
 	})
-	if errors.Is(err, repositories.ErrCourseNotFoundInScope) {
-		return nil, CurriculumValidationError{Message: "course_id is invalid for this curriculum scope"}
-	}
 
 	return curriculum, err
 }
@@ -144,32 +140,26 @@ func validateCreateCategories(categories []models.CreateCategoryPayload, seenCou
 		}
 
 		for _, course := range category.Courses {
+			if course.CourseID != 0 {
+				return CurriculumValidationError{Message: "course_id is not allowed when creating curriculum courses"}
+			}
 			if course.Credits < 0 {
 				return CurriculumValidationError{Message: "course credits must be zero or greater"}
 			}
 
-			if course.CourseID == 0 {
-				code := strings.TrimSpace(course.Code)
-				if code == "" {
-					return CurriculumValidationError{Message: "course code is required when course_id is not provided"}
-				}
-				if strings.TrimSpace(course.NameTH) == "" {
-					return CurriculumValidationError{Message: "course name_th is required when course_id is not provided"}
-				}
-
-				normalizedCode := strings.ToLower(code)
-				if seenCourseCodes[normalizedCode] {
-					return CurriculumValidationError{Message: "duplicate course code in curriculum payload"}
-				}
-				seenCourseCodes[normalizedCode] = true
-				continue
+			code := strings.TrimSpace(course.Code)
+			if code == "" {
+				return CurriculumValidationError{Message: "course code is required"}
+			}
+			if strings.TrimSpace(course.NameTH) == "" {
+				return CurriculumValidationError{Message: "course name_th is required"}
 			}
 
-			normalizedCourseID := "id:" + strconv.FormatUint(course.CourseID, 10)
-			if seenCourseCodes[normalizedCourseID] {
-				return CurriculumValidationError{Message: "duplicate course_id in curriculum payload"}
+			normalizedCode := strings.ToLower(code)
+			if seenCourseCodes[normalizedCode] {
+				return CurriculumValidationError{Message: "duplicate course code in curriculum payload"}
 			}
-			seenCourseCodes[normalizedCourseID] = true
+			seenCourseCodes[normalizedCode] = true
 		}
 
 		if err := validateCreateCategories(category.Children, seenCourseCodes); err != nil {
