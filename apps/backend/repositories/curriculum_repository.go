@@ -66,12 +66,15 @@ func NewCurriculumRepository(db *sql.DB) *CurriculumRepository {
 
 func scanCurriculum(scanner rowScanner) (*models.Curriculum, error) {
 	var c models.Curriculum
+	var majorNameEn sql.NullString
 	var nameEn sql.NullString
 	var deletedAt sql.NullTime
 
 	if err := scanner.Scan(
 		&c.CurriculumID,
 		&c.MajorID,
+		&c.MajorNameTH,
+		&majorNameEn,
 		&c.CurriculumNameTH,
 		&nameEn,
 		&c.CurriculumCode,
@@ -91,6 +94,9 @@ func scanCurriculum(scanner rowScanner) (*models.Curriculum, error) {
 	if nameEn.Valid {
 		c.CurriculumNameEN = &nameEn.String
 	}
+	if majorNameEn.Valid {
+		c.MajorNameEN = &majorNameEn.String
+	}
 	if deletedAt.Valid {
 		c.DeletedAt = &deletedAt.Time
 	}
@@ -101,7 +107,7 @@ func scanCurriculum(scanner rowScanner) (*models.Curriculum, error) {
 
 func (r *CurriculumRepository) GetCurriculums(ctx context.Context) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -109,7 +115,9 @@ func (r *CurriculumRepository) GetCurriculums(ctx context.Context) ([]*models.Cu
 			c.created_at, c.updated_at, c.deleted_at
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
+		JOIN edu_majors m ON m.major_id = c.major_id
 		WHERE c.deleted_at IS NULL
+			AND m.deleted_at IS NULL
 		ORDER BY c.effective_year_be DESC, c.curriculum_id DESC
 	`
 
@@ -136,7 +144,7 @@ func (r *CurriculumRepository) GetCurriculums(ctx context.Context) ([]*models.Cu
 
 func (r *CurriculumRepository) GetCurriculumsByFaculty(ctx context.Context, facultyID uint64) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -368,7 +376,7 @@ func scanMajorOptions(rows *sql.Rows) ([]*models.MajorOption, error) {
 
 func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uint64) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -376,7 +384,9 @@ func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uin
 			c.created_at, c.updated_at, c.deleted_at
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
+		JOIN edu_majors m ON m.major_id = c.major_id
 		WHERE c.effective_year_be = ? AND c.status = 'active' AND c.deleted_at IS NULL
+			AND m.deleted_at IS NULL
 		ORDER BY c.curriculum_id DESC
 	`
 
@@ -403,7 +413,7 @@ func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uin
 
 func (r *CurriculumRepository) GetCurriculumByID(ctx context.Context, id uint64) (*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -411,7 +421,9 @@ func (r *CurriculumRepository) GetCurriculumByID(ctx context.Context, id uint64)
 			c.created_at, c.updated_at, c.deleted_at
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
+		JOIN edu_majors m ON m.major_id = c.major_id
 		WHERE c.curriculum_id = ? AND c.deleted_at IS NULL
+			AND m.deleted_at IS NULL
 	`
 
 	return scanCurriculum(r.DB.QueryRowContext(ctx, query, id))
