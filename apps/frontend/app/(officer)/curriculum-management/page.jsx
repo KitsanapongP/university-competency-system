@@ -2,8 +2,19 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronDown, ChevronRight, Layers, BookOpenCheck, Award, GripVertical, ChevronLeft, ChevronFirst, ChevronLast } from 'lucide-react';
-import { fetchCurriculumDetail, fetchCurriculums } from '../../../lib/curriculum';
+import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronDown, ChevronRight, Layers, Award, GripVertical, ChevronLeft, ChevronFirst, ChevronLast } from 'lucide-react';
+import {
+    createCurriculumCategory,
+    createCurriculumCourse,
+    deleteCurriculumCategory,
+    deleteCurriculumCoursePlacement,
+    fetchCurriculumDetail,
+    fetchCurriculums,
+    getDeleteCurriculumCategoryPreview,
+    updateCurriculumCategory,
+    updateCurriculumCourseDetail,
+    updateCurriculumStatus,
+} from '../../../lib/curriculum';
 import CourseFormModal from './components/CourseFormModal';
 import ConfirmDeleteModal from '../template-management/components/ConfirmDeleteModal';
 import './CourseLayout.css';
@@ -22,34 +33,49 @@ function findById(cats, id) {
     return null;
 }
 
-function insertChild(cats, parentId, newChild) {
-    return cats.map(c => {
-        if (c.id === parentId) return { ...c, children: [...(c.children || []), newChild] };
-        if (c.children?.length) return { ...c, children: insertChild(c.children, parentId, newChild) };
-        return c;
-    });
-}
-
-function removeCategory(cats, id) {
-    return cats
-        .filter(c => c.id !== id)
-        .map(c => ({ ...c, children: c.children ? removeCategory(c.children, id) : c }));
-}
-
-function renameInTree(cats, id, name) {
-    return cats.map(c => {
-        if (c.id === id) return { ...c, name, isNew: false };
-        if (c.children?.length) return { ...c, children: renameInTree(c.children, id, name) };
-        return c;
-    });
-}
-
 function getNextCode(parentCode, siblings) {
     return parentCode ? `${parentCode}.${siblings.length + 1}` : `${siblings.length + 1}`;
 }
 
-function getDepthFromCode(code) {
-    return code ? code.split('.').length - 1 : 0;
+const STATUS_LABELS = {
+    draft: 'กำลังสร้าง',
+    active: 'พร้อมใช้งาน',
+    inactive: 'ปิดใช้งาน',
+};
+
+function getStatusAction(status) {
+    if (status === 'active') {
+        return { nextStatus: 'inactive', label: 'ปิดใช้งาน' };
+    }
+    return { nextStatus: 'active', label: 'เปิดใช้งาน' };
+}
+
+function buildConfirmationMessage(error) {
+    const templates = error?.payload?.data?.affected_templates || [];
+    if (!templates.length) {
+        return `${error?.message || 'This action requires confirmation'}\n\nยืนยันดำเนินการต่อหรือไม่?`;
+    }
+
+    const templateList = templates
+        .slice(0, 8)
+        .map(template => `- ${template.name || template.code || 'Template'}${template.cohort_year_be ? ` (${template.cohort_year_be})` : ''}`)
+        .join('\n');
+    const more = templates.length > 8 ? `\n- และอีก ${templates.length - 8} รายการ` : '';
+
+    return `${error?.message || 'This action requires confirmation'}\n\nTemplate ที่อาจได้รับผลกระทบ:\n${templateList}${more}\n\nยืนยันดำเนินการต่อหรือไม่?`;
+}
+
+function getEditorErrorMessage(error) {
+    if (error?.code === 'CURRICULUM_STRUCTURE_LOCKED') {
+        return 'โครงสร้างหลักสูตรถูกล็อกอยู่ เพราะมี Active Template เชื่อมอยู่';
+    }
+    if (error?.code === 'CURRICULUM_HAS_ACTIVE_TEMPLATE') {
+        return 'ยังปิดใช้งานหลักสูตรไม่ได้ เพราะมี Active Template เชื่อมอยู่';
+    }
+    if (error?.code === 'DUPLICATE') {
+        return error.message || 'ข้อมูลซ้ำกับรายการเดิม';
+    }
+    return error?.message || 'ไม่สามารถบันทึกข้อมูลหลักสูตรได้';
 }
 
 function getDisplayCourses(categories, selectedCategory, showAll) {
@@ -104,15 +130,6 @@ function getDisplayCourses(categories, selectedCategory, showAll) {
         }
     }
     return result;
-}
-
-function isDescendantOf(node, id) {
-    return (node.children || []).some(c => c.id === id || isDescendantOf(c, id));
-}
-
-function getDirectChildren(cats, parentId) {
-    if (!parentId) return cats;
-    return findById(cats, parentId)?.children || [];
 }
 
 // ============================================================
@@ -211,6 +228,7 @@ export default function CurriculumManagementPage() {
     const [deletingCourse, setDeletingCourse] = useState(null);
     const [loading, setLoading] = useState(true);
     const [detailLoadingId, setDetailLoadingId] = useState(null);
+    const [operationLoading, setOperationLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
@@ -259,6 +277,7 @@ export default function CurriculumManagementPage() {
     const handleOpenCourse = useCallback(async (course) => {
         setDetailLoadingId(course.id);
         setError('');
+        setSuccess('');
         try {
             const detail = await fetchCurriculumDetail(course.curriculumId || course.id);
             setSelectedCourse(detail);
@@ -335,11 +354,43 @@ export default function CurriculumManagementPage() {
     const [deletingCategory, setDeletingCategory] = useState(null);
 
     useEffect(() => {
-        setCategories(selectedCourse?.categories || []);
+        const nextCategories = selectedCourse?.categories || [];
+        setCategories(nextCategories);
         setCoursesByCategory(selectedCourse?.coursesByCategory || {});
-        setSelectedCategory(null);
-        setShowAllCourses(false);
+        setSelectedCategory(current => (current ? findById(nextCategories, current.id) : null));
+        if (!selectedCourse) {
+            setShowAllCourses(false);
+        }
     }, [selectedCourse]);
+
+    const commitCurriculumMutation = useCallback(async (operation, successMessage) => {
+        let confirmImpact = false;
+
+        for (;;) {
+            setOperationLoading(true);
+            setError('');
+            setSuccess('');
+
+            try {
+                const detail = await operation(confirmImpact);
+                setSelectedCourse(detail);
+                setSuccess(successMessage);
+                await loadCurriculums();
+                return detail;
+            } catch (err) {
+                const needsConfirmation = err?.status === 409 && err?.code === 'CONFIRMATION_REQUIRED' && !confirmImpact;
+                if (needsConfirmation && window.confirm(buildConfirmationMessage(err))) {
+                    confirmImpact = true;
+                    continue;
+                }
+
+                setError(getEditorErrorMessage(err));
+                return null;
+            } finally {
+                setOperationLoading(false);
+            }
+        }
+    }, [loadCurriculums]);
 
     const handleSelectAllCourses = useCallback(() => {
         setSelectedCategory(null);
@@ -351,72 +402,86 @@ export default function CurriculumManagementPage() {
         setShowAllCourses(false);
     }, []);
 
-    const updateCategories = useCallback((updater) => {
-        setCategories(typeof updater === 'function' ? updater(categories) : updater);
-    }, [categories]);
-
-    const currentChildren = getDirectChildren(categories, selectedCategory?.id);
-
-    const handleAddCategory = useCallback(() => {
+    const handleAddCategory = useCallback(async () => {
+        if (!selectedCourse) return;
         const parentId = selectedCategory?.id;
         const siblings = parentId ? selectedCategory.children || [] : categories;
         const code = getNextCode(selectedCategory?.code || '', siblings);
-        const newCat = {
-            id: `new_${Date.now()}`,
+
+        await commitCurriculumMutation((confirmImpact) => createCurriculumCategory(selectedCourse.curriculumId, {
+            parentId: parentId || null,
             code,
             name: 'หมวดวิชาใหม่',
             requiredCredits: 0,
-            children: [],
-            isNew: true,
-        };
+            displayOrder: siblings.length + 1,
+        }, confirmImpact), 'เพิ่มหมวดวิชาแล้ว');
+    }, [categories, commitCurriculumMutation, selectedCategory, selectedCourse]);
 
-        if (parentId) {
-            setCategories(p => insertChild(p, parentId, newCat));
-        } else {
-            setCategories(p => [...p, newCat]);
+    const handleRenameCategory = useCallback(async (id, updates) => {
+        if (!selectedCourse) return null;
+        const current = findById(categories, id);
+        if (!current) return null;
+
+        const payload = typeof updates === 'string' ? { nameTh: updates } : updates;
+        return commitCurriculumMutation((confirmImpact) => updateCurriculumCategory(selectedCourse.curriculumId, id, {
+            code: payload.code ?? current.code,
+            nameTh: payload.nameTh ?? payload.name ?? current.name,
+            nameEn: payload.nameEn ?? current.nameEn,
+            requiredCredits: payload.requiredCredits ?? current.requiredCredits,
+            displayOrder: payload.displayOrder ?? current.displayOrder,
+        }, confirmImpact), 'บันทึกหมวดวิชาแล้ว');
+    }, [categories, commitCurriculumMutation, selectedCourse]);
+
+    const handleRequestDeleteCategory = useCallback(async (cat) => {
+        if (!selectedCourse || !cat?.id) return;
+        setError('');
+        try {
+            const preview = await getDeleteCurriculumCategoryPreview(selectedCourse.curriculumId, cat.id);
+            setDeletingCategory({ ...cat, deletePreview: preview });
+        } catch (err) {
+            setError(getEditorErrorMessage(err));
         }
-        setSelectedCategory(newCat);
-    }, [selectedCategory, categories]);
+    }, [selectedCourse]);
 
-    const handleRenameCategory = useCallback((id, name) => {
-        setCategories(p => renameInTree(p, id, name));
-    }, []);
-
-    const handleRequestDeleteCategory = useCallback((cat) => {
-        setDeletingCategory(cat);
-    }, [setDeletingCategory]);
-
-    const handleConfirmDeleteCategory = useCallback(() => {
+    const handleConfirmDeleteCategory = useCallback(async () => {
         if (!deletingCategory) return;
-        setCategories(p => removeCategory(p, deletingCategory.id));
-        if (selectedCategory?.id === deletingCategory.id || isDescendantOf(deletingCategory, selectedCategory?.id)) {
-            setSelectedCategory(null);
-        }
+        await commitCurriculumMutation(() => deleteCurriculumCategory(selectedCourse.curriculumId, deletingCategory.id, true), 'ลบหมวดวิชาแล้ว');
         setDeletingCategory(null);
-    }, [deletingCategory, selectedCategory, setCategories, setSelectedCategory, setDeletingCategory]);
+    }, [commitCurriculumMutation, deletingCategory, selectedCourse]);
 
 
-    const handleAddCourse = useCallback((data) => {
-        if (!selectedCategory) return;
-        const course = { id: `course_${Date.now()}`, ...data };
-        setCoursesByCategory(p => ({ ...p, [selectedCategory.id]: [...(p[selectedCategory.id] || []), course] }));
-    }, [selectedCategory]);
+    const handleAddCourse = useCallback(async (data) => {
+        if (!selectedCourse || !selectedCategory) return null;
+        const displayOrder = (coursesByCategory[selectedCategory.id] || []).length + 1;
+        return commitCurriculumMutation((confirmImpact) => createCurriculumCourse(selectedCourse.curriculumId, selectedCategory.id, {
+            ...data,
+            displayOrder,
+        }, confirmImpact), 'เพิ่มรายวิชาแล้ว');
+    }, [commitCurriculumMutation, coursesByCategory, selectedCategory, selectedCourse]);
 
-    const handleUpdateCourse = useCallback((updatedCourse) => {
-        if (!selectedCategory) return;
-        setCoursesByCategory(p => ({
-            ...p,
-            [selectedCategory.id]: (p[selectedCategory.id] || []).map(c => c.id === updatedCourse.id ? updatedCourse : c),
-        }));
-    }, [selectedCategory]);
+    const handleUpdateCourse = useCallback(async (updatedCourse) => {
+        if (!selectedCourse || !updatedCourse?.courseId) return null;
+        return commitCurriculumMutation((confirmImpact) => updateCurriculumCourseDetail(selectedCourse.curriculumId, updatedCourse.courseId, {
+            code: updatedCourse.code,
+            nameTh: updatedCourse.nameTh,
+            nameEn: updatedCourse.nameEn,
+            credits: updatedCourse.credits,
+            description: updatedCourse.description,
+        }, confirmImpact), 'บันทึกรายวิชาแล้ว');
+    }, [commitCurriculumMutation, selectedCourse]);
 
-    const handleRequestDeleteCourseInEditor = useCallback((course) => {
-        if (!selectedCategory) return;
-        setCoursesByCategory(p => ({
-            ...p,
-            [selectedCategory.id]: (p[selectedCategory.id] || []).filter(c => c.id !== course.id),
-        }));
-    }, [selectedCategory]);
+    const handleRequestDeleteCourseInEditor = useCallback(async (course) => {
+        if (!selectedCourse || !course?.curriculumCourseId) return null;
+        if (!window.confirm(`ยืนยันถอดรายวิชา ${course.code || course.nameTh || ''} ออกจากหลักสูตรหรือไม่?`)) return null;
+        return commitCurriculumMutation((confirmImpact) => deleteCurriculumCoursePlacement(selectedCourse.curriculumId, course.curriculumCourseId, confirmImpact), 'ถอดรายวิชาแล้ว');
+    }, [commitCurriculumMutation, selectedCourse]);
+
+    const handleChangeStatus = useCallback(async (nextStatus) => {
+        if (!selectedCourse) return null;
+        return commitCurriculumMutation((confirmImpact) => updateCurriculumStatus(selectedCourse.curriculumId, nextStatus, confirmImpact), 'อัปเดตสถานะหลักสูตรแล้ว');
+    }, [commitCurriculumMutation, selectedCourse]);
+
+    const statusAction = selectedCourse ? getStatusAction(selectedCourse.status) : null;
 
     // ============================================================
     // Render
@@ -551,7 +616,39 @@ export default function CurriculumManagementPage() {
                                 <p className="course-editor-header__subtitle">{selectedCourse.nameEn} · ปี {selectedCourse.year}</p>
                             </div>
                         </div>
+                        <div className="course-editor-header__actions">
+                            <span className={`course-status-badge course-status-badge--${selectedCourse.status}`}>
+                                {STATUS_LABELS[selectedCourse.status] || selectedCourse.status}
+                            </span>
+                            {statusAction && (
+                                <button
+                                    className={`course-btn ${selectedCourse.status === 'active' ? 'course-btn--danger' : 'course-btn--primary'}`}
+                                    onClick={() => handleChangeStatus(statusAction.nextStatus)}
+                                    disabled={operationLoading}
+                                >
+                                    {statusAction.label}
+                                </button>
+                            )}
+                        </div>
                     </div>
+
+                    {success && (
+                        <div className="course-feedback course-feedback--success">
+                            {success}
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="course-feedback course-feedback--error">
+                            <span>{error}</span>
+                        </div>
+                    )}
+
+                    {operationLoading && (
+                        <div className="course-feedback course-feedback--info">
+                            กำลังบันทึกข้อมูลหลักสูตร...
+                        </div>
+                    )}
 
                     {/* Stats Row */}
                     <div className="course-stats-row">
@@ -560,7 +657,7 @@ export default function CurriculumManagementPage() {
                                 <BookOpen size={20} />
                             </div>
                             <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{Object.values(coursesByCategory).flat().length}</span>
+                                <span className="course-stat-card__value">{selectedCourse.stats?.totalCourses ?? Object.values(coursesByCategory).flat().length}</span>
                                 <span className="course-stat-card__label">วิชา</span>
                             </div>
                         </div>
@@ -569,7 +666,7 @@ export default function CurriculumManagementPage() {
                                 <Layers size={20} />
                             </div>
                             <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{categories.length}</span>
+                                <span className="course-stat-card__value">{selectedCourse.stats?.totalCategories ?? categories.length}</span>
                                 <span className="course-stat-card__label">หมวดวิชา</span>
                             </div>
                         </div>
@@ -578,7 +675,7 @@ export default function CurriculumManagementPage() {
                                 <Award size={20} />
                             </div>
                             <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{categories.reduce((s, c) => s + (c.requiredCredits || 0), 0)}</span>
+                                <span className="course-stat-card__value">{selectedCourse.stats?.totalCredits ?? 0}</span>
                                 <span className="course-stat-card__label">หน่วยกิตรวม</span>
                             </div>
                         </div>
@@ -590,7 +687,7 @@ export default function CurriculumManagementPage() {
                             <div className="course-category-tree">
                                 <div className="course-category-tree__header">
                                     <span className="course-category-tree__title">โครงสร้างหลักสูตร</span>
-                                    <button className="course-btn course-btn--ghost course-btn--sm" onClick={handleAddCategory}>
+                                    <button className="course-btn course-btn--ghost course-btn--sm" onClick={handleAddCategory} disabled={operationLoading}>
                                         <Plus size={14} /> เพิ่มหมวด
                                     </button>
                                 </div>
@@ -607,7 +704,7 @@ export default function CurriculumManagementPage() {
                                     {categories.length === 0 ? (
                                         <div className="course-tree-empty">
                                             <p>ยังไม่มีหมวดวิชา</p>
-                                            <button className="course-btn course-btn--primary course-btn--sm course-tree-empty__btn" onClick={handleAddCategory}>
+                                            <button className="course-btn course-btn--primary course-btn--sm course-tree-empty__btn" onClick={handleAddCategory} disabled={operationLoading}>
                                                 <Plus size={14} /> เพิ่มหมวดวิชาแรก
                                             </button>
                                         </div>
@@ -629,6 +726,7 @@ export default function CurriculumManagementPage() {
                         {/* Category Detail Panel */}
                         <div className="course-editor-panels__content">
                             <CategoryDetailPanel
+                                key={`${showAllCourses ? 'all' : selectedCategory?.id || 'none'}:${selectedCategory?.name || ''}:${selectedCategory?.requiredCredits ?? 0}`}
                                 category={showAllCourses ? { id: 'all', code: '', name: 'วิชาทั้งหมดในหลักสูตร' } : selectedCategory}
                                 courses={getDisplayCourses(categories, selectedCategory, showAllCourses)}
                                 onRename={selectedCategory ? handleRenameCategory : () => { }}
@@ -636,6 +734,8 @@ export default function CurriculumManagementPage() {
                                 onAddCourse={handleAddCourse}
                                 onUpdateCourse={handleUpdateCourse}
                                 onDeleteCourse={handleRequestDeleteCourseInEditor}
+                                canEdit={Boolean(selectedCategory) && !showAllCourses}
+                                disabled={operationLoading}
                             />
                         </div>
                     </div>
@@ -717,47 +817,55 @@ function CategoryItem({ category, selectedId, onSelect, level }) {
 // ============================================================
 // CategoryDetailPanel — Spreadsheet style with Pagination
 // ============================================================
-function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCourse, onUpdateCourse, onDeleteCourse }) {
+function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCourse, onUpdateCourse, onDeleteCourse, canEdit = false, disabled = false }) {
     const [editName, setEditName] = useState(category?.name || '');
     const [credits, setCredits] = useState(category?.requiredCredits || 0);
     const [showAddCourse, setShowAddCourse] = useState(false);
     const [newCourse, setNewCourse] = useState({ code: '', nameTh: '', nameEn: '', credits: 0, isCoreCourse: true });
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 10;
+    const isReadOnly = disabled || !canEdit || !category || category.id === 'all';
 
-    useEffect(() => {
-        setEditName(category?.name || '');
-        setCredits(category?.requiredCredits || 0);
-        setCurrentPage(1);
-    }, [category?.id]);
-
-    const totalPages = Math.ceil(courses.length / ITEMS_PER_PAGE);
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const totalPages = Math.max(1, Math.ceil(courses.length / ITEMS_PER_PAGE));
+    const safeCurrentPage = Math.min(currentPage, totalPages);
+    const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
     const paginatedCourses = courses.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
     const handleSaveName = () => {
-        if (!category?.id) return;
-        onRename(category.id, editName);
+        if (isReadOnly || !category?.id || editName.trim() === category.name) return;
+        onRename(category.id, { nameTh: editName.trim() });
     };
 
     const handleSaveCredits = () => {
-        if (!category?.id) return;
-        onRename(category.id, category.name);
+        if (isReadOnly || !category?.id) return;
+        const nextCredits = Number(credits);
+        if (!Number.isFinite(nextCredits) || nextCredits < 0 || nextCredits === category.requiredCredits) return;
+        onRename(category.id, { requiredCredits: nextCredits });
     };
 
-    const handleAddCourse = () => {
-        if (!newCourse.nameTh.trim()) return;
-        onAddCourse({ ...newCourse, id: `c_${Date.now()}` });
-        setNewCourse({ code: '', nameTh: '', nameEn: '', credits: 0, isCoreCourse: true });
-        setShowAddCourse(false);
+    const handleAddCourse = async () => {
+        if (isReadOnly || !newCourse.code.trim() || !newCourse.nameTh.trim()) return;
+        const result = await onAddCourse({
+            ...newCourse,
+            code: newCourse.code.trim(),
+            nameTh: newCourse.nameTh.trim(),
+            nameEn: newCourse.nameEn.trim(),
+            credits: Number(newCourse.credits) || 0,
+        });
+        if (result) {
+            setNewCourse({ code: '', nameTh: '', nameEn: '', credits: 0, isCoreCourse: true });
+            setShowAddCourse(false);
+        }
     };
 
     const handleAddNewCourse = () => {
-        onAddCourse({ code: '', nameTh: '', nameEn: '', credits: 0, isCoreCourse: true, id: `c_new_${Date.now()}` });
+        if (!isReadOnly) {
+            setShowAddCourse(true);
+        }
     };
 
     const handlePageChange = (page) => {
-        setCurrentPage(page);
+        setCurrentPage(Math.min(Math.max(page, 1), totalPages));
     };
 
     return (
@@ -771,13 +879,23 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
                         onChange={e => setEditName(e.target.value)}
                         onBlur={handleSaveName}
                         onKeyDown={e => e.key === 'Enter' && handleSaveName()}
+                        disabled={isReadOnly}
                     />
                 </div>
                 <div className="course-detail-panel__credits">
                     <label className="cfm-label">หน่วยกิต</label>
-                    <div className='cfm-input'> {credits}</div>
+                    <input
+                        className="cfm-input"
+                        type="number"
+                        min={0}
+                        value={credits}
+                        onChange={e => setCredits(e.target.value)}
+                        onBlur={handleSaveCredits}
+                        onKeyDown={e => e.key === 'Enter' && handleSaveCredits()}
+                        disabled={isReadOnly}
+                    />
                 </div>
-                <button className="course-btn course-btn--ghost course-btn--danger course-delete-btn" onClick={() => onDelete(category)}>
+                <button className="course-btn course-btn--ghost course-btn--danger course-delete-btn" onClick={() => onDelete(category)} disabled={isReadOnly}>
                     <Trash2 size={14} />
                 </button>
             </div>
@@ -785,7 +903,7 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
             <div className="course-detail-panel__courses">
                 <div className="course-detail-panel__courses-header">
                     <span className="course-detail-panel__courses-title">รายวิชา ({courses.length})</span>
-                    <button className="course-btn course-btn--primary course-btn--sm" onClick={handleAddNewCourse}>
+                    <button className="course-btn course-btn--primary course-btn--sm" onClick={handleAddNewCourse} disabled={isReadOnly || showAddCourse}>
                         <Plus size={14} /> เพิ่มรายวิชา
                     </button>
                 </div>
@@ -804,15 +922,71 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
                                 </tr>
                             </thead>
                             <tbody>
-                                {courses.length === 0 ? (
+                                {showAddCourse && (
+                                    <tr className="ss-row ss-row--editing">
+                                        <td className="ss-cell ss-cell--grip">
+                                            <GripVertical size={13} />
+                                        </td>
+                                        <td className="ss-cell">
+                                            <input
+                                                className="ss-input"
+                                                value={newCourse.code}
+                                                onChange={e => setNewCourse(p => ({ ...p, code: e.target.value }))}
+                                                placeholder="รหัสวิชา"
+                                            />
+                                        </td>
+                                        <td className="ss-cell ss-cell--wide">
+                                            <input
+                                                className="ss-input"
+                                                value={newCourse.nameTh}
+                                                onChange={e => setNewCourse(p => ({ ...p, nameTh: e.target.value }))}
+                                                placeholder="ชื่อวิชาภาษาไทย"
+                                            />
+                                        </td>
+                                        <td className="ss-cell ss-cell--wide">
+                                            <input
+                                                className="ss-input"
+                                                value={newCourse.nameEn}
+                                                onChange={e => setNewCourse(p => ({ ...p, nameEn: e.target.value }))}
+                                                placeholder="English Name"
+                                            />
+                                        </td>
+                                        <td className="ss-cell ss-cell--num">
+                                            <input
+                                                className="ss-input ss-input--num"
+                                                type="number"
+                                                min={0}
+                                                max={12}
+                                                value={newCourse.credits}
+                                                onChange={e => setNewCourse(p => ({ ...p, credits: parseInt(e.target.value, 10) || 0 }))}
+                                                placeholder="0"
+                                            />
+                                        </td>
+                                        <td className="ss-cell ss-cell--actions">
+                                            <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={handleAddCourse} disabled={!newCourse.code.trim() || !newCourse.nameTh.trim()}>
+                                                <Check size={13} />
+                                            </button>
+                                            <button className="icon-course-btn icon-course-btn--danger icon-course-btn--xs" onClick={() => setShowAddCourse(false)}>
+                                                <X size={12} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                )}
+                                {courses.length === 0 && !showAddCourse ? (
                                     <tr>
                                         <td colSpan={6} className="ss-empty">
-                                            ยังไม่มีรายวิชา — กดปุ่ม "+ เพิ่มรายวิชา" ด้านบน
+                                            {'ยังไม่มีรายวิชา - กดปุ่มเพิ่มรายวิชาด้านบน'}
                                         </td>
                                     </tr>
                                 ) : (
                                     paginatedCourses.map(course => (
-                                        <CourseRow key={course.id} course={course} onDelete={() => onDeleteCourse(course)} />
+                                        <CourseRow
+                                            key={`${course.id}:${course.code}:${course.nameTh}:${course.nameEn}:${course.credits}`}
+                                            course={course}
+                                            onUpdate={onUpdateCourse}
+                                            onDelete={() => onDeleteCourse(course)}
+                                            disabled={disabled}
+                                        />
                                     ))
                                 )}
                             </tbody>
@@ -822,36 +996,30 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
 
                 {/* Pagination */}
                 <div className="course-pagination">
-                    {totalPages === 0 ? (
-                        <span className="course-pagination__info">
-                            หน้า {currentPage} / {1}
-                        </span>
-                    ) : (
-                        <span className="course-pagination__info">
-                            หน้า {currentPage} / {totalPages}
-                        </span>
-                    )}
+                    <span className="course-pagination__info">
+                        หน้า {safeCurrentPage} / {totalPages}
+                    </span>
                     <div className="course-pagination__buttons">
                         <button
                             className="course-btn course-btn--ghost course-btn--sm"
                             onClick={() => handlePageChange(1)}
-                            disabled={currentPage === 1}
+                            disabled={safeCurrentPage === 1}
                             title="หน้าแรก"
                         >
                             <ChevronFirst size={14} />
                         </button>
                         <button
                             className="course-btn course-btn--ghost course-btn--sm"
-                            onClick={() => handlePageChange(currentPage - 1)}
-                            disabled={currentPage === 1}
+                            onClick={() => handlePageChange(safeCurrentPage - 1)}
+                            disabled={safeCurrentPage === 1}
                             title="ย้อนกลับ"
                         >
                             <ChevronLeft size={14} /> ย้อนกลับ
                         </button>
                         <button
                             className="course-btn course-btn--ghost course-btn--sm"
-                            onClick={() => handlePageChange(currentPage + 1)}
-                            disabled={currentPage === totalPages}
+                            onClick={() => handlePageChange(safeCurrentPage + 1)}
+                            disabled={safeCurrentPage === totalPages}
                             title="ถัดไป"
                         >
                             ถัดไป <ChevronRight size={14} />
@@ -859,7 +1027,7 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
                         <button
                             className="course-btn course-btn--ghost course-btn--sm"
                             onClick={() => handlePageChange(totalPages)}
-                            disabled={currentPage === totalPages}
+                            disabled={safeCurrentPage === totalPages}
                             title="หน้าสุดท้าย"
                         >
                             <ChevronLast size={14} />
@@ -874,7 +1042,7 @@ function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCours
 // ============================================================
 // CourseRow — SpreadsheetRow style
 // ============================================================
-function CourseRow({ course, onDelete }) {
+function CourseRow({ course, onUpdate, onDelete, disabled = false }) {
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState({
         code: course.code || '',
@@ -883,9 +1051,18 @@ function CourseRow({ course, onDelete }) {
         credits: course.credits || 0,
     });
 
-    const handleSave = () => {
-        if (!form.code.trim() && !form.nameTh.trim()) return;
-        setEditing(false);
+    const handleSave = async () => {
+        if (disabled || !form.code.trim() || !form.nameTh.trim()) return;
+        const result = await onUpdate({
+            ...course,
+            code: form.code.trim(),
+            nameTh: form.nameTh.trim(),
+            nameEn: form.nameEn.trim(),
+            credits: Number(form.credits) || 0,
+        });
+        if (result) {
+            setEditing(false);
+        }
     };
 
     const handleKey = (e) => {
@@ -896,7 +1073,9 @@ function CourseRow({ course, onDelete }) {
         }
     };
 
-    const handleCellClick = () => setEditing(true);
+    const handleCellClick = () => {
+        if (!disabled) setEditing(true);
+    };
 
     return (
         <tr className={`ss-row ${editing ? 'ss-row--editing' : ''}`}>
@@ -911,6 +1090,7 @@ function CourseRow({ course, onDelete }) {
                         onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
                         onKeyDown={handleKey}
                         placeholder="รหัสวิชา"
+                        disabled={disabled}
                     />
                 ) : (
                     <span className="ss-code">{course.code || <span className="ss-placeholder">รหัสวิชา</span>}</span>
@@ -924,6 +1104,7 @@ function CourseRow({ course, onDelete }) {
                         onChange={e => setForm(p => ({ ...p, nameTh: e.target.value }))}
                         onKeyDown={handleKey}
                         placeholder="ชื่อวิชาภาษาไทย"
+                        disabled={disabled}
                     />
                 ) : (
                     <span>{course.nameTh || <span className="ss-placeholder">ชื่อภาษาไทย</span>}</span>
@@ -937,6 +1118,7 @@ function CourseRow({ course, onDelete }) {
                         onChange={e => setForm(p => ({ ...p, nameEn: e.target.value }))}
                         onKeyDown={handleKey}
                         placeholder="English Name"
+                        disabled={disabled}
                     />
                 ) : (
                     <span>{course.nameEn || <span className="ss-placeholder">English Name</span>}</span>
@@ -953,6 +1135,7 @@ function CourseRow({ course, onDelete }) {
                         onChange={e => setForm(p => ({ ...p, credits: parseInt(e.target.value) || 0 }))}
                         onKeyDown={handleKey}
                         placeholder="0"
+                        disabled={disabled}
                     />
                 ) : (
                     <span>{course.credits || <span className="ss-placeholder">0</span>}</span>
@@ -960,15 +1143,15 @@ function CourseRow({ course, onDelete }) {
             </td>
             <td className="ss-cell ss-cell--actions" onClick={e => e.stopPropagation()}>
                 {editing ? (
-                    <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={handleSave}>
+                    <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={handleSave} disabled={disabled || !form.code.trim() || !form.nameTh.trim()}>
                         <Check size={13} />
                     </button>
                 ) : (
-                    <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={() => setEditing(true)}>
+                    <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={() => setEditing(true)} disabled={disabled}>
                         <Pencil size={12} />
                     </button>
                 )}
-                <button className="icon-course-btn icon-course-btn--danger icon-course-btn--xs" onClick={() => onDelete(course)}>
+                <button className="icon-course-btn icon-course-btn--danger icon-course-btn--xs" onClick={() => onDelete(course)} disabled={disabled}>
                     <Trash2 size={12} />
                 </button>
             </td>

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Check, ChevronRight, ChevronDown, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, FileText, Pencil, GripVertical, AlertTriangle } from 'lucide-react';
-import { createCurriculumFromForm } from '../../../../lib/curriculum';
+import { createCurriculumFromForm, fetchFaculties, fetchMajors } from '../../../../lib/curriculum';
 import '../../../../app/Competency.css';
 import '../CourseLayout.css';
 import '../CourseCreate.css';
@@ -35,7 +35,13 @@ function StepIndicator({ step }) {
     );
 }
 
-function Step1({ form, setForm }) {
+function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError }) {
+    const filteredMajors = form.facultyId
+        ? majors.filter(major => String(major.facultyId) === String(form.facultyId))
+        : [];
+    const selectedMajor = majors.find(major => String(major.majorId) === String(form.majorId));
+    const facultyLocked = faculties.length <= 1;
+
     return (
         <div className="course-form-group">
             <div className="course-form-field">
@@ -70,19 +76,52 @@ function Step1({ form, setForm }) {
                     />
                 </div>
                 <div className="course-form-field">
-                    <label className="course-form-field__label">Major ID<span className="course-form-field__required">*</span></label>
-                    <input
-                        type="number"
+                    <label className="course-form-field__label">คณะ<span className="course-form-field__required">*</span></label>
+                    <select
                         className="course-form-field__input"
-                        value={form.majorId || ''}
-                        onChange={e => setForm(p => ({ ...p, majorId: parseInt(e.target.value, 10) || '' }))}
-                        placeholder="เช่น 1"
-                        min={1}
-                    />
+                        value={form.facultyId || ''}
+                        onChange={e => setForm(p => ({
+                            ...p,
+                            facultyId: parseInt(e.target.value, 10) || '',
+                            majorId: '',
+                        }))}
+                        disabled={lookupsLoading || facultyLocked}
+                    >
+                        <option value="">{lookupsLoading ? 'กำลังโหลดคณะ...' : 'เลือกคณะ'}</option>
+                        {faculties.map(faculty => (
+                            <option key={faculty.facultyId} value={faculty.facultyId}>
+                                {faculty.nameTh}
+                            </option>
+                        ))}
+                    </select>
                 </div>
             </div>
 
             <div className="course-form-row">
+                <div className="course-form-field">
+                    <label className="course-form-field__label">สาขา<span className="course-form-field__required">*</span></label>
+                    <select
+                        className="course-form-field__input"
+                        value={form.majorId || ''}
+                        onChange={e => setForm(p => ({ ...p, majorId: parseInt(e.target.value, 10) || '' }))}
+                        disabled={lookupsLoading || !form.facultyId}
+                    >
+                        <option value="">{lookupsLoading ? 'กำลังโหลดสาขา...' : 'เลือกสาขา'}</option>
+                        {filteredMajors.map(major => (
+                            <option key={major.majorId} value={major.majorId}>
+                                {major.nameTh}
+                            </option>
+                        ))}
+                    </select>
+                    {selectedMajor && (
+                        <div className="course-form-field__hint">
+                            {selectedMajor.departmentNameTh}
+                        </div>
+                    )}
+                    {lookupsError && (
+                        <div className="course-form-field__error">{lookupsError}</div>
+                    )}
+                </div>
                 <div className="course-form-field">
                     <label className="course-form-field__label">ปีการศึกษา<span className="course-form-field__required">*</span></label>
                     <input
@@ -95,15 +134,16 @@ function Step1({ form, setForm }) {
                         max={2600}
                     />
                 </div>
-                <div className="course-form-field">
-                    <label className="course-form-field__label">ชื่อปริญญา (ภาษาไทย)<span className="course-form-field__required">*</span></label>
-                    <input
-                        className="course-form-field__input"
-                        value={form.degreeName}
-                        onChange={e => setForm(p => ({ ...p, degreeName: e.target.value }))}
-                        placeholder="เช่น วิทยาศาสตรบัณฑิต"
-                    />
-                </div>
+            </div>
+
+            <div className="course-form-field">
+                <label className="course-form-field__label">ชื่อปริญญา (ภาษาไทย)<span className="course-form-field__required">*</span></label>
+                <input
+                    className="course-form-field__input"
+                    value={form.degreeName}
+                    onChange={e => setForm(p => ({ ...p, degreeName: e.target.value }))}
+                    placeholder="เช่น วิทยาศาสตรบัณฑิต"
+                />
             </div>
 
             <div className="course-form-field">
@@ -1052,7 +1092,8 @@ function Step3({ form }) {
 
 const EMPTY_FORM = {
     code: '',
-    majorId: Number(process.env.NEXT_PUBLIC_DEFAULT_MAJOR_ID || '') || '',
+    facultyId: '',
+    majorId: '',
     nameTh: '',
     nameEn: '',
     year: null,
@@ -1075,10 +1116,61 @@ export default function CreateCoursePage() {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [faculties, setFaculties] = useState([]);
+    const [majors, setMajors] = useState([]);
+    const [lookupsLoading, setLookupsLoading] = useState(true);
+    const [lookupsError, setLookupsError] = useState('');
+
+    useEffect(() => {
+        let mounted = true;
+
+        async function loadLookups() {
+            setLookupsLoading(true);
+            setLookupsError('');
+
+            try {
+                const [nextFaculties, nextMajors] = await Promise.all([
+                    fetchFaculties(),
+                    fetchMajors(),
+                ]);
+                if (!mounted) return;
+
+                setFaculties(nextFaculties);
+                setMajors(nextMajors);
+                if (nextFaculties.length === 0) {
+                    setLookupsError('ไม่พบคณะที่คุณมีสิทธิ์เลือก');
+                }
+
+                if (nextFaculties.length === 1) {
+                    const facultyId = nextFaculties[0].facultyId;
+                    const scopedMajors = nextMajors.filter(major => major.facultyId === facultyId);
+                    setForm(prev => {
+                        if (prev.facultyId) return prev;
+                        return {
+                            ...prev,
+                            facultyId,
+                            majorId: scopedMajors.length === 1 ? scopedMajors[0].majorId : '',
+                        };
+                    });
+                }
+            } catch (err) {
+                if (!mounted) return;
+                setLookupsError(err?.message || 'ไม่สามารถโหลดรายการคณะและสาขาได้');
+            } finally {
+                if (mounted) setLookupsLoading(false);
+            }
+        }
+
+        loadLookups();
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     const canNext = () => {
         if (step === 1) {
-            return form.nameTh.trim() && form.nameEn.trim() && form.code.trim() && form.majorId && form.year && form.degreeName && form.degreeFullNameTh;
+            return !lookupsLoading && form.nameTh.trim() && form.nameEn.trim() && form.code.trim() && form.facultyId && form.majorId && form.year && form.degreeName && form.degreeFullNameTh;
         }
         return true;
     };
@@ -1121,7 +1213,16 @@ export default function CreateCoursePage() {
                     <StepIndicator step={step} />
 
                     {/* Form Steps */}
-                    {step === 1 && <Step1 form={form} setForm={setForm} />}
+                    {step === 1 && (
+                        <Step1
+                            form={form}
+                            setForm={setForm}
+                            faculties={faculties}
+                            majors={majors}
+                            lookupsLoading={lookupsLoading}
+                            lookupsError={lookupsError}
+                        />
+                    )}
                     {step === 2 && <Step2 form={form} setForm={setForm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} />}
                     {step === 3 && <Step3 form={form} />}
 

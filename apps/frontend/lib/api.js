@@ -46,6 +46,8 @@ export async function apiFetch(path, options = {}) {
     const message = toErrorMessage(data, response.status);
     const error = new Error(message);
     error.status = response.status;
+    error.payload = data;
+    error.code = data?.error?.code;
     throw error;
   }
 

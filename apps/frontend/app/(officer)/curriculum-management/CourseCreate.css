@@ -233,8 +233,28 @@
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
+.course-form-field__input:disabled {
+    background: #374151;
+    border-color: #4b5563;
+    color: #9ca3af;
+    cursor: not-allowed;
+    opacity: 1;
+}
+
 .course-form-field__input::placeholder {
     color: var(--course-text-muted);
+}
+
+.course-form-field__hint {
+    color: var(--course-text-muted);
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
+.course-form-field__error {
+    color: #ef4444;
+    font-size: 0.75rem;
+    line-height: 1.4;
 }
 
 /* ============================================================

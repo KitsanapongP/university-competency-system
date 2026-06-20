@@ -18,6 +18,38 @@ type CurriculumController struct {
 	Service *services.CurriculumService
 }
 
+func (c *CurriculumController) GetFaculties(w http.ResponseWriter, r *http.Request) {
+	claims, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return
+	}
+
+	faculties, err := c.Service.GetFaculties(r.Context(), claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.OK(w, faculties)
+}
+
+func (c *CurriculumController) GetMajors(w http.ResponseWriter, r *http.Request) {
+	claims, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return
+	}
+
+	majors, err := c.Service.GetMajors(r.Context(), claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.OK(w, majors)
+}
+
 func (c *CurriculumController) GetAll(w http.ResponseWriter, r *http.Request) {
 	claims, ok := utils.ClaimsFromContext(r.Context())
 	if !ok {

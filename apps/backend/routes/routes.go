@@ -70,6 +70,9 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)
 
+			pr.With(middleware.RequireRoles("admin", "officer")).Get("/faculties", curriculumHandler.GetFaculties)
+			pr.With(middleware.RequireRoles("admin", "officer")).Get("/majors", curriculumHandler.GetMajors)
+
 			// Curriculum Management Routes
 			pr.Route("/curricula", func(cr chi.Router) {
 				cr.Use(middleware.RequireRoles("admin", "officer"))

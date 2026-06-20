@@ -174,6 +174,198 @@ func (r *CurriculumRepository) GetCurriculumsByFaculty(ctx context.Context, facu
 	return curriculums, nil
 }
 
+func (r *CurriculumRepository) GetMajors(ctx context.Context) ([]*models.MajorOption, error) {
+	query := `
+		SELECT
+			m.major_id,
+			m.department_id,
+			d.faculty_id,
+			m.code,
+			m.name_th,
+			m.name_en,
+			m.degree_level,
+			d.name_th,
+			d.name_en,
+			f.name_th,
+			f.name_en
+		FROM edu_majors m
+		JOIN org_departments d ON d.department_id = m.department_id
+		JOIN org_faculties f ON f.faculty_id = d.faculty_id
+		WHERE m.deleted_at IS NULL
+			AND d.deleted_at IS NULL
+			AND f.deleted_at IS NULL
+			AND m.is_active = 1
+			AND d.is_active = 1
+			AND f.is_active = 1
+		ORDER BY f.name_th, d.name_th, m.name_th, m.major_id
+	`
+
+	rows, err := r.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanMajorOptions(rows)
+}
+
+func (r *CurriculumRepository) GetMajorsByFaculty(ctx context.Context, facultyID uint64) ([]*models.MajorOption, error) {
+	query := `
+		SELECT
+			m.major_id,
+			m.department_id,
+			d.faculty_id,
+			m.code,
+			m.name_th,
+			m.name_en,
+			m.degree_level,
+			d.name_th,
+			d.name_en,
+			f.name_th,
+			f.name_en
+		FROM edu_majors m
+		JOIN org_departments d ON d.department_id = m.department_id
+		JOIN org_faculties f ON f.faculty_id = d.faculty_id
+		WHERE d.faculty_id = ?
+			AND m.deleted_at IS NULL
+			AND d.deleted_at IS NULL
+			AND f.deleted_at IS NULL
+			AND m.is_active = 1
+			AND d.is_active = 1
+			AND f.is_active = 1
+		ORDER BY d.name_th, m.name_th, m.major_id
+	`
+
+	rows, err := r.DB.QueryContext(ctx, query, facultyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanMajorOptions(rows)
+}
+
+func (r *CurriculumRepository) GetFaculties(ctx context.Context) ([]*models.FacultyOption, error) {
+	query := `
+		SELECT faculty_id, code, name_th, name_en
+		FROM org_faculties
+		WHERE deleted_at IS NULL
+			AND is_active = 1
+		ORDER BY name_th, faculty_id
+	`
+
+	rows, err := r.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanFacultyOptions(rows)
+}
+
+func (r *CurriculumRepository) GetFacultyByID(ctx context.Context, facultyID uint64) (*models.FacultyOption, error) {
+	query := `
+		SELECT faculty_id, code, name_th, name_en
+		FROM org_faculties
+		WHERE faculty_id = ?
+			AND deleted_at IS NULL
+			AND is_active = 1
+	`
+
+	faculties, err := scanFacultyOptionsFromRow(r.DB.QueryRowContext(ctx, query, facultyID))
+	if err != nil {
+		return nil, err
+	}
+	return faculties, nil
+}
+
+func scanFacultyOptions(rows *sql.Rows) ([]*models.FacultyOption, error) {
+	faculties := []*models.FacultyOption{}
+	for rows.Next() {
+		faculty, err := scanFacultyOption(rows)
+		if err != nil {
+			return nil, err
+		}
+		faculties = append(faculties, faculty)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return faculties, nil
+}
+
+func scanFacultyOptionsFromRow(row *sql.Row) (*models.FacultyOption, error) {
+	return scanFacultyOption(row)
+}
+
+func scanFacultyOption(scanner rowScanner) (*models.FacultyOption, error) {
+	var faculty models.FacultyOption
+	var nameEn sql.NullString
+
+	if err := scanner.Scan(
+		&faculty.FacultyID,
+		&faculty.Code,
+		&faculty.NameTH,
+		&nameEn,
+	); err != nil {
+		return nil, err
+	}
+
+	if nameEn.Valid {
+		faculty.NameEN = &nameEn.String
+	}
+
+	return &faculty, nil
+}
+
+func scanMajorOptions(rows *sql.Rows) ([]*models.MajorOption, error) {
+	majors := []*models.MajorOption{}
+	for rows.Next() {
+		var major models.MajorOption
+		var nameEn sql.NullString
+		var degreeLevel sql.NullString
+		var departmentNameEn sql.NullString
+		var facultyNameEn sql.NullString
+
+		if err := rows.Scan(
+			&major.MajorID,
+			&major.DepartmentID,
+			&major.FacultyID,
+			&major.Code,
+			&major.NameTH,
+			&nameEn,
+			&degreeLevel,
+			&major.DepartmentNameTH,
+			&departmentNameEn,
+			&major.FacultyNameTH,
+			&facultyNameEn,
+		); err != nil {
+			return nil, err
+		}
+
+		if nameEn.Valid {
+			major.NameEN = &nameEn.String
+		}
+		if degreeLevel.Valid {
+			major.DegreeLevel = &degreeLevel.String
+		}
+		if departmentNameEn.Valid {
+			major.DepartmentNameEN = &departmentNameEn.String
+		}
+		if facultyNameEn.Valid {
+			major.FacultyNameEN = &facultyNameEn.String
+		}
+
+		majors = append(majors, &major)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return majors, nil
+}
+
 func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uint64) ([]*models.Curriculum, error) {
 	query := `
 		SELECT c.curriculum_id, c.major_id, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,

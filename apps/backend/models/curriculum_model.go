@@ -25,6 +25,27 @@ type Curriculum struct {
 	DeletedAt        *time.Time `json:"deleted_at"`
 }
 
+type MajorOption struct {
+	MajorID          uint64  `json:"major_id"`
+	DepartmentID     uint64  `json:"department_id"`
+	FacultyID        uint64  `json:"faculty_id"`
+	Code             string  `json:"code"`
+	NameTH           string  `json:"name_th"`
+	NameEN           *string `json:"name_en"`
+	DegreeLevel      *string `json:"degree_level"`
+	DepartmentNameTH string  `json:"department_name_th"`
+	DepartmentNameEN *string `json:"department_name_en"`
+	FacultyNameTH    string  `json:"faculty_name_th"`
+	FacultyNameEN    *string `json:"faculty_name_en"`
+}
+
+type FacultyOption struct {
+	FacultyID uint64  `json:"faculty_id"`
+	Code      string  `json:"code"`
+	NameTH    string  `json:"name_th"`
+	NameEN    *string `json:"name_en"`
+}
+
 type CourseCategory struct {
 	CategoryID      uint64     `json:"category_id"`
 	CurriculumID    uint64     `json:"curriculum_id"`

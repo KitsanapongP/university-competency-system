@@ -31,6 +31,33 @@ func NewCurriculumService(repo *repositories.CurriculumRepository) *CurriculumSe
 	return &CurriculumService{Repo: repo}
 }
 
+func (s *CurriculumService) GetFaculties(ctx context.Context, roles []string, facultyID *int64) ([]*models.FacultyOption, error) {
+	if hasRole(roles, "admin") {
+		return s.Repo.GetFaculties(ctx)
+	}
+	if !hasRole(roles, "officer") || facultyID == nil || *facultyID <= 0 {
+		return nil, ErrCurriculumForbidden
+	}
+
+	faculty, err := s.Repo.GetFacultyByID(ctx, uint64(*facultyID))
+	if err != nil {
+		return nil, err
+	}
+
+	return []*models.FacultyOption{faculty}, nil
+}
+
+func (s *CurriculumService) GetMajors(ctx context.Context, roles []string, facultyID *int64) ([]*models.MajorOption, error) {
+	if hasRole(roles, "admin") {
+		return s.Repo.GetMajors(ctx)
+	}
+	if !hasRole(roles, "officer") || facultyID == nil || *facultyID <= 0 {
+		return nil, ErrCurriculumForbidden
+	}
+
+	return s.Repo.GetMajorsByFaculty(ctx, uint64(*facultyID))
+}
+
 func (s *CurriculumService) GetCurriculums(ctx context.Context, roles []string, facultyID *int64) ([]*models.Curriculum, error) {
 	if hasRole(roles, "admin") {
 		return s.Repo.GetCurriculums(ctx)
