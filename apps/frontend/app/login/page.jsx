@@ -13,6 +13,12 @@ import { useLanguage } from '../../providers/LanguageContext';
 import '../Competency.css';
 import './login.css';
 
+function getPostLoginPath(user) {
+  const roles = user?.roles || [];
+  if (roles.includes('officer')) return '/curriculum-management';
+  return '/';
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { user, loading, login } = useAuth();
@@ -24,7 +30,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace('/');
+      router.replace(getPostLoginPath(user));
     }
   }, [loading, user, router]);
 
@@ -34,8 +40,8 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      await login(email, password);
-      router.replace('/');
+      const nextUser = await login(email, password);
+      router.replace(getPostLoginPath(nextUser));
     } catch (err) {
       setError(err?.message || t('login_error'));
     } finally {
