@@ -83,6 +83,11 @@
     font-size: 0.875rem;
 }
 
+.course-feedback span {
+    white-space: pre-line;
+    min-width: 0;
+}
+
 .course-feedback--success {
     background: rgba(34, 197, 94, 0.12);
     border-color: rgba(34, 197, 94, 0.35);

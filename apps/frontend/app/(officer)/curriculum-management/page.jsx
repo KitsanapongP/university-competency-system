@@ -52,8 +52,9 @@ function getStatusAction(status) {
 
 function buildConfirmationMessage(error) {
     const templates = error?.payload?.data?.affected_templates || [];
+    const message = translateBackendMessage(error?.message);
     if (!templates.length) {
-        return `${error?.message || 'This action requires confirmation'}\n\nยืนยันดำเนินการต่อหรือไม่?`;
+        return `${message}\n\nยืนยันดำเนินการต่อหรือไม่?`;
     }
 
     const templateList = templates
@@ -62,20 +63,104 @@ function buildConfirmationMessage(error) {
         .join('\n');
     const more = templates.length > 8 ? `\n- และอีก ${templates.length - 8} รายการ` : '';
 
-    return `${error?.message || 'This action requires confirmation'}\n\nTemplate ที่อาจได้รับผลกระทบ:\n${templateList}${more}\n\nยืนยันดำเนินการต่อหรือไม่?`;
+    return `${message}\n\nTemplate ที่อาจได้รับผลกระทบ:\n${templateList}${more}\n\nยืนยันดำเนินการต่อหรือไม่?`;
 }
 
-function getEditorErrorMessage(error) {
+const BACKEND_MESSAGE_TH = {
+    'curriculum structure is not ready to activate': 'โครงสร้างหลักสูตรยังไม่พร้อมเปิดใช้งาน',
+    'status must be draft, active, or inactive': 'สถานะหลักสูตรไม่ถูกต้อง',
+    'curriculum cannot transition back to draft': 'หลักสูตรที่ออกจาก Draft แล้ว ไม่สามารถย้อนกลับเป็น Draft ได้',
+    'draft curriculum can only transition to active': 'หลักสูตร Draft สามารถเปลี่ยนเป็นพร้อมใช้งานได้เท่านั้น',
+    'active curriculum can only transition to inactive': 'หลักสูตรที่พร้อมใช้งานสามารถเปลี่ยนเป็นปิดใช้งานได้เท่านั้น',
+    'inactive curriculum can only transition to active': 'หลักสูตรที่ปิดใช้งานสามารถเปิดใช้งานได้เท่านั้น',
+    'curriculum status is invalid': 'สถานะหลักสูตรปัจจุบันไม่ถูกต้อง',
+    'curriculum cannot be inactive while active templates are connected': 'ยังปิดใช้งานหลักสูตรไม่ได้ เพราะมี Active Template เชื่อมอยู่',
+    'curriculum structure is locked while active templates are connected': 'โครงสร้างหลักสูตรถูกล็อกอยู่ เพราะมี Active Template เชื่อมอยู่',
+    'inactive curriculum edit requires confirmation because templates are connected': 'หลักสูตรนี้มี Template เชื่อมอยู่ กรุณายืนยันก่อนแก้ไข',
+    'category delete requires confirmation': 'การลบหมวดวิชาต้องได้รับการยืนยันก่อน',
+    'parent_id is invalid': 'หมวดวิชาหลักไม่ถูกต้อง',
+    'category_id is invalid': 'หมวดวิชาไม่ถูกต้อง',
+    'display_order must be zero or greater': 'ลำดับการแสดงผลต้องไม่น้อยกว่า 0',
+    'category cannot be moved under itself or its child category': 'ไม่สามารถย้ายหมวดวิชาไปอยู่ใต้ตัวเองหรือหมวดย่อยของตัวเองได้',
+    'category name_th is required': 'กรุณากรอกชื่อหมวดวิชาภาษาไทย',
+    'category name_th cannot be empty': 'ชื่อหมวดวิชาภาษาไทยห้ามว่าง',
+    'category required_credits must be zero or greater': 'หน่วยกิตของหมวดวิชาต้องไม่น้อยกว่า 0',
+    'category display_order must be zero or greater': 'ลำดับหมวดวิชาต้องไม่น้อยกว่า 0',
+    'course code is required': 'กรุณากรอกรหัสวิชา',
+    'course code cannot be empty': 'รหัสวิชาห้ามว่าง',
+    'course name_th is required': 'กรุณากรอกชื่อวิชาภาษาไทย',
+    'course name_th cannot be empty': 'ชื่อวิชาภาษาไทยห้ามว่าง',
+    'course credits must be zero or greater': 'หน่วยกิตรายวิชาต้องไม่น้อยกว่า 0',
+    'course display_order must be zero or greater': 'ลำดับรายวิชาต้องไม่น้อยกว่า 0',
+    'major_id is invalid': 'สาขาไม่ถูกต้อง',
+    'major_id is required': 'กรุณาเลือกสาขา',
+    'curriculum_code is required': 'กรุณากรอกรหัสหลักสูตร',
+    'curriculum_name_th is required': 'กรุณากรอกชื่อหลักสูตรภาษาไทย',
+    'effective_year_be is required': 'กรุณากรอกปีหลักสูตร',
+    'course_id is not allowed when creating curriculum courses': 'การสร้างหลักสูตรต้องสร้างรายวิชาใหม่ ไม่สามารถอ้างอิง course_id เดิมได้',
+    'duplicate course code in curriculum payload': 'มีรหัสวิชาซ้ำในหลักสูตร',
+    'course code already exists in this curriculum': 'รหัสวิชานี้มีอยู่แล้วในหลักสูตร',
+    'curriculum already exists': 'มีหลักสูตรนี้อยู่แล้ว',
+    'insufficient curriculum scope': 'คุณไม่มีสิทธิ์จัดการหลักสูตรนี้',
+    'curriculum not found': 'ไม่พบหลักสูตร',
+    'curriculum operation failed': 'ไม่สามารถดำเนินการกับหลักสูตรได้',
+};
+
+const CURRICULUM_VIOLATION_TH = {
+    'curriculum must have at least one category': 'ต้องมีหมวดวิชาอย่างน้อย 1 หมวด',
+    'curriculum must have at least one course': 'ต้องมีรายวิชาอย่างน้อย 1 รายวิชา',
+    'all courses must have code, name_th, and credits >= 0': 'รายวิชาทุกตัวต้องมีรหัสวิชา ชื่อวิชาภาษาไทย และหน่วยกิตต้องไม่ติดลบ',
+    'course code must be unique within the curriculum': 'รหัสวิชาต้องไม่ซ้ำกันภายในหลักสูตร',
+};
+
+function translateBackendMessage(message) {
+    if (!message) return 'ไม่สามารถดำเนินการได้';
+    return BACKEND_MESSAGE_TH[message] || message;
+}
+
+function normalizeViolationMessage(violation) {
+    if (typeof violation === 'string') return violation;
+    return violation?.message || violation?.reason || violation?.code || String(violation || '');
+}
+
+function translateViolation(violation) {
+    const message = normalizeViolationMessage(violation);
+    return CURRICULUM_VIOLATION_TH[message] || translateBackendMessage(message);
+}
+
+function mapCurriculumError(error) {
+    const englishMessage = error?.message || error?.payload?.error?.message || '';
+    const violations = error?.payload?.data?.violations || [];
+
     if (error?.code === 'CURRICULUM_STRUCTURE_LOCKED') {
-        return 'โครงสร้างหลักสูตรถูกล็อกอยู่ เพราะมี Active Template เชื่อมอยู่';
+        return {
+            userMessage: 'โครงสร้างหลักสูตรถูกล็อกอยู่ เพราะมี Active Template เชื่อมอยู่',
+            debugMessage: englishMessage,
+        };
     }
     if (error?.code === 'CURRICULUM_HAS_ACTIVE_TEMPLATE') {
-        return 'ยังปิดใช้งานหลักสูตรไม่ได้ เพราะมี Active Template เชื่อมอยู่';
+        return {
+            userMessage: 'ยังปิดใช้งานหลักสูตรไม่ได้ เพราะมี Active Template เชื่อมอยู่',
+            debugMessage: englishMessage,
+        };
     }
     if (error?.code === 'DUPLICATE') {
-        return error.message || 'ข้อมูลซ้ำกับรายการเดิม';
+        return {
+            userMessage: translateBackendMessage(englishMessage) || 'ข้อมูลซ้ำกับรายการเดิม',
+            debugMessage: englishMessage,
+        };
     }
-    return error?.message || 'ไม่สามารถบันทึกข้อมูลหลักสูตรได้';
+    if (violations.length > 0) {
+        const violationText = violations.map(violation => `- ${translateViolation(violation)}`).join('\n');
+        return {
+            userMessage: `${translateBackendMessage(englishMessage)}\n${violationText}`,
+            debugMessage: `${englishMessage}\n${violations.map(normalizeViolationMessage).join('\n')}`,
+        };
+    }
+    return {
+        userMessage: translateBackendMessage(englishMessage) || 'ไม่สามารถบันทึกข้อมูลหลักสูตรได้',
+        debugMessage: englishMessage,
+    };
 }
 
 function getDisplayCourses(categories, selectedCategory, showAll) {
@@ -230,6 +315,7 @@ export default function CurriculumManagementPage() {
     const [detailLoadingId, setDetailLoadingId] = useState(null);
     const [operationLoading, setOperationLoading] = useState(false);
     const [error, setError] = useState('');
+    const [errorDebug, setErrorDebug] = useState('');
     const [success, setSuccess] = useState('');
 
     const courseIdRef = useRef(9000);
@@ -237,11 +323,15 @@ export default function CurriculumManagementPage() {
     const loadCurriculums = useCallback(async () => {
         setLoading(true);
         setError('');
+        setErrorDebug('');
         try {
             const data = await fetchCurriculums();
             setCourses(data);
         } catch (err) {
-            setError(err?.message || 'ไม่สามารถโหลดข้อมูลหลักสูตรได้');
+            const mapped = mapCurriculumError(err);
+            setError(mapped.userMessage || 'ไม่สามารถโหลดข้อมูลหลักสูตรได้');
+            setErrorDebug(mapped.debugMessage);
+            console.debug('Curriculum load error:', err);
         } finally {
             setLoading(false);
         }
@@ -277,13 +367,17 @@ export default function CurriculumManagementPage() {
     const handleOpenCourse = useCallback(async (course) => {
         setDetailLoadingId(course.id);
         setError('');
+        setErrorDebug('');
         setSuccess('');
         try {
             const detail = await fetchCurriculumDetail(course.curriculumId || course.id);
             setSelectedCourse(detail);
             setView('editor');
         } catch (err) {
-            setError(err?.message || 'ไม่สามารถโหลดรายละเอียดหลักสูตรได้');
+            const mapped = mapCurriculumError(err);
+            setError(mapped.userMessage || 'ไม่สามารถโหลดรายละเอียดหลักสูตรได้');
+            setErrorDebug(mapped.debugMessage);
+            console.debug('Curriculum detail load error:', err);
         } finally {
             setDetailLoadingId(null);
         }
@@ -369,6 +463,7 @@ export default function CurriculumManagementPage() {
         for (;;) {
             setOperationLoading(true);
             setError('');
+            setErrorDebug('');
             setSuccess('');
 
             try {
@@ -384,7 +479,10 @@ export default function CurriculumManagementPage() {
                     continue;
                 }
 
-                setError(getEditorErrorMessage(err));
+                const mapped = mapCurriculumError(err);
+                setError(mapped.userMessage);
+                setErrorDebug(mapped.debugMessage);
+                console.debug('Curriculum mutation error:', err);
                 return null;
             } finally {
                 setOperationLoading(false);
@@ -435,11 +533,15 @@ export default function CurriculumManagementPage() {
     const handleRequestDeleteCategory = useCallback(async (cat) => {
         if (!selectedCourse || !cat?.id) return;
         setError('');
+        setErrorDebug('');
         try {
             const preview = await getDeleteCurriculumCategoryPreview(selectedCourse.curriculumId, cat.id);
             setDeletingCategory({ ...cat, deletePreview: preview });
         } catch (err) {
-            setError(getEditorErrorMessage(err));
+            const mapped = mapCurriculumError(err);
+            setError(mapped.userMessage);
+            setErrorDebug(mapped.debugMessage);
+            console.debug('Curriculum delete preview error:', err);
         }
     }, [selectedCourse]);
 
@@ -555,7 +657,7 @@ export default function CurriculumManagementPage() {
 
                     {error && (
                         <div className="course-feedback course-feedback--error">
-                            <span>{error}</span>
+                            <span title={errorDebug}>{error}</span>
                             <button className="course-btn course-btn--ghost course-btn--sm" onClick={loadCurriculums}>
                                 ลองใหม่
                             </button>
@@ -640,7 +742,7 @@ export default function CurriculumManagementPage() {
 
                     {error && (
                         <div className="course-feedback course-feedback--error">
-                            <span>{error}</span>
+                            <span title={errorDebug}>{error}</span>
                         </div>
                     )}
 

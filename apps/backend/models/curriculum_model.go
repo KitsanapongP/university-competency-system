@@ -28,17 +28,21 @@ type Curriculum struct {
 }
 
 type MajorOption struct {
-	MajorID          uint64  `json:"major_id"`
-	DepartmentID     uint64  `json:"department_id"`
-	FacultyID        uint64  `json:"faculty_id"`
-	Code             string  `json:"code"`
-	NameTH           string  `json:"name_th"`
-	NameEN           *string `json:"name_en"`
-	DegreeLevel      *string `json:"degree_level"`
-	DepartmentNameTH string  `json:"department_name_th"`
-	DepartmentNameEN *string `json:"department_name_en"`
-	FacultyNameTH    string  `json:"faculty_name_th"`
-	FacultyNameEN    *string `json:"faculty_name_en"`
+	MajorID          uint64    `json:"major_id"`
+	DepartmentID     uint64    `json:"department_id"`
+	FacultyID        uint64    `json:"faculty_id"`
+	Code             string    `json:"code"`
+	NameTH           string    `json:"name_th"`
+	NameEN           *string   `json:"name_en"`
+	DegreeLevel      *string   `json:"degree_level"`
+	IsActive         bool      `json:"is_active"`
+	CurriculumCount  int       `json:"curriculum_count"`
+	DepartmentNameTH string    `json:"department_name_th"`
+	DepartmentNameEN *string   `json:"department_name_en"`
+	FacultyNameTH    string    `json:"faculty_name_th"`
+	FacultyNameEN    *string   `json:"faculty_name_en"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type FacultyOption struct {
@@ -46,6 +50,15 @@ type FacultyOption struct {
 	Code      string  `json:"code"`
 	NameTH    string  `json:"name_th"`
 	NameEN    *string `json:"name_en"`
+}
+
+type DepartmentOption struct {
+	DepartmentID uint64  `json:"department_id"`
+	FacultyID    uint64  `json:"faculty_id"`
+	Code         string  `json:"code"`
+	NameTH       string  `json:"name_th"`
+	NameEN       *string `json:"name_en"`
+	IsActive     bool    `json:"is_active"`
 }
 
 type CourseCategory struct {
@@ -125,6 +138,29 @@ type CreateCurriculumPayload struct {
 	CurriculumCode   string                  `json:"curriculum_code"`
 	EffectiveYearBE  uint64                  `json:"effective_year_be"`
 	Categories       []CreateCategoryPayload `json:"categories"`
+}
+
+type MajorFilters struct {
+	IncludeInactive bool
+	FacultyID       *uint64
+	DepartmentID    *uint64
+}
+
+type DepartmentFilters struct {
+	FacultyID *uint64
+}
+
+type UpsertMajorPayload struct {
+	DepartmentID uint64  `json:"department_id"`
+	Code         string  `json:"code"`
+	NameTH       string  `json:"name_th"`
+	NameEN       *string `json:"name_en"`
+	DegreeLevel  string  `json:"degree_level"`
+	IsActive     *bool   `json:"is_active"`
+}
+
+type UpdateMajorStatusPayload struct {
+	IsActive *bool `json:"is_active"`
 }
 
 type CreateCategoryPayload struct {

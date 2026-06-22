@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
-import { Menu, LayoutDashboard, User, ClipboardCheck, BookOpen, Users, Settings } from 'lucide-react';
+import { Menu, LayoutDashboard, User, ClipboardCheck, BookOpen, GraduationCap, Users, Settings } from 'lucide-react';
 import { useLanguage } from '../../providers/LanguageContext';
 import { useTheme } from '../../providers/theme-provider';
 import ClickSpark from '../ClickSpark';
@@ -13,6 +13,19 @@ import { DARK_BACKGROUND_COLORS, LIGHT_BACKGROUND_COLORS } from '../../config/th
 import { AppSidebarMobile } from './AppSidebar';
 import './AppLayout.css';
 
+function subscribeToClient(callback) {
+    const frame = requestAnimationFrame(callback);
+    return () => cancelAnimationFrame(frame);
+}
+
+function getClientSnapshot() {
+    return true;
+}
+
+function getServerSnapshot() {
+    return false;
+}
+
 const MENU_CONFIG = {
     user: [
         { id: 'dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
@@ -21,10 +34,12 @@ const MENU_CONFIG = {
     ],
     officer: [
         { id: 'curriculum-management', icon: BookOpen, labelKey: 'curriculum_management' },
+        { id: 'major-management', icon: GraduationCap, labelKey: 'major_management' },
         { id: 'template-management', icon: BookOpen, labelKey: 'templates' },
     ],
     admin: [
         { id: 'dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+        { id: 'major-management', icon: GraduationCap, labelKey: 'major_management' },
         { id: 'users', icon: Users, labelKey: 'users' },
         { id: 'settings', icon: Settings, labelKey: 'settings' },
     ],
@@ -51,11 +66,7 @@ export function AppLayout({
     const { resolvedTheme } = useTheme();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
-    const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    const mounted = useSyncExternalStore(subscribeToClient, getClientSnapshot, getServerSnapshot);
 
     const isDark = mounted && resolvedTheme === 'dark';
     const blendColors = isDark ? DARK_BACKGROUND_COLORS : LIGHT_BACKGROUND_COLORS;

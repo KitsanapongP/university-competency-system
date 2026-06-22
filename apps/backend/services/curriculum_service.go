@@ -13,6 +13,7 @@ import (
 var (
 	ErrCurriculumForbidden = errors.New("curriculum access forbidden")
 	ErrCurriculumNotFound  = errors.New("curriculum not found")
+	ErrMajorNotFound       = errors.New("major not found")
 )
 
 type CurriculumValidationError struct {
@@ -47,15 +48,36 @@ func (s *CurriculumService) GetFaculties(ctx context.Context, roles []string, fa
 	return []*models.FacultyOption{faculty}, nil
 }
 
-func (s *CurriculumService) GetMajors(ctx context.Context, roles []string, facultyID *int64) ([]*models.MajorOption, error) {
+func (s *CurriculumService) GetDepartments(ctx context.Context, roles []string, facultyID *int64, filters models.DepartmentFilters) ([]*models.DepartmentOption, error) {
 	if hasRole(roles, "admin") {
-		return s.Repo.GetMajors(ctx)
+		return s.Repo.GetDepartments(ctx, filters)
 	}
 	if !hasRole(roles, "officer") || facultyID == nil || *facultyID <= 0 {
 		return nil, ErrCurriculumForbidden
 	}
 
-	return s.Repo.GetMajorsByFaculty(ctx, uint64(*facultyID))
+	scopedFacultyID := uint64(*facultyID)
+	if filters.FacultyID != nil && *filters.FacultyID != scopedFacultyID {
+		return nil, ErrCurriculumForbidden
+	}
+	filters.FacultyID = &scopedFacultyID
+	return s.Repo.GetDepartments(ctx, filters)
+}
+
+func (s *CurriculumService) GetMajors(ctx context.Context, roles []string, facultyID *int64, filters models.MajorFilters) ([]*models.MajorOption, error) {
+	if hasRole(roles, "admin") {
+		return s.Repo.GetMajors(ctx, filters)
+	}
+	if !hasRole(roles, "officer") || facultyID == nil || *facultyID <= 0 {
+		return nil, ErrCurriculumForbidden
+	}
+
+	scopedFacultyID := uint64(*facultyID)
+	if filters.FacultyID != nil && *filters.FacultyID != scopedFacultyID {
+		return nil, ErrCurriculumForbidden
+	}
+	filters.FacultyID = &scopedFacultyID
+	return s.Repo.GetMajors(ctx, filters)
 }
 
 func (s *CurriculumService) GetCurriculums(ctx context.Context, roles []string, facultyID *int64) ([]*models.Curriculum, error) {
@@ -137,6 +159,105 @@ func (s *CurriculumService) CreateCurriculum(ctx context.Context, payload models
 	})
 
 	return curriculum, err
+}
+
+func (s *CurriculumService) CreateMajor(ctx context.Context, payload models.UpsertMajorPayload, roles []string, facultyID *int64) (*models.MajorOption, error) {
+	if err := validateUpsertMajorPayload(&payload); err != nil {
+		return nil, err
+	}
+	if err := s.ensureDepartmentScope(ctx, payload.DepartmentID, roles, facultyID); err != nil {
+		return nil, err
+	}
+	return s.Repo.CreateMajor(ctx, payload)
+}
+
+func (s *CurriculumService) UpdateMajor(ctx context.Context, majorID uint64, payload models.UpsertMajorPayload, roles []string, facultyID *int64) (*models.MajorOption, error) {
+	existing, err := s.Repo.GetMajorByID(ctx, majorID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrMajorNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureFacultyScope(existing.FacultyID, roles, facultyID); err != nil {
+		return nil, err
+	}
+	if err := validateUpsertMajorPayload(&payload); err != nil {
+		return nil, err
+	}
+	if err := s.ensureDepartmentScope(ctx, payload.DepartmentID, roles, facultyID); err != nil {
+		return nil, err
+	}
+	return s.Repo.UpdateMajor(ctx, majorID, payload)
+}
+
+func (s *CurriculumService) UpdateMajorStatus(ctx context.Context, majorID uint64, payload models.UpdateMajorStatusPayload, roles []string, facultyID *int64) (*models.MajorOption, error) {
+	if payload.IsActive == nil {
+		return nil, CurriculumValidationError{Message: "is_active is required"}
+	}
+
+	existing, err := s.Repo.GetMajorByID(ctx, majorID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrMajorNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureFacultyScope(existing.FacultyID, roles, facultyID); err != nil {
+		return nil, err
+	}
+	if existing.IsActive == *payload.IsActive {
+		return existing, nil
+	}
+
+	return s.Repo.UpdateMajorStatus(ctx, majorID, *payload.IsActive)
+}
+
+func (s *CurriculumService) ensureDepartmentScope(ctx context.Context, departmentID uint64, roles []string, facultyID *int64) error {
+	department, err := s.Repo.GetDepartmentByID(ctx, departmentID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return CurriculumValidationError{Message: "department_id is invalid"}
+	}
+	if err != nil {
+		return err
+	}
+	return s.ensureFacultyScope(department.FacultyID, roles, facultyID)
+}
+
+func (s *CurriculumService) ensureFacultyScope(targetFacultyID uint64, roles []string, facultyID *int64) error {
+	if hasRole(roles, "admin") {
+		return nil
+	}
+	if !hasRole(roles, "officer") || facultyID == nil || *facultyID <= 0 {
+		return ErrCurriculumForbidden
+	}
+	if targetFacultyID != uint64(*facultyID) {
+		return ErrCurriculumForbidden
+	}
+	return nil
+}
+
+func validateUpsertMajorPayload(payload *models.UpsertMajorPayload) error {
+	payload.Code = strings.TrimSpace(payload.Code)
+	payload.NameTH = strings.TrimSpace(payload.NameTH)
+	payload.DegreeLevel = strings.ToLower(strings.TrimSpace(payload.DegreeLevel))
+	payload.NameEN = trimStringPointer(payload.NameEN)
+
+	if payload.DepartmentID == 0 {
+		return CurriculumValidationError{Message: "department_id is required"}
+	}
+	if payload.Code == "" {
+		return CurriculumValidationError{Message: "code is required"}
+	}
+	if payload.NameTH == "" {
+		return CurriculumValidationError{Message: "name_th is required"}
+	}
+	switch payload.DegreeLevel {
+	case "bachelor", "master", "phd", "other":
+		return nil
+	default:
+		return CurriculumValidationError{Message: "degree_level must be bachelor, master, phd, or other"}
+	}
 }
 
 func validateCreateCurriculumPayload(payload models.CreateCurriculumPayload) error {

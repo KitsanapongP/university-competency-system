@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { Suspense, useState, useRef, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { X, Check, ChevronRight, ChevronDown, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, FileText, Pencil, GripVertical, AlertTriangle } from 'lucide-react';
 import { createCurriculumFromForm, fetchFaculties, fetchMajors } from '../../../../lib/curriculum';
 import '../../../../app/Competency.css';
@@ -35,7 +35,9 @@ function StepIndicator({ step }) {
     );
 }
 
-function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError }) {
+const CURRICULUM_CREATE_DRAFT_KEY = 'curriculum-create-draft';
+
+function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError, onAddMajor }) {
     const filteredMajors = form.facultyId
         ? majors.filter(major => String(major.facultyId) === String(form.facultyId))
         : [];
@@ -99,7 +101,13 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError 
 
             <div className="course-form-row">
                 <div className="course-form-field">
-                    <label className="course-form-field__label">สาขา<span className="course-form-field__required">*</span></label>
+                    <div className="course-form-field__label-row">
+                        <label className="course-form-field__label">สาขา<span className="course-form-field__required">*</span></label>
+                        <button type="button" className="course-form-field__link" onClick={onAddMajor}>
+                            <Plus size={13} />
+                            เพิ่มสาขาใหม่
+                        </button>
+                    </div>
                     <select
                         className="course-form-field__input"
                         value={form.majorId || ''}
@@ -113,11 +121,6 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError 
                             </option>
                         ))}
                     </select>
-                    {selectedMajor && (
-                        <div className="course-form-field__hint">
-                            {selectedMajor.departmentNameTh}
-                        </div>
-                    )}
                     {lookupsError && (
                         <div className="course-form-field__error">{lookupsError}</div>
                     )}
@@ -132,67 +135,6 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError 
                         placeholder="เช่น 2568"
                         min={2500}
                         max={2600}
-                    />
-                </div>
-            </div>
-
-            <div className="course-form-field">
-                <label className="course-form-field__label">ชื่อปริญญา (ภาษาไทย)<span className="course-form-field__required">*</span></label>
-                <input
-                    className="course-form-field__input"
-                    value={form.degreeName}
-                    onChange={e => setForm(p => ({ ...p, degreeName: e.target.value }))}
-                    placeholder="เช่น วิทยาศาสตรบัณฑิต"
-                />
-            </div>
-
-            <div className="course-form-field">
-                <label className="course-form-field__label">ชื่อปริญญา (ภาษาอังกฤษ)</label>
-                <input
-                    className="course-form-field__input"
-                    value={form.degreeNameEn}
-                    onChange={e => setForm(p => ({ ...p, degreeNameEn: e.target.value }))}
-                    placeholder="เช่น Bachelor of Science"
-                />
-            </div>
-
-            <div className="course-form-field">
-                <label className="course-form-field__label">ชื่อปริญญาเต็ม (ภาษาไทย)<span className="course-form-field__required">*</span></label>
-                <input
-                    className="course-form-field__input"
-                    value={form.degreeFullNameTh}
-                    onChange={e => setForm(p => ({ ...p, degreeFullNameTh: e.target.value }))}
-                    placeholder="เช่น วิทยาศาสตรบัณฑิต (วิทยาการคอมพิวเตอร์)"
-                />
-            </div>
-
-            <div className="course-form-field">
-                <label className="course-form-field__label">ชื่อปริญญาเต็ม (ภาษาอังกฤษ)</label>
-                <input
-                    className="course-form-field__input"
-                    value={form.degreeFullNameEn}
-                    onChange={e => setForm(p => ({ ...p, degreeFullNameEn: e.target.value }))}
-                    placeholder="เช่น Bachelor of Science (Computer Science)"
-                />
-            </div>
-
-            <div className="course-form-row">
-                <div className="course-form-field">
-                    <label className="course-form-field__label">ชื่อย่อ (ภาษาไทย)</label>
-                    <input
-                        className="course-form-field__input"
-                        value={form.degreeAbbrTh}
-                        onChange={e => setForm(p => ({ ...p, degreeAbbrTh: e.target.value }))}
-                        placeholder="เช่น ว.บ. (วิทยาการคอมพิวเตอร์)"
-                    />
-                </div>
-                <div className="course-form-field">
-                    <label className="course-form-field__label">ชื่อย่อ (ภาษาอังกฤษ)</label>
-                    <input
-                        className="course-form-field__input"
-                        value={form.degreeAbbrEn}
-                        onChange={e => setForm(p => ({ ...p, degreeAbbrEn: e.target.value }))}
-                        placeholder="เช่น B.Sc. (Computer Science)"
                     />
                 </div>
             </div>
@@ -1107,8 +1049,10 @@ const EMPTY_FORM = {
     coursesByCategory: {},
 };
 
-export default function CreateCoursePage() {
+function CreateCoursePageContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const createdMajorId = Number(searchParams.get('created_major_id') || 0);
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(EMPTY_FORM);
     const [selectedCategory, setSelectedCategory] = useState(null);
@@ -1120,6 +1064,21 @@ export default function CreateCoursePage() {
     const [majors, setMajors] = useState([]);
     const [lookupsLoading, setLookupsLoading] = useState(true);
     const [lookupsError, setLookupsError] = useState('');
+
+    useEffect(() => {
+        const rawDraft = sessionStorage.getItem(CURRICULUM_CREATE_DRAFT_KEY);
+        if (!rawDraft) return;
+
+        try {
+            const draft = JSON.parse(rawDraft);
+            setForm(prev => ({
+                ...prev,
+                ...draft,
+            }));
+        } catch {
+            sessionStorage.removeItem(CURRICULUM_CREATE_DRAFT_KEY);
+        }
+    }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -1139,6 +1098,19 @@ export default function CreateCoursePage() {
                 setMajors(nextMajors);
                 if (nextFaculties.length === 0) {
                     setLookupsError('ไม่พบคณะที่คุณมีสิทธิ์เลือก');
+                }
+
+                const createdMajor = createdMajorId
+                    ? nextMajors.find(major => Number(major.majorId) === createdMajorId)
+                    : null;
+                if (createdMajor) {
+                    setForm(prev => ({
+                        ...prev,
+                        facultyId: createdMajor.facultyId,
+                        majorId: createdMajor.majorId,
+                    }));
+                    sessionStorage.removeItem(CURRICULUM_CREATE_DRAFT_KEY);
+                    return;
                 }
 
                 if (nextFaculties.length === 1) {
@@ -1166,7 +1138,7 @@ export default function CreateCoursePage() {
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [createdMajorId]);
 
     const canNext = () => {
         if (step === 1) {
@@ -1182,6 +1154,7 @@ export default function CreateCoursePage() {
 
         try {
             await createCurriculumFromForm(form);
+            sessionStorage.removeItem(CURRICULUM_CREATE_DRAFT_KEY);
             setSuccess('สร้างหลักสูตรสำเร็จ');
             setTimeout(() => {
                 router.push('/curriculum-management?created=1');
@@ -1191,6 +1164,17 @@ export default function CreateCoursePage() {
         } finally {
             setSubmitting(false);
         }
+    };
+
+    const handleAddMajor = () => {
+        sessionStorage.setItem(CURRICULUM_CREATE_DRAFT_KEY, JSON.stringify(form));
+        const params = new URLSearchParams({
+            return_to: '/curriculum-management/create',
+        });
+        if (form.facultyId) {
+            params.set('faculty_id', String(form.facultyId));
+        }
+        router.push(`/major-management?${params.toString()}`);
     };
 
     return (
@@ -1221,6 +1205,7 @@ export default function CreateCoursePage() {
                             majors={majors}
                             lookupsLoading={lookupsLoading}
                             lookupsError={lookupsError}
+                            onAddMajor={handleAddMajor}
                         />
                     )}
                     {step === 2 && <Step2 form={form} setForm={setForm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} />}
@@ -1319,5 +1304,13 @@ export default function CreateCoursePage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export default function CreateCoursePage() {
+    return (
+        <Suspense fallback={<div className="course-create-page">กำลังโหลด...</div>}>
+            <CreateCoursePageContent />
+        </Suspense>
     );
 }
