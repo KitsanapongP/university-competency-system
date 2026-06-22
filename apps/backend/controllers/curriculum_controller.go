@@ -34,6 +34,26 @@ func (c *CurriculumController) GetFaculties(w http.ResponseWriter, r *http.Reque
 	utils.OK(w, faculties)
 }
 
+func (c *CurriculumController) GetDepartments(w http.ResponseWriter, r *http.Request) {
+	claims, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return
+	}
+
+	filters, ok := departmentFiltersFromQuery(w, r)
+	if !ok {
+		return
+	}
+	departments, err := c.Service.GetDepartments(r.Context(), claims.Roles, claims.FacultyID, filters)
+	if err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.OK(w, departments)
+}
+
 func (c *CurriculumController) GetMajors(w http.ResponseWriter, r *http.Request) {
 	claims, ok := utils.ClaimsFromContext(r.Context())
 	if !ok {
@@ -41,13 +61,95 @@ func (c *CurriculumController) GetMajors(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	majors, err := c.Service.GetMajors(r.Context(), claims.Roles, claims.FacultyID)
+	filters, ok := majorFiltersFromQuery(w, r)
+	if !ok {
+		return
+	}
+	majors, err := c.Service.GetMajors(r.Context(), claims.Roles, claims.FacultyID, filters)
 	if err != nil {
 		writeCurriculumError(w, err)
 		return
 	}
 
 	utils.OK(w, majors)
+}
+
+func (c *CurriculumController) CreateMajor(w http.ResponseWriter, r *http.Request) {
+	claims, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return
+	}
+
+	var payload models.UpsertMajorPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+
+	major, err := c.Service.CreateMajor(r.Context(), payload, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.JSON(w, http.StatusCreated, utils.Envelope{
+		"success": true,
+		"message": "major created successfully",
+		"data":    major,
+	})
+}
+
+func (c *CurriculumController) UpdateMajor(w http.ResponseWriter, r *http.Request) {
+	majorID, ok := parseUintURLParam(w, r, "major_id", "invalid major id")
+	if !ok {
+		return
+	}
+	claims, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return
+	}
+
+	var payload models.UpsertMajorPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+
+	major, err := c.Service.UpdateMajor(r.Context(), majorID, payload, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.OK(w, major)
+}
+
+func (c *CurriculumController) UpdateMajorStatus(w http.ResponseWriter, r *http.Request) {
+	majorID, ok := parseUintURLParam(w, r, "major_id", "invalid major id")
+	if !ok {
+		return
+	}
+	claims, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return
+	}
+
+	var payload models.UpdateMajorStatusPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+
+	major, err := c.Service.UpdateMajorStatus(r.Context(), majorID, payload, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.OK(w, major)
 }
 
 func (c *CurriculumController) GetAll(w http.ResponseWriter, r *http.Request) {
@@ -114,6 +216,53 @@ func (c *CurriculumController) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func majorFiltersFromQuery(w http.ResponseWriter, r *http.Request) (models.MajorFilters, bool) {
+	var filters models.MajorFilters
+	if includeInactive := strings.TrimSpace(r.URL.Query().Get("include_inactive")); includeInactive != "" {
+		value, err := strconv.ParseBool(includeInactive)
+		if err != nil {
+			utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "include_inactive must be boolean")
+			return filters, false
+		}
+		filters.IncludeInactive = value
+	}
+
+	facultyID, ok := optionalUintQuery(w, r, "faculty_id")
+	if !ok {
+		return filters, false
+	}
+	departmentID, ok := optionalUintQuery(w, r, "department_id")
+	if !ok {
+		return filters, false
+	}
+	filters.FacultyID = facultyID
+	filters.DepartmentID = departmentID
+	return filters, true
+}
+
+func departmentFiltersFromQuery(w http.ResponseWriter, r *http.Request) (models.DepartmentFilters, bool) {
+	var filters models.DepartmentFilters
+	facultyID, ok := optionalUintQuery(w, r, "faculty_id")
+	if !ok {
+		return filters, false
+	}
+	filters.FacultyID = facultyID
+	return filters, true
+}
+
+func optionalUintQuery(w http.ResponseWriter, r *http.Request, name string) (*uint64, bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get(name))
+	if raw == "" {
+		return nil, true
+	}
+	value, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil || value == 0 {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", name+" is invalid")
+		return nil, false
+	}
+	return &value, true
+}
+
 func writeCurriculumError(w http.ResponseWriter, err error) {
 	var validationDetailsErr services.CurriculumValidationDetailsError
 	if errors.As(err, &validationDetailsErr) {
@@ -167,11 +316,18 @@ func writeCurriculumError(w http.ResponseWriter, err error) {
 		return
 	}
 
+	if errors.Is(err, services.ErrMajorNotFound) {
+		utils.Error(w, http.StatusNotFound, "NOT_FOUND", "major not found")
+		return
+	}
+
 	var mysqlErr *mysql.MySQLError
 	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
 		message := "curriculum already exists"
 		if strings.Contains(mysqlErr.Message, "uq_crs_courses_curriculum_code_live") {
 			message = "course code already exists in this curriculum"
+		} else if strings.Contains(mysqlErr.Message, "uq_majors_department_code") {
+			message = "major code already exists in this department"
 		}
 		utils.Error(w, http.StatusConflict, "DUPLICATE", message)
 		return
