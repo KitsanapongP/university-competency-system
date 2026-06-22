@@ -209,7 +209,20 @@ function CourseRow({ course, onUpdate, onDelete }) {
     );
 }
 
-function SpreadsheetRow({ course, isSelected, isEditingCourse, onToggleSelect, onUpdate, onDelete, onSetEditing }) {
+function SpreadsheetRow({
+    course,
+    isSelected,
+    isEditingCourse,
+    isDragging,
+    onToggleSelect,
+    onUpdate,
+    onDelete,
+    onSetEditing,
+    onDragStart,
+    onDragOver,
+    onDrop,
+    onDragEnd,
+}) {
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState({
         code: course.code || '',
@@ -256,7 +269,14 @@ function SpreadsheetRow({ course, isSelected, isEditingCourse, onToggleSelect, o
     const handleCellClick = () => setEditing(true);
 
     return (
-        <tr className={`ss-row ${editing ? 'ss-row--editing' : ''} ${isSelected ? 'ss-row--selected' : ''}`}>
+        <tr
+            className={`ss-row ${editing ? 'ss-row--editing' : ''} ${isSelected ? 'ss-row--selected' : ''} ${isDragging ? 'ss-row--dragging' : ''}`}
+            draggable={!editing}
+            onDragStart={e => onDragStart?.(e, course)}
+            onDragOver={e => onDragOver?.(e, course)}
+            onDrop={e => onDrop?.(e, course)}
+            onDragEnd={onDragEnd}
+        >
             <td className="ss-cell ss-cell--checkbox">
                 <input
                     type="checkbox"
@@ -330,13 +350,40 @@ function SpreadsheetRow({ course, isSelected, isEditingCourse, onToggleSelect, o
                     <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={handleSave}>
                         <Check size={13} />
                     </button>
-                ) : null}
+                ) : (
+                    <button className="course-row__btn course-row__btn--delete" onClick={() => onDelete(course)} title="ลบรายวิชา">
+                        <Trash2 size={12} />
+                    </button>
+                )}
             </td>
         </tr>
     );
 }
 
-function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChild, onDelete, handleUpdateCategory, getTotalCredits, coursesByCategory }) {
+function TreeItem({
+    cat,
+    depth = 0,
+    selectedId,
+    draggingCategoryId,
+    draggedCourseId,
+    dropTargetCategoryId,
+    onSelect,
+    onRename,
+    onCreateChild,
+    onDelete,
+    handleUpdateCategory,
+    getTotalCredits,
+    coursesByCategory,
+    onCategoryDragStart,
+    onCategoryDragOver,
+    onCategoryDrop,
+    onCategoryDragEnd,
+    onCategoryDragLeave,
+    onCourseCategoryDragOver,
+    onCourseCategoryDrop,
+    onCourseDragStart,
+    onCourseDragEnd,
+}) {
     const [expanded, setExpanded] = useState(true);
     const [renaming, setRenaming] = useState(cat.isNew || false);
     const [nameVal, setNameVal] = useState(cat.name);
@@ -346,6 +393,8 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
 
     const hasChildren = cat.children?.length > 0;
     const isSelected = cat.id === selectedId;
+    const directCourses = coursesByCategory[cat.id] || [];
+    const isDropTarget = dropTargetCategoryId === cat.id;
 
     const getDepth = (c, d = 0) => {
         if (!c.children?.length) return d;
@@ -363,9 +412,21 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
     return (
         <div>
             <div
-                className={`course-tree-item ${isSelected ? 'course-tree-item--selected' : ''}`}
+                className={`course-tree-item ${isSelected ? 'course-tree-item--selected' : ''} ${draggingCategoryId === cat.id ? 'course-tree-item--dragging' : ''} ${isDropTarget ? 'course-tree-item--drop-target' : ''}`}
                 style={{ paddingLeft: `${0.5 + depth * 1}rem` }}
                 onClick={e => { e.stopPropagation(); onSelect(cat); if (hasChildren) setExpanded(p => !p); }}
+                draggable={!renaming}
+                onDragStart={e => onCategoryDragStart?.(e, cat)}
+                onDragOver={e => {
+                    onCategoryDragOver?.(e, cat);
+                    onCourseCategoryDragOver?.(e, cat);
+                }}
+                onDrop={e => {
+                    onCategoryDrop?.(e, cat);
+                    onCourseCategoryDrop?.(e, cat);
+                }}
+                onDragLeave={e => onCategoryDragLeave?.(e, cat)}
+                onDragEnd={onCategoryDragEnd}
             >
                 <span style={{ width: 14, display: 'flex', justifyContent: 'center' }}>
                     {hasChildren ? (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />) : null}
@@ -400,6 +461,29 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
                 </span>
             </div>
 
+            {expanded && directCourses.length > 0 && (
+                <div className="course-tree-course-list" style={{ paddingLeft: `${2 + depth * 1}rem` }}>
+                    {directCourses.map(course => (
+                        <div
+                            key={course.id}
+                            className={`course-tree-course ${draggedCourseId === course.id ? 'course-tree-course--dragging' : ''}`}
+                            draggable
+                            onClick={e => {
+                                e.stopPropagation();
+                                onSelect(cat);
+                            }}
+                            onDragStart={e => onCourseDragStart?.(e, { ...course, ownerCategoryId: cat.id })}
+                            onDragEnd={onCourseDragEnd}
+                            title={`${course.code || 'ยังไม่มีรหัส'} ${course.nameTh || course.nameEn || 'ยังไม่มีชื่อวิชา'}`}
+                        >
+                            <span className="course-tree-course__code">{course.code || '-'}</span>
+                            <span className="course-tree-course__name">{course.nameTh || course.nameEn || 'ยังไม่มีชื่อวิชา'}</span>
+                            <span className="course-tree-course__credits">{Number(course.credits) || 0}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {expanded && hasChildren && (
                 <div>
                     {cat.children.map(child => (
@@ -408,6 +492,9 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
                             cat={child}
                             depth={depth + 1}
                             selectedId={selectedId}
+                            draggingCategoryId={draggingCategoryId}
+                            draggedCourseId={draggedCourseId}
+                            dropTargetCategoryId={dropTargetCategoryId}
                             onSelect={onSelect}
                             onRename={onRename}
                             onCreateChild={onCreateChild}
@@ -415,6 +502,15 @@ function TreeItem({ cat, depth = 0, selectedId, onSelect, onRename, onCreateChil
                             handleUpdateCategory={handleUpdateCategory}
                             getTotalCredits={getTotalCredits}
                             coursesByCategory={coursesByCategory}
+                            onCategoryDragStart={onCategoryDragStart}
+                            onCategoryDragOver={onCategoryDragOver}
+                            onCategoryDrop={onCategoryDrop}
+                            onCategoryDragEnd={onCategoryDragEnd}
+                            onCategoryDragLeave={onCategoryDragLeave}
+                            onCourseCategoryDragOver={onCourseCategoryDragOver}
+                            onCourseCategoryDrop={onCourseCategoryDrop}
+                            onCourseDragStart={onCourseDragStart}
+                            onCourseDragEnd={onCourseDragEnd}
                         />
                     ))}
                 </div>
@@ -433,15 +529,127 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     const [categoryToDelete, setCategoryToDelete] = useState(null);
     const [editingCategoryName, setEditingCategoryName] = useState(false);
     const [categoryNameVal, setCategoryNameVal] = useState('');
+    const [draggedCategoryId, setDraggedCategoryId] = useState(null);
+    const [draggedCourseId, setDraggedCourseId] = useState(null);
+    const [dropTargetCategoryId, setDropTargetCategoryId] = useState(null);
+
+    const MAX_CATEGORY_DEPTH = 3;
+
+    const stripCourseMeta = (course) => {
+        const { ownerCategoryId, ...cleanCourse } = course;
+        return cleanCourse;
+    };
+
+    const collectCategoryIds = (cat) => [cat.id, ...(cat.children || []).flatMap(collectCategoryIds)];
+
+    const flattenCategories = (cats) => cats.flatMap(cat => [cat, ...flattenCategories(cat.children || [])]);
+
+    const countCategories = (cats) => cats.reduce((sum, cat) => sum + 1 + countCategories(cat.children || []), 0);
+
+    const findCategoryInfo = (cats, id, parent = null, siblings = cats, depth = 0) => {
+        for (let index = 0; index < cats.length; index += 1) {
+            const cat = cats[index];
+            if (cat.id === id) {
+                return { category: cat, parent, siblings, index, depth };
+            }
+            const childInfo = findCategoryInfo(cat.children || [], id, cat, cat.children || [], depth + 1);
+            if (childInfo) return childInfo;
+        }
+        return null;
+    };
+
+    const removeCategoryFromTree = (cats, id) => {
+        let removed = null;
+        const nextCategories = cats.flatMap(cat => {
+            if (cat.id === id) {
+                removed = cat;
+                return [];
+            }
+            const result = removeCategoryFromTree(cat.children || [], id);
+            if (result.removed) removed = result.removed;
+            return [{ ...cat, children: result.categories }];
+        });
+        return { categories: nextCategories, removed };
+    };
+
+    const insertCategoryUnder = (cats, targetId, movedCategory) => cats.map(cat => {
+        if (cat.id === targetId) {
+            return { ...cat, children: [...(cat.children || []), movedCategory] };
+        }
+        return { ...cat, children: insertCategoryUnder(cat.children || [], targetId, movedCategory) };
+    });
+
+    const categoryContains = (cat, targetId) => (cat.children || []).some(child => (
+        child.id === targetId || categoryContains(child, targetId)
+    ));
+
+    const getCategorySubtreeDepth = (cat) => {
+        if (!cat.children?.length) return 0;
+        return Math.max(...cat.children.map(child => 1 + getCategorySubtreeDepth(child)));
+    };
+
+    const getDeleteCategoryPreview = (cat) => {
+        const info = findCategoryInfo(categories, cat.id);
+        if (!info) return null;
+
+        const previousSibling = info.siblings[info.index - 1] || null;
+        const nextSibling = info.siblings[info.index + 1] || null;
+        const moveTarget = previousSibling || nextSibling || info.parent || null;
+        const categoryIds = collectCategoryIds(cat);
+        const affectedCategories = flattenCategories(cat.children || []);
+        const affectedCourses = categoryIds.flatMap(categoryId => (
+            (coursesByCategory[categoryId] || []).map(course => ({ ...course, ownerCategoryId: categoryId }))
+        ));
+
+        return {
+            moveTarget,
+            affectedCategories,
+            affectedCourses,
+        };
+    };
+
+    const findCourseOwnerId = (courseId, courseMap = coursesByCategory) => {
+        const entry = Object.entries(courseMap).find(([, list]) => (
+            (list || []).some(course => course.id === courseId)
+        ));
+        return entry?.[0] || null;
+    };
+
+    const moveCourseInMap = (courseMap, courseId, targetCategoryId, beforeCourseId = null) => {
+        const sourceCategoryId = findCourseOwnerId(courseId, courseMap);
+        if (!sourceCategoryId || !targetCategoryId) return courseMap;
+
+        const sourceList = courseMap[sourceCategoryId] || [];
+        const movingCourse = sourceList.find(course => course.id === courseId);
+        if (!movingCourse) return courseMap;
+
+        const nextMap = {
+            ...courseMap,
+            [sourceCategoryId]: sourceList.filter(course => course.id !== courseId),
+        };
+
+        const targetList = sourceCategoryId === targetCategoryId
+            ? nextMap[targetCategoryId] || []
+            : courseMap[targetCategoryId] || [];
+        const cleanMovingCourse = stripCourseMeta(movingCourse);
+        const insertIndex = beforeCourseId
+            ? targetList.findIndex(course => course.id === beforeCourseId)
+            : -1;
+
+        const nextTargetList = [...targetList];
+        if (insertIndex >= 0) {
+            nextTargetList.splice(insertIndex, 0, cleanMovingCourse);
+        } else {
+            nextTargetList.push(cleanMovingCourse);
+        }
+
+        nextMap[targetCategoryId] = nextTargetList;
+        return nextMap;
+    };
 
     const getDepth = (cat, depth = 0) => {
         if (!cat.children?.length) return depth;
         return Math.max(...cat.children.map(c => getDepth(c, depth + 1)));
-    };
-
-    const getMaxDepth = (cats, depth = 0) => {
-        if (!cats?.length) return depth - 1;
-        return Math.max(...cats.map(c => getDepth(c, depth)));
     };
 
     const getCategoryDepth = (cat, cats, currentDepth = 0) => {
@@ -455,14 +663,11 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
         return -1;
     };
 
-    const canAddRootCategory = () => {
-        return true;
-    };
-
-    const maxDepthReached = false;
-
     const getAllCoursesInCategory = (cat) => {
-        const courses = coursesByCategory[cat.id] || [];
+        const courses = (coursesByCategory[cat.id] || []).map(course => ({
+            ...course,
+            ownerCategoryId: cat.id,
+        }));
         const childCourses = (cat.children || []).flatMap(c => getAllCoursesInCategory(c));
         return [...courses, ...childCourses];
     };
@@ -471,8 +676,15 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
 
     const isLeafCategory = selectedCategory && !(selectedCategory.children?.length > 0);
 
-    const getNextCode = (siblings) => `${siblings.length + 1}`;
-    const getNextChildCode = (parentCode, siblings) => `${parentCode}.${siblings.length + 1}`;
+    const getNextCode = (siblings) => {
+        const maxSiblingNumber = siblings.reduce((max, sibling) => {
+            const parts = String(sibling.code || '').split('.');
+            const current = Number(parts[parts.length - 1]) || 0;
+            return Math.max(max, current);
+        }, 0);
+        return `${maxSiblingNumber + 1}`;
+    };
+    const getNextChildCode = (parentCode, siblings) => `${parentCode}.${getNextCode(siblings)}`;
 
     const handleAddCategory = () => {
         if (selectedCategory) {
@@ -480,7 +692,6 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
             return;
         }
 
-        if (maxDepthReached) return;
         const code = getNextCode(categories);
         const newCat = {
             id: `cat_${Date.now()}`,
@@ -501,7 +712,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     const handleAddChildCategory = (parent) => {
         const parentCategoryDepth = getCategoryDepth(parent, categories);
 
-        if (parentCategoryDepth >= 3) {
+        if (parentCategoryDepth >= MAX_CATEGORY_DEPTH) {
             alert('ไม่สามารถสร้างหมวดวิชาลูกได้เกิน 4 ระดับ');
             return;
         }
@@ -560,17 +771,25 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
         if (!categoryToDelete) return;
 
         const cat = categoryToDelete;
-        const deleteFromTree = (cats, id) => cats
-            .filter(c => c.id !== id)
-            .map(c => ({ ...c, children: c.children ? deleteFromTree(c.children, id) : [] }));
+        const preview = getDeleteCategoryPreview(cat);
+        const categoryIds = collectCategoryIds(cat);
+        const result = removeCategoryFromTree(categories, cat.id);
+        const newCourses = Object.fromEntries(
+            Object.entries(coursesByCategory).filter(([categoryId]) => !categoryIds.includes(categoryId))
+        );
 
-        const newCats = deleteFromTree(categories, cat.id);
-        const newCourses = { ...coursesByCategory };
-        const collectIds = (c) => [c.id, ...(c.children || []).flatMap(collectIds)];
-        collectIds(cat).forEach(id => delete newCourses[id]);
+        if (preview?.moveTarget) {
+            newCourses[preview.moveTarget.id] = [
+                ...(newCourses[preview.moveTarget.id] || []),
+                ...preview.affectedCourses.map(stripCourseMeta),
+            ];
+        }
 
-        setForm(p => ({ ...p, categories: newCats, coursesByCategory: newCourses }));
-        if (selectedCategory?.id === cat.id) setSelectedCategory(null);
+        setForm(p => ({ ...p, categories: result.categories, coursesByCategory: newCourses }));
+
+        if (selectedCategory && categoryIds.includes(selectedCategory.id)) {
+            setSelectedCategory(preview?.moveTarget || null);
+        }
 
         setShowDeleteCategoryModal(false);
         setCategoryToDelete(null);
@@ -601,43 +820,29 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     };
 
     const handleUpdateCourse = (updatedCourse) => {
-        if (!selectedCategory) return;
+        const ownerCategoryId = updatedCourse.ownerCategoryId || findCourseOwnerId(updatedCourse.id);
+        if (!ownerCategoryId) return;
 
-        const findAndUpdateCourse = (cats, courseId, updated) => {
-            return cats.map(c => {
-                const catCourses = coursesByCategory[c.id] || [];
-                const updatedCourses = catCourses.map(cour =>
-                    cour.id === courseId ? updated : cour
-                );
-                if (updatedCourses !== catCourses) {
-                    const newCourses = { ...coursesByCategory, [c.id]: updatedCourses };
-                    return { ...c };
-                }
-                if (c.children?.length) {
-                    return { ...c, children: findAndUpdateCourse(c.children, courseId, updated) };
-                }
-                return c;
-            });
-        };
-
-        const newCoursesByCategory = { ...coursesByCategory };
-        newCoursesByCategory[selectedCategory.id] = (coursesByCategory[selectedCategory.id] || []).map(c =>
-            c.id === updatedCourse.id ? updatedCourse : c
-        );
-
-        setForm(p => ({
-            ...p,
-            coursesByCategory: newCoursesByCategory,
-        }));
-    };
-
-    const handleDeleteCourse = (course) => {
-        if (!selectedCategory) return;
         setForm(p => ({
             ...p,
             coursesByCategory: {
                 ...p.coursesByCategory,
-                [selectedCategory.id]: (p.coursesByCategory[selectedCategory.id] || []).filter(c => c.id !== course.id),
+                [ownerCategoryId]: (p.coursesByCategory[ownerCategoryId] || []).map(course =>
+                    course.id === updatedCourse.id ? stripCourseMeta(updatedCourse) : course
+                ),
+            },
+        }));
+    };
+
+    const handleDeleteCourse = (course) => {
+        const ownerCategoryId = course.ownerCategoryId || findCourseOwnerId(course.id);
+        if (!ownerCategoryId) return;
+
+        setForm(p => ({
+            ...p,
+            coursesByCategory: {
+                ...p.coursesByCategory,
+                [ownerCategoryId]: (p.coursesByCategory[ownerCategoryId] || []).filter(c => c.id !== course.id),
             },
         }));
     };
@@ -664,34 +869,200 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
 
     const handleDeleteSelectedCourses = () => {
         if (selectedCourseIds.size === 0) return;
+        const selectedIds = selectedCourseIds;
         setForm(p => ({
             ...p,
-            coursesByCategory: {
-                ...p.coursesByCategory,
-                [selectedCategory.id]: (p.coursesByCategory[selectedCategory.id] || []).filter(c => !selectedCourseIds.has(c.id)),
-            },
+            coursesByCategory: Object.fromEntries(
+                Object.entries(p.coursesByCategory).map(([categoryId, list]) => [
+                    categoryId,
+                    (list || []).filter(course => !selectedIds.has(course.id)),
+                ])
+            ),
         }));
         setSelectedCourseIds(new Set());
         setShowDeleteModal(false);
     };
 
+    const handleCategoryDragStart = (event, cat) => {
+        event.stopPropagation();
+        setDraggedCategoryId(cat.id);
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', cat.id);
+    };
+
+    const handleCategoryDragOver = (event, targetCat) => {
+        const draggedInfo = draggedCategoryId ? findCategoryInfo(categories, draggedCategoryId) : null;
+        const draggedCat = draggedInfo?.category;
+        if (!draggedCat) return;
+
+        if (draggedCat.id === targetCat.id || categoryContains(draggedCat, targetCat.id)) {
+            event.stopPropagation();
+            setDropTargetCategoryId(current => current === targetCat.id ? null : current);
+            return;
+        }
+
+        const targetInfo = findCategoryInfo(categories, targetCat.id);
+        const nextDepth = (targetInfo?.depth ?? 0) + 1 + getCategorySubtreeDepth(draggedCat);
+        if (nextDepth > MAX_CATEGORY_DEPTH) {
+            event.stopPropagation();
+            setDropTargetCategoryId(current => current === targetCat.id ? null : current);
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'move';
+        setDropTargetCategoryId(targetCat.id);
+    };
+
+    const handleCategoryDrop = (event, targetCat) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!draggedCategoryId || draggedCategoryId === targetCat.id) return;
+
+        const draggedInfo = findCategoryInfo(categories, draggedCategoryId);
+        const draggedCat = draggedInfo?.category;
+        if (!draggedCat || categoryContains(draggedCat, targetCat.id)) return;
+
+        const targetInfo = findCategoryInfo(categories, targetCat.id);
+        const nextDepth = (targetInfo?.depth ?? 0) + 1 + getCategorySubtreeDepth(draggedCat);
+        if (nextDepth > MAX_CATEGORY_DEPTH) return;
+
+        const result = removeCategoryFromTree(categories, draggedCategoryId);
+        if (!result.removed) return;
+
+        const nextCategories = insertCategoryUnder(result.categories, targetCat.id, result.removed);
+        setForm(p => ({ ...p, categories: nextCategories }));
+        setSelectedCategory(result.removed);
+        setDraggedCategoryId(null);
+        setDropTargetCategoryId(null);
+    };
+
+    const handleCategoryRootDragOver = (event) => {
+        const draggedInfo = draggedCategoryId ? findCategoryInfo(categories, draggedCategoryId) : null;
+        if (!draggedInfo?.category) return;
+        if (getCategorySubtreeDepth(draggedInfo.category) > MAX_CATEGORY_DEPTH) return;
+
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setDropTargetCategoryId('root');
+    };
+
+    const handleCategoryRootDrop = (event) => {
+        event.preventDefault();
+        if (!draggedCategoryId) return;
+
+        const result = removeCategoryFromTree(categories, draggedCategoryId);
+        if (!result.removed) return;
+
+        setForm(p => ({ ...p, categories: [...result.categories, result.removed] }));
+        setSelectedCategory(result.removed);
+        setDraggedCategoryId(null);
+        setDropTargetCategoryId(null);
+    };
+
+    const handleCategoryDragEnd = () => {
+        setDraggedCategoryId(null);
+        setDropTargetCategoryId(null);
+    };
+
+    const handleCategoryDragLeave = (event, cat) => {
+        const nextTarget = event.relatedTarget;
+        if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+        setDropTargetCategoryId(current => current === cat.id ? null : current);
+    };
+
+    const handleCourseDragStart = (event, course) => {
+        event.stopPropagation();
+        setDraggedCourseId(course.id);
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', course.id);
+    };
+
+    const handleCourseDragOver = (event, targetCourse) => {
+        if (!draggedCourseId || draggedCourseId === targetCourse.id) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleCourseDrop = (event, targetCourse) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!draggedCourseId || draggedCourseId === targetCourse.id) {
+            setDraggedCourseId(null);
+            return;
+        }
+
+        const targetCategoryId = targetCourse.ownerCategoryId || findCourseOwnerId(targetCourse.id);
+        setForm(p => ({
+            ...p,
+            coursesByCategory: moveCourseInMap(p.coursesByCategory || {}, draggedCourseId, targetCategoryId, targetCourse.id),
+        }));
+        setDraggedCourseId(null);
+        setDropTargetCategoryId(null);
+    };
+
+    const handleCourseDropToSelectedCategory = (event) => {
+        if (!draggedCourseId || !selectedCategory || !isLeafCategory) return;
+        event.preventDefault();
+        setForm(p => ({
+            ...p,
+            coursesByCategory: moveCourseInMap(p.coursesByCategory || {}, draggedCourseId, selectedCategory.id),
+        }));
+        setDraggedCourseId(null);
+        setDropTargetCategoryId(null);
+    };
+
+    const handleCourseDragEnd = () => {
+        setDraggedCourseId(null);
+        setDropTargetCategoryId(null);
+    };
+
+    const handleCourseCategoryDragOver = (event, targetCat) => {
+        if (!draggedCourseId) return;
+        if (targetCat.children?.length) {
+            event.stopPropagation();
+            setDropTargetCategoryId(current => current === targetCat.id ? null : current);
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'move';
+        setDropTargetCategoryId(targetCat.id);
+    };
+
+    const handleCourseCategoryDrop = (event, targetCat) => {
+        if (!draggedCourseId || targetCat.children?.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+
+        setForm(p => ({
+            ...p,
+            coursesByCategory: moveCourseInMap(p.coursesByCategory || {}, draggedCourseId, targetCat.id),
+        }));
+        setSelectedCategory(targetCat);
+        setDraggedCourseId(null);
+        setDropTargetCategoryId(null);
+    };
+
     const addCredits = (cat, visited = new Set()) => {
         if (visited.has(cat.id)) return 0;
         visited.add(cat.id);
-        return (cat.requiredCredits || 0) +
-            (cat.children || []).reduce((s, ch) => s + addCredits(ch, visited), 0);
+        const ownCourseCredits = (coursesByCategory[cat.id] || []).reduce((sum, course) => (
+            sum + (Number(course.credits) || 0)
+        ), 0);
+        return ownCourseCredits + (cat.children || []).reduce((sum, child) => sum + addCredits(child, visited), 0);
     };
 
     const getCategoryTotalCredits = (cat) => {
-        const catCredits = addCredits(cat);
-        const courses = coursesByCategory[cat.id] || [];
-        const courseCredits = courses.reduce((sum, c) => sum + (c.credits || 0), 0);
-        return catCredits + courseCredits;
+        return addCredits(cat);
     };
 
     const totalCredits = categories.reduce((sum, c) => sum + getCategoryTotalCredits(c), 0);
     const totalCourses = Object.values(coursesByCategory).flat().length;
-    const totalCategories = categories.length + categories.reduce((sum, c) => sum + (c.children || []).length, 0);
+    const totalCategories = countCategories(categories);
+    const deleteCategoryPreview = categoryToDelete ? getDeleteCategoryPreview(categoryToDelete) : null;
 
     return (
         <div className="course-structure-panel">
@@ -725,7 +1096,12 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                             <Plus size={12} /> หมวดวิชา
                         </button>
                     </div>
-                    <div className="course-tree-list" onClick={() => setSelectedCategory(null)}>
+                    <div
+                        className={`course-tree-list ${dropTargetCategoryId === 'root' ? 'course-tree-list--drop-target' : ''}`}
+                        onClick={() => setSelectedCategory(null)}
+                        onDragOver={handleCategoryRootDragOver}
+                        onDrop={handleCategoryRootDrop}
+                    >
                         {categories.length === 0 ? (
                             <div className="course-tree-empty">
                                 กด "+ หมวดวิชา" เพื่อเริ่ม
@@ -736,6 +1112,9 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                                     key={cat.id}
                                     cat={cat}
                                     selectedId={selectedCategory?.id}
+                                    draggingCategoryId={draggedCategoryId}
+                                    draggedCourseId={draggedCourseId}
+                                    dropTargetCategoryId={dropTargetCategoryId}
                                     onSelect={setSelectedCategory}
                                     onRename={handleRenameCategory}
                                     onCreateChild={handleAddChildCategory}
@@ -743,6 +1122,15 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                                     handleUpdateCategory={handleUpdateCategory}
                                     getTotalCredits={getCategoryTotalCredits}
                                     coursesByCategory={coursesByCategory}
+                                    onCategoryDragStart={handleCategoryDragStart}
+                                    onCategoryDragOver={handleCategoryDragOver}
+                                    onCategoryDrop={handleCategoryDrop}
+                                    onCategoryDragEnd={handleCategoryDragEnd}
+                                    onCategoryDragLeave={handleCategoryDragLeave}
+                                    onCourseCategoryDragOver={handleCourseCategoryDragOver}
+                                    onCourseCategoryDrop={handleCourseCategoryDrop}
+                                    onCourseDragStart={handleCourseDragStart}
+                                    onCourseDragEnd={handleCourseDragEnd}
                                 />
                             ))
                         )}
@@ -803,7 +1191,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                                     <span className="course-detail-toolbar__credits-label">หน่วยกิต</span>
                                     <span className="course-detail-toolbar__credits-value">{getCategoryTotalCredits(selectedCategory)}</span>
                                 </div>
-                                <button className="course-detail-toolbar__delete-btn" onClick={() => onDelete(selectedCategory)}>
+                                <button className="course-detail-toolbar__delete-btn" onClick={() => handleDeleteCategory(selectedCategory)}>
                                     <Trash2 size={14} />
                                 </button>
                             </div>
@@ -855,17 +1243,25 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                                             <th className="course-spreadsheet-th course-spreadsheet-th--actions"></th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody
+                                        onDragOver={handleCourseDropToSelectedCategory}
+                                        onDrop={handleCourseDropToSelectedCategory}
+                                    >
                                         {courses.map(course => (
                                             <SpreadsheetRow
                                                 key={course.id}
                                                 course={course}
                                                 isSelected={selectedCourseIds.has(course.id)}
                                                 isEditingCourse={editingCourseId === course.id}
+                                                isDragging={draggedCourseId === course.id}
                                                 onToggleSelect={handleToggleCourseSelection}
                                                 onUpdate={handleUpdateCourse}
                                                 onDelete={handleDeleteCourse}
                                                 onSetEditing={setEditingCourseId}
+                                                onDragStart={handleCourseDragStart}
+                                                onDragOver={handleCourseDragOver}
+                                                onDrop={handleCourseDrop}
+                                                onDragEnd={handleCourseDragEnd}
                                             />
                                         ))}
                                     </tbody>
@@ -926,7 +1322,18 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                         </div>
                         <div className="modal-body">
                             <p>คุณแน่ใจหรือไม่ที่จะลบหมวดวิชา "{categoryToDelete.code} {categoryToDelete.name || 'ยังไม่ตั้งชื่อ'}"?</p>
-                            <p className="modal-body__hint">วิชาทั้งหมดในหมวดนี้จะถูกลบด้วย</p>
+                            {deleteCategoryPreview && (
+                                <div className="modal-body__impact">
+                                    <div>หมวดย่อยที่ได้รับผลกระทบ: {deleteCategoryPreview.affectedCategories.length} หมวด</div>
+                                    <div>รายวิชาที่ได้รับผลกระทบ: {deleteCategoryPreview.affectedCourses.length} วิชา</div>
+                                    {deleteCategoryPreview.moveTarget ? (
+                                        <div>รายวิชาจะถูกย้ายไปที่ "{deleteCategoryPreview.moveTarget.code} {deleteCategoryPreview.moveTarget.name || 'ยังไม่ตั้งชื่อ'}"</div>
+                                    ) : (
+                                        <div>ไม่มีหมวดปลายทาง รายวิชาจะถูกถอดออกจากโครงสร้างปัจจุบัน</div>
+                                    )}
+                                </div>
+                            )}
+                            <p className="modal-body__hint">หมวดนี้และหมวดย่อยทั้งหมดจะถูกลบ ส่วนรายวิชาจะถูกย้ายไปยังหมวดที่ใกล้ที่สุดโดยอัตโนมัติ หากไม่มีหมวดรองรับ รายวิชาจะไม่แสดงในโครงสร้างหลักสูตรนี้</p>
                         </div>
                         <div className="modal-footer">
                             <button
@@ -953,20 +1360,37 @@ function Step3({ form }) {
     const categories = form.categories || [];
     const coursesByCategory = form.coursesByCategory || {};
 
-    const addCredits = (cat, sum = 0) => sum + (cat.requiredCredits || 0) + (cat.children || []).reduce((s, ch) => addCredits(ch, s), 0);
-    const totalCredits = categories.reduce((sum, c) => sum + addCredits(c), 0);
+    const countCategories = (cats) => cats.reduce((sum, cat) => sum + 1 + countCategories(cat.children || []), 0);
+    const getAllCoursesInCategory = (cat) => [
+        ...(coursesByCategory[cat.id] || []),
+        ...(cat.children || []).flatMap(child => getAllCoursesInCategory(child)),
+    ];
+    const getCategoryTotalCredits = (cat) => getAllCoursesInCategory(cat).reduce((sum, course) => (
+        sum + (Number(course.credits) || 0)
+    ), 0);
+    const totalCredits = categories.reduce((sum, c) => sum + getCategoryTotalCredits(c), 0);
 
     const totalCourses = Object.values(coursesByCategory).flat().length;
-    const totalCategories = categories.length + categories.reduce((sum, c) => sum + (c.children || []).length, 0);
+    const totalCategories = countCategories(categories);
     const coreCourses = Object.values(coursesByCategory).flat().filter(c => c.isCoreCourse).length;
-    const electiveCourses = totalCourses - coreCourses;
 
-    const statStyle = {
-        padding: '1.5rem',
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        textAlign: 'center',
+    const renderCategoryOverview = (cat, depth = 0) => {
+        const categoryCourses = getAllCoursesInCategory(cat);
+        return (
+            <React.Fragment key={cat.id}>
+                <div className="course-overview-structure__item">
+                    <div style={{ paddingLeft: `${depth * 1}rem` }}>
+                        <span className="course-overview-structure__code">{cat.code}</span>
+                        <span className="course-overview-structure__name">{cat.name || <em>ยังไม่ตั้งชื่อ</em>}</span>
+                    </div>
+                    <div className="course-overview-structure__stats">
+                        <span>{categoryCourses.length} วิชา</span>
+                        <span>{getCategoryTotalCredits(cat)} หน่วยกิต</span>
+                    </div>
+                </div>
+                {(cat.children || []).map(child => renderCategoryOverview(child, depth + 1))}
+            </React.Fragment>
+        );
     };
 
     return (
@@ -998,9 +1422,6 @@ function Step3({ form }) {
                     <div><span className="course-overview-info__label">ชื่อหลักสูตร (ไทย):</span> <span className="course-overview-info__value">{form.nameTh || '-'}</span></div>
                     <div><span className="course-overview-info__label">ชื่อหลักสูตร (อังกฤษ):</span> <span className="course-overview-info__value">{form.nameEn || '-'}</span></div>
                     <div><span className="course-overview-info__label">ปีการศึกษา:</span> <span className="course-overview-info__value">{form.year ? `ปีการศึกษา ${form.year}` : '-'}</span></div>
-                    <div><span className="course-overview-info__label">ชื่อปริญญา:</span> <span className="course-overview-info__value">{form.degreeName || '-'}</span></div>
-                    <div><span className="course-overview-info__label">ชื่อปริญญาเต็ม (ไทย):</span> <span className="course-overview-info__value">{form.degreeFullNameTh || '-'}</span></div>
-                    <div><span className="course-overview-info__label">ชื่อปริญญาเต็ม (อังกฤษ):</span> <span className="course-overview-info__value">{form.degreeFullNameEn || '-'}</span></div>
                 </div>
             </div>
 
@@ -1008,21 +1429,7 @@ function Step3({ form }) {
             <div className="course-overview-info">
                 <h4 className="course-overview-info__title">โครงสร้างหลักสูตร</h4>
                 <div className="course-overview-structure">
-                    {categories.map(cat => {
-                        const catCourses = coursesByCategory[cat.id] || [];
-                        return (
-                            <div key={cat.id} className="course-overview-structure__item">
-                                <div>
-                                    <span className="course-overview-structure__code">{cat.code}</span>
-                                    <span className="course-overview-structure__name">{cat.name || <em>ยังไม่ตั้งชื่อ</em>}</span>
-                                </div>
-                                <div className="course-overview-structure__stats">
-                                    <span>{catCourses.length} วิชา</span>
-                                    <span>{cat.requiredCredits || 0} หน่วยกิต</span>
-                                </div>
-                            </div>
-                        );
-                    })}
+                    {categories.map(cat => renderCategoryOverview(cat))}
                     {categories.length === 0 && (
                         <p className="course-overview-empty">ยังไม่มีโครงสร้างหลักสูตร</p>
                     )}
@@ -1142,7 +1549,15 @@ function CreateCoursePageContent() {
 
     const canNext = () => {
         if (step === 1) {
-            return !lookupsLoading && form.nameTh.trim() && form.nameEn.trim() && form.code.trim() && form.facultyId && form.majorId && form.year && form.degreeName && form.degreeFullNameTh;
+            return (
+                !lookupsLoading
+                && form.nameTh.trim()
+                && form.nameEn.trim()
+                && form.code.trim()
+                && form.facultyId
+                && form.majorId
+                && form.year
+            );
         }
         return true;
     };

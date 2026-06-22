@@ -561,6 +561,71 @@
     border: 1px solid var(--course-panel-selected-border);
 }
 
+.course-tree-item--dragging {
+    opacity: 0.55;
+    outline: 1px dashed var(--course-accent);
+    background: var(--course-tree-hover);
+}
+
+.course-tree-item--drop-target {
+    background: rgba(99, 102, 241, 0.14);
+    border: 1px solid var(--course-accent);
+    box-shadow: inset 3px 0 0 var(--course-accent);
+}
+
+.course-tree-item--selected.course-tree-item--drop-target {
+    background: var(--course-panel-selected-bg);
+    box-shadow: inset 3px 0 0 #ffffff;
+}
+
+.course-tree-course-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0.25rem 0 0.5rem;
+}
+
+.course-tree-course {
+    display: grid;
+    grid-template-columns: minmax(48px, auto) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    color: var(--course-text-muted);
+    cursor: grab;
+    font-size: 0.75rem;
+    transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.course-tree-course:hover {
+    background: var(--course-tree-hover);
+    color: var(--course-text);
+}
+
+.course-tree-course--dragging {
+    opacity: 0.55;
+    outline: 1px dashed var(--course-accent);
+}
+
+.course-tree-course__code {
+    color: var(--course-accent);
+    font-family: monospace;
+    font-weight: 600;
+}
+
+.course-tree-course__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.course-tree-course__credits {
+    color: var(--course-text-muted);
+    font-size: 0.6875rem;
+}
+
 .course-tree-item__code {
     font-size: 0.75rem;
     font-weight: 600;
@@ -684,6 +749,10 @@
 .ss-row:hover { background: var(--course-tree-hover); }
 .ss-row--editing { background: var(--course-panel-selected-bg) !important; }
 .ss-row--selected { background: rgba(99, 102, 241, 0.08) !important; }
+.ss-row--dragging {
+    opacity: 0.55;
+    outline: 1px dashed var(--course-accent);
+}
 
 .ss-cell {
     padding: 0.4rem 0.625rem;
@@ -1107,6 +1176,13 @@
     flex: 1;
     overflow: auto;
     padding: 0.5rem;
+    border-radius: 8px;
+}
+
+.course-tree-list--drop-target {
+    outline: 1px dashed var(--course-accent);
+    outline-offset: -4px;
+    background: rgba(99, 102, 241, 0.06);
 }
 
 .course-tree-empty {
@@ -1196,6 +1272,18 @@
 .course-row__btn--delete {
     color: #dc2626;
     margin-left: 0.25rem;
+}
+
+.modal-body__impact {
+    margin: 0.875rem 0;
+    padding: 0.75rem;
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+    background: var(--course-card-bg);
+    color: var(--course-text);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    text-align: left;
 }
 
 /* ============================================================
