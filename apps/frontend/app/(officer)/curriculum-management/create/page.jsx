@@ -1375,21 +1375,41 @@ function Step3({ form }) {
     const coreCourses = Object.values(coursesByCategory).flat().filter(c => c.isCoreCourse).length;
 
     const renderCategoryOverview = (cat, depth = 0) => {
+        const directCourses = coursesByCategory[cat.id] || [];
         const categoryCourses = getAllCoursesInCategory(cat);
         return (
-            <React.Fragment key={cat.id}>
-                <div className="course-overview-structure__item">
-                    <div style={{ paddingLeft: `${depth * 1}rem` }}>
-                        <span className="course-overview-structure__code">{cat.code}</span>
-                        <span className="course-overview-structure__name">{cat.name || <em>ยังไม่ตั้งชื่อ</em>}</span>
+            <div key={cat.id} className="course-overview-tree-node">
+                <div
+                    className="course-overview-tree-category"
+                    style={{ paddingLeft: `${0.75 + depth * 1.25}rem` }}
+                >
+                    <div className="course-overview-tree-category__main">
+                        <span className="course-overview-tree-category__code">{cat.code}</span>
+                        <span className="course-overview-tree-category__name">{cat.name || <em>ยังไม่ตั้งชื่อ</em>}</span>
                     </div>
-                    <div className="course-overview-structure__stats">
+                    <div className="course-overview-tree-category__stats">
                         <span>{categoryCourses.length} วิชา</span>
                         <span>{getCategoryTotalCredits(cat)} หน่วยกิต</span>
                     </div>
                 </div>
+
+                {directCourses.length > 0 && (
+                    <div
+                        className="course-overview-tree-courses"
+                        style={{ paddingLeft: `${2.25 + depth * 1.25}rem` }}
+                    >
+                        {directCourses.map(course => (
+                            <div key={course.id} className="course-overview-tree-course">
+                                <span className="course-overview-tree-course__code">{course.code || '-'}</span>
+                                <span className="course-overview-tree-course__name">{course.nameTh || course.nameEn || 'ยังไม่มีชื่อวิชา'}</span>
+                                <span className="course-overview-tree-course__credits">{Number(course.credits) || 0} หน่วยกิต</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {(cat.children || []).map(child => renderCategoryOverview(child, depth + 1))}
-            </React.Fragment>
+            </div>
         );
     };
 

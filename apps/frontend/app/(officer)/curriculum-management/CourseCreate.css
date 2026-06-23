@@ -1350,35 +1350,100 @@
 .course-overview-structure {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+    background: var(--course-form-input-bg);
 }
 
-.course-overview-structure__item {
+.course-overview-tree-node {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.course-overview-tree-category {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.5rem 0.75rem;
-    background: var(--course-accent);
+    gap: 1rem;
+    padding: 0.625rem 0.75rem;
+    background: var(--course-card-bg);
     border-radius: 6px;
+    color: var(--course-text);
 }
 
-.course-overview-structure__code {
+.course-overview-tree-category__main {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.course-overview-tree-category__code {
     font-weight: 600;
     color: var(--course-accent);
-    margin-right: 0.5rem;
+    font-family: monospace;
+    font-size: 0.8125rem;
 }
 
-.course-overview-structure__name {
+.course-overview-tree-category__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 0.875rem;
+    font-weight: 500;
 }
 
-.course-overview-structure__stats {
+.course-overview-tree-category__stats {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
     font-size: 0.8125rem;
     color: var(--course-text-muted);
 }
 
-.course-overview-structure__stats span {
-    margin-left: 1rem;
+.course-overview-tree-courses {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.course-overview-tree-course {
+    display: grid;
+    grid-template-columns: minmax(56px, auto) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    color: var(--course-text-muted);
+    font-size: 0.75rem;
+}
+
+.course-overview-tree-course:hover {
+    background: var(--course-tree-hover);
+    color: var(--course-text);
+}
+
+.course-overview-tree-course__code {
+    color: var(--course-accent);
+    font-family: monospace;
+    font-weight: 600;
+}
+
+.course-overview-tree-course__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.course-overview-tree-course__credits {
+    color: var(--course-text-muted);
+    font-size: 0.6875rem;
 }
 
 .course-overview-empty {
