@@ -125,6 +125,7 @@ func (s *CurriculumService) GetCurriculumByID(ctx context.Context, id uint64, ro
 }
 
 func (s *CurriculumService) CreateCurriculum(ctx context.Context, payload models.CreateCurriculumPayload, userID int64, roles []string, facultyID *int64) (*models.Curriculum, error) {
+	normalizeCreateCurriculumPayload(&payload)
 	if err := validateCreateCurriculumPayload(payload); err != nil {
 		return nil, err
 	}
@@ -144,6 +145,17 @@ func (s *CurriculumService) CreateCurriculum(ctx context.Context, payload models
 		}
 		if uint64(*facultyID) != majorScope.FacultyID {
 			return nil, ErrCurriculumForbidden
+		}
+	}
+
+	duplicate, err := s.Repo.FindLiveCurriculumNameDuplicate(ctx, payload.MajorID, payload.EffectiveYearBE, payload.CurriculumNameTH)
+	if err != nil {
+		return nil, err
+	}
+	if duplicate != nil {
+		return nil, CurriculumConflictError{
+			Code:    "DUPLICATE",
+			Message: "curriculum name already exists in this major and effective year",
 		}
 	}
 
@@ -258,6 +270,12 @@ func validateUpsertMajorPayload(payload *models.UpsertMajorPayload) error {
 	default:
 		return CurriculumValidationError{Message: "degree_level must be bachelor, master, phd, or other"}
 	}
+}
+
+func normalizeCreateCurriculumPayload(payload *models.CreateCurriculumPayload) {
+	payload.CurriculumCode = strings.TrimSpace(payload.CurriculumCode)
+	payload.CurriculumNameTH = strings.TrimSpace(payload.CurriculumNameTH)
+	payload.CurriculumNameEN = trimStringPointer(payload.CurriculumNameEN)
 }
 
 func validateCreateCurriculumPayload(payload models.CreateCurriculumPayload) error {

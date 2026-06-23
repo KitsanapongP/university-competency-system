@@ -3,7 +3,8 @@
 import React, { Suspense, useState, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { X, Check, ChevronRight, ChevronDown, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, FileText, Pencil, GripVertical, AlertTriangle } from 'lucide-react';
-import { createCurriculumFromForm, fetchFaculties, fetchMajors } from '../../../../lib/curriculum';
+import { createCurriculumFromForm, fetchCurriculums, fetchFaculties, fetchMajors } from '../../../../lib/curriculum';
+import { useLanguage } from '../../../../providers/LanguageContext';
 import '../../../../app/Competency.css';
 import '../CourseLayout.css';
 import '../CourseCreate.css';
@@ -37,7 +38,71 @@ function StepIndicator({ step }) {
 
 const CURRICULUM_CREATE_DRAFT_KEY = 'curriculum-create-draft';
 
-function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError, onAddMajor }) {
+function selectedMajorName(form, majors, fallback, language = 'th') {
+    const selectedMajor = majors.find(major => String(major.majorId) === String(form.majorId));
+    if (language === 'en') {
+        return selectedMajor?.nameEn || selectedMajor?.nameTh || fallback || 'selected major';
+    }
+    return selectedMajor?.nameTh || selectedMajor?.nameEn || fallback || 'สาขาที่เลือก';
+}
+
+function duplicateCurriculumNameText(year, majorName, language = 'th') {
+    if (language === 'en') {
+        return `This curriculum name already exists in academic year ${year} for ${majorName}. Please review the information again.`;
+    }
+    return `มีชื่อหลักสูตรนี้อยู่แล้ว ในปีการศึกษา${year} ของสาขา${majorName} กรุณาตรวจสอบข้อมูลอีกครั้ง`;
+}
+
+function formatCreateCurriculumError(err, form, majors, language = 'th') {
+    const message = err?.message || (language === 'en' ? 'Unable to create curriculum.' : 'ไม่สามารถสร้างหลักสูตรได้');
+    const majorName = selectedMajorName(form, majors, undefined, language);
+    const year = form.year || (language === 'en' ? 'selected' : 'ที่เลือก');
+
+    if (err?.code === 'DUPLICATE') {
+        if (message.includes('curriculum code already exists')) {
+            if (language === 'en') {
+                return 'This curriculum code already exists in the selected major. Please review the information again.';
+            }
+            return 'รหัสหลักสูตรนี้มีอยู่แล้วในสาขาที่เลือก กรุณาตรวจสอบข้อมูลอีกครั้ง';
+        }
+        if (
+            message.includes('curriculum name already exists')
+            || message.includes('curriculum already exists')
+        ) {
+            return duplicateCurriculumNameText(year, majorName, language);
+        }
+    }
+
+    return message;
+}
+
+function buildDuplicateCurriculumNameWarning(form, majors, curriculums, language = 'th') {
+    const nameTh = String(form.nameTh || '').trim();
+    const majorId = Number(form.majorId || 0);
+    const year = Number(form.year || 0);
+
+    if (!nameTh || !majorId || !year) {
+        return '';
+    }
+
+    const duplicate = curriculums.find(curriculum => (
+        Number(curriculum.majorId) === majorId
+        && Number(curriculum.year) === year
+        && String(curriculum.nameTh || '').trim() === nameTh
+    ));
+
+    if (!duplicate) {
+        return '';
+    }
+
+    const selectedMajor = majors.find(major => Number(major.majorId) === majorId);
+    const majorName = language === 'en'
+        ? selectedMajor?.nameEn || selectedMajor?.nameTh || duplicate.degreeNameEn || duplicate.degreeName || 'selected major'
+        : selectedMajor?.nameTh || selectedMajor?.nameEn || duplicate.degreeName || 'สาขาที่เลือก';
+    return duplicateCurriculumNameText(year, majorName, language);
+}
+
+function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError, duplicateNameWarning, onAddMajor }) {
     const filteredMajors = form.facultyId
         ? majors.filter(major => String(major.facultyId) === String(form.facultyId))
         : [];
@@ -55,6 +120,9 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
                     placeholder="เช่น หลักสูตรวิทยาการคอมพิวเตอร์"
                     autoFocus
                 />
+                {duplicateNameWarning && (
+                    <div className="course-form-field__error">{duplicateNameWarning}</div>
+                )}
             </div>
 
             <div className="course-form-field">
@@ -1479,6 +1547,7 @@ const EMPTY_FORM = {
 function CreateCoursePageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { language } = useLanguage();
     const createdMajorId = Number(searchParams.get('created_major_id') || 0);
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(EMPTY_FORM);
@@ -1489,8 +1558,10 @@ function CreateCoursePageContent() {
     const [success, setSuccess] = useState('');
     const [faculties, setFaculties] = useState([]);
     const [majors, setMajors] = useState([]);
+    const [curriculums, setCurriculums] = useState([]);
     const [lookupsLoading, setLookupsLoading] = useState(true);
     const [lookupsError, setLookupsError] = useState('');
+    const duplicateNameWarning = buildDuplicateCurriculumNameWarning(form, majors, curriculums, language);
 
     useEffect(() => {
         const rawDraft = sessionStorage.getItem(CURRICULUM_CREATE_DRAFT_KEY);
@@ -1515,14 +1586,16 @@ function CreateCoursePageContent() {
             setLookupsError('');
 
             try {
-                const [nextFaculties, nextMajors] = await Promise.all([
+                const [nextFaculties, nextMajors, nextCurriculums] = await Promise.all([
                     fetchFaculties(),
                     fetchMajors(),
+                    fetchCurriculums(),
                 ]);
                 if (!mounted) return;
 
                 setFaculties(nextFaculties);
                 setMajors(nextMajors);
+                setCurriculums(nextCurriculums);
                 if (nextFaculties.length === 0) {
                     setLookupsError('ไม่พบคณะที่คุณมีสิทธิ์เลือก');
                 }
@@ -1577,6 +1650,7 @@ function CreateCoursePageContent() {
                 && form.facultyId
                 && form.majorId
                 && form.year
+                && !duplicateNameWarning
             );
         }
         return true;
@@ -1595,7 +1669,7 @@ function CreateCoursePageContent() {
                 router.push('/curriculum-management?created=1');
             }, 600);
         } catch (err) {
-            setError(err?.message || 'ไม่สามารถสร้างหลักสูตรได้');
+            setError(formatCreateCurriculumError(err, form, majors, language));
         } finally {
             setSubmitting(false);
         }
@@ -1640,6 +1714,7 @@ function CreateCoursePageContent() {
                             majors={majors}
                             lookupsLoading={lookupsLoading}
                             lookupsError={lookupsError}
+                            duplicateNameWarning={duplicateNameWarning}
                             onAddMajor={handleAddMajor}
                         />
                     )}

@@ -24,6 +24,14 @@ type CreateCurriculumOptions struct {
 	DegreeLevel string
 }
 
+type CurriculumNameDuplicate struct {
+	CurriculumID    uint64
+	MajorID         uint64
+	MajorNameTH     string
+	NameTH          string
+	EffectiveYearBE uint64
+}
+
 type rowScanner interface {
 	Scan(dest ...any) error
 }
@@ -843,6 +851,36 @@ func (r *CurriculumRepository) GetMajorScope(ctx context.Context, majorID uint64
 	}
 
 	return scope, nil
+}
+
+func (r *CurriculumRepository) FindLiveCurriculumNameDuplicate(ctx context.Context, majorID uint64, effectiveYearBE uint64, nameTH string) (*CurriculumNameDuplicate, error) {
+	query := `
+		SELECT c.curriculum_id, c.major_id, m.name_th, c.name_th, c.effective_year_be
+		FROM edu_curricula c
+		JOIN edu_majors m ON m.major_id = c.major_id
+		WHERE c.major_id = ?
+			AND c.effective_year_be = ?
+			AND c.name_th = ?
+			AND c.deleted_at IS NULL
+		LIMIT 1
+	`
+
+	var duplicate CurriculumNameDuplicate
+	err := r.DB.QueryRowContext(ctx, query, majorID, effectiveYearBE, nameTH).Scan(
+		&duplicate.CurriculumID,
+		&duplicate.MajorID,
+		&duplicate.MajorNameTH,
+		&duplicate.NameTH,
+		&duplicate.EffectiveYearBE,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &duplicate, nil
 }
 
 func (r *CurriculumRepository) CreateCurriculumTx(ctx context.Context, payload models.CreateCurriculumPayload, opts CreateCurriculumOptions) (*models.Curriculum, error) {

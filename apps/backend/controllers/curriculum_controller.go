@@ -328,6 +328,13 @@ func writeCurriculumError(w http.ResponseWriter, err error) {
 			message = "course code already exists in this curriculum"
 		} else if strings.Contains(mysqlErr.Message, "uq_majors_department_code") {
 			message = "major code already exists in this department"
+		} else if strings.Contains(mysqlErr.Message, "uq_curricula_major_code_live") ||
+			strings.Contains(mysqlErr.Message, "uq_curricula_major_code") {
+			message = "curriculum code already exists in this major"
+		} else if strings.Contains(mysqlErr.Message, "uq_curricula_major_year_name_th_live") {
+			message = "curriculum name already exists in this major and effective year"
+		} else if strings.Contains(mysqlErr.Message, "uq_curricula_major_year") {
+			message = "curriculum effective year already exists in this major"
 		}
 		utils.Error(w, http.StatusConflict, "DUPLICATE", message)
 		return
