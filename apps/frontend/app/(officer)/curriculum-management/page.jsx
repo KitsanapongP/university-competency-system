@@ -6,6 +6,7 @@ import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check,
 import {
     createCurriculumCategory,
     createCurriculumCourse,
+    deleteCurriculum,
     deleteCurriculumCategory,
     deleteCurriculumCoursePlacement,
     fetchCurriculumDetail,
@@ -75,6 +76,8 @@ const BACKEND_MESSAGE_TH = {
     'inactive curriculum can only transition to active': 'หลักสูตรที่ปิดใช้งานสามารถเปิดใช้งานได้เท่านั้น',
     'curriculum status is invalid': 'สถานะหลักสูตรปัจจุบันไม่ถูกต้อง',
     'curriculum cannot be inactive while active templates are connected': 'ยังปิดใช้งานหลักสูตรไม่ได้ เพราะมี Active Template เชื่อมอยู่',
+    'curriculum cannot be deleted while templates are connected': 'ไม่สามารถลบหลักสูตรนี้ได้ เพราะมี Template เชื่อมอยู่',
+    'curriculum cannot be deleted because it has real usage': 'ไม่สามารถลบหลักสูตรนี้ได้ เพราะมีข้อมูลการใช้งานจริงแล้ว ให้เปลี่ยนสถานะเป็นปิดใช้งานแทน',
     'curriculum structure is locked while active templates are connected': 'โครงสร้างหลักสูตรถูกล็อกอยู่ เพราะมี Active Template เชื่อมอยู่',
     'inactive curriculum edit requires confirmation because templates are connected': 'หลักสูตรนี้มี Template เชื่อมอยู่ กรุณายืนยันก่อนแก้ไข',
     'category delete requires confirmation': 'การลบหมวดวิชาต้องได้รับการยืนยันก่อน',
@@ -414,18 +417,42 @@ export default function CurriculumManagementPage() {
 
     const handleDeleteCourse = useCallback((course) => {
         if (course.templateCount > 0) {
-            alert(`ไม่สามารถลบหลักสูตร "${course.nameTh}" ได้ เนื่องจากมี Template ที่ใช้งานอยู่ ${course.templateCount} รายการ`);
+            alert(`ไม่สามารถลบหลักสูตร "${course.nameTh}" ได้ เนื่องจากมี Template เชื่อมอยู่ ${course.templateCount} รายการ`);
             return;
         }
+        setError('');
+        setErrorDebug('');
+        setSuccess('');
         setDeletingCourse(course);
     }, []);
 
-    const handleConfirmDeleteCourse = useCallback(() => {
-        if (deletingCourse) {
-            setCourses(p => p.filter(c => c.id !== deletingCourse.id));
-            setDeletingCourse(null);
+    const handleConfirmDeleteCourse = useCallback(async () => {
+        if (!deletingCourse || operationLoading) {
+            return;
         }
-    }, [deletingCourse]);
+
+        setOperationLoading(true);
+        setError('');
+        setErrorDebug('');
+        setSuccess('');
+        try {
+            await deleteCurriculum(deletingCourse.curriculumId || deletingCourse.id);
+            setDeletingCourse(null);
+            if (selectedCourse?.id === deletingCourse.id) {
+                setSelectedCourse(null);
+                setView('list');
+            }
+            setSuccess('ลบหลักสูตรเรียบร้อยแล้ว');
+            await loadCurriculums();
+        } catch (err) {
+            const mapped = mapCurriculumError(err);
+            setError(mapped.userMessage || 'ไม่สามารถลบหลักสูตรได้');
+            setErrorDebug(mapped.debugMessage);
+            console.debug('Curriculum delete error:', err);
+        } finally {
+            setOperationLoading(false);
+        }
+    }, [deletingCourse, loadCurriculums, operationLoading, selectedCourse]);
 
     const handleSaveCourse = useCallback((courseData) => {
         if (editingCourse) {

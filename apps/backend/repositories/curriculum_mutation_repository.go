@@ -654,6 +654,76 @@ func (r *CurriculumRepository) DeleteCategoryTx(ctx context.Context, preview *mo
 	return tx.Commit()
 }
 
+func (r *CurriculumRepository) CountConnectedTemplatesForCurriculum(ctx context.Context, curriculumID uint64) (int, error) {
+	var count int
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM curri_curriculum_templates cct
+		JOIN comp_templates tpl ON tpl.template_id = cct.template_id
+		WHERE cct.curriculum_id = ?
+			AND cct.deleted_at IS NULL
+			AND tpl.deleted_at IS NULL
+	`, curriculumID).Scan(&count)
+	return count, err
+}
+
+func (r *CurriculumRepository) CountCurriculumRealUsage(ctx context.Context, curriculumID uint64) (int, error) {
+	var count int
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT
+			CASE WHEN
+				EXISTS (
+					SELECT 1
+					FROM kku_enrollment_curricula kec
+					WHERE kec.curriculum_id = ?
+						AND kec.deleted_at IS NULL
+				)
+				OR EXISTS (
+					SELECT 1
+					FROM crs_course_enrollment cce
+					JOIN crs_courses course ON course.course_id = cce.course_id
+					WHERE course.curriculum_id = ?
+						AND course.deleted_at IS NULL
+						AND cce.deleted_at IS NULL
+				)
+				OR EXISTS (
+					SELECT 1
+					FROM score_course_competency_scores score
+					JOIN crs_course_enrollment cce ON cce.course_student_id = score.course_student_id
+					JOIN crs_courses course ON course.course_id = cce.course_id
+					WHERE course.curriculum_id = ?
+						AND course.deleted_at IS NULL
+						AND cce.deleted_at IS NULL
+						AND score.deleted_at IS NULL
+				)
+			THEN 1 ELSE 0 END
+	`, curriculumID, curriculumID, curriculumID).Scan(&count)
+	return count, err
+}
+
+func (r *CurriculumRepository) SoftDeleteCurriculum(ctx context.Context, curriculumID uint64) error {
+	res, err := r.DB.ExecContext(ctx, `
+		UPDATE edu_curricula
+		SET deleted_at = NOW(),
+			updated_at = NOW()
+		WHERE curriculum_id = ?
+			AND deleted_at IS NULL
+	`, curriculumID)
+	if err != nil {
+		return err
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
 func placeholders(count int) string {
 	if count <= 0 {
 		return ""

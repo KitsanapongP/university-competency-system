@@ -339,6 +339,43 @@ func (s *CurriculumService) DeleteCurriculumCoursePlacement(ctx context.Context,
 	return s.GetCurriculumByID(ctx, curriculumID, roles, facultyID)
 }
 
+func (s *CurriculumService) DeleteCurriculum(ctx context.Context, curriculumID uint64, roles []string, facultyID *int64) error {
+	if _, err := s.getCurriculumForWrite(ctx, curriculumID, roles, facultyID); err != nil {
+		return err
+	}
+
+	templateCount, err := s.Repo.CountConnectedTemplatesForCurriculum(ctx, curriculumID)
+	if err != nil {
+		return err
+	}
+	if templateCount > 0 {
+		return CurriculumConflictError{
+			Code:    "CURRICULUM_HAS_TEMPLATE",
+			Message: "curriculum cannot be deleted while templates are connected",
+		}
+	}
+
+	realUsageCount, err := s.Repo.CountCurriculumRealUsage(ctx, curriculumID)
+	if err != nil {
+		return err
+	}
+	if realUsageCount > 0 {
+		return CurriculumConflictError{
+			Code:    "CURRICULUM_HAS_REAL_USAGE",
+			Message: "curriculum cannot be deleted because it has real usage",
+		}
+	}
+
+	if err := s.Repo.SoftDeleteCurriculum(ctx, curriculumID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrCurriculumNotFound
+		}
+		return err
+	}
+
+	return nil
+}
+
 func (s *CurriculumService) getCurriculumForWrite(ctx context.Context, id uint64, roles []string, facultyID *int64) (*models.Curriculum, error) {
 	curriculum, err := s.Repo.GetCurriculumByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {

@@ -82,6 +82,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				cr.Use(middleware.RequireRoles("admin", "officer"))
 				cr.Get("/", curriculumHandler.GetAll)
 				cr.Post("/", curriculumHandler.Create)
+				cr.Delete("/{id}", curriculumHandler.DeleteCurriculum)
 				cr.Route("/{id}", func(cir chi.Router) {
 					cir.Get("/", curriculumHandler.GetByID)
 					cir.Patch("/status", curriculumHandler.UpdateStatus)

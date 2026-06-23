@@ -250,6 +250,14 @@ export async function updateCurriculumStatus(curriculumId, status, confirmImpact
     return toMutationResult(response);
 }
 
+export async function deleteCurriculum(curriculumId) {
+    const response = await apiFetch(`/api/v1/curricula/${curriculumId}`, {
+        method: 'DELETE',
+    });
+
+    return unwrapData(response, null);
+}
+
 export async function createCurriculumCategory(curriculumId, category, confirmImpact = false) {
     const payload = {
         parent_id: category.parentId ?? null,

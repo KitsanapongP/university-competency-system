@@ -229,6 +229,27 @@ func (c *CurriculumController) DeleteCurriculumCoursePlacement(w http.ResponseWr
 	utils.OK(w, curriculum)
 }
 
+func (c *CurriculumController) DeleteCurriculum(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUintURLParam(w, r, "id", "invalid curriculum id")
+	if !ok {
+		return
+	}
+	claims, ok := curriculumClaims(w, r)
+	if !ok {
+		return
+	}
+
+	if err := c.Service.DeleteCurriculum(r.Context(), id, claims.Roles, claims.FacultyID); err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.OK(w, utils.Envelope{
+		"curriculum_id": id,
+		"deleted":       true,
+	})
+}
+
 func curriculumAndCategoryIDs(w http.ResponseWriter, r *http.Request) (uint64, uint64, bool) {
 	id, ok := parseUintURLParam(w, r, "id", "invalid curriculum id")
 	if !ok {
