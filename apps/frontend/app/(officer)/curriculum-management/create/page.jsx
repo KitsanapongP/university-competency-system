@@ -102,12 +102,16 @@ function buildDuplicateCurriculumNameWarning(form, majors, curriculums, language
     return duplicateCurriculumNameText(year, majorName, language);
 }
 
-function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError, duplicateNameWarning, onAddMajor }) {
+function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError, onAddMajor, onClearValidation }) {
     const filteredMajors = form.facultyId
         ? majors.filter(major => String(major.facultyId) === String(form.facultyId))
         : [];
     const selectedMajor = majors.find(major => String(major.majorId) === String(form.majorId));
     const facultyLocked = faculties.length <= 1;
+    const updateForm = (updater) => {
+        onClearValidation?.();
+        setForm(updater);
+    };
 
     return (
         <div className="course-form-group">
@@ -116,13 +120,10 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
                 <input
                     className="course-form-field__input"
                     value={form.nameTh}
-                    onChange={e => setForm(p => ({ ...p, nameTh: e.target.value }))}
+                    onChange={e => updateForm(p => ({ ...p, nameTh: e.target.value }))}
                     placeholder="เช่น หลักสูตรวิทยาการคอมพิวเตอร์"
                     autoFocus
                 />
-                {duplicateNameWarning && (
-                    <div className="course-form-field__error">{duplicateNameWarning}</div>
-                )}
             </div>
 
             <div className="course-form-field">
@@ -130,7 +131,7 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
                 <input
                     className="course-form-field__input"
                     value={form.nameEn}
-                    onChange={e => setForm(p => ({ ...p, nameEn: e.target.value }))}
+                    onChange={e => updateForm(p => ({ ...p, nameEn: e.target.value }))}
                     placeholder="เช่น Computer Science"
                 />
             </div>
@@ -141,7 +142,7 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
                     <input
                         className="course-form-field__input"
                         value={form.code}
-                        onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
+                        onChange={e => updateForm(p => ({ ...p, code: e.target.value }))}
                         placeholder="เช่น cp_2568_curriculum"
                     />
                 </div>
@@ -150,7 +151,7 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
                     <select
                         className="course-form-field__input"
                         value={form.facultyId || ''}
-                        onChange={e => setForm(p => ({
+                        onChange={e => updateForm(p => ({
                             ...p,
                             facultyId: parseInt(e.target.value, 10) || '',
                             majorId: '',
@@ -179,7 +180,7 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
                     <select
                         className="course-form-field__input"
                         value={form.majorId || ''}
-                        onChange={e => setForm(p => ({ ...p, majorId: parseInt(e.target.value, 10) || '' }))}
+                        onChange={e => updateForm(p => ({ ...p, majorId: parseInt(e.target.value, 10) || '' }))}
                         disabled={lookupsLoading || !form.facultyId}
                     >
                         <option value="">{lookupsLoading ? 'กำลังโหลดสาขา...' : 'เลือกสาขา'}</option>
@@ -199,7 +200,7 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
                         type="number"
                         className="course-form-field__input"
                         value={form.year || ''}
-                        onChange={e => setForm(p => ({ ...p, year: parseInt(e.target.value) || null }))}
+                        onChange={e => updateForm(p => ({ ...p, year: parseInt(e.target.value) || null }))}
                         placeholder="เช่น 2568"
                         min={2500}
                         max={2600}
@@ -283,6 +284,7 @@ function SpreadsheetRow({
     isEditingCourse,
     isDragging,
     onToggleSelect,
+    onValidate,
     onUpdate,
     onDelete,
     onSetEditing,
@@ -320,7 +322,9 @@ function SpreadsheetRow({
 
     const handleSave = () => {
         if (!form.code.trim() && !form.nameTh.trim()) return;
-        onUpdate({ ...course, ...form, credits: Number(form.credits) || 0 });
+        const nextCourse = { ...course, ...form, credits: Number(form.credits) || 0 };
+        if (onValidate && !onValidate(nextCourse)) return;
+        onUpdate(nextCourse);
         setEditing(false);
         if (onSetEditing) onSetEditing(null);
     };
@@ -587,7 +591,7 @@ function TreeItem({
     );
 }
 
-function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
+function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearValidation, language = 'th' }) {
     const categories = form.categories || [];
     const coursesByCategory = form.coursesByCategory || {};
     const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
@@ -600,6 +604,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     const [draggedCategoryId, setDraggedCategoryId] = useState(null);
     const [draggedCourseId, setDraggedCourseId] = useState(null);
     const [dropTargetCategoryId, setDropTargetCategoryId] = useState(null);
+    const [courseDuplicateWarning, setCourseDuplicateWarning] = useState(null);
 
     const MAX_CATEGORY_DEPTH = 3;
 
@@ -613,6 +618,43 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     const flattenCategories = (cats) => cats.flatMap(cat => [cat, ...flattenCategories(cat.children || [])]);
 
     const countCategories = (cats) => cats.reduce((sum, cat) => sum + 1 + countCategories(cat.children || []), 0);
+
+    const normalizeName = (value) => String(value || '').trim();
+    const normalizeInsensitive = (value) => normalizeName(value).toLowerCase();
+
+    const duplicateFieldLabels = language === 'en'
+        ? {
+            code: 'Course code',
+            nameTh: 'Thai course name',
+            nameEn: 'English course name',
+        }
+        : {
+            code: 'รหัสวิชา',
+            nameTh: 'ชื่อวิชาภาษาไทย',
+            nameEn: 'ชื่อวิชาภาษาอังกฤษ',
+        };
+
+    const getUniqueCategoryName = (baseName, excludeCategoryId = null, cats = categories) => {
+        const normalizedBase = normalizeName(baseName) || 'หมวดใหม่';
+        const existingNames = new Set(
+            flattenCategories(cats)
+                .filter(cat => cat.id !== excludeCategoryId)
+                .map(cat => normalizeName(cat.name))
+                .filter(Boolean)
+        );
+
+        if (!existingNames.has(normalizedBase)) {
+            return normalizedBase;
+        }
+
+        let index = 1;
+        let candidate = `${normalizedBase} (${index})`;
+        while (existingNames.has(candidate)) {
+            index += 1;
+            candidate = `${normalizedBase} (${index})`;
+        }
+        return candidate;
+    };
 
     const findCategoryInfo = (cats, id, parent = null, siblings = cats, depth = 0) => {
         for (let index = 0; index < cats.length; index += 1) {
@@ -681,6 +723,45 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
             (list || []).some(course => course.id === courseId)
         ));
         return entry?.[0] || null;
+    };
+
+    const getAllCurrentCourses = (courseMap = coursesByCategory) => (
+        Object.entries(courseMap).flatMap(([categoryId, list]) => (
+            (list || []).map(course => ({ ...course, ownerCategoryId: categoryId }))
+        ))
+    );
+
+    const getDuplicateCourseIssues = (nextCourse) => {
+        const otherCourses = getAllCurrentCourses().filter(course => course.id !== nextCourse.id);
+        const issues = [];
+        const nextCode = normalizeInsensitive(nextCourse.code);
+        const nextNameTh = normalizeName(nextCourse.nameTh);
+        const nextNameEn = normalizeInsensitive(nextCourse.nameEn);
+
+        if (nextCode && otherCourses.some(course => normalizeInsensitive(course.code) === nextCode)) {
+            issues.push(duplicateFieldLabels.code);
+        }
+        if (nextNameTh && otherCourses.some(course => normalizeName(course.nameTh) === nextNameTh)) {
+            issues.push(duplicateFieldLabels.nameTh);
+        }
+        if (nextNameEn && otherCourses.some(course => normalizeInsensitive(course.nameEn) === nextNameEn)) {
+            issues.push(duplicateFieldLabels.nameEn);
+        }
+
+        return issues;
+    };
+
+    const validateCourseBeforeSave = (nextCourse) => {
+        const duplicateIssues = getDuplicateCourseIssues(nextCourse);
+        if (duplicateIssues.length > 0) {
+            setCourseDuplicateWarning({
+                issues: duplicateIssues,
+                course: nextCourse,
+            });
+            return false;
+        }
+        setCourseDuplicateWarning(null);
+        return true;
     };
 
     const moveCourseInMap = (courseMap, courseId, targetCategoryId, beforeCourseId = null) => {
@@ -755,6 +836,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     const getNextChildCode = (parentCode, siblings) => `${parentCode}.${getNextCode(siblings)}`;
 
     const handleAddCategory = () => {
+        onClearValidation?.();
         if (selectedCategory) {
             handleAddChildCategory(selectedCategory);
             return;
@@ -764,7 +846,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
         const newCat = {
             id: `cat_${Date.now()}`,
             code,
-            name: '',
+            name: getUniqueCategoryName('หมวดใหม่'),
             requiredCredits: 0,
             children: [],
             isNew: true,
@@ -778,6 +860,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     };
 
     const handleAddChildCategory = (parent) => {
+        onClearValidation?.();
         const parentCategoryDepth = getCategoryDepth(parent, categories);
 
         if (parentCategoryDepth >= MAX_CATEGORY_DEPTH) {
@@ -790,7 +873,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
         const newCat = {
             id: `cat_${Date.now()}`,
             code,
-            name: '',
+            name: getUniqueCategoryName('หมวดใหม่'),
             requiredCredits: 0,
             children: [],
             isNew: true,
@@ -821,13 +904,15 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     };
 
     const handleRenameCategory = (id, name) => {
+        onClearValidation?.();
+        const uniqueName = getUniqueCategoryName(name, id);
         const update = (cats) => cats.map(c => {
-            if (c.id === id) return { ...c, name, isNew: false };
+            if (c.id === id) return { ...c, name: uniqueName, isNew: false };
             if (c.children?.length) return { ...c, children: update(c.children) };
             return c;
         });
         setForm(p => ({ ...p, categories: update(p.categories) }));
-        setSelectedCategory(p => p?.id === id ? { ...p, name } : p);
+        setSelectedCategory(p => p?.id === id ? { ...p, name: uniqueName } : p);
     };
 
     const handleDeleteCategory = (cat) => {
@@ -837,6 +922,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
 
     const confirmDeleteCategory = () => {
         if (!categoryToDelete) return;
+        onClearValidation?.();
 
         const cat = categoryToDelete;
         const preview = getDeleteCategoryPreview(cat);
@@ -875,6 +961,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
 
     const handleAddCourse = () => {
         if (!selectedCategory || !isLeafCategory) return;
+        onClearValidation?.();
         const courseId = `course_${Date.now()}`;
         const course = { id: courseId, code: '', nameTh: '', nameEn: '', credits: 0 };
         setForm(p => ({
@@ -890,6 +977,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     const handleUpdateCourse = (updatedCourse) => {
         const ownerCategoryId = updatedCourse.ownerCategoryId || findCourseOwnerId(updatedCourse.id);
         if (!ownerCategoryId) return;
+        onClearValidation?.();
 
         setForm(p => ({
             ...p,
@@ -905,6 +993,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
     const handleDeleteCourse = (course) => {
         const ownerCategoryId = course.ownerCategoryId || findCourseOwnerId(course.id);
         if (!ownerCategoryId) return;
+        onClearValidation?.();
 
         setForm(p => ({
             ...p,
@@ -1323,6 +1412,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                                                 isEditingCourse={editingCourseId === course.id}
                                                 isDragging={draggedCourseId === course.id}
                                                 onToggleSelect={handleToggleCourseSelection}
+                                                onValidate={validateCourseBeforeSave}
                                                 onUpdate={handleUpdateCourse}
                                                 onDelete={handleDeleteCourse}
                                                 onSetEditing={setEditingCourseId}
@@ -1349,6 +1439,36 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory }) {
                     )}
                 </div>
             </div>
+
+            {courseDuplicateWarning && (
+                <div className="modal-overlay" onClick={() => setCourseDuplicateWarning(null)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <AlertTriangle size={24} className="modal-icon--warning" />
+                            <h3>{language === 'en' ? 'Duplicate Course Information' : 'ข้อมูลรายวิชาซ้ำ'}</h3>
+                        </div>
+                        <div className="modal-body">
+                            <p>
+                                {language === 'en'
+                                    ? 'This course has duplicate information. Please edit the duplicated fields before saving.'
+                                    : 'รายวิชานี้มีข้อมูลซ้ำ กรุณาแก้ไขข้อมูลที่ซ้ำก่อนบันทึก'}
+                            </p>
+                            <div className="modal-body__hint">
+                                {language === 'en' ? 'Duplicated fields: ' : 'ข้อมูลที่ซ้ำ: '}
+                                {courseDuplicateWarning.issues.join(', ')}
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button
+                                className='course-form-nav__btn course-form-nav__btn--primary'
+                                onClick={() => setCourseDuplicateWarning(null)}
+                            >
+                                {language === 'en' ? 'OK' : 'รับทราบ'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Delete Confirmation Modal */}
             {showDeleteModal && (
@@ -1650,10 +1770,40 @@ function CreateCoursePageContent() {
                 && form.facultyId
                 && form.majorId
                 && form.year
-                && !duplicateNameWarning
             );
         }
         return true;
+    };
+
+    const countAllCategories = (categories = []) => (
+        categories.reduce((sum, category) => sum + 1 + countAllCategories(category.children || []), 0)
+    );
+
+    const countAllCourses = (coursesByCategory = {}) => (
+        Object.values(coursesByCategory).reduce((sum, list) => sum + (list || []).length, 0)
+    );
+
+    const canProceedFromStep2 = () => (
+        countAllCategories(form.categories || []) > 0
+        && countAllCourses(form.coursesByCategory || {}) > 0
+    );
+
+    const handleStep1Next = () => {
+        setSuccess('');
+        if (!canNext()) return;
+        if (duplicateNameWarning) {
+            setError(duplicateNameWarning);
+            return;
+        }
+        setError('');
+        setStep(2);
+    };
+
+    const handleStep2Next = () => {
+        setSuccess('');
+        if (!canProceedFromStep2()) return;
+        setError('');
+        setStep(3);
     };
 
     const handleSave = async () => {
@@ -1714,16 +1864,25 @@ function CreateCoursePageContent() {
                             majors={majors}
                             lookupsLoading={lookupsLoading}
                             lookupsError={lookupsError}
-                            duplicateNameWarning={duplicateNameWarning}
                             onAddMajor={handleAddMajor}
+                            onClearValidation={() => setError('')}
                         />
                     )}
-                    {step === 2 && <Step2 form={form} setForm={setForm} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} />}
+                    {step === 2 && (
+                        <Step2
+                            form={form}
+                            setForm={setForm}
+                            selectedCategory={selectedCategory}
+                            setSelectedCategory={setSelectedCategory}
+                            onClearValidation={() => setError('')}
+                            language={language}
+                        />
+                    )}
                     {step === 3 && <Step3 form={form} />}
 
                 </div>
 
-                {(error || success) && (
+                {step !== 2 && (error || success) && (
                     <div className={`course-create-feedback ${error ? 'course-create-feedback--error' : 'course-create-feedback--success'}`}>
                         {error || success}
                     </div>
@@ -1753,7 +1912,7 @@ function CreateCoursePageContent() {
                         {step === 1 && (
                             <button
                                 className='course-form-nav__btn course-form-nav__btn--primary'
-                                onClick={() => setStep(2)}
+                                onClick={handleStep1Next}
                                 disabled={!canNext() || submitting}
                             >
                                 ถัดไป <ArrowRight size={15} />
@@ -1762,8 +1921,8 @@ function CreateCoursePageContent() {
                         {step === 2 && (
                             <button
                                 className='course-form-nav__btn course-form-nav__btn--primary'
-                                onClick={() => setStep(3)}
-                                disabled={submitting}
+                                onClick={handleStep2Next}
+                                disabled={!canProceedFromStep2() || submitting}
                             >
                                 ถัดไป <ArrowRight size={15} />
                             </button>
