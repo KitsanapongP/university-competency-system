@@ -225,6 +225,21 @@ export async function createCurriculumFromForm(form) {
     return mapApiCurriculum(unwrapData(response, null));
 }
 
+export async function duplicateCurriculum(curriculumId, payload) {
+    const response = await apiFetch(`/api/v1/curricula/${curriculumId}/duplicate`, {
+        method: 'POST',
+        body: JSON.stringify({
+            major_id: toNumber(payload.majorId, 0),
+            curriculum_code: toNullableString(payload.code),
+            curriculum_name_th: toNullableString(payload.nameTh),
+            curriculum_name_en: toNullableString(payload.nameEn),
+            effective_year_be: toNumber(payload.year, 0),
+        }),
+    });
+
+    return mapApiCurriculum(unwrapData(response, null));
+}
+
 function toMutationResult(response) {
     return mapApiCurriculum(unwrapData(response, null));
 }
