@@ -130,6 +130,9 @@ func (s *CurriculumService) CreateCategory(ctx context.Context, curriculumID uin
 	if err := s.Repo.CreateCategory(ctx, curriculumID, payload); err != nil {
 		return nil, err
 	}
+	if err := s.Repo.RenumberCategoryCodes(ctx, curriculumID); err != nil {
+		return nil, err
+	}
 
 	return s.GetCurriculumByID(ctx, curriculumID, roles, facultyID)
 }
@@ -160,6 +163,9 @@ func (s *CurriculumService) UpdateCategory(ctx context.Context, curriculumID uin
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCurriculumNotFound
 		}
+		return nil, err
+	}
+	if err := s.Repo.RenumberCategoryCodes(ctx, curriculumID); err != nil {
 		return nil, err
 	}
 
@@ -206,6 +212,9 @@ func (s *CurriculumService) DeleteCategory(ctx context.Context, curriculumID uin
 	}
 
 	if err := s.Repo.DeleteCategoryTx(ctx, preview); err != nil {
+		return nil, err
+	}
+	if err := s.Repo.RenumberCategoryCodes(ctx, curriculumID); err != nil {
 		return nil, err
 	}
 

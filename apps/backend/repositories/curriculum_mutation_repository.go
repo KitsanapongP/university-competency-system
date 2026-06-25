@@ -299,6 +299,66 @@ func (r *CurriculumRepository) UpdateCategory(ctx context.Context, curriculumID 
 	return nil
 }
 
+func (r *CurriculumRepository) RenumberCategoryCodes(ctx context.Context, curriculumID uint64) error {
+	categories, err := r.getCurriculumCategories(ctx, curriculumID)
+	if err != nil {
+		return err
+	}
+
+	childrenByParent := make(map[uint64][]*models.CourseCategoryNode)
+	roots := make([]*models.CourseCategoryNode, 0)
+	for _, category := range categories {
+		if category.ParentID == nil {
+			roots = append(roots, category)
+			continue
+		}
+		childrenByParent[*category.ParentID] = append(childrenByParent[*category.ParentID], category)
+	}
+
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var updateCodes func(nodes []*models.CourseCategoryNode, parentCode string) error
+	updateCodes = func(nodes []*models.CourseCategoryNode, parentCode string) error {
+		for index, category := range nodes {
+			code := fmt.Sprintf("%d", index+1)
+			if parentCode != "" {
+				code = fmt.Sprintf("%s.%d", parentCode, index+1)
+			}
+
+			currentCode := ""
+			if category.Code != nil {
+				currentCode = *category.Code
+			}
+			if currentCode != code {
+				if _, err := tx.ExecContext(ctx, `
+					UPDATE crs_course_categories
+					SET code = ?, updated_at = NOW()
+					WHERE curriculum_id = ?
+						AND category_id = ?
+						AND deleted_at IS NULL
+				`, code, curriculumID, category.CategoryID); err != nil {
+					return err
+				}
+			}
+
+			if err := updateCodes(childrenByParent[category.CategoryID], code); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := updateCodes(roots, ""); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (r *CurriculumRepository) CreateCourseInCategoryTx(ctx context.Context, curriculumID uint64, categoryID uint64, payload models.CreateCurriculumCoursePayload, opts CreateCurriculumOptions) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {

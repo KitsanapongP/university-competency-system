@@ -511,6 +511,15 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         return null;
     };
 
+    const renumberCategoryCodes = (cats, parentCode = '') => cats.map((cat, index) => {
+        const code = parentCode ? `${parentCode}.${index + 1}` : `${index + 1}`;
+        return {
+            ...cat,
+            code,
+            children: renumberCategoryCodes(cat.children || [], code),
+        };
+    });
+
     const removeCategoryFromTree = (cats, id) => {
         let removed = null;
         const nextCategories = cats.flatMap(cat => {
@@ -782,10 +791,19 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
             ];
         }
 
-        setForm(p => ({ ...p, categories: result.categories, coursesByCategory: newCourses }));
+        const nextCategories = renumberCategoryCodes(result.categories);
+        const nextSelectedCategory = preview?.moveTarget
+            ? findCategoryInfo(nextCategories, preview.moveTarget.id)?.category || preview.moveTarget
+            : null;
 
-        if (selectedCategory && categoryIds.includes(selectedCategory.id)) {
-            setSelectedCategory(preview?.moveTarget || null);
+        setForm(p => ({ ...p, categories: nextCategories, coursesByCategory: newCourses }));
+
+        if (selectedCategory) {
+            if (categoryIds.includes(selectedCategory.id)) {
+                setSelectedCategory(nextSelectedCategory);
+            } else {
+                setSelectedCategory(findCategoryInfo(nextCategories, selectedCategory.id)?.category || selectedCategory);
+            }
         }
 
         setShowDeleteCategoryModal(false);
@@ -931,9 +949,10 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         const result = removeCategoryFromTree(categories, draggedCategoryId);
         if (!result.removed) return;
 
-        const nextCategories = insertCategoryUnder(result.categories, targetCat.id, result.removed);
+        const nextCategories = renumberCategoryCodes(insertCategoryUnder(result.categories, targetCat.id, result.removed));
+        const nextSelectedCategory = findCategoryInfo(nextCategories, result.removed.id)?.category || result.removed;
         setForm(p => ({ ...p, categories: nextCategories }));
-        setSelectedCategory(result.removed);
+        setSelectedCategory(nextSelectedCategory);
         setDraggedCategoryId(null);
         setDropTargetCategoryId(null);
     };
@@ -955,8 +974,10 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         const result = removeCategoryFromTree(categories, draggedCategoryId);
         if (!result.removed) return;
 
-        setForm(p => ({ ...p, categories: [...result.categories, result.removed] }));
-        setSelectedCategory(result.removed);
+        const nextCategories = renumberCategoryCodes([...result.categories, result.removed]);
+        const nextSelectedCategory = findCategoryInfo(nextCategories, result.removed.id)?.category || result.removed;
+        setForm(p => ({ ...p, categories: nextCategories }));
+        setSelectedCategory(nextSelectedCategory);
         setDraggedCategoryId(null);
         setDropTargetCategoryId(null);
     };
