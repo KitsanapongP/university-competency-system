@@ -342,6 +342,33 @@ function EmptyState({ onCreate }) {
     );
 }
 
+function ToastNotifications({ success, error, errorDebug, onCloseSuccess, onCloseError }) {
+    if (!success && !error) return null;
+
+    return (
+        <div className="course-toast-stack" aria-live="polite" aria-atomic="true">
+            {success && (
+                <div className="course-toast course-toast--success course-toast--auto-dismiss">
+                    <Check size={16} className="course-toast__icon" />
+                    <div className="course-toast__content">{success}</div>
+                    <button type="button" className="course-toast__close" onClick={onCloseSuccess} aria-label="ปิดข้อความแจ้งเตือน">
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
+            {error && (
+                <div className="course-toast course-toast--error">
+                    <X size={16} className="course-toast__icon" />
+                    <div className="course-toast__content" title={errorDebug}>{error}</div>
+                    <button type="button" className="course-toast__close" onClick={onCloseError} aria-label="ปิดข้อความแจ้งเตือน">
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function DuplicateCurriculumModal({
     source,
     form,
@@ -481,6 +508,7 @@ export default function CurriculumManagementPage() {
     const [error, setError] = useState('');
     const [errorDebug, setErrorDebug] = useState('');
     const [success, setSuccess] = useState('');
+    const [toast, setToast] = useState({ success: '', error: '', errorDebug: '' });
 
     const courseIdRef = useRef(9000);
 
@@ -531,6 +559,30 @@ export default function CurriculumManagementPage() {
             setSuccess('สร้างหลักสูตรสำเร็จ');
         }
     }, []);
+
+    useEffect(() => {
+        if (!success) return undefined;
+        setToast({ success, error: '', errorDebug: '' });
+        return undefined;
+    }, [success]);
+
+    useEffect(() => {
+        if (!error) return undefined;
+        setToast({ success: '', error, errorDebug });
+        return undefined;
+    }, [error, errorDebug]);
+
+    useEffect(() => {
+        if (!toast.success) return undefined;
+        const timer = window.setTimeout(() => {
+            setToast(current => (
+                current.success === toast.success
+                    ? { ...current, success: '' }
+                    : current
+            ));
+        }, 5000);
+        return () => window.clearTimeout(timer);
+    }, [toast.success]);
 
     // Filter courses
     const filteredCourses = courses.filter(c => {
@@ -801,7 +853,7 @@ export default function CurriculumManagementPage() {
         return commitCurriculumMutation((confirmImpact) => createCurriculumCourse(selectedCourse.curriculumId, selectedCategory.id, {
             ...data,
             displayOrder,
-        }, confirmImpact), 'เพิ่มรายวิชาแล้ว');
+        }, confirmImpact), 'เพิ่มรายวิชาสำเร็จ');
     }, [commitCurriculumMutation, coursesByCategory, selectedCategory, selectedCourse]);
 
     const handleUpdateCourse = useCallback(async (updatedCourse) => {
@@ -812,7 +864,7 @@ export default function CurriculumManagementPage() {
             nameEn: updatedCourse.nameEn,
             credits: updatedCourse.credits,
             description: updatedCourse.description,
-        }, confirmImpact), 'บันทึกรายวิชาแล้ว');
+        }, confirmImpact), 'บันทึกรายวิชาสำเร็จ');
     }, [commitCurriculumMutation, selectedCourse]);
 
     const handleRequestDeleteCourseInEditor = useCallback(async (course) => {
@@ -946,7 +998,7 @@ export default function CurriculumManagementPage() {
         await commitCurriculumMutation((confirmImpact) => updateCurriculumCoursePlacement(selectedCourse.curriculumId, movingCourse.curriculumCourseId, {
             categoryId: targetCategory.id,
             displayOrder,
-        }, confirmImpact), 'ย้ายรายวิชาแล้ว');
+        }, confirmImpact), 'ย้ายรายวิชาสำเร็จ');
         setSelectedCategory(targetCategory);
         setShowAllCourses(false);
         setDraggedCourseId(null);
@@ -970,6 +1022,16 @@ export default function CurriculumManagementPage() {
     // ============================================================
     return (
         <>
+            <ToastNotifications
+                success={toast.success}
+                error={toast.error}
+                errorDebug={toast.errorDebug}
+                onCloseSuccess={() => setToast(current => ({ ...current, success: '' }))}
+                onCloseError={() => {
+                    setToast(current => ({ ...current, error: '', errorDebug: '' }));
+                }}
+            />
+
             {/* หน้าแรก รวมหลักสูตรทั้งหมด */}
             {view === 'list' ? (
                 <div className="course-list-page">
@@ -1028,27 +1090,6 @@ export default function CurriculumManagementPage() {
                             </div>
                         </div>
                     </div>
-
-                    {success && (
-                        <div className="course-feedback course-feedback--success">
-                            {success}
-                        </div>
-                    )}
-
-                    {error && (
-                        <div className="course-feedback course-feedback--error">
-                            <span title={errorDebug}>{error}</span>
-                            <button className="course-btn course-btn--ghost course-btn--sm" onClick={loadCurriculums}>
-                                ลองใหม่
-                            </button>
-                        </div>
-                    )}
-
-                    {detailLoadingId && (
-                        <div className="course-feedback course-feedback--info">
-                            กำลังโหลดรายละเอียดหลักสูตร...
-                        </div>
-                    )}
 
                     {/* Search */}
                     <div className="course-search-wrap">
@@ -1113,24 +1154,6 @@ export default function CurriculumManagementPage() {
                             )}
                         </div>
                     </div>
-
-                    {success && (
-                        <div className="course-feedback course-feedback--success">
-                            {success}
-                        </div>
-                    )}
-
-                    {error && (
-                        <div className="course-feedback course-feedback--error">
-                            <span title={errorDebug}>{error}</span>
-                        </div>
-                    )}
-
-                    {operationLoading && (
-                        <div className="course-feedback course-feedback--info">
-                            กำลังบันทึกข้อมูลหลักสูตร...
-                        </div>
-                    )}
 
                     {/* Stats Row */}
                     <div className="course-stats-row">
