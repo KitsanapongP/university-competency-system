@@ -216,6 +216,36 @@ func (c *CurriculumController) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (c *CurriculumController) DuplicateCurriculum(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUintURLParam(w, r, "id", "invalid curriculum id")
+	if !ok {
+		return
+	}
+	claims, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return
+	}
+
+	var payload models.DuplicateCurriculumPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+
+	duplicatedCurriculum, err := c.Service.DuplicateCurriculum(r.Context(), id, payload, claims.UserID, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.JSON(w, http.StatusCreated, utils.Envelope{
+		"success": true,
+		"message": "curriculum duplicated successfully",
+		"data":    duplicatedCurriculum,
+	})
+}
+
 func majorFiltersFromQuery(w http.ResponseWriter, r *http.Request) (models.MajorFilters, bool) {
 	var filters models.MajorFilters
 	if includeInactive := strings.TrimSpace(r.URL.Query().Get("include_inactive")); includeInactive != "" {

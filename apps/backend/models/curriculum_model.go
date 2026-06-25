@@ -140,6 +140,14 @@ type CreateCurriculumPayload struct {
 	Categories       []CreateCategoryPayload `json:"categories"`
 }
 
+type DuplicateCurriculumPayload struct {
+	MajorID          uint64  `json:"major_id"`
+	CurriculumNameTH string  `json:"curriculum_name_th"`
+	CurriculumNameEN *string `json:"curriculum_name_en"`
+	CurriculumCode   string  `json:"curriculum_code"`
+	EffectiveYearBE  uint64  `json:"effective_year_be"`
+}
+
 type MajorFilters struct {
 	IncludeInactive bool
 	FacultyID       *uint64

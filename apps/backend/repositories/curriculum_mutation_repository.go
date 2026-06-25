@@ -350,10 +350,35 @@ func (r *CurriculumRepository) UpdateCourseForCurriculum(ctx context.Context, cu
 		return err
 	}
 	if affected == 0 {
-		return sql.ErrNoRows
+		exists, err := r.curriculumCourseRecordExists(ctx, curriculumID, courseID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return sql.ErrNoRows
+		}
 	}
 
 	return nil
+}
+
+func (r *CurriculumRepository) curriculumCourseRecordExists(ctx context.Context, curriculumID uint64, courseID uint64) (bool, error) {
+	var exists int
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT 1
+		FROM crs_courses
+		WHERE curriculum_id = ?
+			AND course_id = ?
+			AND deleted_at IS NULL
+		LIMIT 1
+	`, curriculumID, courseID).Scan(&exists)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *CurriculumRepository) UpdateCurriculumCoursePlacement(ctx context.Context, curriculumID uint64, curriculumCourseID uint64, payload models.UpdateCurriculumCoursePlacementPayload) error {

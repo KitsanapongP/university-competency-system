@@ -2,25 +2,30 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronDown, ChevronRight, Layers, Award, GripVertical, ChevronLeft, ChevronFirst, ChevronLast } from 'lucide-react';
+import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronRight, Layers, Award, GripVertical, ChevronLeft, ChevronFirst, ChevronLast } from 'lucide-react';
 import {
     createCurriculumCategory,
     createCurriculumCourse,
     deleteCurriculum,
     deleteCurriculumCategory,
     deleteCurriculumCoursePlacement,
+    duplicateCurriculum,
     fetchCurriculumDetail,
     fetchCurriculums,
+    fetchMajors,
     getDeleteCurriculumCategoryPreview,
     updateCurriculumCategory,
+    updateCurriculumCoursePlacement,
     updateCurriculumCourseDetail,
     updateCurriculumStatus,
 } from '../../../lib/curriculum';
 import CourseFormModal from './components/CourseFormModal';
+import CurriculumStructureSidebar from './components/CurriculumStructureSidebar';
 import ConfirmDeleteModal from '../template-management/components/ConfirmDeleteModal';
 import './CourseLayout.css';
 import './CourseList.css';
 import './CourseEditor.css';
+import './CurriculumStructureSidebar.css';
 
 // ============================================================
 // Helper functions
@@ -36,6 +41,39 @@ function findById(cats, id) {
 
 function getNextCode(parentCode, siblings) {
     return parentCode ? `${parentCode}.${siblings.length + 1}` : `${siblings.length + 1}`;
+}
+
+function findCategoryInfo(cats, id, parent = null, siblings = cats, depth = 0) {
+    for (let index = 0; index < cats.length; index += 1) {
+        const category = cats[index];
+        if (category.id === id) {
+            return { category, parent, siblings, index, depth };
+        }
+        const childInfo = findCategoryInfo(category.children || [], id, category, category.children || [], depth + 1);
+        if (childInfo) return childInfo;
+    }
+    return null;
+}
+
+function categoryContains(category, targetId) {
+    return (category.children || []).some(child => child.id === targetId || categoryContains(child, targetId));
+}
+
+function getCategorySubtreeDepth(category) {
+    if (!category?.children?.length) return 0;
+    return Math.max(...category.children.map(child => 1 + getCategorySubtreeDepth(child)));
+}
+
+function getCategoryDepth(category, cats) {
+    const info = findCategoryInfo(cats, category?.id);
+    return info?.depth ?? -1;
+}
+
+function findCourseOwnerId(courseId, coursesByCategory) {
+    const entry = Object.entries(coursesByCategory || {}).find(([, courses]) => {
+        return (courses || []).some(course => course.id === courseId);
+    });
+    return entry?.[0] || null;
 }
 
 const STATUS_LABELS = {
@@ -103,6 +141,8 @@ const BACKEND_MESSAGE_TH = {
     'course_id is not allowed when creating curriculum courses': 'การสร้างหลักสูตรต้องสร้างรายวิชาใหม่ ไม่สามารถอ้างอิง course_id เดิมได้',
     'duplicate course code in curriculum payload': 'มีรหัสวิชาซ้ำในหลักสูตร',
     'course code already exists in this curriculum': 'รหัสวิชานี้มีอยู่แล้วในหลักสูตร',
+    'curriculum code already exists in this major': 'รหัสหลักสูตรนี้มีอยู่แล้วในสาขานี้',
+    'curriculum name already exists in this major and effective year': 'มีชื่อหลักสูตรนี้อยู่แล้วในสาขาและปีการศึกษานี้',
     'curriculum already exists': 'มีหลักสูตรนี้อยู่แล้ว',
     'insufficient curriculum scope': 'คุณไม่มีสิทธิ์จัดการหลักสูตรนี้',
     'curriculum not found': 'ไม่พบหลักสูตร',
@@ -302,6 +342,118 @@ function EmptyState({ onCreate }) {
     );
 }
 
+function DuplicateCurriculumModal({
+    source,
+    form,
+    majors,
+    loading,
+    onChange,
+    onClose,
+    onSubmit,
+}) {
+    if (!source) return null;
+
+    const canSubmit = Boolean(
+        String(form.majorId || '').trim() &&
+        String(form.code || '').trim() &&
+        String(form.nameTh || '').trim() &&
+        String(form.year || '').trim()
+    ) && !loading;
+    const hasSourceMajor = majors.some(major => String(major.majorId) === String(source.majorId));
+    const displayedMajors = hasSourceMajor
+        ? majors
+        : [
+            {
+                majorId: source.majorId,
+                nameTh: source.degreeName || `Major ID ${source.majorId}`,
+                code: '',
+            },
+            ...majors,
+        ];
+
+    return (
+        <div className="course-modal-overlay" onClick={onClose}>
+            <div className="course-modal-box course-modal-box--md" onClick={e => e.stopPropagation()}>
+                <div className="course-modal-header">
+                    <h3>ทำสำเนาหลักสูตร</h3>
+                    <button className="course-modal-close" onClick={onClose} disabled={loading}>
+                        <X size={18} />
+                    </button>
+                </div>
+                <form onSubmit={onSubmit}>
+                    <div className="course-modal-body">
+                        <div className="course-field">
+                            <label className="course-label">หลักสูตรต้นฉบับ</label>
+                            <input className="course-input" value={source.nameTh || ''} disabled />
+                        </div>
+                        <div className="course-field">
+                            <label className="course-label">สาขา *</label>
+                            <select
+                                className="course-input"
+                                value={form.majorId}
+                                onChange={e => onChange('majorId', e.target.value)}
+                                disabled={loading}
+                            >
+                                {displayedMajors.map(major => (
+                                    <option key={major.majorId} value={major.majorId}>
+                                        {major.nameTh || major.code}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="course-field">
+                            <label className="course-label">รหัสหลักสูตรใหม่ *</label>
+                            <input
+                                className="course-input"
+                                value={form.code}
+                                onChange={e => onChange('code', e.target.value)}
+                                placeholder="เช่น CS70"
+                                disabled={loading}
+                            />
+                        </div>
+                        <div className="course-field">
+                            <label className="course-label">ชื่อหลักสูตรใหม่ (ภาษาไทย) *</label>
+                            <input
+                                className="course-input"
+                                value={form.nameTh}
+                                onChange={e => onChange('nameTh', e.target.value)}
+                                disabled={loading}
+                            />
+                        </div>
+                        <div className="course-field">
+                            <label className="course-label">ชื่อหลักสูตรใหม่ (ภาษาอังกฤษ)</label>
+                            <input
+                                className="course-input"
+                                value={form.nameEn}
+                                onChange={e => onChange('nameEn', e.target.value)}
+                                disabled={loading}
+                            />
+                        </div>
+                        <div className="course-field">
+                            <label className="course-label">ปีการศึกษา *</label>
+                            <input
+                                className="course-input"
+                                type="number"
+                                value={form.year}
+                                onChange={e => onChange('year', e.target.value)}
+                                disabled={loading}
+                            />
+                        </div>
+                    </div>
+                    <div className="course-modal-footer">
+                        <button type="button" className="course-btn course-btn--ghost" onClick={onClose} disabled={loading}>
+                            ยกเลิก
+                        </button>
+                        <button type="submit" className="course-btn course-btn--primary" disabled={!canSubmit}>
+                            <Copy size={15} /> ทำสำเนา
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
 // ============================================================
 // Main Page
 // ============================================================
@@ -314,6 +466,15 @@ export default function CurriculumManagementPage() {
     const [showForm, setShowForm] = useState(false);
     const [editingCourse, setEditingCourse] = useState(null);
     const [deletingCourse, setDeletingCourse] = useState(null);
+    const [duplicatingCourse, setDuplicatingCourse] = useState(null);
+    const [duplicateForm, setDuplicateForm] = useState({
+        majorId: '',
+        code: '',
+        nameTh: '',
+        nameEn: '',
+        year: '',
+    });
+    const [majorOptions, setMajorOptions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [detailLoadingId, setDetailLoadingId] = useState(null);
     const [operationLoading, setOperationLoading] = useState(false);
@@ -343,6 +504,26 @@ export default function CurriculumManagementPage() {
     useEffect(() => {
         loadCurriculums();
     }, [loadCurriculums]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadMajors() {
+            try {
+                const majors = await fetchMajors();
+                if (!cancelled) {
+                    setMajorOptions(majors);
+                }
+            } catch (err) {
+                console.debug('Major options load error:', err);
+            }
+        }
+
+        loadMajors();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -403,17 +584,47 @@ export default function CurriculumManagementPage() {
     }, []);
 
     const handleDuplicateCourse = useCallback((course) => {
-        const id = ++courseIdRef.current;
-        const newCourse = {
-            ...course,
-            id,
-            nameTh: `${course.nameTh} (คัดลอก)`,
-            nameEn: `${course.nameEn} (Copy)`,
-            isActive: false,
-            templateCount: 0,
-        };
-        setCourses(p => [...p, newCourse]);
+        setError('');
+        setErrorDebug('');
+        setSuccess('');
+        setDuplicatingCourse(course);
+        setDuplicateForm({
+            majorId: String(course.majorId || ''),
+            code: '',
+            nameTh: `${course.nameTh || ''} (คัดลอก)`.trim(),
+            nameEn: course.nameEn ? `${course.nameEn} (Copy)` : '',
+            year: String(course.year || ''),
+        });
     }, []);
+
+    const handleDuplicateFormChange = useCallback((field, value) => {
+        setDuplicateForm(current => ({ ...current, [field]: value }));
+    }, []);
+
+    const handleConfirmDuplicateCourse = useCallback(async (event) => {
+        event.preventDefault();
+        if (!duplicatingCourse || operationLoading) {
+            return;
+        }
+
+        setOperationLoading(true);
+        setError('');
+        setErrorDebug('');
+        setSuccess('');
+        try {
+            await duplicateCurriculum(duplicatingCourse.curriculumId || duplicatingCourse.id, duplicateForm);
+            setDuplicatingCourse(null);
+            setSuccess('ทำสำเนาหลักสูตรเรียบร้อยแล้ว');
+            await loadCurriculums();
+        } catch (err) {
+            const mapped = mapCurriculumError(err);
+            setError(mapped.userMessage || 'ไม่สามารถทำสำเนาหลักสูตรได้');
+            setErrorDebug(mapped.debugMessage);
+            console.debug('Curriculum duplicate error:', err);
+        } finally {
+            setOperationLoading(false);
+        }
+    }, [duplicateForm, duplicatingCourse, loadCurriculums, operationLoading]);
 
     const handleDeleteCourse = useCallback((course) => {
         if (course.templateCount > 0) {
@@ -473,6 +684,9 @@ export default function CurriculumManagementPage() {
     const [showAllCourses, setShowAllCourses] = useState(false);
     const [coursesByCategory, setCoursesByCategory] = useState({});
     const [deletingCategory, setDeletingCategory] = useState(null);
+    const [draggedCategoryId, setDraggedCategoryId] = useState(null);
+    const [draggedCourseId, setDraggedCourseId] = useState(null);
+    const [dropTargetCategoryId, setDropTargetCategoryId] = useState(null);
 
     useEffect(() => {
         const nextCategories = selectedCourse?.categories || [];
@@ -527,11 +741,12 @@ export default function CurriculumManagementPage() {
         setShowAllCourses(false);
     }, []);
 
-    const handleAddCategory = useCallback(async () => {
+    const handleAddCategory = useCallback(async (parentCategory = null) => {
         if (!selectedCourse) return;
-        const parentId = selectedCategory?.id;
-        const siblings = parentId ? selectedCategory.children || [] : categories;
-        const code = getNextCode(selectedCategory?.code || '', siblings);
+        const targetParent = parentCategory || selectedCategory;
+        const parentId = targetParent?.id;
+        const siblings = parentId ? targetParent.children || [] : categories;
+        const code = getNextCode(targetParent?.code || '', siblings);
 
         await commitCurriculumMutation((confirmImpact) => createCurriculumCategory(selectedCourse.curriculumId, {
             parentId: parentId || null,
@@ -549,6 +764,7 @@ export default function CurriculumManagementPage() {
 
         const payload = typeof updates === 'string' ? { nameTh: updates } : updates;
         return commitCurriculumMutation((confirmImpact) => updateCurriculumCategory(selectedCourse.curriculumId, id, {
+            parentId: Object.prototype.hasOwnProperty.call(payload, 'parentId') ? payload.parentId : current.parentId,
             code: payload.code ?? current.code,
             nameTh: payload.nameTh ?? payload.name ?? current.name,
             nameEn: payload.nameEn ?? current.nameEn,
@@ -604,6 +820,143 @@ export default function CurriculumManagementPage() {
         if (!window.confirm(`ยืนยันถอดรายวิชา ${course.code || course.nameTh || ''} ออกจากหลักสูตรหรือไม่?`)) return null;
         return commitCurriculumMutation((confirmImpact) => deleteCurriculumCoursePlacement(selectedCourse.curriculumId, course.curriculumCourseId, confirmImpact), 'ถอดรายวิชาแล้ว');
     }, [commitCurriculumMutation, selectedCourse]);
+
+    const handleCategoryDragStart = useCallback((event, category) => {
+        if (operationLoading) return;
+        event.stopPropagation();
+        setDraggedCategoryId(category.id);
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(category.id));
+    }, [operationLoading]);
+
+    const handleCategoryDragOver = useCallback((event, targetCategory) => {
+        const draggedInfo = draggedCategoryId ? findCategoryInfo(categories, draggedCategoryId) : null;
+        const draggedCategory = draggedInfo?.category;
+        if (!draggedCategory) return;
+
+        if (draggedCategory.id === targetCategory.id || categoryContains(draggedCategory, targetCategory.id)) {
+            event.stopPropagation();
+            setDropTargetCategoryId(current => current === targetCategory.id ? null : current);
+            return;
+        }
+
+        const targetInfo = findCategoryInfo(categories, targetCategory.id);
+        const nextDepth = (targetInfo?.depth ?? 0) + 1 + getCategorySubtreeDepth(draggedCategory);
+        if (nextDepth > 3) {
+            event.stopPropagation();
+            setDropTargetCategoryId(current => current === targetCategory.id ? null : current);
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'move';
+        setDropTargetCategoryId(targetCategory.id);
+    }, [categories, draggedCategoryId]);
+
+    const handleCategoryDrop = useCallback(async (event, targetCategory) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!selectedCourse || !draggedCategoryId || draggedCategoryId === targetCategory.id) return;
+
+        const draggedInfo = findCategoryInfo(categories, draggedCategoryId);
+        const draggedCategory = draggedInfo?.category;
+        if (!draggedCategory || categoryContains(draggedCategory, targetCategory.id)) return;
+
+        const targetInfo = findCategoryInfo(categories, targetCategory.id);
+        const nextDepth = (targetInfo?.depth ?? 0) + 1 + getCategorySubtreeDepth(draggedCategory);
+        if (nextDepth > 3) return;
+
+        const displayOrder = (targetCategory.children || []).length + 1;
+        await handleRenameCategory(draggedCategoryId, {
+            parentId: targetCategory.id,
+            displayOrder,
+        });
+        setDraggedCategoryId(null);
+        setDropTargetCategoryId(null);
+    }, [categories, draggedCategoryId, handleRenameCategory, selectedCourse]);
+
+    const handleCategoryRootDragOver = useCallback((event) => {
+        const draggedInfo = draggedCategoryId ? findCategoryInfo(categories, draggedCategoryId) : null;
+        if (!draggedInfo?.category) return;
+        if (getCategorySubtreeDepth(draggedInfo.category) > 3) return;
+
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setDropTargetCategoryId('root');
+    }, [categories, draggedCategoryId]);
+
+    const handleCategoryRootDrop = useCallback(async (event) => {
+        event.preventDefault();
+        if (!selectedCourse || !draggedCategoryId) return;
+
+        const displayOrder = categories.filter(category => category.id !== draggedCategoryId).length + 1;
+        await handleRenameCategory(draggedCategoryId, {
+            parentId: null,
+            displayOrder,
+        });
+        setDraggedCategoryId(null);
+        setDropTargetCategoryId(null);
+    }, [categories, draggedCategoryId, handleRenameCategory, selectedCourse]);
+
+    const handleCategoryDragEnd = useCallback(() => {
+        setDraggedCategoryId(null);
+        setDropTargetCategoryId(null);
+    }, []);
+
+    const handleCategoryDragLeave = useCallback((event, category) => {
+        const nextTarget = event.relatedTarget;
+        if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+        setDropTargetCategoryId(current => current === category.id ? null : current);
+    }, []);
+
+    const handleCourseDragStart = useCallback((event, course) => {
+        if (operationLoading) return;
+        event.stopPropagation();
+        setDraggedCourseId(course.id);
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(course.id));
+    }, [operationLoading]);
+
+    const handleCourseCategoryDragOver = useCallback((event, targetCategory) => {
+        if (!draggedCourseId) return;
+        if (targetCategory.children?.length) {
+            event.stopPropagation();
+            setDropTargetCategoryId(current => current === targetCategory.id ? null : current);
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'move';
+        setDropTargetCategoryId(targetCategory.id);
+    }, [draggedCourseId]);
+
+    const handleCourseCategoryDrop = useCallback(async (event, targetCategory) => {
+        if (!selectedCourse || !draggedCourseId || targetCategory.children?.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+
+        const sourceCategoryId = findCourseOwnerId(draggedCourseId, coursesByCategory);
+        const movingCourse = sourceCategoryId
+            ? (coursesByCategory[sourceCategoryId] || []).find(course => course.id === draggedCourseId)
+            : null;
+        if (!movingCourse?.curriculumCourseId) return;
+
+        const displayOrder = (coursesByCategory[targetCategory.id] || []).length + 1;
+        await commitCurriculumMutation((confirmImpact) => updateCurriculumCoursePlacement(selectedCourse.curriculumId, movingCourse.curriculumCourseId, {
+            categoryId: targetCategory.id,
+            displayOrder,
+        }, confirmImpact), 'ย้ายรายวิชาแล้ว');
+        setSelectedCategory(targetCategory);
+        setShowAllCourses(false);
+        setDraggedCourseId(null);
+        setDropTargetCategoryId(null);
+    }, [commitCurriculumMutation, coursesByCategory, draggedCourseId, selectedCourse]);
+
+    const handleCourseDragEnd = useCallback(() => {
+        setDraggedCourseId(null);
+        setDropTargetCategoryId(null);
+    }, []);
 
     const handleChangeStatus = useCallback(async (nextStatus) => {
         if (!selectedCourse) return null;
@@ -813,43 +1166,40 @@ export default function CurriculumManagementPage() {
                     {/* Category Tree and Detail Panel - Side by Side */}
                     <div className="course-editor-panels">
                         <div className="course-editor-panels__sidebar">
-                            <div className="course-category-tree">
-                                <div className="course-category-tree__header">
-                                    <span className="course-category-tree__title">โครงสร้างหลักสูตร</span>
-                                    <button className="course-btn course-btn--ghost course-btn--sm" onClick={handleAddCategory} disabled={operationLoading}>
-                                        <Plus size={14} /> เพิ่มหมวด
-                                    </button>
-                                </div>
-                                <div className="course-category-tree__body">
-                                    {/* All Courses Option */}
-                                    <div
-                                        className={`course-tree-item ${showAllCourses ? 'course-tree-item--selected' : ''} course-all-courses-item ${showAllCourses ? 'course-all-courses-item--selected' : ''}`}
-                                        onClick={handleSelectAllCourses}
-                                    >
-                                        <Layers size={16} />
-                                        <span>วิชาทั้งหมด</span>
-                                    </div>
-
-                                    {categories.length === 0 ? (
-                                        <div className="course-tree-empty">
-                                            <p>ยังไม่มีหมวดวิชา</p>
-                                            <button className="course-btn course-btn--primary course-btn--sm course-tree-empty__btn" onClick={handleAddCategory} disabled={operationLoading}>
-                                                <Plus size={14} /> เพิ่มหมวดวิชาแรก
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        categories.map(cat => (
-                                            <CategoryItem
-                                                key={cat.id}
-                                                category={cat}
-                                                selectedId={selectedCategory?.id}
-                                                onSelect={handleSelectCategory}
-                                                level={0}
-                                            />
-                                        ))
-                                    )}
-                                </div>
-                            </div>
+                            <CurriculumStructureSidebar
+                                categories={categories}
+                                coursesByCategory={coursesByCategory}
+                                selectedCategoryId={selectedCategory?.id}
+                                showAllCourses={showAllCourses}
+                                title="โครงสร้างหลักสูตร"
+                                addLabel="เพิ่มหมวด"
+                                emptyText="ยังไม่มีหมวดวิชา"
+                                showAllOption
+                                disabled={operationLoading}
+                                canEdit
+                                maxDepth={3}
+                                addDisabled={selectedCategory ? getCategoryDepth(selectedCategory, categories) >= 3 : false}
+                                draggingCategoryId={draggedCategoryId}
+                                draggedCourseId={draggedCourseId}
+                                dropTargetCategoryId={dropTargetCategoryId}
+                                onSelectCategory={handleSelectCategory}
+                                onSelectAllCourses={handleSelectAllCourses}
+                                onAddCategory={() => handleAddCategory()}
+                                onAddChildCategory={handleAddCategory}
+                                onRenameCategory={handleRenameCategory}
+                                onDeleteCategory={handleRequestDeleteCategory}
+                                onCategoryRootDragOver={handleCategoryRootDragOver}
+                                onCategoryRootDrop={handleCategoryRootDrop}
+                                onCategoryDragStart={handleCategoryDragStart}
+                                onCategoryDragOver={handleCategoryDragOver}
+                                onCategoryDrop={handleCategoryDrop}
+                                onCategoryDragEnd={handleCategoryDragEnd}
+                                onCategoryDragLeave={handleCategoryDragLeave}
+                                onCourseCategoryDragOver={handleCourseCategoryDragOver}
+                                onCourseCategoryDrop={handleCourseCategoryDrop}
+                                onCourseDragStart={handleCourseDragStart}
+                                onCourseDragEnd={handleCourseDragEnd}
+                            />
                         </div>
 
                         {/* Category Detail Panel */}
@@ -880,6 +1230,18 @@ export default function CurriculumManagementPage() {
                 />
             )}
 
+            {duplicatingCourse && (
+                <DuplicateCurriculumModal
+                    source={duplicatingCourse}
+                    form={duplicateForm}
+                    majors={majorOptions}
+                    loading={operationLoading}
+                    onChange={handleDuplicateFormChange}
+                    onClose={() => setDuplicatingCourse(null)}
+                    onSubmit={handleConfirmDuplicateCourse}
+                />
+            )}
+
             {deletingCourse && (
                 <ConfirmDeleteModal
                     category={{ code: '', name: deletingCourse.nameTh }}
@@ -898,48 +1260,6 @@ export default function CurriculumManagementPage() {
                 />
             )}
         </>
-    );
-}
-
-// ============================================================
-// CategoryItem — แสดงใน tree
-// ============================================================
-function CategoryItem({ category, selectedId, onSelect, level }) {
-    const [expanded, setExpanded] = useState(true);
-    const hasChildren = category.children?.length > 0;
-    const isSelected = category.id === selectedId;
-
-    return (
-        <div>
-            <div
-                className={`course-tree-item ${isSelected ? 'course-tree-item--selected' : ''}`}
-                style={{ '--level': level }}
-                onClick={() => onSelect(category)}
-            >
-                {hasChildren ? (
-                    <button
-                        className="icon-course-btn course-tree-expand-btn"
-                        onClick={e => { e.stopPropagation(); setExpanded(!expanded); }}
-                    >
-                        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    </button>
-                ) : (
-                    <span className="course-tree-placeholder" />
-                )}
-                <span className="course-tree-item__code">{category.code}</span>
-                <span className="course-tree-item__name">{category.name}</span>
-                <span className="course-tree-item__credits">{category.requiredCredits} หน่วยกิต</span>
-            </div>
-            {hasChildren && expanded && category.children.map(child => (
-                <CategoryItem
-                    key={child.id}
-                    category={child}
-                    selectedId={selectedId}
-                    onSelect={onSelect}
-                    level={level + 1}
-                />
-            ))}
-        </div>
     );
 }
 

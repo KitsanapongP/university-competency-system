@@ -1,13 +1,15 @@
 'use client';
 
-import React, { Suspense, useState, useRef, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { X, Check, ChevronRight, ChevronDown, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, FileText, Pencil, GripVertical, AlertTriangle } from 'lucide-react';
+import { X, Check, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, Pencil, GripVertical, AlertTriangle } from 'lucide-react';
 import { createCurriculumFromForm, fetchCurriculums, fetchFaculties, fetchMajors } from '../../../../lib/curriculum';
 import { useLanguage } from '../../../../providers/LanguageContext';
+import CurriculumStructureSidebar from '../components/CurriculumStructureSidebar';
 import '../../../../app/Competency.css';
 import '../CourseLayout.css';
 import '../CourseCreate.css';
+import '../CurriculumStructureSidebar.css';
 import '../../template-management/TemplateManagement.css';
 
 function StepIndicator({ step }) {
@@ -429,165 +431,6 @@ function SpreadsheetRow({
                 )}
             </td>
         </tr>
-    );
-}
-
-function TreeItem({
-    cat,
-    depth = 0,
-    selectedId,
-    draggingCategoryId,
-    draggedCourseId,
-    dropTargetCategoryId,
-    onSelect,
-    onRename,
-    onCreateChild,
-    onDelete,
-    handleUpdateCategory,
-    getTotalCredits,
-    coursesByCategory,
-    onCategoryDragStart,
-    onCategoryDragOver,
-    onCategoryDrop,
-    onCategoryDragEnd,
-    onCategoryDragLeave,
-    onCourseCategoryDragOver,
-    onCourseCategoryDrop,
-    onCourseDragStart,
-    onCourseDragEnd,
-}) {
-    const [expanded, setExpanded] = useState(true);
-    const [renaming, setRenaming] = useState(cat.isNew || false);
-    const [nameVal, setNameVal] = useState(cat.name);
-    const inputRef = useRef(null);
-
-    useEffect(() => { if (renaming) inputRef.current?.focus(); }, [renaming]);
-
-    const hasChildren = cat.children?.length > 0;
-    const isSelected = cat.id === selectedId;
-    const directCourses = coursesByCategory[cat.id] || [];
-    const isDropTarget = dropTargetCategoryId === cat.id;
-
-    const getDepth = (c, d = 0) => {
-        if (!c.children?.length) return d;
-        return Math.max(...c.children.map(ch => getDepth(ch, d + 1)));
-    };
-
-    const subTreeDepth = getDepth(cat, 0);
-    const totalDepth = depth + subTreeDepth;
-    const canAddChild = totalDepth < 3;
-
-    const totalCredits = getTotalCredits ? getTotalCredits(cat) : (cat.requiredCredits || 0);
-
-    const confirm = () => { onRename(cat.id, nameVal || 'หมวดใหม่'); setRenaming(false); };
-
-    return (
-        <div>
-            <div
-                className={`course-tree-item ${isSelected ? 'course-tree-item--selected' : ''} ${draggingCategoryId === cat.id ? 'course-tree-item--dragging' : ''} ${isDropTarget ? 'course-tree-item--drop-target' : ''}`}
-                style={{ paddingLeft: `${0.5 + depth * 1}rem` }}
-                onClick={e => { e.stopPropagation(); onSelect(cat); if (hasChildren) setExpanded(p => !p); }}
-                draggable={!renaming}
-                onDragStart={e => onCategoryDragStart?.(e, cat)}
-                onDragOver={e => {
-                    onCategoryDragOver?.(e, cat);
-                    onCourseCategoryDragOver?.(e, cat);
-                }}
-                onDrop={e => {
-                    onCategoryDrop?.(e, cat);
-                    onCourseCategoryDrop?.(e, cat);
-                }}
-                onDragLeave={e => onCategoryDragLeave?.(e, cat)}
-                onDragEnd={onCategoryDragEnd}
-            >
-                <span style={{ width: 14, display: 'flex', justifyContent: 'center' }}>
-                    {hasChildren ? (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />) : null}
-                </span>
-
-                {renaming ? (
-                    <input
-                        ref={inputRef}
-                        style={{
-                            flex: 1,
-                            padding: '0.25rem 0.5rem',
-                            border: '1px solid var(--border)',
-                            borderRadius: 4,
-                            fontSize: '0.8125rem',
-                            background: 'var(--background)',
-                            color: 'var(--foreground)',
-                        }}
-                        value={nameVal}
-                        onChange={e => setNameVal(e.target.value)}
-                        onBlur={confirm}
-                        onKeyDown={e => { if (e.key === 'Enter') confirm(); if (e.key === 'Escape') setRenaming(false); }}
-                        onClick={e => e.stopPropagation()}
-                    />
-                ) : (
-                    <span style={{ flex: 1, fontSize: '0.8125rem', fontWeight: 500 }}>
-                        {cat.code} {cat.name || <em style={{ opacity: 0.6 }}>ยังไม่ตั้งชื่อ</em>}
-                    </span>
-                )}
-
-                <span style={{ fontSize: '0.75rem', color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>
-                    {totalCredits} หน่วยกิต
-                </span>
-            </div>
-
-            {expanded && directCourses.length > 0 && (
-                <div className="course-tree-course-list" style={{ paddingLeft: `${2 + depth * 1}rem` }}>
-                    {directCourses.map(course => (
-                        <div
-                            key={course.id}
-                            className={`course-tree-course ${draggedCourseId === course.id ? 'course-tree-course--dragging' : ''}`}
-                            draggable
-                            onClick={e => {
-                                e.stopPropagation();
-                                onSelect(cat);
-                            }}
-                            onDragStart={e => onCourseDragStart?.(e, { ...course, ownerCategoryId: cat.id })}
-                            onDragEnd={onCourseDragEnd}
-                            title={`${course.code || 'ยังไม่มีรหัส'} ${course.nameTh || course.nameEn || 'ยังไม่มีชื่อวิชา'}`}
-                        >
-                            <span className="course-tree-course__code">{course.code || '-'}</span>
-                            <span className="course-tree-course__name">{course.nameTh || course.nameEn || 'ยังไม่มีชื่อวิชา'}</span>
-                            <span className="course-tree-course__credits">{Number(course.credits) || 0}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {expanded && hasChildren && (
-                <div>
-                    {cat.children.map(child => (
-                        <TreeItem
-                            key={child.id}
-                            cat={child}
-                            depth={depth + 1}
-                            selectedId={selectedId}
-                            draggingCategoryId={draggingCategoryId}
-                            draggedCourseId={draggedCourseId}
-                            dropTargetCategoryId={dropTargetCategoryId}
-                            onSelect={onSelect}
-                            onRename={onRename}
-                            onCreateChild={onCreateChild}
-                            onDelete={onDelete}
-                            handleUpdateCategory={handleUpdateCategory}
-                            getTotalCredits={getTotalCredits}
-                            coursesByCategory={coursesByCategory}
-                            onCategoryDragStart={onCategoryDragStart}
-                            onCategoryDragOver={onCategoryDragOver}
-                            onCategoryDrop={onCategoryDrop}
-                            onCategoryDragEnd={onCategoryDragEnd}
-                            onCategoryDragLeave={onCategoryDragLeave}
-                            onCourseCategoryDragOver={onCourseCategoryDragOver}
-                            onCourseCategoryDrop={onCourseCategoryDrop}
-                            onCourseDragStart={onCourseDragStart}
-                            onCourseDragEnd={onCourseDragEnd}
-                        />
-                    ))}
-                </div>
-            )}
-        </div>
     );
 }
 
@@ -1243,55 +1086,35 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
             <div className="course-two-panel">
                 {/* Tree Sidebar */}
                 <div className="course-two-panel__sidebar">
-                    <div className="course-two-panel__header">
-                        <span className="course-two-panel__title">โครงสร้างหมวดวิชา</span>
-                        <button
-                            className="course-btn course-btn--primary course-btn--sm"
-                            onClick={handleAddCategory}
-                            disabled={selectedCategory ? getCategoryDepth(selectedCategory, categories) >= 3 : false}
-                        >
-                            <Plus size={12} /> หมวดวิชา
-                        </button>
-                    </div>
-                    <div
-                        className={`course-tree-list ${dropTargetCategoryId === 'root' ? 'course-tree-list--drop-target' : ''}`}
-                        onClick={() => setSelectedCategory(null)}
-                        onDragOver={handleCategoryRootDragOver}
-                        onDrop={handleCategoryRootDrop}
-                    >
-                        {categories.length === 0 ? (
-                            <div className="course-tree-empty">
-                                กด "+ หมวดวิชา" เพื่อเริ่ม
-                            </div>
-                        ) : (
-                            categories.map(cat => (
-                                <TreeItem
-                                    key={cat.id}
-                                    cat={cat}
-                                    selectedId={selectedCategory?.id}
-                                    draggingCategoryId={draggedCategoryId}
-                                    draggedCourseId={draggedCourseId}
-                                    dropTargetCategoryId={dropTargetCategoryId}
-                                    onSelect={setSelectedCategory}
-                                    onRename={handleRenameCategory}
-                                    onCreateChild={handleAddChildCategory}
-                                    onDelete={handleDeleteCategory}
-                                    handleUpdateCategory={handleUpdateCategory}
-                                    getTotalCredits={getCategoryTotalCredits}
-                                    coursesByCategory={coursesByCategory}
-                                    onCategoryDragStart={handleCategoryDragStart}
-                                    onCategoryDragOver={handleCategoryDragOver}
-                                    onCategoryDrop={handleCategoryDrop}
-                                    onCategoryDragEnd={handleCategoryDragEnd}
-                                    onCategoryDragLeave={handleCategoryDragLeave}
-                                    onCourseCategoryDragOver={handleCourseCategoryDragOver}
-                                    onCourseCategoryDrop={handleCourseCategoryDrop}
-                                    onCourseDragStart={handleCourseDragStart}
-                                    onCourseDragEnd={handleCourseDragEnd}
-                                />
-                            ))
-                        )}
-                    </div>
+                    <CurriculumStructureSidebar
+                        categories={categories}
+                        coursesByCategory={coursesByCategory}
+                        selectedCategoryId={selectedCategory?.id}
+                        title="โครงสร้างหมวดวิชา"
+                        addLabel="หมวดวิชา"
+                        emptyText={'กด "+ หมวดวิชา" เพื่อเริ่ม'}
+                        maxDepth={MAX_CATEGORY_DEPTH}
+                        addDisabled={selectedCategory ? getCategoryDepth(selectedCategory, categories) >= MAX_CATEGORY_DEPTH : false}
+                        draggingCategoryId={draggedCategoryId}
+                        draggedCourseId={draggedCourseId}
+                        dropTargetCategoryId={dropTargetCategoryId}
+                        onSelectCategory={setSelectedCategory}
+                        onAddCategory={handleAddCategory}
+                        onAddChildCategory={handleAddChildCategory}
+                        onRenameCategory={handleRenameCategory}
+                        onDeleteCategory={handleDeleteCategory}
+                        onCategoryRootDragOver={handleCategoryRootDragOver}
+                        onCategoryRootDrop={handleCategoryRootDrop}
+                        onCategoryDragStart={handleCategoryDragStart}
+                        onCategoryDragOver={handleCategoryDragOver}
+                        onCategoryDrop={handleCategoryDrop}
+                        onCategoryDragEnd={handleCategoryDragEnd}
+                        onCategoryDragLeave={handleCategoryDragLeave}
+                        onCourseCategoryDragOver={handleCourseCategoryDragOver}
+                        onCourseCategoryDrop={handleCourseCategoryDrop}
+                        onCourseDragStart={handleCourseDragStart}
+                        onCourseDragEnd={handleCourseDragEnd}
+                    />
                 </div>
 
                 {/* Sheet Area */}

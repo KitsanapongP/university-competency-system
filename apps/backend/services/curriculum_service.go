@@ -173,6 +173,71 @@ func (s *CurriculumService) CreateCurriculum(ctx context.Context, payload models
 	return curriculum, err
 }
 
+func (s *CurriculumService) DuplicateCurriculum(ctx context.Context, sourceCurriculumID uint64, payload models.DuplicateCurriculumPayload, userID int64, roles []string, facultyID *int64) (*models.Curriculum, error) {
+	source, err := s.getCurriculumForWrite(ctx, sourceCurriculumID, roles, facultyID)
+	if err != nil {
+		return nil, err
+	}
+
+	createPayload := duplicatePayloadToCreatePayload(payload)
+	normalizeCreateCurriculumPayload(&createPayload)
+	if err := validateCreateCurriculumPayload(createPayload); err != nil {
+		return nil, err
+	}
+
+	majorScope, err := s.Repo.GetMajorScope(ctx, createPayload.MajorID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, CurriculumValidationError{Message: "major_id is invalid"}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.ensureFacultyScope(majorScope.FacultyID, roles, facultyID); err != nil {
+		return nil, err
+	}
+	sourceScope, err := s.Repo.GetMajorScope(ctx, source.MajorID)
+	if err != nil {
+		return nil, err
+	}
+	if sourceScope.FacultyID != majorScope.FacultyID {
+		return nil, ErrCurriculumForbidden
+	}
+
+	duplicateName, err := s.Repo.FindLiveCurriculumNameDuplicate(ctx, createPayload.MajorID, createPayload.EffectiveYearBE, createPayload.CurriculumNameTH)
+	if err != nil {
+		return nil, err
+	}
+	if duplicateName != nil {
+		return nil, CurriculumConflictError{
+			Code:    "DUPLICATE",
+			Message: "curriculum name already exists in this major and effective year",
+		}
+	}
+
+	duplicateCode, err := s.Repo.CountLiveCurriculumCodeDuplicate(ctx, createPayload.MajorID, createPayload.CurriculumCode)
+	if err != nil {
+		return nil, err
+	}
+	if duplicateCode > 0 {
+		return nil, CurriculumConflictError{
+			Code:    "DUPLICATE",
+			Message: "curriculum code already exists in this major",
+		}
+	}
+
+	var createdBy uint64
+	if userID > 0 {
+		createdBy = uint64(userID)
+	}
+
+	return s.Repo.DuplicateCurriculumTx(ctx, sourceCurriculumID, createPayload, repositories.CreateCurriculumOptions{
+		FacultyID:   majorScope.FacultyID,
+		CreatedBy:   createdBy,
+		DegreeLevel: majorScope.DegreeLevel,
+	})
+}
+
 func (s *CurriculumService) CreateMajor(ctx context.Context, payload models.UpsertMajorPayload, roles []string, facultyID *int64) (*models.MajorOption, error) {
 	if err := validateUpsertMajorPayload(&payload); err != nil {
 		return nil, err
@@ -276,6 +341,16 @@ func normalizeCreateCurriculumPayload(payload *models.CreateCurriculumPayload) {
 	payload.CurriculumCode = strings.TrimSpace(payload.CurriculumCode)
 	payload.CurriculumNameTH = strings.TrimSpace(payload.CurriculumNameTH)
 	payload.CurriculumNameEN = trimStringPointer(payload.CurriculumNameEN)
+}
+
+func duplicatePayloadToCreatePayload(payload models.DuplicateCurriculumPayload) models.CreateCurriculumPayload {
+	return models.CreateCurriculumPayload{
+		MajorID:          payload.MajorID,
+		CurriculumNameTH: payload.CurriculumNameTH,
+		CurriculumNameEN: payload.CurriculumNameEN,
+		CurriculumCode:   payload.CurriculumCode,
+		EffectiveYearBE:  payload.EffectiveYearBE,
+	}
 }
 
 func validateCreateCurriculumPayload(payload models.CreateCurriculumPayload) error {

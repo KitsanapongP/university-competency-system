@@ -32,6 +32,30 @@ type CurriculumNameDuplicate struct {
 	EffectiveYearBE uint64
 }
 
+type duplicateCategoryRow struct {
+	CategoryID      uint64
+	ParentID        *uint64
+	Code            *string
+	NameTH          string
+	NameEN          *string
+	RequiredCredits int
+	DisplayOrder    int
+}
+
+type duplicateCourseRow struct {
+	CurriculumCourseID uint64
+	CategoryID         uint64
+	CourseID           uint64
+	Code               string
+	NameTH             string
+	NameEN             *string
+	Credits            int
+	Description        *string
+	IsRequired         bool
+	IsLocked           bool
+	DisplayOrder       int
+}
+
 type rowScanner interface {
 	Scan(dest ...any) error
 }
@@ -883,6 +907,18 @@ func (r *CurriculumRepository) FindLiveCurriculumNameDuplicate(ctx context.Conte
 	return &duplicate, nil
 }
 
+func (r *CurriculumRepository) CountLiveCurriculumCodeDuplicate(ctx context.Context, majorID uint64, code string) (int, error) {
+	var count int
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM edu_curricula
+		WHERE major_id = ?
+			AND code = ?
+			AND deleted_at IS NULL
+	`, majorID, code).Scan(&count)
+	return count, err
+}
+
 func (r *CurriculumRepository) CreateCurriculumTx(ctx context.Context, payload models.CreateCurriculumPayload, opts CreateCurriculumOptions) (*models.Curriculum, error) {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -914,6 +950,226 @@ func (r *CurriculumRepository) CreateCurriculumTx(ctx context.Context, payload m
 	}
 
 	return r.GetCurriculumByID(ctx, uint64(curriculumID))
+}
+
+func (r *CurriculumRepository) DuplicateCurriculumTx(ctx context.Context, sourceCurriculumID uint64, payload models.CreateCurriculumPayload, opts CreateCurriculumOptions) (*models.Curriculum, error) {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO edu_curricula (major_id, code, name_th, name_en, effective_year_be, status)
+		VALUES (?, ?, ?, ?, ?, 'draft')
+	`, payload.MajorID, payload.CurriculumCode, payload.CurriculumNameTH, payload.CurriculumNameEN, payload.EffectiveYearBE)
+	if err != nil {
+		return nil, fmt.Errorf("insert duplicated curriculum: %w", err)
+	}
+
+	curriculumID, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	targetCurriculumID := uint64(curriculumID)
+
+	categories, err := r.getDuplicateCategoryRows(ctx, tx, sourceCurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	categoryIDMap, err := r.duplicateCategories(ctx, tx, targetCurriculumID, categories)
+	if err != nil {
+		return nil, err
+	}
+
+	courses, err := r.getDuplicateCourseRows(ctx, tx, sourceCurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.duplicateCurriculumCourses(ctx, tx, targetCurriculumID, courses, categoryIDMap, opts); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return r.GetCurriculumByID(ctx, targetCurriculumID)
+}
+
+func (r *CurriculumRepository) getDuplicateCategoryRows(ctx context.Context, tx *sql.Tx, sourceCurriculumID uint64) ([]duplicateCategoryRow, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT category_id, parent_id, code, name_th, name_en, required_credits, display_order
+		FROM crs_course_categories
+		WHERE curriculum_id = ?
+			AND is_active = 1
+			AND deleted_at IS NULL
+		ORDER BY COALESCE(parent_id, 0), display_order, category_id
+	`, sourceCurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	categories := []duplicateCategoryRow{}
+	for rows.Next() {
+		var category duplicateCategoryRow
+		if err := rows.Scan(
+			&category.CategoryID,
+			&category.ParentID,
+			&category.Code,
+			&category.NameTH,
+			&category.NameEN,
+			&category.RequiredCredits,
+			&category.DisplayOrder,
+		); err != nil {
+			return nil, err
+		}
+		categories = append(categories, category)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return categories, nil
+}
+
+func (r *CurriculumRepository) duplicateCategories(ctx context.Context, tx *sql.Tx, targetCurriculumID uint64, categories []duplicateCategoryRow) (map[uint64]uint64, error) {
+	categoryIDMap := map[uint64]uint64{}
+	pending := append([]duplicateCategoryRow(nil), categories...)
+
+	for len(pending) > 0 {
+		progress := false
+		nextPending := []duplicateCategoryRow{}
+
+		for _, category := range pending {
+			var parentID *uint64
+			if category.ParentID != nil {
+				mappedParentID, ok := categoryIDMap[*category.ParentID]
+				if !ok {
+					nextPending = append(nextPending, category)
+					continue
+				}
+				parentID = &mappedParentID
+			}
+
+			res, err := tx.ExecContext(ctx, `
+				INSERT INTO crs_course_categories (curriculum_id, parent_id, code, name_th, name_en, required_credits, display_order, is_active)
+				VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+			`, targetCurriculumID, parentID, category.Code, category.NameTH, category.NameEN, category.RequiredCredits, category.DisplayOrder)
+			if err != nil {
+				return nil, fmt.Errorf("duplicate category %q: %w", category.NameTH, err)
+			}
+			newCategoryID, err := res.LastInsertId()
+			if err != nil {
+				return nil, err
+			}
+			categoryIDMap[category.CategoryID] = uint64(newCategoryID)
+			progress = true
+		}
+
+		if !progress {
+			return nil, fmt.Errorf("duplicate curriculum category tree is invalid")
+		}
+		pending = nextPending
+	}
+
+	return categoryIDMap, nil
+}
+
+func (r *CurriculumRepository) getDuplicateCourseRows(ctx context.Context, tx *sql.Tx, sourceCurriculumID uint64) ([]duplicateCourseRow, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT
+			cc.curriculum_course_id,
+			cc.category_id,
+			course.course_id,
+			course.code,
+			course.name_th,
+			course.name_en,
+			course.credits,
+			course.description,
+			cc.is_required,
+			cc.is_locked,
+			cc.display_order
+		FROM crs_curriculum_courses cc
+		JOIN crs_course_categories cat ON cat.category_id = cc.category_id
+		JOIN crs_courses course ON course.course_id = cc.course_id
+		WHERE cat.curriculum_id = ?
+			AND cat.is_active = 1
+			AND cat.deleted_at IS NULL
+			AND cc.is_active = 1
+			AND cc.deleted_at IS NULL
+			AND course.deleted_at IS NULL
+			AND course.curriculum_id = cat.curriculum_id
+		ORDER BY cat.display_order, cc.display_order, cc.curriculum_course_id
+	`, sourceCurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	courses := []duplicateCourseRow{}
+	for rows.Next() {
+		var course duplicateCourseRow
+		if err := rows.Scan(
+			&course.CurriculumCourseID,
+			&course.CategoryID,
+			&course.CourseID,
+			&course.Code,
+			&course.NameTH,
+			&course.NameEN,
+			&course.Credits,
+			&course.Description,
+			&course.IsRequired,
+			&course.IsLocked,
+			&course.DisplayOrder,
+		); err != nil {
+			return nil, err
+		}
+		courses = append(courses, course)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return courses, nil
+}
+
+func (r *CurriculumRepository) duplicateCurriculumCourses(ctx context.Context, tx *sql.Tx, targetCurriculumID uint64, courses []duplicateCourseRow, categoryIDMap map[uint64]uint64, opts CreateCurriculumOptions) error {
+	courseIDMap := map[uint64]uint64{}
+
+	for _, course := range courses {
+		targetCategoryID, ok := categoryIDMap[course.CategoryID]
+		if !ok {
+			continue
+		}
+
+		targetCourseID, ok := courseIDMap[course.CourseID]
+		if !ok {
+			var err error
+			targetCourseID, err = r.createCourse(ctx, tx, targetCurriculumID, models.CreateCourseInCatPayload{
+				Code:        course.Code,
+				NameTH:      course.NameTH,
+				NameEN:      course.NameEN,
+				Credits:     course.Credits,
+				Description: course.Description,
+			}, opts)
+			if err != nil {
+				return err
+			}
+			courseIDMap[course.CourseID] = targetCourseID
+		}
+
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO crs_curriculum_courses (category_id, course_id, is_required, is_locked, display_order, is_active)
+			VALUES (?, ?, ?, ?, ?, 1)
+		`, targetCategoryID, targetCourseID, course.IsRequired, course.IsLocked, course.DisplayOrder)
+		if err != nil {
+			return fmt.Errorf("duplicate curriculum course %d: %w", course.CurriculumCourseID, err)
+		}
+	}
+
+	return nil
 }
 
 func (r *CurriculumRepository) insertCategory(ctx context.Context, tx *sql.Tx, curriculumID uint64, parentID *uint64, payload models.CreateCategoryPayload, opts CreateCurriculumOptions) error {
