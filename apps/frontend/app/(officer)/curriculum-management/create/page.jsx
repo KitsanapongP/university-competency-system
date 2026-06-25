@@ -2,13 +2,15 @@
 
 import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { X, Check, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, Pencil, GripVertical, AlertTriangle } from 'lucide-react';
+import { X, Check, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, AlertTriangle } from 'lucide-react';
 import { createCurriculumFromForm, fetchCurriculums, fetchFaculties, fetchMajors } from '../../../../lib/curriculum';
 import { useLanguage } from '../../../../providers/LanguageContext';
+import CurriculumCourseEditorPanel from '../components/CurriculumCourseEditorPanel';
 import CurriculumStructureSidebar from '../components/CurriculumStructureSidebar';
 import '../../../../app/Competency.css';
 import '../CourseLayout.css';
 import '../CourseCreate.css';
+import '../CurriculumCourseEditorPanel.css';
 import '../CurriculumStructureSidebar.css';
 import '../../template-management/TemplateManagement.css';
 
@@ -210,227 +212,6 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
                 </div>
             </div>
         </div>
-    );
-}
-
-function CourseRow({ course, onUpdate, onDelete }) {
-    const [editing, setEditing] = useState(false);
-    const [form, setForm] = useState({
-        code: course.code || '',
-        nameTh: course.nameTh || '',
-        nameEn: course.nameEn || '',
-        credits: course.credits || 0,
-        isCoreCourse: course.isCoreCourse ?? true,
-    });
-
-    const handleSave = () => {
-        if (!form.code.trim() && !form.nameTh.trim()) return;
-        onUpdate({ ...course, ...form, credits: Number(form.credits) || 0 });
-        setEditing(false);
-    };
-
-    return (
-        <tr className="course-row">
-            <td className="course-row__cell course-row__cell--grip">
-                <GripVertical size={13} />
-            </td>
-            <td className="course-row__cell" onClick={() => setEditing(true)}>
-                {editing ? (
-                    <input className="course-row__input course-row__input--code" value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} placeholder="รหัสวิชา" />
-                ) : (
-                    <span className="course-row__code">{course.code || '-'}</span>
-                )}
-            </td>
-            <td className="course-row__cell" onClick={() => setEditing(true)}>
-                {editing ? (
-                    <input className="course-row__input" value={form.nameTh} onChange={e => setForm(p => ({ ...p, nameTh: e.target.value }))} placeholder="ชื่อวิชาภาษาไทย" />
-                ) : (
-                    <span>{course.nameTh || '-'}</span>
-                )}
-            </td>
-            <td className="course-row__cell" onClick={() => setEditing(true)}>
-                {editing ? (
-                    <input className="course-row__input" value={form.nameEn} onChange={e => setForm(p => ({ ...p, nameEn: e.target.value }))} placeholder="English Name" />
-                ) : (
-                    <span className="course-row__text-muted">{course.nameEn || '-'}</span>
-                )}
-            </td>
-            <td className="course-row__cell" style={{ width: 60, textAlign: 'center' }} onClick={() => setEditing(true)}>
-                {editing ? (
-                    <input className="course-row__input course-row__input--credits" type="number" min={0} max={12} value={form.credits} onChange={e => setForm(p => ({ ...p, credits: e.target.value }))} />
-                ) : (
-                    <span>{course.credits || 0}</span>
-                )}
-            </td>
-            <td className="course-row__cell course-row__cell--actions">
-                {editing ? (
-                    <button className="course-row__btn course-row__btn--save" onClick={handleSave}>
-                        <Check size={12} />
-                    </button>
-                ) : (
-                    <button className="course-row__btn course-row__btn--edit" onClick={() => setEditing(true)}>
-                        <Pencil size={12} />
-                    </button>
-                )}
-                <button className="course-row__btn course-row__btn--delete" onClick={() => onDelete(course)}>
-                    <Trash2 size={12} />
-                </button>
-            </td>
-        </tr>
-    );
-}
-
-function SpreadsheetRow({
-    course,
-    isSelected,
-    isEditingCourse,
-    isDragging,
-    onToggleSelect,
-    onValidate,
-    onUpdate,
-    onDelete,
-    onSetEditing,
-    onDragStart,
-    onDragOver,
-    onDrop,
-    onDragEnd,
-}) {
-    const [editing, setEditing] = useState(false);
-    const [form, setForm] = useState({
-        code: course.code || '',
-        nameTh: course.nameTh || '',
-        nameEn: course.nameEn || '',
-        credits: course.credits || 0,
-    });
-
-    useEffect(() => {
-        if (isEditingCourse) {
-            setEditing(true);
-        } else {
-            setEditing(false);
-        }
-    }, [isEditingCourse]);
-
-    useEffect(() => {
-        if (editing) {
-            setForm({
-                code: course.code || '',
-                nameTh: course.nameTh || '',
-                nameEn: course.nameEn || '',
-                credits: course.credits || 0,
-            });
-        }
-    }, [course.code, course.nameTh, course.nameEn, course.credits, editing]);
-
-    const handleSave = () => {
-        if (!form.code.trim() && !form.nameTh.trim()) return;
-        const nextCourse = { ...course, ...form, credits: Number(form.credits) || 0 };
-        if (onValidate && !onValidate(nextCourse)) return;
-        onUpdate(nextCourse);
-        setEditing(false);
-        if (onSetEditing) onSetEditing(null);
-    };
-
-    const handleKey = (e) => {
-        if (e.key === 'Enter') handleSave();
-        if (e.key === 'Escape') {
-            setForm({ code: course.code || '', nameTh: course.nameTh || '', nameEn: course.nameEn || '', credits: course.credits || 0 });
-            setEditing(false);
-            if (onSetEditing) onSetEditing(null);
-        }
-    };
-
-    const handleCellClick = () => setEditing(true);
-
-    return (
-        <tr
-            className={`ss-row ${editing ? 'ss-row--editing' : ''} ${isSelected ? 'ss-row--selected' : ''} ${isDragging ? 'ss-row--dragging' : ''}`}
-            draggable={!editing}
-            onDragStart={e => onDragStart?.(e, course)}
-            onDragOver={e => onDragOver?.(e, course)}
-            onDrop={e => onDrop?.(e, course)}
-            onDragEnd={onDragEnd}
-        >
-            <td className="ss-cell ss-cell--checkbox">
-                <input
-                    type="checkbox"
-                    checked={isSelected || false}
-                    onChange={() => onToggleSelect(course.id)}
-                />
-            </td>
-            <td className="ss-cell ss-cell--grip">
-                <GripVertical size={13} />
-            </td>
-            <td className="ss-cell" onClick={handleCellClick}>
-                {editing ? (
-                    <input
-                        className="ss-input"
-                        value={form.code}
-                        onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
-                        onKeyDown={handleKey}
-                        placeholder="รหัสวิชา"
-                    />
-                ) : (
-                    <span className="ss-code">{course.code || <span className="ss-placeholder">รหัสวิชา</span>}</span>
-                )}
-            </td>
-            <td className="ss-cell ss-cell--wide" onClick={handleCellClick}>
-                {editing ? (
-                    <input
-                        className="ss-input"
-                        value={form.nameTh}
-                        onChange={e => setForm(p => ({ ...p, nameTh: e.target.value }))}
-                        onKeyDown={handleKey}
-                        placeholder="ชื่อวิชาภาษาไทย"
-                    />
-                ) : (
-                    <span>{course.nameTh || <span className="ss-placeholder">ชื่อภาษาไทย</span>}</span>
-                )}
-            </td>
-            <td className="ss-cell ss-cell--wide" onClick={handleCellClick}>
-                {editing ? (
-                    <input
-                        className="ss-input"
-                        value={form.nameEn}
-                        onChange={e => setForm(p => ({ ...p, nameEn: e.target.value }))}
-                        onKeyDown={handleKey}
-                        placeholder="English Name"
-                    />
-                ) : (
-                    <span>{course.nameEn || <span className="ss-placeholder">English Name</span>}</span>
-                )}
-            </td>
-            <td className="ss-cell ss-cell--num" onClick={handleCellClick}>
-                {editing ? (
-                    <input
-                        className="ss-input ss-input--num"
-                        type="text"
-                        inputMode="numeric"
-                        value={form.credits}
-                        onChange={e => {
-                            const val = e.target.value.replace(/[^0-9]/g, '');
-                            setForm(p => ({ ...p, credits: val }));
-                        }}
-                        onKeyDown={handleKey}
-                        placeholder="0"
-                        autoFocus
-                    />
-                ) : (
-                    <span>{course.credits || <span className="ss-placeholder">0</span>}</span>
-                )}
-            </td>
-            <td className="ss-cell ss-cell--actions" onClick={e => e.stopPropagation()}>
-                {editing ? (
-                    <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={handleSave}>
-                        <Check size={13} />
-                    </button>
-                ) : (
-                    <button className="course-row__btn course-row__btn--delete" onClick={() => onDelete(course)} title="ลบรายวิชา">
-                        <Trash2 size={12} />
-                    </button>
-                )}
-            </td>
-        </tr>
     );
 }
 
@@ -820,11 +601,17 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         setSelectedCategory(p => p?.id === id ? { ...p, ...updates } : p);
     };
 
-    const handleAddCourse = () => {
+    const handleAddCourse = (courseData) => {
         if (!selectedCategory || !isLeafCategory) return;
         onClearValidation?.();
         const courseId = `course_${Date.now()}`;
-        const course = { id: courseId, code: '', nameTh: '', nameEn: '', credits: 0 };
+        const course = {
+            id: courseId,
+            code: courseData?.code || '',
+            nameTh: courseData?.nameTh || '',
+            nameEn: courseData?.nameEn || '',
+            credits: Number(courseData?.credits) || 0,
+        };
         setForm(p => ({
             ...p,
             coursesByCategory: {
@@ -832,7 +619,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                 [selectedCategory.id]: [...(p.coursesByCategory[selectedCategory.id] || []), course],
             },
         }));
-        setEditingCourseId(courseId);
+        return true;
     };
 
     const handleUpdateCourse = (updatedCourse) => {
@@ -885,9 +672,11 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         }
     };
 
-    const handleDeleteSelectedCourses = () => {
-        if (selectedCourseIds.size === 0) return;
-        const selectedIds = selectedCourseIds;
+    const handleDeleteSelectedCourses = (selectedCourses = []) => {
+        const selectedIds = selectedCourses.length > 0
+            ? new Set(selectedCourses.map(course => course.id))
+            : selectedCourseIds;
+        if (selectedIds.size === 0) return false;
         setForm(p => ({
             ...p,
             coursesByCategory: Object.fromEntries(
@@ -899,6 +688,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         }));
         setSelectedCourseIds(new Set());
         setShowDeleteModal(false);
+        return true;
     };
 
     const handleCategoryDragStart = (event, cat) => {
@@ -1067,6 +857,16 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         setDropTargetCategoryId(null);
     };
 
+    const handleMoveCourseInEditor = ({ draggedCourseId: movingCourseId, targetCategory, beforeCourseId = null }) => {
+        if (!movingCourseId || !targetCategory || targetCategory.children?.length) return;
+        setForm(p => ({
+            ...p,
+            coursesByCategory: moveCourseInMap(p.coursesByCategory || {}, movingCourseId, targetCategory.id, beforeCourseId),
+        }));
+        setDraggedCourseId(null);
+        setDropTargetCategoryId(null);
+    };
+
     const addCredits = (cat, visited = new Set()) => {
         if (visited.has(cat.id)) return 0;
         visited.add(cat.id);
@@ -1138,150 +938,33 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                     />
                 </div>
 
-                {/* Sheet Area */}
-                <div className="course-two-panel__content">
-                    {/* Row 1: Category Name - Credits - Delete Button */}
-                    <div className="course-detail-toolbar">
-                        <div className="course-detail-toolbar__left">
-                            <span className="course-detail-toolbar__label">ชื่อหมวดวิชา</span>
-                            {selectedCategory ? (
-                                <div className="course-detail-toolbar__name">
-                                    {editingCategoryName ? (
-                                        <input
-                                            autoFocus
-                                            className="course-detail-toolbar__name-input"
-                                            value={categoryNameVal}
-                                            onChange={e => setCategoryNameVal(e.target.value)}
-                                            onBlur={() => {
-                                                handleUpdateCategory(selectedCategory.id, { name: categoryNameVal || 'หมวดใหม่' });
-                                                setEditingCategoryName(false);
-                                            }}
-                                            onKeyDown={e => {
-                                                if (e.key === 'Enter') {
-                                                    handleUpdateCategory(selectedCategory.id, { name: categoryNameVal || 'หมวดใหม่' });
-                                                    setEditingCategoryName(false);
-                                                }
-                                                if (e.key === 'Escape') setEditingCategoryName(false);
-                                            }}
-                                        />
-                                    ) : (
-                                        <>
-                                            <span className="course-detail-toolbar__name-text">
-                                                {selectedCategory.code} {selectedCategory.name || <em>ยังไม่ตั้งชื่อ</em>}
-                                            </span>
-                                            <button
-                                                className="course-detail-toolbar__edit-btn"
-                                                onClick={() => {
-                                                    setCategoryNameVal(selectedCategory.name || '');
-                                                    setEditingCategoryName(true);
-                                                }}
-                                                title="แก้ไขชื่อหมวดวิชา"
-                                            >
-                                                <Pencil size={14} />
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            ) : (
-                                <span className="course-detail-toolbar__placeholder">เลือกหมวดวิชาเพื่อจัดการรายวิชา</span>
-                            )}
-                        </div>
-                        {selectedCategory && (
-                            <div className="course-detail-toolbar__right">
-                                <div className="course-detail-toolbar__credits">
-                                    <span className="course-detail-toolbar__credits-label">หน่วยกิต</span>
-                                    <span className="course-detail-toolbar__credits-value">{getCategoryTotalCredits(selectedCategory)}</span>
-                                </div>
-                                <button className="course-detail-toolbar__delete-btn" onClick={() => handleDeleteCategory(selectedCategory)}>
-                                    <Trash2 size={14} />
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Row 2: Add Course Button */}
-                    <div className="course-detail-courses">
-                        {selectedCategory && (
-                            selectedCourseIds.size > 0 ? (
-                                <button
-                                    className="course-btn course-btn--danger course-btn--sm"
-                                    onClick={() => setShowDeleteModal(true)}
-                                >
-                                    <Trash2 size={13} /> ลบ ({selectedCourseIds.size})
-                                </button>
-                            ) : (
-                                <button
-                                    className="course-btn course-btn--primary course-btn--sm"
-                                    onClick={handleAddCourse}
-                                    disabled={!isLeafCategory}
-                                    title={!isLeafCategory ? 'เพิ่มได้เฉพาะหมวดที่อยู่ระดับลึกที่สุด' : ''}
-                                >
-                                    <Plus size={13} /> เพิ่มรายวิชา
-                                </button>
-                            )
-                        )}
-                    </div>
-
-                    {selectedCategory ? (
-                        <div className="course-two-panel__body">
-                            <div className="course-spreadsheet-scroll">
-                                <table className="course-spreadsheet-table">
-                                    <thead>
-                                        <tr>
-                                            <th className="course-spreadsheet-th course-spreadsheet-th--checkbox">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedCourseIds.size === courses.length && courses.length > 0}
-                                                    onChange={handleSelectAllCourses}
-                                                    title="เลือกทั้งหมด"
-                                                />
-                                            </th>
-                                            <th className="course-spreadsheet-th course-spreadsheet-th--grip"></th>
-                                            <th className="course-spreadsheet-th">รหัสวิชา</th>
-                                            <th className="course-spreadsheet-th course-spreadsheet-th--wide">ชื่อวิชา (ไทย)</th>
-                                            <th className="course-spreadsheet-th course-spreadsheet-th--wide">ชื่อวิชา (Eng)</th>
-                                            <th className="course-spreadsheet-th course-spreadsheet-th--num">หน่วยกิต</th>
-                                            <th className="course-spreadsheet-th course-spreadsheet-th--actions"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody
-                                        onDragOver={handleCourseDropToSelectedCategory}
-                                        onDrop={handleCourseDropToSelectedCategory}
-                                    >
-                                        {courses.map(course => (
-                                            <SpreadsheetRow
-                                                key={course.id}
-                                                course={course}
-                                                isSelected={selectedCourseIds.has(course.id)}
-                                                isEditingCourse={editingCourseId === course.id}
-                                                isDragging={draggedCourseId === course.id}
-                                                onToggleSelect={handleToggleCourseSelection}
-                                                onValidate={validateCourseBeforeSave}
-                                                onUpdate={handleUpdateCourse}
-                                                onDelete={handleDeleteCourse}
-                                                onSetEditing={setEditingCourseId}
-                                                onDragStart={handleCourseDragStart}
-                                                onDragOver={handleCourseDragOver}
-                                                onDrop={handleCourseDrop}
-                                                onDragEnd={handleCourseDragEnd}
-                                            />
-                                        ))}
-                                    </tbody>
-                                </table>
-                                {courses.length === 0 && (
-                                    <div className="course-spreadsheet-empty">
-                                        ยังไม่มีรายวิชา — กดปุ่ม "เพิ่มรายวิชา"
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="course-two-panel__empty">
-                            <BookOpen size={24} style={{ opacity: 0.3 }} />
-                            <div>เลือกหมวดวิชาเพื่อดูรายวิชา</div>
-                        </div>
-                    )}
-                </div>
+                <CurriculumCourseEditorPanel
+                    category={selectedCategory}
+                    courses={courses}
+                    allCourses={getAllCurrentCourses()}
+                    categoryTotalCredits={selectedCategory ? getCategoryTotalCredits(selectedCategory) : 0}
+                    canEdit
+                    disabled={false}
+                    isLeafCategory={Boolean(isLeafCategory)}
+                    draggedCourseId={draggedCourseId}
+                    onRenameCategory={(id, updates) => handleUpdateCategory(id, {
+                        ...(Object.prototype.hasOwnProperty.call(updates, 'nameTh') || Object.prototype.hasOwnProperty.call(updates, 'name')
+                            ? { name: updates.nameTh ?? updates.name }
+                            : {}),
+                        ...(Object.prototype.hasOwnProperty.call(updates, 'requiredCredits')
+                            ? { requiredCredits: updates.requiredCredits }
+                            : {}),
+                    })}
+                    onDeleteCategory={handleDeleteCategory}
+                    onAddCourse={handleAddCourse}
+                    onUpdateCourse={handleUpdateCourse}
+                    onDeleteCourse={handleDeleteCourse}
+                    onBulkDeleteCourses={handleDeleteSelectedCourses}
+                    onMoveCourse={handleMoveCourseInEditor}
+                    onValidateCourse={validateCourseBeforeSave}
+                    onCourseDragStart={handleCourseDragStart}
+                    onCourseDragEnd={handleCourseDragEnd}
+                />
             </div>
 
             {courseDuplicateWarning && (

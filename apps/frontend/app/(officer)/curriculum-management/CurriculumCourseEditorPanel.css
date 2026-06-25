@@ -1,0 +1,215 @@
+.curriculum-course-editor {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 10px;
+    min-height: 520px;
+}
+
+.curriculum-course-editor__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--course-border);
+}
+
+.curriculum-course-editor .course-detail-toolbar__left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.curriculum-course-editor .course-detail-toolbar__label,
+.curriculum-course-editor .course-detail-toolbar__credits-label {
+    color: var(--course-text-muted);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.curriculum-course-editor .course-detail-toolbar__name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.curriculum-course-editor .course-detail-toolbar__name-text {
+    color: var(--course-text);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.curriculum-course-editor .course-detail-toolbar__name-input {
+    min-width: 220px;
+    height: 32px;
+    padding: 0 0.625rem;
+    border: 1px solid var(--course-form-input-border);
+    border-radius: 6px;
+    background: var(--course-form-input-bg);
+    color: var(--course-text);
+    font: inherit;
+}
+
+.curriculum-course-editor .course-detail-toolbar__edit-btn,
+.curriculum-course-editor .course-detail-toolbar__delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--course-text-muted);
+    cursor: pointer;
+}
+
+.curriculum-course-editor .course-detail-toolbar__edit-btn:hover {
+    background: var(--course-hover);
+    color: var(--course-text);
+}
+
+.curriculum-course-editor .course-detail-toolbar__delete-btn {
+    color: #ef4444;
+}
+
+.curriculum-course-editor .course-detail-toolbar__delete-btn:hover {
+    background: rgba(239, 68, 68, 0.12);
+}
+
+.curriculum-course-editor .course-detail-toolbar__right,
+.curriculum-course-editor .course-detail-toolbar__credits {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+.curriculum-course-editor .course-detail-toolbar__credits-value {
+    color: var(--course-text);
+    font-size: 0.875rem;
+    font-weight: 700;
+    min-width: 24px;
+    text-align: right;
+}
+
+.curriculum-course-editor__actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--course-border);
+}
+
+.curriculum-course-editor__summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    color: var(--course-text-muted);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.curriculum-course-editor__selected {
+    color: var(--course-accent);
+}
+
+.curriculum-course-editor__action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.curriculum-course-editor__body {
+    min-height: 330px;
+}
+
+.curriculum-course-editor .ss-wrapper {
+    min-width: 0;
+}
+
+.curriculum-course-editor .ss-table {
+    min-width: 760px;
+    table-layout: fixed;
+}
+
+.curriculum-course-editor .ss-th--checkbox,
+.curriculum-course-editor .ss-cell--checkbox {
+    width: 42px;
+    min-width: 42px;
+    text-align: center;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.curriculum-course-editor .ss-th--checkbox input,
+.curriculum-course-editor .ss-cell--checkbox input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--course-accent);
+}
+
+.curriculum-course-editor .ss-th--grip,
+.curriculum-course-editor .ss-cell--grip {
+    width: 42px;
+    min-width: 42px;
+    padding-left: 0;
+    padding-right: 0;
+    text-align: center;
+    justify-content: center;
+}
+
+.curriculum-course-editor .ss-cell--grip {
+    vertical-align: middle;
+}
+
+.curriculum-course-editor .ss-cell--grip svg {
+    display: block;
+    margin: 0 auto;
+}
+
+.curriculum-course-editor .ss-th--text,
+.curriculum-course-editor .ss-cell--text {
+    width: calc((100% - 246px) / 3);
+}
+
+.curriculum-course-editor .ss-th--num,
+.curriculum-course-editor .ss-cell--num {
+    width: 86px;
+}
+
+.curriculum-course-editor .ss-th--actions,
+.curriculum-course-editor .ss-cell--actions {
+    width: 62px;
+    text-align: center;
+}
+
+.curriculum-course-editor__pagination {
+    border-top: 1px solid var(--course-border);
+    padding: 0.75rem 1rem;
+}
+
+@media (max-width: 768px) {
+    .curriculum-course-editor__actions,
+    .curriculum-course-editor__toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .curriculum-course-editor__action-buttons {
+        justify-content: flex-start;
+    }
+}
