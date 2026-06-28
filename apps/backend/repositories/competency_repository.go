@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"strconv"
+
+	"github.com/spw32767/university-competency-system-backend/models"
 )
 
 type CompetencyRepository struct {
@@ -36,11 +38,11 @@ type ActivityRecord struct {
 }
 
 type CourseRecord struct {
-    CourseID       int64
-    CompetencyID   int64
-    CourseName     string
-    AcademicYear   string  // ปีการศึกษา (Buddhist Era)
-    Score          sql.NullFloat64
+	CourseID     int64
+	CompetencyID int64
+	CourseName   string
+	AcademicYear string // ปีการศึกษา (Buddhist Era)
+	Score        sql.NullFloat64
 }
 
 func (r *CompetencyRepository) ResolvePersonID(ctx context.Context, userID int64) (int64, error) {
@@ -111,6 +113,145 @@ ORDER BY competency_id
 		return nil, err
 	}
 	return items, nil
+}
+
+func (r *CompetencyRepository) GetCompetencyOptions(ctx context.Context) ([]*models.CompetencyOption, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT
+			c.competency_id,
+			c.code,
+			c.name_th,
+			c.name_en,
+			c.description,
+			c.is_active,
+			COALESCE(template_stats.template_usage_count, 0),
+			c.created_at,
+			c.updated_at
+		FROM comp_competencies c
+		LEFT JOIN (
+			SELECT cti.competency_id, COUNT(DISTINCT cti.template_id) AS template_usage_count
+			FROM comp_template_items cti
+			JOIN comp_templates tpl ON tpl.template_id = cti.template_id
+			WHERE cti.deleted_at IS NULL
+				AND tpl.deleted_at IS NULL
+			GROUP BY cti.competency_id
+		) template_stats ON template_stats.competency_id = c.competency_id
+		WHERE c.deleted_at IS NULL
+		ORDER BY c.competency_id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	competencies := make([]*models.CompetencyOption, 0)
+	for rows.Next() {
+		item, err := scanCompetencyOption(rows)
+		if err != nil {
+			return nil, err
+		}
+		competencies = append(competencies, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return competencies, nil
+}
+
+func (r *CompetencyRepository) GetCompetencyByID(ctx context.Context, competencyID uint64) (*models.CompetencyOption, error) {
+	query := `
+		SELECT
+			c.competency_id,
+			c.code,
+			c.name_th,
+			c.name_en,
+			c.description,
+			c.is_active,
+			COALESCE(template_stats.template_usage_count, 0),
+			c.created_at,
+			c.updated_at
+		FROM comp_competencies c
+		LEFT JOIN (
+			SELECT cti.competency_id, COUNT(DISTINCT cti.template_id) AS template_usage_count
+			FROM comp_template_items cti
+			JOIN comp_templates tpl ON tpl.template_id = cti.template_id
+			WHERE cti.deleted_at IS NULL
+				AND tpl.deleted_at IS NULL
+			GROUP BY cti.competency_id
+		) template_stats ON template_stats.competency_id = c.competency_id
+		WHERE c.competency_id = ?
+			AND c.deleted_at IS NULL
+	`
+	return scanCompetencyOption(r.DB.QueryRowContext(ctx, query, competencyID))
+}
+
+func (r *CompetencyRepository) CreateCompetency(ctx context.Context, payload models.UpsertCompetencyPayload) (*models.CompetencyOption, error) {
+	result, err := r.DB.ExecContext(ctx, `
+		INSERT INTO comp_competencies (code, name_th, name_en, description, is_active)
+		VALUES (?, ?, ?, ?, 1)
+	`, payload.Code, payload.NameTH, payload.NameEN, payload.Description)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	return r.GetCompetencyByID(ctx, uint64(id))
+}
+
+func (r *CompetencyRepository) UpdateCompetency(ctx context.Context, competencyID uint64, payload models.UpsertCompetencyPayload) (*models.CompetencyOption, error) {
+	result, err := r.DB.ExecContext(ctx, `
+		UPDATE comp_competencies
+		SET code = ?, name_th = ?, name_en = ?, description = ?, updated_at = NOW()
+		WHERE competency_id = ?
+			AND deleted_at IS NULL
+	`, payload.Code, payload.NameTH, payload.NameEN, payload.Description, competencyID)
+	if err != nil {
+		return nil, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return r.GetCompetencyByID(ctx, competencyID)
+}
+
+func (r *CompetencyRepository) SoftDeleteCompetency(ctx context.Context, competencyID uint64) error {
+	result, err := r.DB.ExecContext(ctx, `
+		UPDATE comp_competencies
+		SET deleted_at = NOW(), updated_at = NOW()
+		WHERE competency_id = ?
+			AND deleted_at IS NULL
+	`, competencyID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *CompetencyRepository) CountTemplateUsageForCompetency(ctx context.Context, competencyID uint64) (int, error) {
+	var count int
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT COUNT(DISTINCT cti.template_id)
+		FROM comp_template_items cti
+		JOIN comp_templates tpl ON tpl.template_id = cti.template_id
+		WHERE cti.competency_id = ?
+			AND cti.deleted_at IS NULL
+			AND tpl.deleted_at IS NULL
+	`, competencyID).Scan(&count)
+	return count, err
 }
 
 func (r *CompetencyRepository) GetRequirementsByCurriculum(ctx context.Context, curriculumID int64) (map[int64]float64, error) {
@@ -206,9 +347,43 @@ ORDER BY s.start_at DESC
 	return items, nil
 }
 
+type competencyScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanCompetencyOption(scanner competencyScanner) (*models.CompetencyOption, error) {
+	var item models.CompetencyOption
+	var nameEN sql.NullString
+	var description sql.NullString
+	var isActive bool
+	if err := scanner.Scan(
+		&item.CompetencyID,
+		&item.Code,
+		&item.NameTH,
+		&nameEN,
+		&description,
+		&isActive,
+		&item.TemplateUsageCount,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	if nameEN.Valid {
+		item.NameEN = &nameEN.String
+	}
+	if description.Valid {
+		item.Description = &description.String
+	}
+	item.IsActive = isActive
+	item.CanEdit = item.TemplateUsageCount == 0
+	item.CanDelete = item.TemplateUsageCount == 0
+	return &item, nil
+}
+
 // เพิ่ม GetCoursesByPerson method ใน CompetencyRepository
 func (r *CompetencyRepository) GetCoursesByPerson(ctx context.Context, personID int64) ([]CourseRecord, error) {
-    rows, err := r.DB.QueryContext(ctx, `
+	rows, err := r.DB.QueryContext(ctx, `
         SELECT
             sc.section_competency_id,
             sc.competency_id,
@@ -238,35 +413,35 @@ func (r *CompetencyRepository) GetCoursesByPerson(ctx context.Context, personID 
             AND se.status IN ('enrolled', 'completed')
         ORDER BY cs.academic_year_be DESC, c.name_th ASC
     `, personID, personID)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    var items []CourseRecord
-    for rows.Next() {
-        var rec CourseRecord
-        var yearBE int
-        var maxPercent float64
-        var earnedPercent float64
-        if err := rows.Scan(
-            &rec.CourseID,
-            &rec.CompetencyID,
-            &rec.CourseName,
-            &yearBE,
-            &maxPercent,
-            &earnedPercent,
-        ); err != nil {
-            return nil, err
-        }
-        rec.AcademicYear = strconv.Itoa(yearBE)
-        rec.Score.Float64 = earnedPercent
-        rec.Score.Valid = true
-        items = append(items, rec)
-    }
+	var items []CourseRecord
+	for rows.Next() {
+		var rec CourseRecord
+		var yearBE int
+		var maxPercent float64
+		var earnedPercent float64
+		if err := rows.Scan(
+			&rec.CourseID,
+			&rec.CompetencyID,
+			&rec.CourseName,
+			&yearBE,
+			&maxPercent,
+			&earnedPercent,
+		); err != nil {
+			return nil, err
+		}
+		rec.AcademicYear = strconv.Itoa(yearBE)
+		rec.Score.Float64 = earnedPercent
+		rec.Score.Valid = true
+		items = append(items, rec)
+	}
 
-    if err := rows.Err(); err != nil {
-        return nil, err
-    }
-    return items, nil
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

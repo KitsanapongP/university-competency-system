@@ -70,6 +70,11 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)
 
+			pr.With(middleware.RequireRoles("admin", "officer")).Get("/competencies", competencyHandler.GetAll)
+			pr.With(middleware.RequireRoles("admin", "officer")).Post("/competencies", competencyHandler.Create)
+			pr.With(middleware.RequireRoles("admin", "officer")).Patch("/competencies/{competency_id}", competencyHandler.Update)
+			pr.With(middleware.RequireRoles("admin", "officer")).Delete("/competencies/{competency_id}", competencyHandler.Delete)
+
 			pr.With(middleware.RequireRoles("admin", "officer")).Get("/faculties", curriculumHandler.GetFaculties)
 			pr.With(middleware.RequireRoles("admin", "officer")).Get("/departments", curriculumHandler.GetDepartments)
 			pr.With(middleware.RequireRoles("admin", "officer")).Get("/majors", curriculumHandler.GetMajors)

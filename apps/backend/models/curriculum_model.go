@@ -61,6 +61,20 @@ type DepartmentOption struct {
 	IsActive     bool    `json:"is_active"`
 }
 
+type CompetencyOption struct {
+	CompetencyID       uint64    `json:"competency_id"`
+	Code               string    `json:"code"`
+	NameTH             string    `json:"name_th"`
+	NameEN             *string   `json:"name_en"`
+	Description        *string   `json:"description"`
+	IsActive           bool      `json:"is_active"`
+	TemplateUsageCount int       `json:"template_usage_count"`
+	CanEdit            bool      `json:"can_edit"`
+	CanDelete          bool      `json:"can_delete"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
 type CourseCategory struct {
 	CategoryID      uint64     `json:"category_id"`
 	CurriculumID    uint64     `json:"curriculum_id"`
@@ -169,6 +183,13 @@ type UpsertMajorPayload struct {
 
 type UpdateMajorStatusPayload struct {
 	IsActive *bool `json:"is_active"`
+}
+
+type UpsertCompetencyPayload struct {
+	Code        string  `json:"code"`
+	NameTH      string  `json:"name_th"`
+	NameEN      *string `json:"name_en"`
+	Description *string `json:"description"`
 }
 
 type CreateCategoryPayload struct {

@@ -27,6 +27,7 @@ function CurriculumCourseRow({
     isSelected = false,
     isEditing = false,
     isDragging = false,
+    isDropTarget = false,
     isNew = false,
     onToggleSelect,
     onStartEdit,
@@ -35,6 +36,7 @@ function CurriculumCourseRow({
     onDelete,
     onDragStart,
     onDragOver,
+    onDragLeave,
     onDrop,
     onDragEnd,
 }) {
@@ -92,10 +94,11 @@ function CurriculumCourseRow({
 
     return (
         <tr
-            className={`ss-row ${isEditing ? 'ss-row--editing' : ''} ${isSelected ? 'ss-row--selected' : ''} ${isDragging ? 'ss-row--dragging' : ''}`}
+            className={`ss-row ${isEditing ? 'ss-row--editing' : ''} ${isSelected ? 'ss-row--selected' : ''} ${isDragging ? 'ss-row--dragging' : ''} ${isDropTarget ? 'ss-row--drop-target' : ''}`}
             draggable={!disabled && !isEditing && !isNew}
             onDragStart={event => onDragStart?.(event, course)}
             onDragOver={event => onDragOver?.(event, course)}
+            onDragLeave={event => onDragLeave?.(event, course)}
             onDrop={event => onDrop?.(event, course)}
             onDragEnd={onDragEnd}
         >
@@ -234,6 +237,8 @@ export default function CurriculumCourseEditorPanel({
     const [showAddCourse, setShowAddCourse] = useState(false);
     const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
     const [currentPage, setCurrentPage] = useState(1);
+    const [dropTargetCourseId, setDropTargetCourseId] = useState(null);
+    const [isDropZoneActive, setIsDropZoneActive] = useState(false);
 
     const categoryId = category?.id ?? null;
     const isReadOnly = disabled || !canEdit || !category || isAllCoursesView;
@@ -247,6 +252,8 @@ export default function CurriculumCourseEditorPanel({
         setShowAddCourse(false);
         setSelectedCourseIds(new Set());
         setCurrentPage(1);
+        setDropTargetCourseId(null);
+        setIsDropZoneActive(false);
     }, [categoryId, category?.name, category?.requiredCredits]);
 
     useEffect(() => {
@@ -341,16 +348,29 @@ export default function CurriculumCourseEditorPanel({
 
     const handleCourseDragOver = (event, targetCourse) => {
         if (!draggedCourseId || isReadOnly || !isLeafCategory) return;
-        if (String(draggedCourseId) === normalizeCourseId(targetCourse)) return;
+        const targetCourseId = normalizeCourseId(targetCourse);
+        if (String(draggedCourseId) === targetCourseId) return;
         event.preventDefault();
         event.stopPropagation();
         event.dataTransfer.dropEffect = 'move';
+        setDropTargetCourseId(targetCourseId);
+        setIsDropZoneActive(false);
+    };
+
+    const handleCourseDragLeave = (event, targetCourse) => {
+        const targetCourseId = normalizeCourseId(targetCourse);
+        if (!targetCourseId || dropTargetCourseId !== targetCourseId) return;
+        const nextElement = event.relatedTarget;
+        if (nextElement instanceof Node && event.currentTarget.contains(nextElement)) return;
+        setDropTargetCourseId(null);
     };
 
     const handleCourseDrop = (event, targetCourse) => {
         if (!draggedCourseId || isReadOnly || !isLeafCategory) return;
         event.preventDefault();
         event.stopPropagation();
+        setDropTargetCourseId(null);
+        setIsDropZoneActive(false);
         onMoveCourse?.({
             draggedCourseId,
             targetCourse,
@@ -364,18 +384,28 @@ export default function CurriculumCourseEditorPanel({
         event.preventDefault();
         event.stopPropagation();
         event.dataTransfer.dropEffect = 'move';
+        setDropTargetCourseId(null);
+        setIsDropZoneActive(true);
     };
 
     const handleDropToCategoryEnd = (event) => {
         if (!draggedCourseId || isReadOnly || !isLeafCategory || !category) return;
         event.preventDefault();
         event.stopPropagation();
+        setDropTargetCourseId(null);
+        setIsDropZoneActive(false);
         onMoveCourse?.({
             draggedCourseId,
             targetCourse: null,
             targetCategory: category,
             beforeCourseId: null,
         });
+    };
+
+    const handleCourseDragEnd = () => {
+        setDropTargetCourseId(null);
+        setIsDropZoneActive(false);
+        onCourseDragEnd?.();
     };
 
     const changePage = (page) => {
@@ -505,7 +535,7 @@ export default function CurriculumCourseEditorPanel({
                     </div>
 
                     <div className="course-two-panel__body curriculum-course-editor__body">
-                        <div className="course-spreadsheet-scroll ss-wrapper">
+                        <div className={`course-spreadsheet-scroll ss-wrapper ${isDropZoneActive ? 'ss-wrapper--drop-zone-active' : ''}`}>
                             <div className="ss-scroll">
                                 <table className="course-spreadsheet-table ss-table">
                                     <thead>
@@ -527,7 +557,16 @@ export default function CurriculumCourseEditorPanel({
                                             <th className="course-spreadsheet-th ss-th course-spreadsheet-th--actions ss-th--actions"></th>
                                         </tr>
                                     </thead>
-                                    <tbody onDragOver={handleDropZoneDragOver} onDrop={handleDropToCategoryEnd}>
+                                    <tbody
+                                        className={isDropZoneActive ? 'ss-tbody--drop-zone-active' : ''}
+                                        onDragOver={handleDropZoneDragOver}
+                                        onDrop={handleDropToCategoryEnd}
+                                        onDragLeave={event => {
+                                            const nextElement = event.relatedTarget;
+                                            if (nextElement instanceof Node && event.currentTarget.contains(nextElement)) return;
+                                            setIsDropZoneActive(false);
+                                        }}
+                                    >
                                         {showAddCourse && (
                                             <CurriculumCourseRow
                                                 course={newCourse}
@@ -551,6 +590,7 @@ export default function CurriculumCourseEditorPanel({
                                                     isSelected={selectedCourseIds.has(courseId)}
                                                     isEditing={editingCourseId === courseId}
                                                     isDragging={String(draggedCourseId) === courseId}
+                                                    isDropTarget={dropTargetCourseId === courseId}
                                                     onToggleSelect={toggleCourseSelection}
                                                     onStartEdit={() => setEditingCourseId(courseId)}
                                                     onCancelEdit={() => setEditingCourseId(null)}
@@ -558,13 +598,28 @@ export default function CurriculumCourseEditorPanel({
                                                     onDelete={onDeleteCourse}
                                                     onDragStart={onCourseDragStart}
                                                     onDragOver={handleCourseDragOver}
+                                                    onDragLeave={handleCourseDragLeave}
                                                     onDrop={handleCourseDrop}
-                                                    onDragEnd={onCourseDragEnd}
+                                                    onDragEnd={handleCourseDragEnd}
                                                 />
                                             );
                                         })}
                                     </tbody>
                                 </table>
+                                {draggedCourseId && canMutateCourses && (
+                                    <div
+                                        className={`ss-drop-end-zone ${isDropZoneActive ? 'ss-drop-end-zone--active' : ''}`}
+                                        onDragOver={handleDropZoneDragOver}
+                                        onDrop={handleDropToCategoryEnd}
+                                        onDragLeave={event => {
+                                            const nextElement = event.relatedTarget;
+                                            if (nextElement instanceof Node && event.currentTarget.contains(nextElement)) return;
+                                            setIsDropZoneActive(false);
+                                        }}
+                                    >
+                                        วางที่นี่เพื่อย้ายไปท้ายหมวดนี้
+                                    </div>
+                                )}
                             </div>
                             {courses.length === 0 && !showAddCourse && (
                                 <div className="course-spreadsheet-empty">
