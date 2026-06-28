@@ -2,7 +2,11 @@
     background: var(--course-card-bg);
     border: 1px solid var(--course-border);
     border-radius: 10px;
+    display: flex;
+    flex-direction: column;
     min-height: 520px;
+    overflow: hidden;
+    width: 100%;
 }
 
 .curriculum-course-editor__toolbar {
@@ -56,6 +60,12 @@
     background: var(--course-form-input-bg);
     color: var(--course-text);
     font: inherit;
+}
+
+.curriculum-course-editor .course-detail-toolbar__placeholder {
+    color: var(--course-text-muted);
+    font-size: 0.875rem;
+    font-weight: 500;
 }
 
 .curriculum-course-editor .course-detail-toolbar__edit-btn,
@@ -134,7 +144,24 @@
 }
 
 .curriculum-course-editor__body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
     min-height: 330px;
+    overflow: hidden;
+}
+
+.curriculum-course-editor .course-two-panel__empty {
+    display: flex;
+    flex: 1;
+    min-height: 420px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.75rem;
+    color: var(--course-text-muted);
+    font-size: 0.9375rem;
+    text-align: center;
 }
 
 .curriculum-course-editor .ss-wrapper {
