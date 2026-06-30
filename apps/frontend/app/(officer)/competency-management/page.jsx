@@ -8,6 +8,7 @@ import {
     fetchCompetenciesForManagement,
     updateCompetency,
 } from '../../../lib/competency-management';
+import ToastNotifications from '../../../components/ui/ToastNotifications';
 import '../curriculum-management/CourseLayout.css';
 import '../curriculum-management/CourseList.css';
 import './CompetencyManagement.css';
@@ -174,6 +175,20 @@ export default function CompetencyManagementPage() {
         loadCompetencies();
     }, [loadCompetencies]);
 
+    useEffect(() => {
+        if (feedback.type !== 'success' || !feedback.message) return undefined;
+
+        const timer = window.setTimeout(() => {
+            setFeedback(current => (
+                current.type === 'success' && current.message === feedback.message
+                    ? { type: '', message: '' }
+                    : current
+            ));
+        }, 5200);
+
+        return () => window.clearTimeout(timer);
+    }, [feedback.type, feedback.message]);
+
     const filteredCompetencies = useMemo(() => {
         const keyword = search.trim().toLowerCase();
         if (!keyword) return competencies;
@@ -284,11 +299,16 @@ export default function CompetencyManagementPage() {
                 </div>
             </div>
 
-            {feedback.message && (
-                <div className={`course-feedback course-feedback--${feedback.type}`}>
-                    {feedback.message}
-                </div>
-            )}
+            <ToastNotifications
+                success={feedback.type === 'success' ? feedback.message : ''}
+                error={feedback.type === 'error' ? feedback.message : ''}
+                onCloseSuccess={() => setFeedback(current => (
+                    current.type === 'success' ? { type: '', message: '' } : current
+                ))}
+                onCloseError={() => setFeedback(current => (
+                    current.type === 'error' ? { type: '', message: '' } : current
+                ))}
+            />
 
             <section className="competency-management__panel">
                 <div className="competency-management__toolbar">
