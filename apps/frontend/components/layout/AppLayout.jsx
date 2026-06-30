@@ -2,7 +2,7 @@
 
 import React, { useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
-import { Menu, LayoutDashboard, User, ClipboardCheck, BookOpen, GraduationCap, Users, Settings, ShieldCheck } from 'lucide-react';
+import { Menu, LayoutDashboard, User, ClipboardCheck, BookOpen, GraduationCap, Users, Settings, ShieldCheck, CalendarClock } from 'lucide-react';
 import { useLanguage } from '../../providers/LanguageContext';
 import { useTheme } from '../../providers/theme-provider';
 import ClickSpark from '../ClickSpark';
@@ -36,12 +36,14 @@ const MENU_CONFIG = {
         { id: 'curriculum-management', icon: BookOpen, labelKey: 'curriculum_management' },
         { id: 'major-management', icon: GraduationCap, labelKey: 'major_management' },
         { id: 'competency-management', icon: ShieldCheck, labelKey: 'competency_management' },
+        { id: 'activity-management', icon: CalendarClock, labelKey: 'activity_management' },
         { id: 'template-management', icon: BookOpen, labelKey: 'templates' },
     ],
     admin: [
         { id: 'dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
         { id: 'major-management', icon: GraduationCap, labelKey: 'major_management' },
         { id: 'competency-management', icon: ShieldCheck, labelKey: 'competency_management' },
+        { id: 'activity-management', icon: CalendarClock, labelKey: 'activity_management' },
         { id: 'users', icon: Users, labelKey: 'users' },
         { id: 'settings', icon: Settings, labelKey: 'settings' },
     ],

@@ -49,6 +49,12 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 		Service: competencySvc,
 	}
 
+	activityRepo := repositories.NewActivityRepository(db)
+	activitySvc := services.NewActivityService(activityRepo)
+	activityHandler := &controllers.ActivityController{
+		Service: activitySvc,
+	}
+
 	curriculumRepo := repositories.NewCurriculumRepository(db)
 	curriculumSvc := services.NewCurriculumService(curriculumRepo)
 	curriculumHandler := &controllers.CurriculumController{
@@ -74,6 +80,17 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			pr.With(middleware.RequireRoles("admin", "officer")).Post("/competencies", competencyHandler.Create)
 			pr.With(middleware.RequireRoles("admin", "officer")).Patch("/competencies/{competency_id}", competencyHandler.Update)
 			pr.With(middleware.RequireRoles("admin", "officer")).Delete("/competencies/{competency_id}", competencyHandler.Delete)
+
+			pr.Route("/activities", func(ar chi.Router) {
+				ar.Use(middleware.RequireRoles("admin", "officer"))
+				ar.Get("/", activityHandler.GetAll)
+				ar.Post("/", activityHandler.Create)
+				ar.Get("/options", activityHandler.GetOptions)
+				ar.Get("/{activity_id}", activityHandler.GetByID)
+				ar.Patch("/{activity_id}", activityHandler.Update)
+				ar.Patch("/{activity_id}/status", activityHandler.UpdateStatus)
+				ar.Delete("/{activity_id}", activityHandler.Delete)
+			})
 
 			pr.With(middleware.RequireRoles("admin", "officer")).Get("/faculties", curriculumHandler.GetFaculties)
 			pr.With(middleware.RequireRoles("admin", "officer")).Get("/departments", curriculumHandler.GetDepartments)
