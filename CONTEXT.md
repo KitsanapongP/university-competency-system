@@ -108,6 +108,19 @@
 *   **Template Credit Summary:** ภาพรวมหน่วยกิตของ Template สำหรับ Cohort หนึ่ง แสดงหน่วยกิตจาก Curriculum, หน่วยกิตจาก Template Additional Courses, และผลรวมของทั้งสองส่วนเพื่อใช้ตรวจสอบภาระรายวิชาที่ถูกนำไปประเมินในรุ่นนั้น
 *   **Cohort (รุ่น):** กลุ่มนักศึกษาที่เข้าเรียนในปีการศึกษาเดียวกัน ใน Requirement ปัจจุบัน Cohort ระบุด้วยปีเข้าเรียนเท่านั้น (`cohort_year_be`) และยังไม่แยก track, รอบรับเข้า, หรือกลุ่มพิเศษเป็น entity แยก
 *   **Competency (สมรรถนะ):** ทักษะที่ต้องการประเมิน เช่น การสื่อสาร, การคิดเชิงวิพากษ์, ทักษะดิจิทัล
+*   **Competency Master:** Competency เป็น global master ของระบบ ไม่ได้แยกตาม Faculty ใน Requirement ปัจจุบัน
+*   **Competency Edit Rule:** Competency ที่ถูกใช้ใน Template อยู่แล้วห้ามแก้ไขและห้ามลบ เพื่อป้องกัน Template mapping และ weight เปลี่ยนความหมายย้อนหลัง
+*   **Competency Deletion:** การลบ Competency เป็น soft deletion. Deleted Competencies ถูกซ่อนจากรายการใช้งานปกติ แต่ยังคงอยู่เพื่อ historical integrity
+*   **Competency Code Reuse:** Competency code ต้องไม่ซ้ำในกลุ่ม Competency ที่ยังไม่ถูกลบ แต่ soft-deleted Competency ไม่ block การสร้าง code เดิมใหม่
+*   **Activity:** กิจกรรมหลักระดับคณะที่ฝ่ายพัฒนานักศึกษาจัดการ เป็น parent entity สำหรับรอบกิจกรรมจริง กิจกรรมใน Requirement ปัจจุบันเป็น `faculty_only` และมองเห็นตาม Faculty เป็นหลัก
+*   **Activity Session:** รอบจัดกิจกรรมจริงภายใต้ Activity ใช้เก็บวันเวลา สถานที่ ความจุ เงื่อนไขการลงทะเบียน วิธีให้คะแนน และสถานะการ finalize
+*   **Session Assignment:** ผู้รับผิดชอบรอบกิจกรรมจริงใน `act_session_assignments` เช่น lecturer, officer, assistant, supervisor พร้อมสิทธิ์เช็กชื่อ ให้คะแนน หรือ finalize ในรอบนั้น การผูกผู้รับผิดชอบทำที่ Session ไม่ใช่ Activity parent
+*   **Session Competency Mapping:** Competency ที่รอบกิจกรรมนั้นให้ใน `act_session_competencies` พร้อม `max_percent` ของแต่ละ Competency สำหรับ Prototype ต้องมี mapping อย่างน้อย 1 รายการ และผลรวม `max_percent` ต้องเท่ากับ 100 ก่อน finalize
+*   **Session Finalization:** การ lock setup ของ Activity Session (`is_finalized = 1`) หลัง finalize แล้วห้ามแก้ข้อมูลรอบกิจกรรม ผู้รับผิดชอบ Competency mapping สถานะ และห้ามลบ Session ใน Prototype
+*   **Activity Lecturer/Speaker Assignment:** อาจารย์ วิทยากร หรือผู้ประเมินถูกผูกกับ Activity Session ไม่ใช่ Activity parent เพื่อให้สิทธิ์ประเมินและบันทึกข้อมูลสอดคล้องกับรอบกิจกรรมจริง
+*   **Activity Lifecycle Status:** Activity เริ่มเป็น Draft, เปลี่ยนเป็น Published เมื่อพร้อมใช้งาน, และเปลี่ยนเป็น Closed เมื่อกิจกรรมนั้นจบวงจรแล้ว Closed หรือ Cancelled Activity เป็นประวัติและไม่ถูกแก้ไขในงานจัดการกิจกรรมรอบปกติ
+*   **Activity Open Duplicate Rule:** ภายใน Faculty เดียวกัน ห้ามมี Activity ที่ยัง Draft หรือ Published อยู่โดยใช้รหัสกิจกรรมและชื่อภาษาไทยซ้ำกัน Closed หรือ Cancelled Activity ไม่ block การสร้างกิจกรรมรหัส/ชื่อเดิมสำหรับครั้งถัดไป
+*   **Activity Deletion:** การลบ Activity เป็น soft deletion และทำได้เฉพาะ Activity ที่ยังเป็น Draft และยังไม่มี Activity Session เชื่อมอยู่ เพื่อรักษาประวัติการเข้าร่วมและการประเมิน
 *   **Template:** ชุดการตั้งค่าน้ำหนักคะแนนสมรรถนะของกิจกรรม/รายวิชา สำหรับนำไปผูกใช้งานกับนักศึกษาแต่ละ Cohort
 
 *   **Template Lifecycle Status:** A Template can be Draft, Active, or Inactive. Draft Templates are still being configured. Active Templates are ready for use and lock the connected Curriculum structure. Inactive Templates are temporarily disabled and can be made Active again if their connected Curriculum is Active.
