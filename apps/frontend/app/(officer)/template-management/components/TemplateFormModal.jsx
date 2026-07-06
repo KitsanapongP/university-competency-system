@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search } from 'lucide-react';
-import { MOCK_COURSE_MASTERS, MOCK_COMPETENCIES } from '../mockData';
+import { fetchCurriculums } from '../../../../lib/curriculum';
+import { fetchCompetencies } from '../../../../lib/competency';
 
 // ============================================================
 // Step indicator
@@ -66,7 +67,7 @@ function CourseMasterTree({ categories, depth = 0 }) {
                                     <div key={course.id} className="master-course-row"
                                         style={{ paddingLeft: `${1.25 + depth * 0.875}rem` }}>
                                         <span className="master-course-row__code">{course.code}</span>
-                                        <span className="master-course-row__name">{course.nameEn}</span>
+                                        <span className="master-course-row__name">{course.nameTh || course.nameEn}</span>
                                         <span className="master-course-row__credits">{course.credits} น.</span>
                                     </div>
                                 ))}
@@ -87,24 +88,30 @@ function CourseMasterTree({ categories, depth = 0 }) {
 // ============================================================
 function AcademicYearSelector({ year, onChange }) {
     const currentYear = new Date().getFullYear() + 543;
-    const years = [];
-    for (let y = currentYear - 5; y <= currentYear + 2; y++) {
-        years.push(y);
-    }
 
     return (
         <div className="tfm-year-selector">
             <label className="cfm-label">ปีการศึกษา <span className="cfm-required">*</span></label>
-            <select
+            <input
+                type="number"
                 className="cfm-input"
+                min={currentYear}
                 value={year || ''}
-                onChange={e => onChange(e.target.value ? parseInt(e.target.value, 10) : null)}
-            >
-                <option value="">เลือกปีการศึกษา</option>
-                {years.map(y => (
-                    <option key={y} value={y}>ปีการศึกษา {y}</option>
-                ))}
-            </select>
+                placeholder={`ระบุปี พ.ศ. (ตั้งแต่ ${currentYear} เป็นต้นไป)`}
+                onChange={e => {
+                    const val = e.target.value ? parseInt(e.target.value, 10) : '';
+                    onChange(val);
+                }}
+                onBlur={e => {
+                    const val = parseInt(e.target.value, 10);
+                    if (isNaN(val) || val < currentYear) {
+                        onChange(currentYear);
+                    }
+                }}
+            />
+            <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
+                * กรอกเป็นตัวเลขปี พ.ศ. ตั้งแต่ปีปัจจุบัน ({currentYear}) เป็นต้นไป (ห้ามกรอกปีย้อนหลัง)
+            </span>
         </div>
     );
 }
@@ -112,24 +119,29 @@ function AcademicYearSelector({ year, onChange }) {
 // ============================================================
 // Step 1 — ข้อมูลหลักสูตร + เลือก Curriculum Master
 // ============================================================
-function Step1({ form, setForm }) {
+function Step1({ form, setForm, masters = [], loadingMasters = false }) {
     const [search, setSearch] = useState('');
     const [previewId, setPreviewId] = useState(null);
 
-    const filtered = MOCK_COURSE_MASTERS.filter(m =>
-        m.nameTh.toLowerCase().includes(search.toLowerCase()) ||
-        m.nameEn.toLowerCase().includes(search.toLowerCase()) ||
-        String(m.year).includes(search)
+    const filtered = masters.filter(m =>
+        (m.nameTh && m.nameTh.toLowerCase().includes(search.toLowerCase())) ||
+        (m.nameEn && m.nameEn.toLowerCase().includes(search.toLowerCase())) ||
+        String(m.year || '').includes(search) ||
+        (m.code && m.code.toLowerCase().includes(search.toLowerCase()))
     );
 
-    const preview = MOCK_COURSE_MASTERS.find(m => m.id === previewId);
+    const preview = masters.find(m => m.id === previewId);
 
     const handleMasterSelect = (masterId) => {
-        const master = masterId ? MOCK_COURSE_MASTERS.find(m => m.id === masterId) : null;
+        const master = masterId ? masters.find(m => m.id === masterId) : null;
+        const currentYear = new Date().getFullYear() + 543;
+        const targetYear = master && master.year && Number(master.year) >= currentYear 
+            ? Number(master.year) 
+            : currentYear;
         setForm(p => ({ 
             ...p, 
             masterId,
-            academicYear: master ? master.year : null
+            academicYear: targetYear
         }));
         setPreviewId(masterId);
     };
@@ -183,7 +195,12 @@ function Step1({ form, setForm }) {
                         {form.masterId === null && <Check size={16} className="tfm-master-card__check"/>}
                     </div>
 
-                    {filtered.map(m => (
+                    {loadingMasters && (
+                        <div style={{ padding: '1.5rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
+                            กำลังโหลดรายชื่อหลักสูตรจากระบบ...
+                        </div>
+                    )}
+                    {!loadingMasters && filtered.map(m => (
                         <div key={m.id}
                             className={`tfm-master-card ${form.masterId === m.id ? 'tfm-master-card--selected' : ''}`}
                             onClick={() => handleMasterSelect(m.id)}
@@ -196,7 +213,7 @@ function Step1({ form, setForm }) {
                                     {m.nameTh}
                                 </div>
                                 <div className={`tfm-master-card__meta ${form.masterId === m.id ? 'tfm-master-card__meta--selected' : ''}`}>
-                                    {m.faculty}ปี {m.year}
+                                    {m.degreeName ? `${m.degreeName} • ` : ''}ปี {m.year}
                                 </div>
                             </div>
                             {form.masterId === m.id && <Check size={16} className="tfm-master-card__check"/>}
@@ -224,17 +241,10 @@ function Step1({ form, setForm }) {
 
             {/* แสดงปีการศึกษาที่เลือก */}
             <div className="tfm-selected-year">
-                {form.masterId ? (
-                    <div className="tfm-year-display">
-                        <span className="tfm-year-label">ปีการศึกษา:</span>
-                        <span className="tfm-year-value">{form.academicYear}</span>
-                    </div>
-                ) : (
-                    <AcademicYearSelector
-                        year={form.academicYear}
-                        onChange={(year) => setForm(p => ({ ...p, academicYear: year }))}
-                    />
-                )}
+                <AcademicYearSelector
+                    year={form.academicYear}
+                    onChange={(year) => setForm(p => ({ ...p, academicYear: year }))}
+                />
             </div>
         </div>
     );
@@ -362,16 +372,47 @@ function Step2({ form, setForm, allCompetencies, onAddCompetency }) {
 // ============================================================
 // TemplateFormModal — main export
 // ============================================================
-export default function TemplateFormModal({ onClose, onSave, allCompetencies = MOCK_COMPETENCIES }) {
+export default function TemplateFormModal({ onClose, onSave, allCompetencies = [] }) {
     const [step, setStep] = useState(1);
     const [form, setForm] = useState({
         name:          '',
-        academicYear:  null,
+        academicYear:  new Date().getFullYear() + 543,
         masterId:      null,
         competencyIds: new Set(),
     });
     const [localComps, setLocalComps] = useState(allCompetencies);
     const localCompIdRef = useRef(9900);
+
+    const [masters, setMasters] = useState([]);
+    const [loadingMasters, setLoadingMasters] = useState(true);
+
+    useEffect(() => {
+        fetchCurriculums()
+            .then(data => setMasters(data || []))
+            .catch(err => {
+                console.error('Failed to load curriculums:', err);
+                setMasters([]);
+            })
+            .finally(() => setLoadingMasters(false));
+
+        if (allCompetencies.length === 0) {
+            fetchCompetencies()
+                .then(comps => {
+                    if (Array.isArray(comps) && comps.length > 0) {
+                        const mapped = comps.map((c, idx) => ({
+                            id: c.id || c.competency_id,
+                            code: c.code || `comp_${idx}`,
+                            name: c.name_th || c.name || '',
+                            color: PRESET_COLORS[idx % PRESET_COLORS.length],
+                        }));
+                        setLocalComps(mapped);
+                    }
+                })
+                .catch(err => console.error('Failed to load competencies:', err));
+        } else {
+            setLocalComps(allCompetencies);
+        }
+    }, [allCompetencies]);
 
     const handleAddCompetency = (name, color) => {
         const newComp = { id: ++localCompIdRef.current, code: `new_${localCompIdRef.current}`, name, color };
@@ -385,7 +426,7 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = M
 
     const handleSave = () => {
         if (!canNext) return;
-        const master = MOCK_COURSE_MASTERS.find(m => m.id === form.masterId) ?? null;
+        const master = masters.find(m => m.id === form.masterId) ?? null;
         onSave({
             name:              form.name.trim(),
             academicYear:      form.academicYear,
@@ -407,7 +448,7 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = M
                     <StepIndicator step={step}/>
                 </div>
                 <div className="modal-body tfm-body">
-                    {step === 1 && <Step1 form={form} setForm={setForm}/>}
+                    {step === 1 && <Step1 form={form} setForm={setForm} masters={masters} loadingMasters={loadingMasters}/>}
                     {step === 2 && (
                         <Step2
                             form={form}

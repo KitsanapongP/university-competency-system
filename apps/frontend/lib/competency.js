@@ -10,3 +10,9 @@ export async function fetchCompetencyDashboard(category) {
     const path = category ? `${base}?category=${encodeURIComponent(category)}` : base;
     return apiFetch(path);
 }
+
+export async function fetchCompetencies() {
+    const response = await apiFetch('/api/v1/competencies');
+    return response?.data || [];
+}
+

@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, Settings, SlidersHorizontal, BarChart3, Files } from 'lucide-react';
-import { MOCK_TEMPLATES, MOCK_COMPETENCIES, MOCK_CATEGORIES } from './mockData';
+import { fetchTemplates, deleteTemplate, updateTemplateStatus, fetchTemplateItems, createTemplate, saveTemplateItems } from '../../../lib/template';
+import { fetchCompetencies } from '../../../lib/competency';
+import { fetchCurriculumDetail } from '../../../lib/curriculum';
 import CategoryCoursePanel  from './components/CategoryCoursePanel';
 import CompetencyOverview   from './components/CompetencyOverview';
 import TemplateFormModal    from './components/TemplateFormModal';
@@ -109,8 +111,8 @@ export default function TemplateManagementPage() {
     const [editingTitle, setEditingTitle] = useState(false);
     const [titleVal,     setTitleVal]     = useState('');
 
-    const [templates,    setTemplates]    = useState(MOCK_TEMPLATES);
-    const [competencies, setCompetencies] = useState(MOCK_COMPETENCIES);
+    const [templates,    setTemplates]    = useState([]);
+    const [competencies, setCompetencies] = useState([]);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [templateStatus, setTemplateStatus] = useState(true);
     const [selectedCategory, setSelectedCategory] = useState(null);
@@ -119,11 +121,7 @@ export default function TemplateManagementPage() {
     const [deletingCategory,  setDeletingCategory]  = useState(null);
     const [deletingCourse,    setDeletingCourse]    = useState(null);
 
-    const [categoriesByTemplate, setCategoriesByTemplate] = useState(() => {
-        const m = {};
-        MOCK_TEMPLATES.forEach(t => { m[t.id] = JSON.parse(JSON.stringify(MOCK_CATEGORIES)); });
-        return m;
-    });
+    const [categoriesByTemplate, setCategoriesByTemplate] = useState({});
     const [coursesByTemplate,  setCoursesByTemplate]  = useState({});
     const [weightsByTemplate,  setWeightsByTemplate]  = useState({});
 
@@ -131,6 +129,41 @@ export default function TemplateManagementPage() {
     const compIdRef   = useRef(8000);
     const templateRef = useRef(7000);
     const courseIdRef = useRef(5000);
+
+    useEffect(() => {
+        async function loadData() {
+            try {
+                const [tmplData, compData] = await Promise.all([
+                    fetchTemplates(),
+                    fetchCompetencies()
+                ]);
+
+                if (Array.isArray(compData) && compData.length > 0) {
+                    const mappedComps = compData.map((c, idx) => ({
+                        id: c.id || c.competency_id,
+                        code: c.code || `comp_${idx}`,
+                        name: c.name_th || c.name || '',
+                        color: ['#ec4899','#3b82f6','#06b6d4','#f59e0b','#10b981','#8b5cf6','#ef4444','#f97316'][idx % 8],
+                    }));
+                    setCompetencies(mappedComps);
+                }
+
+                if (Array.isArray(tmplData)) {
+                    const mapped = tmplData.map(t => ({
+                        ...t,
+                        id: t.template_id || t.id,
+                        academicYear: t.cohort_year_be || t.academicYear || 2568,
+                        isActive: t.is_active !== undefined ? t.is_active : (t.isActive !== undefined ? t.isActive : true),
+                        masterData: t.curriculum_name_th ? { id: t.curriculum_id, name: t.curriculum_name_th, year: t.cohort_year_be } : t.masterData,
+                    }));
+                    setTemplates(mapped);
+                }
+            } catch (err) {
+                console.error('Failed to fetch templates or competencies:', err);
+            }
+        }
+        loadData();
+    }, []);
 
     // ── Derived ──
     const currentCategories      = selectedTemplate ? (categoriesByTemplate[selectedTemplate.id] || []) : [];
@@ -201,25 +234,46 @@ export default function TemplateManagementPage() {
             setSelectedTemplate(p => ({ ...p, name: trimmed }));
         }
         setEditingTitle(false);
-    }, [titleVal, selectedTemplate]);    const handleConfirmDeleteTemplate  = useCallback(() => {
+    }, [titleVal, selectedTemplate]);    const handleConfirmDeleteTemplate  = useCallback(async () => {
         if (!deletingTemplate) return;
         const id = deletingTemplate.id;
-        setTemplates(p => p.filter(t => t.id !== id));
-        setCategoriesByTemplate(p => { const n = { ...p }; delete n[id]; return n; });
-        setCoursesByTemplate(p => { const n = { ...p }; delete n[id]; return n; });
-        setWeightsByTemplate(p => { const n = { ...p }; delete n[id]; return n; });
-        if (selectedTemplate?.id === id) handleBackToList();
-        setDeletingTemplate(null);
+        try {
+            await deleteTemplate(id);
+            setTemplates(p => p.filter(t => t.id !== id));
+            setCategoriesByTemplate(p => { const n = { ...p }; delete n[id]; return n; });
+            setCoursesByTemplate(p => { const n = { ...p }; delete n[id]; return n; });
+            setWeightsByTemplate(p => { const n = { ...p }; delete n[id]; return n; });
+            if (selectedTemplate?.id === id) handleBackToList();
+            setDeletingTemplate(null);
+        } catch (err) {
+            alert(err.message || 'ไม่สามารถลบ Template ได้');
+            setDeletingTemplate(null);
+        }
     }, [deletingTemplate, selectedTemplate, handleBackToList]);
 
-    const handleSaveTemplate = useCallback(({ name, academicYear, masterData, competencyIds, newCompetencies }) => {
-        const id = ++templateRef.current;
+    const handleSaveTemplate = useCallback(async ({ name, academicYear, masterData, competencyIds, newCompetencies }) => {
+        let createdId = ++templateRef.current;
+        try {
+            const payload = {
+                name,
+                faculty_id: 11,
+                cohort_year_be: Number(academicYear) || 2568,
+                curriculum_id: masterData ? masterData.id : null
+            };
+            const created = await createTemplate(payload);
+            if (created && created.id) createdId = created.id;
+        } catch (err) {
+            console.error('Create template API failed, falling back to local ID:', err);
+        }
+
+        const id = createdId;
         const newTemplate = { 
             id, 
             name, 
             year: academicYear || 2568, 
             academicYear,
-            masterData 
+            masterData,
+            isActive: false
         };
         setTemplates(p => [...p, newTemplate]);
 
@@ -400,7 +454,25 @@ export default function TemplateManagementPage() {
         setWeightsByTemplate(p => {
             const tpl    = p[selectedTemplate.id] || {};
             const course = { ...(tpl[courseId] || {}), [compId]: weight };
-            return { ...p, [selectedTemplate.id]: { ...tpl, [courseId]: course } };
+            const nextTpl = { ...tpl, [courseId]: course };
+
+            const items = [];
+            Object.entries(nextTpl).forEach(([cId, compMap]) => {
+                Object.entries(compMap || {}).forEach(([cpId, w]) => {
+                    if (Number(w) > 0) {
+                        items.push({
+                            course_id: Number(cId) || 0,
+                            competency_id: Number(cpId) || 0,
+                            weight: Number(w) || 0
+                        });
+                    }
+                });
+            });
+            saveTemplateItems(selectedTemplate.id, items).catch(err => {
+                console.error('Failed to save template items to API:', err);
+            });
+
+            return { ...p, [selectedTemplate.id]: nextTpl };
         });
     }, [selectedTemplate]);
 
@@ -414,13 +486,17 @@ export default function TemplateManagementPage() {
         setCompetencies(p => p.map(c => c.id === updated.id ? { ...c, ...updated } : c));
     }, []);
 
-    const handleToggleTemplateStatus = useCallback((newStatus) => {
-        setTemplateStatus(newStatus);
-        if (selectedTemplate) {
+    const handleToggleTemplateStatus = useCallback(async (newStatus) => {
+        if (!selectedTemplate) return;
+        try {
+            await updateTemplateStatus(selectedTemplate.id, newStatus ? 'Active' : 'Inactive');
+            setTemplateStatus(newStatus);
             setTemplates(p => p.map(t => 
                 t.id === selectedTemplate.id ? { ...t, isActive: newStatus } : t
             ));
             setSelectedTemplate(p => ({ ...p, isActive: newStatus }));
+        } catch (err) {
+            alert(err.message || 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะ');
         }
     }, [selectedTemplate]);
 
@@ -495,7 +571,7 @@ export default function TemplateManagementPage() {
 
                 {/* Modals */}
                 {showTemplateModal && (
-                    <TemplateFormModal onClose={() => setShowTemplateModal(false)} onSave={handleSaveTemplate}/>
+                    <TemplateFormModal onClose={() => setShowTemplateModal(false)} onSave={handleSaveTemplate} allCompetencies={competencies} />
                 )}
                 {deletingTemplate && (
                     <ConfirmDeleteModal

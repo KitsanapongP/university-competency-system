@@ -40,3 +40,20 @@ func (h *CompetencyController) Dashboard(w http.ResponseWriter, r *http.Request)
 
 	utils.OK(w, data)
 }
+
+func (h *CompetencyController) GetAll(w http.ResponseWriter, r *http.Request) {
+	_, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return
+	}
+
+	data, err := h.Service.GetAllCompetencies(r.Context())
+	if err != nil {
+		utils.Error(w, http.StatusInternalServerError, "SERVER_ERROR", "could not load competencies")
+		return
+	}
+
+	utils.OK(w, data)
+}
+

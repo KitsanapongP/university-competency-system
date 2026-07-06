@@ -43,6 +43,24 @@ type DashboardData struct {
     AvailableYear []string             `json:"available_years"`
 }
 
+// GetAllCompetencies ดึง competencies ทั้งหมดในระบบ
+func (s *CompetencyService) GetAllCompetencies(ctx context.Context) ([]Competency, error) {
+    records, err := s.Repo.GetCompetencies(ctx)
+    if err != nil {
+        return nil, err
+    }
+    result := make([]Competency, 0, len(records))
+    for _, rec := range records {
+        result = append(result, Competency{
+            ID:     rec.ID,
+            Code:   rec.Code,
+            NameTH: rec.NameTH,
+            NameEN: rec.NameEN,
+        })
+    }
+    return result, nil
+}
+
 // BuildDashboard สร้าง dashboard data แบ่งตาม category
 func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, category string) (*DashboardData, error) {
     personID, err := s.Repo.ResolvePersonID(ctx, userID)
