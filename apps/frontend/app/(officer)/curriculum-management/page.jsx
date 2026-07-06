@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronRight, Layers, Award, GripVertical, ChevronLeft, ChevronFirst, ChevronLast } from 'lucide-react';
+import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronRight, Layers, Award, AlertTriangle } from 'lucide-react';
 import {
     createCurriculumCategory,
     createCurriculumCourse,
@@ -20,11 +20,14 @@ import {
     updateCurriculumStatus,
 } from '../../../lib/curriculum';
 import CourseFormModal from './components/CourseFormModal';
+import CurriculumCourseEditorPanel from './components/CurriculumCourseEditorPanel';
 import CurriculumStructureSidebar from './components/CurriculumStructureSidebar';
 import ConfirmDeleteModal from '../template-management/components/ConfirmDeleteModal';
+import ToastNotifications from '../../../components/ui/ToastNotifications';
 import './CourseLayout.css';
 import './CourseList.css';
 import './CourseEditor.css';
+import './CurriculumCourseEditorPanel.css';
 import './CurriculumStructureSidebar.css';
 
 // ============================================================
@@ -71,9 +74,59 @@ function getCategoryDepth(category, cats) {
 
 function findCourseOwnerId(courseId, coursesByCategory) {
     const entry = Object.entries(coursesByCategory || {}).find(([, courses]) => {
-        return (courses || []).some(course => course.id === courseId);
+        return (courses || []).some(course => String(course.id) === String(courseId));
     });
     return entry?.[0] || null;
+}
+
+function collectCoursesFromCategories(categories) {
+    const result = [];
+    for (const category of categories || []) {
+        if (category.courses?.length) {
+            result.push(...category.courses);
+        }
+        if (category.children?.length) {
+            result.push(...collectCoursesFromCategories(category.children));
+        }
+    }
+    return result;
+}
+
+function getCourseIdentity(course) {
+    return String(course?.id ?? course?.curriculumCourseId ?? course?.courseId ?? '');
+}
+
+function normalizeName(value) {
+    return String(value || '').trim();
+}
+
+function normalizeInsensitive(value) {
+    return normalizeName(value).toLowerCase();
+}
+
+function getDuplicateCourseIssues(nextCourse, allCourses) {
+    const labels = {
+        code: 'รหัสวิชา',
+        nameTh: 'ชื่อวิชาภาษาไทย',
+        nameEn: 'ชื่อวิชาภาษาอังกฤษ',
+    };
+    const nextIdentity = getCourseIdentity(nextCourse);
+    const otherCourses = (allCourses || []).filter(course => getCourseIdentity(course) !== nextIdentity);
+    const issues = [];
+    const nextCode = normalizeInsensitive(nextCourse.code);
+    const nextNameTh = normalizeName(nextCourse.nameTh);
+    const nextNameEn = normalizeInsensitive(nextCourse.nameEn);
+
+    if (nextCode && otherCourses.some(course => normalizeInsensitive(course.code) === nextCode)) {
+        issues.push(labels.code);
+    }
+    if (nextNameTh && otherCourses.some(course => normalizeName(course.nameTh) === nextNameTh)) {
+        issues.push(labels.nameTh);
+    }
+    if (nextNameEn && otherCourses.some(course => normalizeInsensitive(course.nameEn) === nextNameEn)) {
+        issues.push(labels.nameEn);
+    }
+    return issues;
 }
 
 const STATUS_LABELS = {
@@ -338,33 +391,6 @@ function EmptyState({ onCreate }) {
             <button className="course-btn course-btn--primary" onClick={onCreate}>
                 <Plus size={16} /> สร้างหลักสูตร
             </button>
-        </div>
-    );
-}
-
-function ToastNotifications({ success, error, errorDebug, onCloseSuccess, onCloseError }) {
-    if (!success && !error) return null;
-
-    return (
-        <div className="course-toast-stack" aria-live="polite" aria-atomic="true">
-            {success && (
-                <div className="course-toast course-toast--success course-toast--auto-dismiss">
-                    <Check size={16} className="course-toast__icon" />
-                    <div className="course-toast__content">{success}</div>
-                    <button type="button" className="course-toast__close" onClick={onCloseSuccess} aria-label="ปิดข้อความแจ้งเตือน">
-                        <X size={14} />
-                    </button>
-                </div>
-            )}
-            {error && (
-                <div className="course-toast course-toast--error">
-                    <X size={16} className="course-toast__icon" />
-                    <div className="course-toast__content" title={errorDebug}>{error}</div>
-                    <button type="button" className="course-toast__close" onClick={onCloseError} aria-label="ปิดข้อความแจ้งเตือน">
-                        <X size={14} />
-                    </button>
-                </div>
-            )}
         </div>
     );
 }
@@ -736,6 +762,7 @@ export default function CurriculumManagementPage() {
     const [showAllCourses, setShowAllCourses] = useState(false);
     const [coursesByCategory, setCoursesByCategory] = useState({});
     const [deletingCategory, setDeletingCategory] = useState(null);
+    const [courseDuplicateWarning, setCourseDuplicateWarning] = useState(null);
     const [draggedCategoryId, setDraggedCategoryId] = useState(null);
     const [draggedCourseId, setDraggedCourseId] = useState(null);
     const [dropTargetCategoryId, setDropTargetCategoryId] = useState(null);
@@ -867,11 +894,65 @@ export default function CurriculumManagementPage() {
         }, confirmImpact), 'บันทึกรายวิชาสำเร็จ');
     }, [commitCurriculumMutation, selectedCourse]);
 
+    const handleValidateCourseBeforeSave = useCallback((nextCourse, allCourses) => {
+        const issues = getDuplicateCourseIssues(nextCourse, allCourses);
+        if (issues.length > 0) {
+            setCourseDuplicateWarning({ issues, course: nextCourse });
+            return false;
+        }
+        setCourseDuplicateWarning(null);
+        return true;
+    }, []);
+
     const handleRequestDeleteCourseInEditor = useCallback(async (course) => {
         if (!selectedCourse || !course?.curriculumCourseId) return null;
         if (!window.confirm(`ยืนยันถอดรายวิชา ${course.code || course.nameTh || ''} ออกจากหลักสูตรหรือไม่?`)) return null;
         return commitCurriculumMutation((confirmImpact) => deleteCurriculumCoursePlacement(selectedCourse.curriculumId, course.curriculumCourseId, confirmImpact), 'ถอดรายวิชาแล้ว');
     }, [commitCurriculumMutation, selectedCourse]);
+
+    const handleBulkDeleteCoursesInEditor = useCallback(async (selectedCourses) => {
+        if (!selectedCourse || !selectedCourses?.length) return false;
+        let confirmImpact = false;
+        let lastDetail = null;
+        setOperationLoading(true);
+        setError('');
+        setErrorDebug('');
+        setSuccess('');
+
+        try {
+            for (const course of selectedCourses) {
+                if (!course?.curriculumCourseId) continue;
+                for (;;) {
+                    try {
+                        lastDetail = await deleteCurriculumCoursePlacement(selectedCourse.curriculumId, course.curriculumCourseId, confirmImpact);
+                        break;
+                    } catch (err) {
+                        const needsConfirmation = err?.status === 409 && err?.code === 'CONFIRMATION_REQUIRED' && !confirmImpact;
+                        if (needsConfirmation && window.confirm(buildConfirmationMessage(err))) {
+                            confirmImpact = true;
+                            continue;
+                        }
+                        throw err;
+                    }
+                }
+            }
+
+            if (lastDetail) {
+                setSelectedCourse(lastDetail);
+            }
+            setSuccess(`ถอดรายวิชาแล้ว ${selectedCourses.length} วิชา`);
+            await loadCurriculums();
+            return true;
+        } catch (err) {
+            const mapped = mapCurriculumError(err);
+            setError(mapped.userMessage);
+            setErrorDebug(mapped.debugMessage);
+            console.debug('Curriculum bulk delete course error:', err);
+            return false;
+        } finally {
+            setOperationLoading(false);
+        }
+    }, [loadCurriculums, selectedCourse]);
 
     const handleCategoryDragStart = useCallback((event, category) => {
         if (operationLoading) return;
@@ -1004,6 +1085,32 @@ export default function CurriculumManagementPage() {
         setDraggedCourseId(null);
         setDropTargetCategoryId(null);
     }, [commitCurriculumMutation, coursesByCategory, draggedCourseId, selectedCourse]);
+
+    const handleMoveCourseInEditor = useCallback(async ({ draggedCourseId: movingCourseId, targetCategory, beforeCourseId = null }) => {
+        if (!selectedCourse || !movingCourseId || !targetCategory || targetCategory.children?.length) return null;
+
+        const sourceCategoryId = findCourseOwnerId(movingCourseId, coursesByCategory);
+        const movingCourse = sourceCategoryId
+            ? (coursesByCategory[sourceCategoryId] || []).find(course => String(course.id) === String(movingCourseId))
+            : null;
+        if (!movingCourse?.curriculumCourseId) return null;
+
+        const targetList = coursesByCategory[targetCategory.id] || [];
+        const targetIndex = beforeCourseId
+            ? targetList.findIndex(course => String(course.id) === String(beforeCourseId))
+            : -1;
+        const displayOrder = targetIndex >= 0 ? targetIndex + 1 : targetList.length + 1;
+
+        const detail = await commitCurriculumMutation((confirmImpact) => updateCurriculumCoursePlacement(selectedCourse.curriculumId, movingCourse.curriculumCourseId, {
+            categoryId: targetCategory.id,
+            displayOrder,
+        }, confirmImpact), 'ย้ายรายวิชาสำเร็จ');
+        setSelectedCategory(targetCategory);
+        setShowAllCourses(false);
+        setDraggedCourseId(null);
+        setDropTargetCategoryId(null);
+        return detail;
+    }, [commitCurriculumMutation, coursesByCategory, selectedCourse]);
 
     const handleCourseDragEnd = useCallback(() => {
         setDraggedCourseId(null);
@@ -1227,15 +1334,25 @@ export default function CurriculumManagementPage() {
 
                         {/* Category Detail Panel */}
                         <div className="course-editor-panels__content">
-                            <CategoryDetailPanel
+                            <CurriculumCourseEditorPanel
                                 key={`${showAllCourses ? 'all' : selectedCategory?.id || 'none'}:${selectedCategory?.name || ''}:${selectedCategory?.requiredCredits ?? 0}`}
                                 category={showAllCourses ? { id: 'all', code: '', name: 'วิชาทั้งหมดในหลักสูตร' } : selectedCategory}
                                 courses={getDisplayCourses(categories, selectedCategory, showAllCourses)}
-                                onRename={selectedCategory ? handleRenameCategory : () => { }}
-                                onDelete={selectedCategory ? handleRequestDeleteCategory : () => { }}
+                                allCourses={collectCoursesFromCategories(categories)}
+                                categoryTotalCredits={showAllCourses ? selectedCourse.stats?.totalCredits ?? 0 : getDisplayCourses(categories, selectedCategory, false).reduce((sum, course) => sum + (Number(course.credits) || 0), 0)}
+                                isLeafCategory={Boolean(selectedCategory && !selectedCategory.children?.length)}
+                                isAllCoursesView={showAllCourses}
+                                draggedCourseId={draggedCourseId}
+                                onRenameCategory={selectedCategory ? handleRenameCategory : () => { }}
+                                onDeleteCategory={selectedCategory ? handleRequestDeleteCategory : () => { }}
                                 onAddCourse={handleAddCourse}
                                 onUpdateCourse={handleUpdateCourse}
                                 onDeleteCourse={handleRequestDeleteCourseInEditor}
+                                onBulkDeleteCourses={handleBulkDeleteCoursesInEditor}
+                                onMoveCourse={handleMoveCourseInEditor}
+                                onValidateCourse={handleValidateCourseBeforeSave}
+                                onCourseDragStart={handleCourseDragStart}
+                                onCourseDragEnd={handleCourseDragEnd}
                                 canEdit={Boolean(selectedCategory) && !showAllCourses}
                                 disabled={operationLoading}
                             />
@@ -1245,6 +1362,32 @@ export default function CurriculumManagementPage() {
             ) : null}
 
             {/* Modals */}
+            {courseDuplicateWarning && (
+                <div className="modal-overlay" onClick={() => setCourseDuplicateWarning(null)}>
+                    <div className="modal-content" onClick={event => event.stopPropagation()}>
+                        <div className="modal-header">
+                            <AlertTriangle size={24} className="modal-icon--warning" />
+                            <h3>ข้อมูลรายวิชาซ้ำ</h3>
+                        </div>
+                        <div className="modal-body">
+                            <p>รายวิชานี้มีข้อมูลซ้ำ กรุณาแก้ไขข้อมูลที่ซ้ำก่อนบันทึก</p>
+                            <div className="modal-body__hint">
+                                ข้อมูลที่ซ้ำ: {courseDuplicateWarning.issues.join(', ')}
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button
+                                type="button"
+                                className="course-form-nav__btn course-form-nav__btn--primary"
+                                onClick={() => setCourseDuplicateWarning(null)}
+                            >
+                                รับทราบ
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showForm && (
                 <CourseFormModal
                     course={editingCourse}
@@ -1283,350 +1426,5 @@ export default function CurriculumManagementPage() {
                 />
             )}
         </>
-    );
-}
-
-// ============================================================
-// CategoryDetailPanel — Spreadsheet style with Pagination
-// ============================================================
-function CategoryDetailPanel({ category, courses, onRename, onDelete, onAddCourse, onUpdateCourse, onDeleteCourse, canEdit = false, disabled = false }) {
-    const [editName, setEditName] = useState(category?.name || '');
-    const [credits, setCredits] = useState(category?.requiredCredits || 0);
-    const [showAddCourse, setShowAddCourse] = useState(false);
-    const [newCourse, setNewCourse] = useState({ code: '', nameTh: '', nameEn: '', credits: 0, isCoreCourse: true });
-    const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 10;
-    const isReadOnly = disabled || !canEdit || !category || category.id === 'all';
-
-    const totalPages = Math.max(1, Math.ceil(courses.length / ITEMS_PER_PAGE));
-    const safeCurrentPage = Math.min(currentPage, totalPages);
-    const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
-    const paginatedCourses = courses.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-
-    const handleSaveName = () => {
-        if (isReadOnly || !category?.id || editName.trim() === category.name) return;
-        onRename(category.id, { nameTh: editName.trim() });
-    };
-
-    const handleSaveCredits = () => {
-        if (isReadOnly || !category?.id) return;
-        const nextCredits = Number(credits);
-        if (!Number.isFinite(nextCredits) || nextCredits < 0 || nextCredits === category.requiredCredits) return;
-        onRename(category.id, { requiredCredits: nextCredits });
-    };
-
-    const handleAddCourse = async () => {
-        if (isReadOnly || !newCourse.code.trim() || !newCourse.nameTh.trim()) return;
-        const result = await onAddCourse({
-            ...newCourse,
-            code: newCourse.code.trim(),
-            nameTh: newCourse.nameTh.trim(),
-            nameEn: newCourse.nameEn.trim(),
-            credits: Number(newCourse.credits) || 0,
-        });
-        if (result) {
-            setNewCourse({ code: '', nameTh: '', nameEn: '', credits: 0, isCoreCourse: true });
-            setShowAddCourse(false);
-        }
-    };
-
-    const handleAddNewCourse = () => {
-        if (!isReadOnly) {
-            setShowAddCourse(true);
-        }
-    };
-
-    const handlePageChange = (page) => {
-        setCurrentPage(Math.min(Math.max(page, 1), totalPages));
-    };
-
-    return (
-        <div className="course-detail-panel">
-            <div className="course-detail-panel__header">
-                <div>
-                    <label className="cfm-label">ชื่อหมวดวิชา</label>
-                    <input
-                        className="cfm-input"
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        onBlur={handleSaveName}
-                        onKeyDown={e => e.key === 'Enter' && handleSaveName()}
-                        disabled={isReadOnly}
-                    />
-                </div>
-                <div className="course-detail-panel__credits">
-                    <label className="cfm-label">หน่วยกิต</label>
-                    <input
-                        className="cfm-input"
-                        type="number"
-                        min={0}
-                        value={credits}
-                        onChange={e => setCredits(e.target.value)}
-                        onBlur={handleSaveCredits}
-                        onKeyDown={e => e.key === 'Enter' && handleSaveCredits()}
-                        disabled={isReadOnly}
-                    />
-                </div>
-                <button className="course-btn course-btn--ghost course-btn--danger course-delete-btn" onClick={() => onDelete(category)} disabled={isReadOnly}>
-                    <Trash2 size={14} />
-                </button>
-            </div>
-
-            <div className="course-detail-panel__courses">
-                <div className="course-detail-panel__courses-header">
-                    <span className="course-detail-panel__courses-title">รายวิชา ({courses.length})</span>
-                    <button className="course-btn course-btn--primary course-btn--sm" onClick={handleAddNewCourse} disabled={isReadOnly || showAddCourse}>
-                        <Plus size={14} /> เพิ่มรายวิชา
-                    </button>
-                </div>
-
-                <div className="ss-wrapper">
-                    <div className="ss-scroll">
-                        <table className="ss-table">
-                            <thead>
-                                <tr>
-                                    <th className="ss-th ss-th--grip"></th>
-                                    <th className="ss-th">รหัสวิชา</th>
-                                    <th className="ss-th ss-th--wide">ชื่อวิชา (ไทย)</th>
-                                    <th className="ss-th ss-th--wide">ชื่อวิชา (Eng)</th>
-                                    <th className="ss-th ss-th--num">หน่วยกิต</th>
-                                    <th className="ss-th ss-th--actions"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {showAddCourse && (
-                                    <tr className="ss-row ss-row--editing">
-                                        <td className="ss-cell ss-cell--grip">
-                                            <GripVertical size={13} />
-                                        </td>
-                                        <td className="ss-cell">
-                                            <input
-                                                className="ss-input"
-                                                value={newCourse.code}
-                                                onChange={e => setNewCourse(p => ({ ...p, code: e.target.value }))}
-                                                placeholder="รหัสวิชา"
-                                            />
-                                        </td>
-                                        <td className="ss-cell ss-cell--wide">
-                                            <input
-                                                className="ss-input"
-                                                value={newCourse.nameTh}
-                                                onChange={e => setNewCourse(p => ({ ...p, nameTh: e.target.value }))}
-                                                placeholder="ชื่อวิชาภาษาไทย"
-                                            />
-                                        </td>
-                                        <td className="ss-cell ss-cell--wide">
-                                            <input
-                                                className="ss-input"
-                                                value={newCourse.nameEn}
-                                                onChange={e => setNewCourse(p => ({ ...p, nameEn: e.target.value }))}
-                                                placeholder="English Name"
-                                            />
-                                        </td>
-                                        <td className="ss-cell ss-cell--num">
-                                            <input
-                                                className="ss-input ss-input--num"
-                                                type="number"
-                                                min={0}
-                                                max={12}
-                                                value={newCourse.credits}
-                                                onChange={e => setNewCourse(p => ({ ...p, credits: parseInt(e.target.value, 10) || 0 }))}
-                                                placeholder="0"
-                                            />
-                                        </td>
-                                        <td className="ss-cell ss-cell--actions">
-                                            <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={handleAddCourse} disabled={!newCourse.code.trim() || !newCourse.nameTh.trim()}>
-                                                <Check size={13} />
-                                            </button>
-                                            <button className="icon-course-btn icon-course-btn--danger icon-course-btn--xs" onClick={() => setShowAddCourse(false)}>
-                                                <X size={12} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                )}
-                                {courses.length === 0 && !showAddCourse ? (
-                                    <tr>
-                                        <td colSpan={6} className="ss-empty">
-                                            {'ยังไม่มีรายวิชา - กดปุ่มเพิ่มรายวิชาด้านบน'}
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    paginatedCourses.map(course => (
-                                        <CourseRow
-                                            key={`${course.id}:${course.code}:${course.nameTh}:${course.nameEn}:${course.credits}`}
-                                            course={course}
-                                            onUpdate={onUpdateCourse}
-                                            onDelete={() => onDeleteCourse(course)}
-                                            disabled={disabled}
-                                        />
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* Pagination */}
-                <div className="course-pagination">
-                    <span className="course-pagination__info">
-                        หน้า {safeCurrentPage} / {totalPages}
-                    </span>
-                    <div className="course-pagination__buttons">
-                        <button
-                            className="course-btn course-btn--ghost course-btn--sm"
-                            onClick={() => handlePageChange(1)}
-                            disabled={safeCurrentPage === 1}
-                            title="หน้าแรก"
-                        >
-                            <ChevronFirst size={14} />
-                        </button>
-                        <button
-                            className="course-btn course-btn--ghost course-btn--sm"
-                            onClick={() => handlePageChange(safeCurrentPage - 1)}
-                            disabled={safeCurrentPage === 1}
-                            title="ย้อนกลับ"
-                        >
-                            <ChevronLeft size={14} /> ย้อนกลับ
-                        </button>
-                        <button
-                            className="course-btn course-btn--ghost course-btn--sm"
-                            onClick={() => handlePageChange(safeCurrentPage + 1)}
-                            disabled={safeCurrentPage === totalPages}
-                            title="ถัดไป"
-                        >
-                            ถัดไป <ChevronRight size={14} />
-                        </button>
-                        <button
-                            className="course-btn course-btn--ghost course-btn--sm"
-                            onClick={() => handlePageChange(totalPages)}
-                            disabled={safeCurrentPage === totalPages}
-                            title="หน้าสุดท้าย"
-                        >
-                            <ChevronLast size={14} />
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ============================================================
-// CourseRow — SpreadsheetRow style
-// ============================================================
-function CourseRow({ course, onUpdate, onDelete, disabled = false }) {
-    const [editing, setEditing] = useState(false);
-    const [form, setForm] = useState({
-        code: course.code || '',
-        nameTh: course.nameTh || '',
-        nameEn: course.nameEn || '',
-        credits: course.credits || 0,
-    });
-
-    const handleSave = async () => {
-        if (disabled || !form.code.trim() || !form.nameTh.trim()) return;
-        const result = await onUpdate({
-            ...course,
-            code: form.code.trim(),
-            nameTh: form.nameTh.trim(),
-            nameEn: form.nameEn.trim(),
-            credits: Number(form.credits) || 0,
-        });
-        if (result) {
-            setEditing(false);
-        }
-    };
-
-    const handleKey = (e) => {
-        if (e.key === 'Enter') handleSave();
-        if (e.key === 'Escape') {
-            setForm({ code: course.code || '', nameTh: course.nameTh || '', nameEn: course.nameEn || '', credits: course.credits || 0 });
-            setEditing(false);
-        }
-    };
-
-    const handleCellClick = () => {
-        if (!disabled) setEditing(true);
-    };
-
-    return (
-        <tr className={`ss-row ${editing ? 'ss-row--editing' : ''}`}>
-            <td className="ss-cell ss-cell--grip">
-                <GripVertical size={13} />
-            </td>
-            <td className="ss-cell" onClick={handleCellClick}>
-                {editing ? (
-                    <input
-                        className="ss-input"
-                        value={form.code}
-                        onChange={e => setForm(p => ({ ...p, code: e.target.value }))}
-                        onKeyDown={handleKey}
-                        placeholder="รหัสวิชา"
-                        disabled={disabled}
-                    />
-                ) : (
-                    <span className="ss-code">{course.code || <span className="ss-placeholder">รหัสวิชา</span>}</span>
-                )}
-            </td>
-            <td className="ss-cell ss-cell--wide" onClick={handleCellClick}>
-                {editing ? (
-                    <input
-                        className="ss-input"
-                        value={form.nameTh}
-                        onChange={e => setForm(p => ({ ...p, nameTh: e.target.value }))}
-                        onKeyDown={handleKey}
-                        placeholder="ชื่อวิชาภาษาไทย"
-                        disabled={disabled}
-                    />
-                ) : (
-                    <span>{course.nameTh || <span className="ss-placeholder">ชื่อภาษาไทย</span>}</span>
-                )}
-            </td>
-            <td className="ss-cell ss-cell--wide" onClick={handleCellClick}>
-                {editing ? (
-                    <input
-                        className="ss-input"
-                        value={form.nameEn}
-                        onChange={e => setForm(p => ({ ...p, nameEn: e.target.value }))}
-                        onKeyDown={handleKey}
-                        placeholder="English Name"
-                        disabled={disabled}
-                    />
-                ) : (
-                    <span>{course.nameEn || <span className="ss-placeholder">English Name</span>}</span>
-                )}
-            </td>
-            <td className="ss-cell ss-cell--num" onClick={handleCellClick}>
-                {editing ? (
-                    <input
-                        className="ss-input ss-input--num"
-                        type="number"
-                        min={0}
-                        max={12}
-                        value={form.credits}
-                        onChange={e => setForm(p => ({ ...p, credits: parseInt(e.target.value) || 0 }))}
-                        onKeyDown={handleKey}
-                        placeholder="0"
-                        disabled={disabled}
-                    />
-                ) : (
-                    <span>{course.credits || <span className="ss-placeholder">0</span>}</span>
-                )}
-            </td>
-            <td className="ss-cell ss-cell--actions" onClick={e => e.stopPropagation()}>
-                {editing ? (
-                    <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={handleSave} disabled={disabled || !form.code.trim() || !form.nameTh.trim()}>
-                        <Check size={13} />
-                    </button>
-                ) : (
-                    <button className="icon-course-btn icon-course-btn--edit icon-course-btn--xs" onClick={() => setEditing(true)} disabled={disabled}>
-                        <Pencil size={12} />
-                    </button>
-                )}
-                <button className="icon-course-btn icon-course-btn--danger icon-course-btn--xs" onClick={() => onDelete(course)} disabled={disabled}>
-                    <Trash2 size={12} />
-                </button>
-            </td>
-        </tr>
     );
 }

@@ -1,0 +1,173 @@
+.competency-management {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.competency-management__panel {
+    background: var(--course-card-bg);
+    border: 1px solid var(--course-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.competency-management__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border-bottom: 1px solid var(--course-border);
+}
+
+.competency-management__search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: min(420px, 100%);
+    padding: 0 0.75rem;
+    height: 40px;
+    border: 1px solid var(--course-form-input-border);
+    border-radius: 8px;
+    background: var(--course-form-input-bg);
+    color: var(--course-text-muted);
+}
+
+.competency-management__search input {
+    width: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--course-text);
+    font-size: 0.875rem;
+}
+
+.competency-management__count {
+    color: var(--course-text-muted);
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.competency-management__table-wrap {
+    overflow-x: auto;
+}
+
+.competency-management__table {
+    width: 100%;
+    min-width: 860px;
+    border-collapse: collapse;
+}
+
+.competency-management__table th,
+.competency-management__table td {
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--course-border);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.competency-management__table th {
+    color: var(--course-text-muted);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    background: rgba(148, 163, 184, 0.06);
+}
+
+.competency-management__table tr:last-child td {
+    border-bottom: 0;
+}
+
+.competency-management__code {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 0.5rem;
+    border-radius: 6px;
+    color: var(--course-accent);
+    background: rgba(59, 130, 246, 0.1);
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.competency-management__name {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    color: var(--course-text);
+}
+
+.competency-management__name span,
+.competency-management__description,
+.competency-management__hint {
+    color: var(--course-text-muted);
+    font-size: 0.8125rem;
+}
+
+.competency-management__description {
+    max-width: 320px;
+    line-height: 1.5;
+}
+
+.competency-management__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-height: 28px;
+    padding: 0 0.625rem;
+    border-radius: 999px;
+    color: #0f766e;
+    background: rgba(20, 184, 166, 0.12);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.competency-management__badge--locked {
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.14);
+}
+
+.competency-management__row-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.375rem;
+}
+
+.competency-management__empty {
+    height: 160px;
+    text-align: center !important;
+    color: var(--course-text-muted);
+}
+
+.competency-management__textarea {
+    min-height: 96px;
+    resize: vertical;
+    padding-top: 0.75rem;
+}
+
+.competency-management__confirm-text {
+    margin: 0;
+    color: var(--course-text);
+}
+
+.competency-management__spin {
+    animation: competency-management-spin 0.9s linear infinite;
+}
+
+@keyframes competency-management-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 768px) {
+    .competency-management__toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .competency-management__search {
+        width: 100%;
+    }
+}
