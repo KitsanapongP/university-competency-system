@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Edit3, Lock, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, X } from 'lucide-react';
+import { Edit3, Lock, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2 } from 'lucide-react';
 import {
     createCompetency,
     deleteCompetency,
@@ -9,6 +9,8 @@ import {
     updateCompetency,
 } from '../../../lib/competency-management';
 import ToastNotifications from '../../../components/ui/ToastNotifications';
+import BaseModal from '../../../components/ui/BaseModal';
+import ConfirmActionModal from '../../../components/ui/ConfirmActionModal';
 import '../curriculum-management/CourseLayout.css';
 import '../curriculum-management/CourseList.css';
 import './CompetencyManagement.css';
@@ -45,16 +47,24 @@ function CompetencyFormModal({ mode, form, setForm, submitting, onClose, onSubmi
     const canSubmit = String(form.code || '').trim() && String(form.nameTh || '').trim();
 
     return (
-        <div className="course-modal-overlay" onClick={onClose}>
-            <div className="course-modal-box course-modal-box--md" onClick={event => event.stopPropagation()}>
-                <div className="course-modal-header">
-                    <h3>{mode === 'edit' ? 'แก้ไขสมรรถนะ' : 'เพิ่มสมรรถนะใหม่'}</h3>
-                    <button className="course-modal-close" onClick={onClose} aria-label="ปิด">
-                        <X size={18} />
+        <BaseModal
+            open
+            title={mode === 'edit' ? 'แก้ไขสมรรถนะ' : 'เพิ่มสมรรถนะใหม่'}
+            size="md"
+            onClose={onClose}
+            closeDisabled={submitting}
+            footer={(
+                <>
+                    <button className="course-btn course-btn--ghost" onClick={onClose} disabled={submitting}>
+                        ยกเลิก
                     </button>
-                </div>
-
-                <div className="course-modal-body">
+                    <button className="course-btn course-btn--primary" onClick={onSubmit} disabled={submitting || !canSubmit}>
+                        <Save size={16} />
+                        {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
+                    </button>
+                </>
+            )}
+        >
                     <div className="course-row">
                         <label className="course-field">
                             <span className="course-label">รหัสสมรรถนะ<span className="course-required">*</span></span>
@@ -97,51 +107,23 @@ function CompetencyFormModal({ mode, form, setForm, submitting, onClose, onSubmi
                             rows={4}
                         />
                     </label>
-                </div>
-
-                <div className="course-modal-footer">
-                    <button className="course-btn course-btn--ghost" onClick={onClose} disabled={submitting}>
-                        ยกเลิก
-                    </button>
-                    <button className="course-btn course-btn--primary" onClick={onSubmit} disabled={submitting || !canSubmit}>
-                        <Save size={16} />
-                        {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
-                    </button>
-                </div>
-            </div>
-        </div>
+        </BaseModal>
     );
 }
 
 function DeleteCompetencyModal({ competency, submitting, onCancel, onConfirm }) {
     return (
-        <div className="course-modal-overlay" onClick={onCancel}>
-            <div className="course-modal-box course-modal-box--sm" onClick={event => event.stopPropagation()}>
-                <div className="course-modal-header">
-                    <h3>ลบสมรรถนะ</h3>
-                    <button className="course-modal-close" onClick={onCancel} aria-label="ปิด">
-                        <X size={18} />
-                    </button>
-                </div>
-                <div className="course-modal-body">
-                    <p className="competency-management__confirm-text">
-                        ยืนยันการลบสมรรถนะ <strong>{competency?.nameTh || competency?.code}</strong> หรือไม่?
-                    </p>
-                    <p className="competency-management__hint">
-                        ระบบจะลบแบบ Soft delete และซ่อนออกจากรายการใช้งานปกติ
-                    </p>
-                </div>
-                <div className="course-modal-footer">
-                    <button className="course-btn course-btn--ghost" onClick={onCancel} disabled={submitting}>
-                        ยกเลิก
-                    </button>
-                    <button className="course-btn course-btn--danger" onClick={onConfirm} disabled={submitting}>
-                        <Trash2 size={16} />
-                        {submitting ? 'กำลังลบ...' : 'ลบสมรรถนะ'}
-                    </button>
-                </div>
-            </div>
-        </div>
+        <ConfirmActionModal
+            open={Boolean(competency)}
+            title="ลบสมรรถนะ"
+            message={<>ยืนยันการลบสมรรถนะ <strong>{competency?.nameTh || competency?.code}</strong> หรือไม่?</>}
+            hint="ระบบจะลบแบบ Soft delete และซ่อนออกจากรายการใช้งานปกติ"
+            confirmLabel={submitting ? 'กำลังลบ...' : 'ลบสมรรถนะ'}
+            variant="danger"
+            loading={submitting}
+            onCancel={onCancel}
+            onConfirm={onConfirm}
+        />
     );
 }
 

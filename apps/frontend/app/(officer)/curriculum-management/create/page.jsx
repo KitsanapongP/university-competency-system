@@ -2,9 +2,11 @@
 
 import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { X, Check, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, AlertTriangle } from 'lucide-react';
+import { X, Check, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award } from 'lucide-react';
 import { createCurriculumFromForm, fetchCurriculums, fetchFaculties, fetchMajors } from '../../../../lib/curriculum';
 import { useLanguage } from '../../../../providers/LanguageContext';
+import ConfirmActionModal from '../../../../components/ui/ConfirmActionModal';
+import DuplicateCourseWarningModal from '../../../../components/ui/DuplicateCourseWarningModal';
 import CurriculumCourseEditorPanel from '../components/CurriculumCourseEditorPanel';
 import CurriculumStructureSidebar from '../components/CurriculumStructureSidebar';
 import '../../../../app/Competency.css';
@@ -967,106 +969,47 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                 />
             </div>
 
-            {courseDuplicateWarning && (
-                <div className="modal-overlay" onClick={() => setCourseDuplicateWarning(null)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <AlertTriangle size={24} className="modal-icon--warning" />
-                            <h3>{language === 'en' ? 'Duplicate Course Information' : 'ข้อมูลรายวิชาซ้ำ'}</h3>
-                        </div>
-                        <div className="modal-body">
-                            <p>
-                                {language === 'en'
-                                    ? 'This course has duplicate information. Please edit the duplicated fields before saving.'
-                                    : 'รายวิชานี้มีข้อมูลซ้ำ กรุณาแก้ไขข้อมูลที่ซ้ำก่อนบันทึก'}
-                            </p>
-                            <div className="modal-body__hint">
-                                {language === 'en' ? 'Duplicated fields: ' : 'ข้อมูลที่ซ้ำ: '}
-                                {courseDuplicateWarning.issues.join(', ')}
-                            </div>
-                        </div>
-                        <div className="modal-footer">
-                            <button
-                                className='course-form-nav__btn course-form-nav__btn--primary'
-                                onClick={() => setCourseDuplicateWarning(null)}
-                            >
-                                {language === 'en' ? 'OK' : 'รับทราบ'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <DuplicateCourseWarningModal
+                open={Boolean(courseDuplicateWarning)}
+                issues={courseDuplicateWarning?.issues || []}
+                language={language}
+                onClose={() => setCourseDuplicateWarning(null)}
+            />
 
             {/* Delete Confirmation Modal */}
-            {showDeleteModal && (
-                <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <AlertTriangle size={24} className="modal-icon--warning" />
-                            <h3>ยืนยันการลบวิชา</h3>
-                        </div>
-                        <div className="modal-body">
-                            <p>คุณแน่ใจหรือไม่ที่จะลบวิชาที่เลือก ({selectedCourseIds.size} วิชา)?</p>
-                            <p className="modal-body__hint">การลบวิชาจะไม่สามารถกู้คืนได้</p>
-                        </div>
-                        <div className="modal-footer">
-                            <button
-                                className='course-form-nav__btn course-form-nav__btn--secondary'
-                                onClick={() => setShowDeleteModal(false)}
-                            >
-                                ยกเลิก
-                            </button>
-                            <button
-                                className='course-form-nav__btn course-form-nav__btn--danger'
-                                onClick={handleDeleteSelectedCourses}
-                            >
-                                <Trash2 size={15} /> ยืนยันการลบ
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmActionModal
+                open={showDeleteModal}
+                title="ยืนยันการลบวิชา"
+                message={`คุณแน่ใจหรือไม่ที่จะลบวิชาที่เลือก (${selectedCourseIds.size} วิชา)?`}
+                hint="การลบวิชาจะไม่สามารถกู้คืนได้"
+                confirmLabel="ยืนยันการลบ"
+                variant="danger"
+                onCancel={() => setShowDeleteModal(false)}
+                onConfirm={handleDeleteSelectedCourses}
+            />
 
             {/* Delete Category Confirmation Modal */}
-            {showDeleteCategoryModal && categoryToDelete && (
-                <div className="modal-overlay" onClick={() => setShowDeleteCategoryModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <AlertTriangle size={24} className="modal-icon--warning" />
-                            <h3>ยืนยันการลบหมวดวิชา</h3>
-                        </div>
-                        <div className="modal-body">
-                            <p>คุณแน่ใจหรือไม่ที่จะลบหมวดวิชา "{categoryToDelete.code} {categoryToDelete.name || 'ยังไม่ตั้งชื่อ'}"?</p>
-                            {deleteCategoryPreview && (
-                                <div className="modal-body__impact">
-                                    <div>หมวดย่อยที่ได้รับผลกระทบ: {deleteCategoryPreview.affectedCategories.length} หมวด</div>
-                                    <div>รายวิชาที่ได้รับผลกระทบ: {deleteCategoryPreview.affectedCourses.length} วิชา</div>
-                                    {deleteCategoryPreview.moveTarget ? (
-                                        <div>รายวิชาจะถูกย้ายไปที่ "{deleteCategoryPreview.moveTarget.code} {deleteCategoryPreview.moveTarget.name || 'ยังไม่ตั้งชื่อ'}"</div>
-                                    ) : (
-                                        <div>ไม่มีหมวดปลายทาง รายวิชาจะถูกถอดออกจากโครงสร้างปัจจุบัน</div>
-                                    )}
-                                </div>
-                            )}
-                            <p className="modal-body__hint">หมวดนี้และหมวดย่อยทั้งหมดจะถูกลบ ส่วนรายวิชาจะถูกย้ายไปยังหมวดที่ใกล้ที่สุดโดยอัตโนมัติ หากไม่มีหมวดรองรับ รายวิชาจะไม่แสดงในโครงสร้างหลักสูตรนี้</p>
-                        </div>
-                        <div className="modal-footer">
-                            <button
-                                className='course-form-nav__btn course-form-nav__btn--secondary'
-                                onClick={() => setShowDeleteCategoryModal(false)}
-                            >
-                                ยกเลิก
-                            </button>
-                            <button
-                                className='course-form-nav__btn course-form-nav__btn--danger'
-                                onClick={confirmDeleteCategory}
-                            >
-                                <Trash2 size={15} /> ยืนยันการลบ
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmActionModal
+                open={showDeleteCategoryModal && Boolean(categoryToDelete)}
+                title="ยืนยันการลบหมวดวิชา"
+                message={categoryToDelete ? `คุณแน่ใจหรือไม่ที่จะลบหมวดวิชา "${categoryToDelete.code} ${categoryToDelete.name || 'ยังไม่ตั้งชื่อ'}"?` : ''}
+                impact={deleteCategoryPreview && (
+                    <>
+                        <div>หมวดย่อยที่ได้รับผลกระทบ: {deleteCategoryPreview.affectedCategories.length} หมวด</div>
+                        <div>รายวิชาที่ได้รับผลกระทบ: {deleteCategoryPreview.affectedCourses.length} วิชา</div>
+                        {deleteCategoryPreview.moveTarget ? (
+                            <div>รายวิชาจะถูกย้ายไปที่ "{deleteCategoryPreview.moveTarget.code} {deleteCategoryPreview.moveTarget.name || 'ยังไม่ตั้งชื่อ'}"</div>
+                        ) : (
+                            <div>ไม่มีหมวดปลายทาง รายวิชาจะถูกถอดออกจากโครงสร้างปัจจุบัน</div>
+                        )}
+                    </>
+                )}
+                hint="หมวดนี้และหมวดย่อยทั้งหมดจะถูกลบ ส่วนรายวิชาจะถูกย้ายไปยังหมวดที่ใกล้ที่สุดโดยอัตโนมัติ หากไม่มีหมวดรองรับ รายวิชาจะไม่แสดงในโครงสร้างหลักสูตรนี้"
+                confirmLabel="ยืนยันการลบ"
+                variant="danger"
+                onCancel={() => setShowDeleteCategoryModal(false)}
+                onConfirm={confirmDeleteCategory}
+            />
         </div>
     );
 }
@@ -1467,37 +1410,19 @@ function CreateCoursePageContent() {
                 </div>
 
                 {/* Cancel Confirmation Modal */}
-                {showCancelModal && (
-                    <div className="modal-overlay" onClick={() => setShowCancelModal(false)}>
-                        <div className="modal-content" onClick={e => e.stopPropagation()}>
-                            <div className="modal-header">
-                                <AlertTriangle size={24} className="modal-icon--warning" />
-                                <h3>ยืนยันการยกเลิก</h3>
-                            </div>
-                            <div className="modal-body">
-                                <p>คุณแน่ใจหรือไม่ที่จะยกเลิกการสร้างหลักสูตร?</p>
-                                <p className="modal-body__hint">ข้อมูลที่กรอกไว้ทั้งหมดจะหายไป</p>
-                            </div>
-                            <div className="modal-footer">
-                                <button
-                                    className='course-form-nav__btn course-form-nav__btn--secondary'
-                                    onClick={() => setShowCancelModal(false)}
-                                >
-                                    ยกเลิก
-                                </button>
-                                <button
-                                    className='course-form-nav__btn course-form-nav__btn--danger'
-                                    onClick={() => {
-                                        setShowCancelModal(false);
-                                        router.push('/curriculum-management');
-                                    }}
-                                >
-                                    ยืนยัน
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <ConfirmActionModal
+                    open={showCancelModal}
+                    title="ยืนยันการยกเลิก"
+                    message="คุณแน่ใจหรือไม่ที่จะยกเลิกการสร้างหลักสูตร?"
+                    hint="ข้อมูลที่กรอกไว้ทั้งหมดจะหายไป"
+                    confirmLabel="ยืนยัน"
+                    variant="danger"
+                    onCancel={() => setShowCancelModal(false)}
+                    onConfirm={() => {
+                        setShowCancelModal(false);
+                        router.push('/curriculum-management');
+                    }}
+                />
             </div>
         </div>
     );

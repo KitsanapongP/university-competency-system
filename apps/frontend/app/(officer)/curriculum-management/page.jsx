@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronRight, Layers, Award, AlertTriangle } from 'lucide-react';
+import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronRight, Layers, Award } from 'lucide-react';
 import {
     createCurriculumCategory,
     createCurriculumCourse,
@@ -22,8 +22,10 @@ import {
 import CourseFormModal from './components/CourseFormModal';
 import CurriculumCourseEditorPanel from './components/CurriculumCourseEditorPanel';
 import CurriculumStructureSidebar from './components/CurriculumStructureSidebar';
-import ConfirmDeleteModal from '../template-management/components/ConfirmDeleteModal';
 import ToastNotifications from '../../../components/ui/ToastNotifications';
+import BaseModal from '../../../components/ui/BaseModal';
+import ConfirmActionModal from '../../../components/ui/ConfirmActionModal';
+import DuplicateCourseWarningModal from '../../../components/ui/DuplicateCourseWarningModal';
 import './CourseLayout.css';
 import './CourseList.css';
 import './CourseEditor.css';
@@ -425,16 +427,24 @@ function DuplicateCurriculumModal({
         ];
 
     return (
-        <div className="course-modal-overlay" onClick={onClose}>
-            <div className="course-modal-box course-modal-box--md" onClick={e => e.stopPropagation()}>
-                <div className="course-modal-header">
-                    <h3>ทำสำเนาหลักสูตร</h3>
-                    <button className="course-modal-close" onClick={onClose} disabled={loading}>
-                        <X size={18} />
+        <BaseModal
+            open
+            title="ทำสำเนาหลักสูตร"
+            size="md"
+            onClose={onClose}
+            closeDisabled={loading}
+            footer={(
+                <>
+                    <button type="button" className="course-btn course-btn--ghost" onClick={onClose} disabled={loading}>
+                        ยกเลิก
                     </button>
-                </div>
-                <form onSubmit={onSubmit}>
-                    <div className="course-modal-body">
+                    <button type="submit" form="duplicate-curriculum-form" className="course-btn course-btn--primary" disabled={!canSubmit}>
+                        <Copy size={15} /> ทำสำเนา
+                    </button>
+                </>
+            )}
+        >
+                <form id="duplicate-curriculum-form" onSubmit={onSubmit}>
                         <div className="course-field">
                             <label className="course-label">หลักสูตรต้นฉบับ</label>
                             <input className="course-input" value={source.nameTh || ''} disabled />
@@ -492,18 +502,8 @@ function DuplicateCurriculumModal({
                                 disabled={loading}
                             />
                         </div>
-                    </div>
-                    <div className="course-modal-footer">
-                        <button type="button" className="course-btn course-btn--ghost" onClick={onClose} disabled={loading}>
-                            ยกเลิก
-                        </button>
-                        <button type="submit" className="course-btn course-btn--primary" disabled={!canSubmit}>
-                            <Copy size={15} /> ทำสำเนา
-                        </button>
-                    </div>
                 </form>
-            </div>
-        </div>
+        </BaseModal>
     );
 }
 
@@ -1362,31 +1362,11 @@ export default function CurriculumManagementPage() {
             ) : null}
 
             {/* Modals */}
-            {courseDuplicateWarning && (
-                <div className="modal-overlay" onClick={() => setCourseDuplicateWarning(null)}>
-                    <div className="modal-content" onClick={event => event.stopPropagation()}>
-                        <div className="modal-header">
-                            <AlertTriangle size={24} className="modal-icon--warning" />
-                            <h3>ข้อมูลรายวิชาซ้ำ</h3>
-                        </div>
-                        <div className="modal-body">
-                            <p>รายวิชานี้มีข้อมูลซ้ำ กรุณาแก้ไขข้อมูลที่ซ้ำก่อนบันทึก</p>
-                            <div className="modal-body__hint">
-                                ข้อมูลที่ซ้ำ: {courseDuplicateWarning.issues.join(', ')}
-                            </div>
-                        </div>
-                        <div className="modal-footer">
-                            <button
-                                type="button"
-                                className="course-form-nav__btn course-form-nav__btn--primary"
-                                onClick={() => setCourseDuplicateWarning(null)}
-                            >
-                                รับทราบ
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <DuplicateCourseWarningModal
+                open={Boolean(courseDuplicateWarning)}
+                issues={courseDuplicateWarning?.issues || []}
+                onClose={() => setCourseDuplicateWarning(null)}
+            />
 
             {showForm && (
                 <CourseFormModal
@@ -1408,23 +1388,29 @@ export default function CurriculumManagementPage() {
                 />
             )}
 
-            {deletingCourse && (
-                <ConfirmDeleteModal
-                    category={{ code: '', name: deletingCourse.nameTh }}
-                    label="หลักสูตร"
-                    onConfirm={handleConfirmDeleteCourse}
-                    onCancel={() => setDeletingCourse(null)}
-                />
-            )}
+            <ConfirmActionModal
+                open={Boolean(deletingCourse)}
+                title="ลบหลักสูตร"
+                message={<>ยืนยันการลบหลักสูตร <strong>{deletingCourse?.nameTh}</strong> หรือไม่?</>}
+                hint="ระบบจะลบแบบ Soft delete และซ่อนออกจากรายการใช้งานปกติ"
+                confirmLabel={operationLoading ? 'กำลังลบ...' : 'ลบหลักสูตร'}
+                variant="danger"
+                loading={operationLoading}
+                onConfirm={handleConfirmDeleteCourse}
+                onCancel={() => !operationLoading && setDeletingCourse(null)}
+            />
 
-            {deletingCategory && (
-                <ConfirmDeleteModal
-                    category={{ code: deletingCategory.code, name: deletingCategory.name }}
-                    label="หมวดวิชา"
-                    onConfirm={handleConfirmDeleteCategory}
-                    onCancel={() => setDeletingCategory(null)}
-                />
-            )}
+            <ConfirmActionModal
+                open={Boolean(deletingCategory)}
+                title="ลบหมวดวิชา"
+                message={<>ยืนยันการลบหมวดวิชา <strong>{deletingCategory ? `${deletingCategory.code} ${deletingCategory.name || ''}` : ''}</strong> หรือไม่?</>}
+                hint="รายวิชาในหมวดนี้จะถูกย้ายตามกฎของระบบก่อนลบหมวด"
+                confirmLabel={operationLoading ? 'กำลังลบ...' : 'ลบหมวดวิชา'}
+                variant="danger"
+                loading={operationLoading}
+                onConfirm={handleConfirmDeleteCategory}
+                onCancel={() => !operationLoading && setDeletingCategory(null)}
+            />
         </>
     );
 }

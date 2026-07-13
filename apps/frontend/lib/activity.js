@@ -76,6 +76,11 @@ export async function fetchActivities(filters = {}) {
     return unwrapData(response, []).map(mapActivity);
 }
 
+export async function fetchActivity(activityId) {
+    const response = await apiFetch(`/api/v1/activities/${activityId}`);
+    return mapActivity(unwrapData(response, null));
+}
+
 export async function fetchActivityOptions(filters = {}) {
     const query = buildQuery({
         faculty_id: filters.facultyId,

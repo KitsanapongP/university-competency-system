@@ -54,6 +54,11 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	activityHandler := &controllers.ActivityController{
 		Service: activitySvc,
 	}
+	activitySessionRepo := repositories.NewActivitySessionRepository(db)
+	activitySessionSvc := services.NewActivitySessionService(activitySessionRepo, activityRepo)
+	activitySessionHandler := &controllers.ActivitySessionController{
+		Service: activitySessionSvc,
+	}
 
 	curriculumRepo := repositories.NewCurriculumRepository(db)
 	curriculumSvc := services.NewCurriculumService(curriculumRepo)
@@ -86,10 +91,24 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				ar.Get("/", activityHandler.GetAll)
 				ar.Post("/", activityHandler.Create)
 				ar.Get("/options", activityHandler.GetOptions)
+				ar.Get("/{activity_id}/sessions", activitySessionHandler.GetByActivity)
+				ar.Post("/{activity_id}/sessions", activitySessionHandler.Create)
+				ar.Get("/{activity_id}/session-assignee-options", activitySessionHandler.GetAssigneeOptions)
 				ar.Get("/{activity_id}", activityHandler.GetByID)
 				ar.Patch("/{activity_id}", activityHandler.Update)
 				ar.Patch("/{activity_id}/status", activityHandler.UpdateStatus)
 				ar.Delete("/{activity_id}", activityHandler.Delete)
+			})
+
+			pr.Route("/sessions", func(sr chi.Router) {
+				sr.Use(middleware.RequireRoles("admin", "officer"))
+				sr.Get("/{session_id}", activitySessionHandler.GetByID)
+				sr.Patch("/{session_id}", activitySessionHandler.Update)
+				sr.Patch("/{session_id}/status", activitySessionHandler.UpdateStatus)
+				sr.Patch("/{session_id}/finalize", activitySessionHandler.Finalize)
+				sr.Delete("/{session_id}", activitySessionHandler.Delete)
+				sr.Put("/{session_id}/assignments", activitySessionHandler.ReplaceAssignments)
+				sr.Put("/{session_id}/competencies", activitySessionHandler.ReplaceCompetencies)
 			})
 
 			pr.With(middleware.RequireRoles("admin", "officer")).Get("/faculties", curriculumHandler.GetFaculties)

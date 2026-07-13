@@ -1,0 +1,385 @@
+.activity-session-page {
+    min-height: 100vh;
+    background: var(--course-bg);
+    color: var(--course-text);
+    padding: 1.5rem 8rem 3rem;
+    font-family: 'Sarabun', sans-serif;
+    box-sizing: border-box;
+}
+
+.activity-session-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: fit-content;
+    color: var(--course-text-muted);
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.activity-session-back:hover {
+    color: var(--course-accent);
+}
+
+.activity-session-shell {
+    display: grid;
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.activity-session-list,
+.activity-session-detail {
+    border: 1px solid var(--course-card-border);
+    border-radius: 8px;
+    background: var(--course-card-bg);
+    overflow: hidden;
+}
+
+.activity-session-list {
+    position: sticky;
+    top: 1rem;
+}
+
+.activity-session-list__header,
+.activity-session-detail__header,
+.activity-session-panel-toolbar,
+.activity-session-panel-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.activity-session-list__header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--course-border);
+}
+
+.activity-session-list__header > div,
+.activity-session-panel-toolbar > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.activity-session-list__header span,
+.activity-session-panel-toolbar span,
+.activity-session-panel-actions span,
+.activity-session-kicker,
+.activity-session-card__time,
+.activity-session-card__place,
+.activity-session-card__meta,
+.activity-session-detail__header p,
+.activity-session-detail__empty span {
+    color: var(--course-text-muted);
+    font-size: 0.8125rem;
+}
+
+.activity-session-lock-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.14);
+}
+
+.activity-session-list__items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    max-height: calc(100vh - 220px);
+    overflow-y: auto;
+    padding: 0.75rem;
+}
+
+.activity-session-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    width: 100%;
+    padding: 0.85rem;
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+    background: var(--course-form-input-bg);
+    color: var(--course-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.activity-session-card:hover,
+.activity-session-card--active {
+    border-color: var(--course-accent);
+    background: color-mix(in srgb, var(--course-form-input-bg) 78%, var(--course-accent) 22%);
+}
+
+.activity-session-card__top,
+.activity-session-card__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.activity-session-card__time,
+.activity-session-card__place,
+.activity-session-card__meta span,
+.activity-session-summary span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.activity-session-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    min-width: 88px;
+    padding: 0.32rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.activity-session-status--scheduled {
+    background: rgba(59, 130, 246, 0.14);
+    color: var(--course-accent-light);
+}
+
+.activity-session-status--completed {
+    background: rgba(34, 197, 94, 0.14);
+    color: #16a34a;
+}
+
+.activity-session-status--cancelled {
+    background: rgba(239, 68, 68, 0.14);
+    color: #ef4444;
+}
+
+.activity-session-detail__header {
+    flex-wrap: wrap;
+    padding: 1rem;
+    border-bottom: 1px solid var(--course-border);
+}
+
+.activity-session-detail__header h2,
+.activity-session-detail__header p {
+    margin: 0;
+}
+
+.activity-session-detail__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.activity-session-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid var(--course-border);
+    color: var(--course-text-muted);
+    font-size: 0.8125rem;
+}
+
+.activity-session-tabs {
+    display: flex;
+    gap: 0.35rem;
+    padding: 0.75rem 1rem 0;
+    border-bottom: 1px solid var(--course-border);
+}
+
+.activity-session-tab {
+    padding: 0.7rem 0.9rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--course-text-muted);
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.activity-session-tab:hover,
+.activity-session-tab--active {
+    color: var(--course-accent-light);
+    border-bottom-color: var(--course-accent);
+}
+
+.activity-session-tab-panel {
+    padding: 1rem;
+}
+
+.activity-session-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.activity-session-textarea {
+    min-height: 86px;
+    resize: vertical;
+    padding-top: 0.75rem;
+}
+
+.activity-session-check-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.activity-session-toggle-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.25rem;
+    color: var(--course-text-muted);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.activity-session-toggle-field input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--course-accent);
+}
+
+.activity-session-table-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.activity-session-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+}
+
+.activity-session-table {
+    width: 100%;
+    min-width: 820px;
+    border-collapse: collapse;
+}
+
+.activity-session-table th,
+.activity-session-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--course-border);
+    vertical-align: middle;
+}
+
+.activity-session-table th {
+    background: var(--course-ss-header-bg);
+    color: var(--course-text-muted);
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.activity-session-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.activity-session-table-empty {
+    height: 120px;
+    text-align: center;
+    color: var(--course-text-muted);
+}
+
+.activity-session-permission-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    min-width: 220px;
+}
+
+.activity-session-permission-list label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--course-text-muted);
+    font-size: 0.8125rem;
+    white-space: nowrap;
+}
+
+.activity-session-total-ok {
+    color: #16a34a !important;
+}
+
+.activity-session-total-warn {
+    color: #f59e0b !important;
+}
+
+.activity-session-panel-actions {
+    margin-top: 1rem;
+    justify-content: flex-end;
+}
+
+.activity-session-empty,
+.activity-session-detail__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.55rem;
+    min-height: 220px;
+    padding: 1rem;
+    color: var(--course-text-muted);
+    text-align: center;
+}
+
+.course-btn--danger {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.26);
+    color: #ef4444;
+}
+
+.course-btn--danger:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+@media (max-width: 1280px) {
+    .activity-session-page {
+        padding-inline: 2rem;
+    }
+}
+
+@media (max-width: 960px) {
+    .activity-session-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .activity-session-list {
+        position: static;
+    }
+
+    .activity-session-list__items {
+        max-height: none;
+    }
+}
+
+@media (max-width: 720px) {
+    .activity-session-page {
+        padding-inline: 1rem;
+    }
+
+    .activity-session-detail__actions,
+    .activity-session-panel-actions {
+        justify-content: stretch;
+    }
+
+    .activity-session-detail__actions .course-btn,
+    .activity-session-panel-actions .course-btn {
+        flex: 1 1 100%;
+    }
+}

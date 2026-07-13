@@ -1,8 +1,11 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarClock, Edit3, Eye, Lock, Megaphone, Plus, Power, RefreshCw, Save, Search, Trash2, X } from 'lucide-react';
+import Link from 'next/link';
+import { CalendarClock, Edit3, Eye, Lock, Megaphone, Plus, Power, RefreshCw, Save, Search, Trash2 } from 'lucide-react';
 import ToastNotifications from '../../../components/ui/ToastNotifications';
+import BaseModal from '../../../components/ui/BaseModal';
+import ConfirmActionModal from '../../../components/ui/ConfirmActionModal';
 import { useAuth } from '../../../providers/auth-provider';
 import {
     createActivity,
@@ -100,16 +103,24 @@ function ActivityFormModal({
         && !isReadOnly;
 
     return (
-        <div className="course-modal-overlay" onClick={onClose}>
-            <div className="course-modal-box course-modal-box--md" onClick={event => event.stopPropagation()}>
-                <div className="course-modal-header">
-                    <h3>{mode === 'edit' ? 'แก้ไขกิจกรรม' : 'เพิ่มกิจกรรมใหม่'}</h3>
-                    <button className="course-modal-close" onClick={onClose} aria-label="ปิด">
-                        <X size={18} />
+        <BaseModal
+            open
+            title={mode === 'edit' ? 'แก้ไขกิจกรรม' : 'เพิ่มกิจกรรมใหม่'}
+            size="md"
+            onClose={onClose}
+            closeDisabled={submitting}
+            footer={(
+                <>
+                    <button className="course-btn course-btn--ghost" onClick={onClose} disabled={submitting}>
+                        ยกเลิก
                     </button>
-                </div>
-
-                <div className="course-modal-body">
+                    <button className="course-btn course-btn--primary" onClick={onSubmit} disabled={submitting || !canSubmit}>
+                        <Save size={16} />
+                        {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
+                    </button>
+                </>
+            )}
+        >
                     <div className="activity-management__session-note">
                         <CalendarClock size={16} />
                         อาจารย์หรือวิทยากรจะกำหนดในรอบกิจกรรม (Session) ไม่ได้กำหนดในข้อมูลกิจกรรมหลัก
@@ -221,51 +232,23 @@ function ActivityFormModal({
                         />
                         <span>ต้องลงทะเบียนก่อนเข้าร่วมกิจกรรม</span>
                     </label>
-                </div>
-
-                <div className="course-modal-footer">
-                    <button className="course-btn course-btn--ghost" onClick={onClose} disabled={submitting}>
-                        ยกเลิก
-                    </button>
-                    <button className="course-btn course-btn--primary" onClick={onSubmit} disabled={submitting || !canSubmit}>
-                        <Save size={16} />
-                        {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
-                    </button>
-                </div>
-            </div>
-        </div>
+        </BaseModal>
     );
 }
 
 function DeleteActivityModal({ activity, submitting, onCancel, onConfirm }) {
     return (
-        <div className="course-modal-overlay" onClick={onCancel}>
-            <div className="course-modal-box course-modal-box--sm" onClick={event => event.stopPropagation()}>
-                <div className="course-modal-header">
-                    <h3>ลบกิจกรรม</h3>
-                    <button className="course-modal-close" onClick={onCancel} aria-label="ปิด">
-                        <X size={18} />
-                    </button>
-                </div>
-                <div className="course-modal-body">
-                    <p className="activity-management__confirm-text">
-                        ยืนยันการลบกิจกรรม <strong>{activity?.nameTh || activity?.code}</strong> หรือไม่?
-                    </p>
-                    <p className="activity-management__hint">
-                        ระบบจะลบแบบ Soft delete เฉพาะกิจกรรม Draft ที่ยังไม่มีรอบกิจกรรมเท่านั้น
-                    </p>
-                </div>
-                <div className="course-modal-footer">
-                    <button className="course-btn course-btn--ghost" onClick={onCancel} disabled={submitting}>
-                        ยกเลิก
-                    </button>
-                    <button className="course-btn course-btn--danger" onClick={onConfirm} disabled={submitting}>
-                        <Trash2 size={16} />
-                        {submitting ? 'กำลังลบ...' : 'ลบกิจกรรม'}
-                    </button>
-                </div>
-            </div>
-        </div>
+        <ConfirmActionModal
+            open={Boolean(activity)}
+            title="ลบกิจกรรม"
+            message={<>ยืนยันการลบกิจกรรม <strong>{activity?.nameTh || activity?.code}</strong> หรือไม่?</>}
+            hint="ระบบจะลบแบบ Soft delete เฉพาะกิจกรรม Draft ที่ยังไม่มีรอบกิจกรรมเท่านั้น"
+            confirmLabel={submitting ? 'กำลังลบ...' : 'ลบกิจกรรม'}
+            variant="danger"
+            loading={submitting}
+            onCancel={onCancel}
+            onConfirm={onConfirm}
+        />
     );
 }
 
@@ -637,6 +620,13 @@ export default function ActivityManagementPage() {
                                             </td>
                                             <td>
                                                 <div className="activity-row-actions">
+                                                    <Link
+                                                        className="course-icon-btn"
+                                                        href={`/activity-management/${activity.activityId}/sessions`}
+                                                        title="จัดการรอบกิจกรรม"
+                                                    >
+                                                        <CalendarClock size={16} />
+                                                    </Link>
                                                     <button
                                                         className="course-icon-btn"
                                                         onClick={() => openEditModal(activity)}

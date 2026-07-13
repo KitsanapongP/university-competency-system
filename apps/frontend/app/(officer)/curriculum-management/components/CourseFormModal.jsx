@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Check, ChevronRight, ChevronDown, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, FileText, Pencil, GripVertical } from 'lucide-react';
+import { Check, ChevronRight, ChevronDown, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, FileText, Pencil, GripVertical } from 'lucide-react';
+import BaseModal from '../../../../components/ui/BaseModal';
 import '../../template-management/TemplateManagement.css';
 
 // ============================================================
@@ -806,21 +807,13 @@ export default function CourseFormModal({ course, onClose, onSave }) {
     };
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-box modal-box--course-form" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh' }}>
-                <div className="modal-header">
-                    <h3>{course ? 'แก้ไขหลักสูตร' : 'สร้างหลักสูตรใหม่'}</h3>
-                    <button className="modal-close" onClick={onClose}><X size={18}/></button>
-                </div>
-                <div style={{ padding: '0.75rem 1.5rem 0' }}>
-                    <StepIndicator step={step}/>
-                </div>
-                <div className="modal-body" style={{ padding: '1rem 1.5rem', overflow: 'auto', flex: 1 }}>
-                    {step === 1 && <Step1 form={form} setForm={setForm}/>}
-                    {step === 2 && <Step2 form={form} setForm={setForm}/>}
-                    {step === 3 && <Step3 form={form}/>}
-                </div>
-                <div className="modal-footer">
+        <BaseModal
+            open
+            title={course ? 'แก้ไขหลักสูตร' : 'สร้างหลักสูตรใหม่'}
+            size="xl"
+            onClose={onClose}
+            footer={(
+                <>
                     {step === 1 ? (
                         <>
                             <button className="btn btn--ghost" onClick={onClose}>ยกเลิก</button>
@@ -847,8 +840,17 @@ export default function CourseFormModal({ course, onClose, onSave }) {
                             </button>
                         </>
                     )}
+                </>
+            )}
+        >
+                <div style={{ padding: '0.75rem 1.5rem 0' }}>
+                    <StepIndicator step={step}/>
                 </div>
-            </div>
-        </div>
+                <div style={{ padding: '1rem 1.5rem', overflow: 'auto', flex: 1 }}>
+                    {step === 1 && <Step1 form={form} setForm={setForm}/>}
+                    {step === 2 && <Step2 form={form} setForm={setForm}/>}
+                    {step === 3 && <Step3 form={form}/>}
+                </div>
+        </BaseModal>
     );
 }
