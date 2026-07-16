@@ -37,6 +37,20 @@ func (s *TemplateService) CreateTemplate(ctx context.Context, facultyID uint64, 
 	return s.Repo.CreateTemplate(ctx, facultyID, userID, req)
 }
 
+func (s *TemplateService) UpdateTemplateName(ctx context.Context, templateID uint64, req models.UpdateTemplateNameRequest) error {
+	t, err := s.Repo.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return err
+	}
+	if t == nil {
+		return errors.New("ไม่พบข้อมูล Template")
+	}
+	if req.Name == "" {
+		return errors.New("กรุณาระบุชื่อ Template ให้ถูกต้อง")
+	}
+	return s.Repo.UpdateTemplateName(ctx, templateID, req.Name)
+}
+
 func (s *TemplateService) UpdateTemplateStatus(ctx context.Context, templateID uint64, req models.UpdateTemplateStatusRequest) error {
 	t, err := s.Repo.GetTemplateByID(ctx, templateID)
 	if err != nil {
@@ -100,16 +114,32 @@ func (s *TemplateService) SaveTemplateItems(ctx context.Context, templateID uint
 		return errors.New("ไม่พบข้อมูล Template")
 	}
 
-	// Business Rule: ห้ามแก้ไขค่าน้ำหนักขณะที่ Template เป็น Active
+	// Business Rule: ห้ามแก้ไขค่าน้ำหนักหรือวิชาขณะที่ Template เป็น Active
 	if t.IsActive {
 		return errors.New("ไม่สามารถบันทึกค่าน้ำหนักได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข")
 	}
 
-	return s.Repo.SaveTemplateItems(ctx, templateID, req.Items)
+	// Business Rule: ตรวจสอบรหัสวิชาเพิ่มเติมไม่ให้ซ้ำกันเอง
+	codeMap := make(map[string]bool)
+	for _, c := range req.CustomCourses {
+		if c.Code == "" {
+			continue
+		}
+		if codeMap[c.Code] {
+			return fmt.Errorf("รหัสวิชา '%s' ซ้ำกันเองในรายการวิชาเพิ่มเติม", c.Code)
+		}
+		codeMap[c.Code] = true
+	}
+
+	return s.Repo.SaveTemplateItems(ctx, templateID, req)
 }
 
 func (s *TemplateService) GetTemplateItems(ctx context.Context, templateID uint64) ([]models.TemplateItem, error) {
 	return s.Repo.GetTemplateItems(ctx, templateID)
+}
+
+func (s *TemplateService) GetTemplateStructure(ctx context.Context, templateID uint64) (*models.TemplateStructureResponse, error) {
+	return s.Repo.GetTemplateStructure(ctx, templateID)
 }
 
 func (s *TemplateService) DeleteTemplate(ctx context.Context, templateID uint64) error {

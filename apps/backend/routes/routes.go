@@ -77,7 +77,6 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)
 			pr.Get("/competencies", competencyHandler.GetAll)
 
-			pr.With(middleware.RequireRoles("admin", "officer")).Get("/competencies", competencyHandler.GetAll)
 			pr.With(middleware.RequireRoles("admin", "officer")).Post("/competencies", competencyHandler.Create)
 			pr.With(middleware.RequireRoles("admin", "officer")).Patch("/competencies/{competency_id}", competencyHandler.Update)
 			pr.With(middleware.RequireRoles("admin", "officer")).Delete("/competencies/{competency_id}", competencyHandler.Delete)
@@ -119,9 +118,11 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				tr.Post("/", templateHandler.Create)
 				tr.Route("/{id}", func(tir chi.Router) {
 					tir.Get("/", templateHandler.GetByID)
+					tir.Patch("/", templateHandler.UpdateName)
 					tir.Patch("/status", templateHandler.UpdateStatus)
 					tir.Delete("/", templateHandler.Delete)
 					tir.Get("/items", templateHandler.GetItems)
+					tir.Get("/structure", templateHandler.GetStructure)
 					tir.Put("/items", templateHandler.SaveItems)
 				})
 			})

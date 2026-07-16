@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, Settings, SlidersHorizontal, BarChart3, Files } from 'lucide-react';
-import { fetchTemplates, deleteTemplate, updateTemplateStatus, fetchTemplateItems, createTemplate, saveTemplateItems } from '../../../lib/template';
+import { fetchTemplates, deleteTemplate, updateTemplateStatus, updateTemplateName, fetchTemplateItems, fetchTemplateStructure, createTemplate, saveTemplateItems } from '../../../lib/template';
 import { fetchCompetencies } from '../../../lib/competency';
 import { fetchCurriculumDetail } from '../../../lib/curriculum';
 import CategoryCoursePanel  from './components/CategoryCoursePanel';
@@ -68,7 +68,7 @@ function TemplateCard({ template, courseCount, onOpen, onDelete }) {
         ? template.academicYear 
         : 'ยังไม่กำหนด';
     const courseMasterDisplay = template.masterData 
-        ? `${template.masterData.name} (${template.masterData.year})`
+        ? `${template.masterData.name || template.masterData.nameTh || template.masterData.curriculum_name_th || ''} (${template.masterData.year || template.masterData.cohort_year_be || template.academicYear || ''})`
         : null;
     
     return (
@@ -112,7 +112,8 @@ export default function TemplateManagementPage() {
     const [titleVal,     setTitleVal]     = useState('');
 
     const [templates,    setTemplates]    = useState([]);
-    const [competencies, setCompetencies] = useState([]);
+    const [allCompetencies, setAllCompetencies] = useState([]);
+    const [competenciesByTemplate, setCompetenciesByTemplate] = useState({});
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [templateStatus, setTemplateStatus] = useState(true);
     const [selectedCategory, setSelectedCategory] = useState(null);
@@ -125,10 +126,11 @@ export default function TemplateManagementPage() {
     const [coursesByTemplate,  setCoursesByTemplate]  = useState({});
     const [weightsByTemplate,  setWeightsByTemplate]  = useState({});
 
-    const idRef       = useRef(9000);
-    const compIdRef   = useRef(8000);
-    const templateRef = useRef(7000);
-    const courseIdRef = useRef(5000);
+    const idRef       = useRef(50000);
+    const compIdRef      = useRef(8000);
+    const templateRef    = useRef(7000);
+    const courseIdRef    = useRef(50000);
+    const saveTimeoutRef = useRef(null);
 
     useEffect(() => {
         async function loadData() {
@@ -145,15 +147,17 @@ export default function TemplateManagementPage() {
                         name: c.name_th || c.name || '',
                         color: ['#ec4899','#3b82f6','#06b6d4','#f59e0b','#10b981','#8b5cf6','#ef4444','#f97316'][idx % 8],
                     }));
-                    setCompetencies(mappedComps);
+                    setAllCompetencies(mappedComps);
                 }
 
-                if (Array.isArray(tmplData)) {
-                    const mapped = tmplData.map(t => ({
+                const actualTmplData = Array.isArray(tmplData) ? tmplData : (tmplData?.data || []);
+                if (Array.isArray(actualTmplData)) {
+                    const mapped = actualTmplData.map(t => ({
                         ...t,
                         id: t.template_id || t.id,
                         academicYear: t.cohort_year_be || t.academicYear || 2568,
                         isActive: t.is_active !== undefined ? t.is_active : (t.isActive !== undefined ? t.isActive : true),
+                        totalCourseCount: t.total_course_count !== undefined ? t.total_course_count : (t.TotalCourseCount !== undefined ? t.TotalCourseCount : (t.mapped_course_count || 0)),
                         masterData: t.curriculum_name_th ? { id: t.curriculum_id, name: t.curriculum_name_th, year: t.cohort_year_be } : t.masterData,
                     }));
                     setTemplates(mapped);
@@ -169,6 +173,7 @@ export default function TemplateManagementPage() {
     const currentCategories      = selectedTemplate ? (categoriesByTemplate[selectedTemplate.id] || []) : [];
     const currentCoursesByCat    = selectedTemplate ? (coursesByTemplate[selectedTemplate.id] || {}) : {};
     const currentWeightsByCourse = selectedTemplate ? (weightsByTemplate[selectedTemplate.id] || {}) : {};
+    const currentCompetencies    = useMemo(() => selectedTemplate ? (competenciesByTemplate[selectedTemplate.id] || []) : [], [selectedTemplate, competenciesByTemplate]);
 
     const updateCurrentCategories = useCallback((updater) => {
         if (!selectedTemplate) return;
@@ -204,10 +209,146 @@ export default function TemplateManagementPage() {
     const courseCountMap = useMemo(() => {
         const m = {};
         templates.forEach(t => {
-            m[t.id] = Object.values(coursesByTemplate[t.id] || {}).reduce((s, a) => s + a.length, 0);
+            const loadedCount = Object.values(coursesByTemplate[t.id] || {}).reduce((s, a) => s + a.length, 0);
+            m[t.id] = loadedCount > 0 ? loadedCount : (t.totalCourseCount !== undefined ? t.totalCourseCount : (t.TotalCourseCount || 0));
         });
         return m;
     }, [templates, coursesByTemplate]);
+
+    useEffect(() => {
+        if (!selectedTemplate) return;
+        const id = selectedTemplate.id;
+        if (categoriesByTemplate[id] && categoriesByTemplate[id].length > 0) return;
+
+        let active = true;
+        const masterId = selectedTemplate.masterData?.id;
+
+        Promise.all([
+            masterId ? fetchCurriculumDetail(masterId) : Promise.resolve(null),
+            fetchTemplateStructure(id)
+        ])
+            .then(([detail, struct]) => {
+                if (!active) return;
+                const courseMap = {};
+                function convertCats(cats, courseMap) {
+                    return (cats || []).map((cat, i) => {
+                        const stableId = typeof cat.id === 'number' && cat.id < 5000 ? cat.id : (typeof cat.category_id === 'number' && cat.category_id < 5000 ? cat.category_id : ++idRef.current);
+                        const converted = {
+                            id: stableId,
+                            code: cat.code,
+                            name: cat.name || cat.nameTh || '',
+                            requiredCredits: cat.requiredCredits || 0,
+                            children: convertCats(cat.children || [], courseMap),
+                            isNew: false,
+                            fromMaster: true,
+                        };
+                        if (cat.courses?.length) {
+                            courseMap[stableId] = cat.courses.map(c => ({
+                                id: c.courseId || c.course_id || c.id || ++courseIdRef.current,
+                                courseId: c.courseId || c.course_id || c.id || courseIdRef.current,
+                                code: c.code,
+                                nameTh: c.nameTh || c.name || '',
+                                nameEn: c.nameEn || '',
+                                credits: c.credits || 0,
+                                fromMaster: true,
+                                isCoreCourse: c.isCoreCourse || false,
+                            }));
+                        }
+                        return converted;
+                    });
+                }
+                const cats = detail && detail.categories ? convertCats(detail.categories, courseMap) : [];
+
+                // Merge custom categories from struct
+                if (struct && struct.custom_categories) {
+                    struct.custom_categories.forEach(c => {
+                        const cid = c.template_category_id || c.id;
+                        const newCat = {
+                            id: cid,
+                            code: c.code || '',
+                            name: c.name || '',
+                            requiredCredits: 0,
+                            children: [],
+                            isNew: false,
+                            fromMaster: false,
+                        };
+                        const parentTargetId = c.curriculum_parent_id || c.parent_id;
+                        if (parentTargetId) {
+                            function attach(list) {
+                                for (let item of list) {
+                                    if (item.id === parentTargetId) {
+                                        item.children = [...(item.children || []), newCat];
+                                        return true;
+                                    }
+                                    if (item.children?.length && attach(item.children)) return true;
+                                }
+                                return false;
+                            }
+                            if (!attach(cats)) cats.push(newCat);
+                        } else {
+                            cats.push(newCat);
+                        }
+                    });
+                }
+
+                // Merge custom courses from struct
+                if (struct && struct.custom_courses) {
+                    struct.custom_courses.forEach(c => {
+                        const targetCatId = c.template_category_id || c.curriculum_category_id;
+                        if (targetCatId) {
+                            if (!courseMap[targetCatId]) courseMap[targetCatId] = [];
+                            courseMap[targetCatId].push({
+                                id: c.template_course_id || c.id,
+                                courseId: c.template_course_id || c.id,
+                                code: c.code,
+                                nameTh: c.name_th || c.nameTh || '',
+                                nameEn: c.name_en || c.nameEn || '',
+                                credits: c.credits || 0,
+                                fromMaster: false,
+                                isCoreCourse: false,
+                            });
+                        }
+                    });
+                }
+
+                const validCourseIds = new Set();
+                Object.values(courseMap).forEach(arr => {
+                    (arr || []).forEach(c => validCourseIds.add(c.id));
+                });
+
+                // Merge saved weights from struct.items
+                const weightMap = {};
+                if (struct && struct.items) {
+                    struct.items.forEach(it => {
+                        if (it.course_id && it.competency_id && it.weight !== null && it.weight !== undefined) {
+                            if (!validCourseIds.has(it.course_id)) return;
+                            if (!weightMap[it.course_id]) weightMap[it.course_id] = {};
+                            weightMap[it.course_id][it.competency_id] = it.weight;
+                        }
+                    });
+                }
+
+                const tplComps = (struct && struct.competencies && struct.competencies.length > 0)
+                    ? struct.competencies.map((sc, idx) => {
+                        const master = allCompetencies.find(c => c.id === (sc.id || sc.competency_id));
+                        return master || {
+                            id: sc.id || sc.competency_id,
+                            code: sc.code || `comp_${idx}`,
+                            name: sc.name_th || sc.name || '',
+                            color: ['#ec4899','#3b82f6','#06b6d4','#f59e0b','#10b981','#8b5cf6','#ef4444','#f97316'][idx % 8],
+                        };
+                    })
+                    : [];
+
+                setCategoriesByTemplate(p => ({ ...p, [id]: cats }));
+                setCoursesByTemplate(p => ({ ...p, [id]: courseMap }));
+                setWeightsByTemplate(p => ({ ...p, [id]: weightMap }));
+                setCompetenciesByTemplate(p => ({ ...p, [id]: tplComps }));
+            })
+            .catch(err => console.error('Failed to load template structure:', err));
+
+        return () => { active = false; };
+    }, [selectedTemplate, categoriesByTemplate, allCompetencies]);
 
     // ============================================================
     // Template handlers
@@ -227,14 +368,21 @@ export default function TemplateManagementPage() {
 
     const handleRequestDeleteTemplate = useCallback((t) => setDeletingTemplate(t), []);
 
-    const handleSaveTitle = useCallback(() => {
+    const handleSaveTitle = useCallback(async () => {
         const trimmed = titleVal.trim();
-        if (trimmed && selectedTemplate) {
-            setTemplates(p => p.map(t => t.id === selectedTemplate.id ? { ...t, name: trimmed } : t));
-            setSelectedTemplate(p => ({ ...p, name: trimmed }));
+        if (trimmed && selectedTemplate && trimmed !== selectedTemplate.name) {
+            try {
+                await updateTemplateName(selectedTemplate.id, trimmed);
+                setTemplates(p => p.map(t => t.id === selectedTemplate.id ? { ...t, name: trimmed } : t));
+                setSelectedTemplate(p => ({ ...p, name: trimmed }));
+            } catch (err) {
+                alert('ไม่สามารถเปลี่ยนชื่อ Template ได้: ' + (err.message || 'เกิดข้อผิดพลาด'));
+            }
         }
         setEditingTitle(false);
-    }, [titleVal, selectedTemplate]);    const handleConfirmDeleteTemplate  = useCallback(async () => {
+    }, [titleVal, selectedTemplate]);
+
+    const handleConfirmDeleteTemplate  = useCallback(async () => {
         if (!deletingTemplate) return;
         const id = deletingTemplate.id;
         try {
@@ -253,15 +401,21 @@ export default function TemplateManagementPage() {
 
     const handleSaveTemplate = useCallback(async ({ name, academicYear, masterData, competencyIds, newCompetencies }) => {
         let createdId = ++templateRef.current;
+        let actualCreated = null;
         try {
+            const existingCompIds = (competencyIds || []).filter(id => !(newCompetencies || []).some(nc => nc.id === id));
+            const formattedNewComps = (newCompetencies || []).map(nc => ({ name: nc.name, color: nc.color }));
             const payload = {
                 name,
                 faculty_id: 11,
                 cohort_year_be: Number(academicYear) || 2568,
-                curriculum_id: masterData ? masterData.id : null
+                curriculum_id: masterData ? masterData.id : null,
+                competency_ids: existingCompIds,
+                new_competencies: formattedNewComps
             };
             const created = await createTemplate(payload);
-            if (created && created.id) createdId = created.id;
+            actualCreated = created?.data || created;
+            if (actualCreated && (actualCreated.template_id || actualCreated.id)) createdId = actualCreated.template_id || actualCreated.id;
         } catch (err) {
             console.error('Create template API failed, falling back to local ID:', err);
         }
@@ -272,14 +426,15 @@ export default function TemplateManagementPage() {
             name, 
             year: academicYear || 2568, 
             academicYear,
-            masterData,
-            isActive: false
+            totalCourseCount: actualCreated?.total_course_count || actualCreated?.TotalCourseCount || (masterData?.total_courses || masterData?.course_count || 0),
+            masterData: masterData ? { ...masterData, name: masterData.name || masterData.nameTh || masterData.curriculum_name_th || '' } : null,
+            isActive: typeof actualCreated?.is_active === 'boolean' ? actualCreated.is_active : (typeof actualCreated?.isActive === 'boolean' ? actualCreated.isActive : true)
         };
         setTemplates(p => [...p, newTemplate]);
 
         // เพิ่ม competencies ใหม่ที่สร้างใน modal เข้า global state
         if (newCompetencies?.length) {
-            setCompetencies(p => {
+            setAllCompetencies(p => {
                 const existingIds = new Set(p.map(c => c.id));
                 const toAdd = newCompetencies.filter(c => !existingIds.has(c.id));
                 return toAdd.length ? [...p, ...toAdd] : p;
@@ -288,26 +443,38 @@ export default function TemplateManagementPage() {
 
         // ถ้ามี masterData → แปลง categories และ courses จาก master
         if (masterData) {
+            let currentMaster = masterData;
+            if (!currentMaster.categories || currentMaster.categories.length === 0) {
+                try {
+                    const detail = await fetchCurriculumDetail(currentMaster.id);
+                    if (detail) {
+                        currentMaster = { ...currentMaster, ...detail, name: detail.nameTh || detail.name || currentMaster.nameTh };
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch detail in save:', err);
+                }
+            }
             // แปลง master categories → format ที่ใช้ใน app
             function convertCats(cats, courseMap) {
-                return cats.map((cat, i) => {
-                    const newId = ++idRef.current;
+                return (cats || []).map((cat, i) => {
+                    const stableId = typeof cat.id === 'number' && cat.id < 5000 ? cat.id : (typeof cat.category_id === 'number' && cat.category_id < 5000 ? cat.category_id : ++idRef.current);
                     const converted = {
-                        id: newId,
+                        id: stableId,
                         code: cat.code,
-                        name: cat.name,
+                        name: cat.name || cat.nameTh || '',
                         requiredCredits: cat.requiredCredits || 0,
                         children: convertCats(cat.children || [], courseMap),
                         isNew: false,
                         fromMaster: true,  // ← mark ว่ามาจาก master
                     };
                     if (cat.courses?.length) {
-                        courseMap[newId] = cat.courses.map(c => ({
-                            id: ++courseIdRef.current,
+                        courseMap[stableId] = cat.courses.map(c => ({
+                            id: c.courseId || c.course_id || c.id || ++courseIdRef.current,
+                            courseId: c.courseId || c.course_id || c.id || courseIdRef.current,
                             code: c.code,
-                            nameTh: c.nameTh,
-                            nameEn: c.nameEn,
-                            credits: c.credits,
+                            nameTh: c.nameTh || c.name || '',
+                            nameEn: c.nameEn || '',
+                            credits: c.credits || 0,
                             fromMaster: true,
                             isCoreCourse: c.isCoreCourse || false,
                         }));
@@ -316,7 +483,7 @@ export default function TemplateManagementPage() {
                 });
             }
             const courseMap = {};
-            const cats = convertCats(masterData.categories, courseMap);
+            const cats = convertCats(currentMaster.categories, courseMap);
             setCategoriesByTemplate(p => ({ ...p, [id]: cats }));
             setCoursesByTemplate(p => ({ ...p, [id]: courseMap }));
         } else {
@@ -325,10 +492,12 @@ export default function TemplateManagementPage() {
 
         // set competencies ที่เลือก
         if (competencyIds?.length) {
-            setCompetencies(prev => {
-                const existing = new Set(prev.map(c => c.id));
+            setAllCompetencies(prev => {
                 const kept = prev.filter(c => competencyIds.includes(c.id));
-                return kept.length ? kept : prev.filter(c => competencyIds.includes(c.id));
+                const extra = (newCompetencies || []).filter(nc => competencyIds.includes(nc.id) && !kept.some(k => k.id === nc.id));
+                const selectedComps = [...kept, ...extra];
+                setCompetenciesByTemplate(p => ({ ...p, [id]: selectedComps }));
+                return prev;
             });
         }
 
@@ -339,6 +508,97 @@ export default function TemplateManagementPage() {
     }, []);
 
     // ============================================================
+    // Auto Save Helper
+    // ============================================================
+    const triggerAutoSaveToAPI = useCallback((tplId, nextCats, nextCoursesMap, nextWeightsMap) => {
+        if (!tplId) return;
+        const targetTpl = selectedTemplate?.id === tplId ? selectedTemplate : null;
+        if (targetTpl && targetTpl.isActive) {
+            console.warn('Skipping auto-save because template is Active.');
+            return;
+        }
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+        saveTimeoutRef.current = setTimeout(() => {
+            const activeCourseIds = new Set();
+            Object.values(nextCoursesMap || {}).forEach(arr => {
+                (arr || []).forEach(c => {
+                    if (c && c.id) activeCourseIds.add(c.id);
+                });
+            });
+
+            const items = [];
+            Object.entries(nextWeightsMap || {}).forEach(([cIdStr, compMap]) => {
+                const cId = Number(cIdStr);
+                if (!activeCourseIds.has(cId)) return;
+                let isCustom = false;
+                Object.values(nextCoursesMap || {}).forEach(arr => {
+                    (arr || []).forEach(c => {
+                        if (c.id === cId && !c.fromMaster) isCustom = true;
+                    });
+                });
+                Object.entries(compMap || {}).forEach(([cpId, w]) => {
+                    if (Number(w) > 0) {
+                        items.push({
+                            course_id: cId || 0,
+                            competency_id: Number(cpId) || 0,
+                            weight: Number(w) || 0,
+                            is_custom_course: isCustom
+                        });
+                    }
+                });
+            });
+
+            const custom_categories = [];
+            function traverseCats(arr, parentId = null, isParentMaster = true) {
+                (arr || []).forEach(c => {
+                    if (!c.fromMaster) {
+                        const isCurriParent = parentId !== null && (isParentMaster || parentId < 50000);
+                        custom_categories.push({
+                            template_category_id: typeof c.id === 'number' && c.id < 50000 ? 0 : (typeof c.id === 'number' ? c.id : 0),
+                            curriculum_parent_id: isCurriParent ? parentId : null,
+                            parent_id: (parentId !== null && !isCurriParent) ? parentId : null,
+                            code: c.code || '',
+                            name: c.name || '',
+                            display_order: custom_categories.length + 1,
+                            is_active: true
+                        });
+                    }
+                    traverseCats(c.children || [], typeof c.id === 'number' ? c.id : null, c.fromMaster);
+                });
+            }
+            traverseCats(nextCats || [], null, true);
+
+            const custom_courses = [];
+            Object.entries(nextCoursesMap || {}).forEach(([catIdStr, arr]) => {
+                const catId = Number(catIdStr);
+                const cat = findById(nextCats || [], catId);
+                const isCatMaster = cat?.fromMaster ?? true;
+                (arr || []).forEach((c, idx) => {
+                    if (!c.fromMaster && c.code && (c.nameTh || c.name)) {
+                        custom_courses.push({
+                            template_course_id: typeof c.id === 'number' && c.id < 50000 ? 0 : (typeof c.id === 'number' ? c.id : 0),
+                            curriculum_category_id: isCatMaster ? catId : null,
+                            template_category_id: !isCatMaster ? catId : null,
+                            code: c.code || '',
+                            name_th: c.nameTh || c.name || '',
+                            name_en: c.nameEn || '',
+                            credits: Number(c.credits) || 3,
+                            display_order: idx + 1,
+                            is_active: true
+                        });
+                    }
+                });
+            });
+
+            const tplCompIds = (competenciesByTemplate[tplId] || []).map(c => c.id);
+            saveTemplateItems(tplId, { items, custom_categories, custom_courses, competency_ids: tplCompIds }).catch(err => {
+                console.warn('Cannot auto-save or API notice:', err.message || err);
+            });
+        }, 500);
+    }, [competenciesByTemplate, selectedTemplate]);
+
+    // ============================================================
     // Category handlers
     // ============================================================
     const handleSelectCategory = useCallback((cat) => setSelectedCategory(cat), []);
@@ -346,13 +606,20 @@ export default function TemplateManagementPage() {
 
     // parentId = null → เพิ่มที่ root, parentId = id → เพิ่มเป็นลูกของ parent
     const handleCreateCategory = useCallback((parentId = selectedCategory?.id ?? null) => {
+        if (!selectedTemplate) return;
+        if (selectedTemplate.isActive) {
+            alert('ไม่สามารถเพิ่มหมวดวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            return;
+        }
         const newId = ++idRef.current;
         if (!parentId) {
             // เพิ่มที่ root level
             const code = getNextCode('', getDirectChildren(currentCategories, null));
-            const newCat = { id: newId, code, name: '', requiredCredits: 0, children: [], isNew: true };
-            updateCurrentCategories(p => [...p, newCat]);
+            const newCat = { id: newId, code, name: '', requiredCredits: 0, children: [], isNew: true, fromMaster: false };
+            const nextCats = [...currentCategories, newCat];
+            updateCurrentCategories(nextCats);
             setSelectedCategory(newCat);
+            triggerAutoSaveToAPI(selectedTemplate.id, nextCats, currentCoursesByCat, currentWeightsByCourse);
         } else {
             const parent = findById(currentCategories, parentId);
             if (!parent) return;
@@ -365,125 +632,145 @@ export default function TemplateManagementPage() {
                 alert(`หมวด "${parent.code} ${parent.name}" มีรายวิชาอยู่แล้ว ไม่สามารถสร้างหมวดย่อยได้`);
                 return;
             }
-            const existing = parentCourses;
             const code = getNextCode(parent.code, getDirectChildren(currentCategories, parentId));
-            const newCat = { id: newId, code, name: '', requiredCredits: 0, children: [], isNew: true };
-            if (existing.length > 0 && selectedTemplate) {
-                setCoursesByTemplate(p => {
-                    const tpl = p[selectedTemplate.id] || {};
-                    return { ...p, [selectedTemplate.id]: { ...tpl, [parentId]: [], [newId]: existing } };
-                });
-            }
-            updateCurrentCategories(p => insertChild(p, parentId, newCat));
+            const newCat = { id: newId, code, name: '', requiredCredits: 0, children: [], isNew: true, fromMaster: false };
+            let nextCoursesMap = currentCoursesByCat;
+            const nextCats = insertChild(currentCategories, parentId, newCat);
+            updateCurrentCategories(nextCats);
             setSelectedCategory(newCat);
+            triggerAutoSaveToAPI(selectedTemplate.id, nextCats, nextCoursesMap, currentWeightsByCourse);
         }
-    }, [selectedCategory, currentCategories, currentCoursesByCat, updateCurrentCategories, selectedTemplate]);
+    }, [selectedCategory, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCategories, selectedTemplate, triggerAutoSaveToAPI]);
 
     const handleRenameCategory = useCallback((id, name) => {
-        updateCurrentCategories(p => renameCategory(p, id, name || 'หมวดใหม่'));
-    }, [updateCurrentCategories]);
+        if (!selectedTemplate || selectedTemplate.isActive) return;
+        const nextCats = renameCategory(currentCategories, id, name || 'หมวดใหม่');
+        updateCurrentCategories(nextCats);
+        triggerAutoSaveToAPI(selectedTemplate.id, nextCats, currentCoursesByCat, currentWeightsByCourse);
+    }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCategories, triggerAutoSaveToAPI]);
 
     const handleReorderCategories = useCallback((newCats) => {
+        if (!selectedTemplate || selectedTemplate.isActive) return;
         updateCurrentCategories(newCats);
         setSelectedCategory(p => p ? findById(newCats, p.id) || null : null);
-    }, [updateCurrentCategories]);
+        triggerAutoSaveToAPI(selectedTemplate.id, newCats, currentCoursesByCat, currentWeightsByCourse);
+    }, [selectedTemplate, currentCoursesByCat, currentWeightsByCourse, updateCurrentCategories, triggerAutoSaveToAPI]);
 
-    const handleRequestDeleteCategory = useCallback((cat) => setDeletingCategory(cat), []);
+    const handleRequestDeleteCategory = useCallback((cat) => {
+        if (selectedTemplate?.isActive) {
+            alert('ไม่สามารถลบหมวดวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            return;
+        }
+        setDeletingCategory(cat);
+    }, [selectedTemplate]);
     const handleConfirmDeleteCategory  = useCallback(() => {
-        if (!deletingCategory || !selectedTemplate) return;
+        if (!deletingCategory || !selectedTemplate || selectedTemplate.isActive) return;
         const ids = collectIds(deletingCategory);
-        setCoursesByTemplate(p => {
-            const tpl = { ...p[selectedTemplate.id] };
-            ids.forEach(id => delete tpl[id]);
-            return { ...p, [selectedTemplate.id]: tpl };
+        const nextCoursesMap = { ...currentCoursesByCat };
+        const nextWeightsMap = { ...currentWeightsByCourse };
+        ids.forEach(id => {
+            const courses = nextCoursesMap[id] || [];
+            courses.forEach(c => delete nextWeightsMap[c.id]);
+            delete nextCoursesMap[id];
         });
-        updateCurrentCategories(p => removeCategory(p, deletingCategory.id));
+        setCoursesByTemplate(p => ({ ...p, [selectedTemplate.id]: nextCoursesMap }));
+        setWeightsByTemplate(p => ({ ...p, [selectedTemplate.id]: nextWeightsMap }));
+        const nextCats = removeCategory(currentCategories, deletingCategory.id);
+        updateCurrentCategories(nextCats);
         if (selectedCategory?.id === deletingCategory.id || isDescendantOf(deletingCategory, selectedCategory?.id)) {
             setSelectedCategory(null);
         }
         setDeletingCategory(null);
-    }, [deletingCategory, selectedTemplate, selectedCategory, updateCurrentCategories]);
+        triggerAutoSaveToAPI(selectedTemplate.id, nextCats, nextCoursesMap, nextWeightsMap);
+    }, [deletingCategory, selectedTemplate, selectedCategory, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCategories, triggerAutoSaveToAPI]);
 
     // ============================================================
     // Course handlers
     // ============================================================
     const handleAddCourse = useCallback((catId, data) => {
         if (!selectedTemplate) return;
-        const course = { id: ++courseIdRef.current, ...data };
-        updateCurrentCourses(p => ({ ...p, [catId]: [...(p[catId] || []), course] }));
-    }, [selectedTemplate, updateCurrentCourses]);
+        if (selectedTemplate.isActive) {
+            alert('ไม่สามารถเพิ่มรายวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            return;
+        }
+        const course = { id: ++courseIdRef.current, ...data, fromMaster: false };
+        const nextCoursesMap = { ...currentCoursesByCat, [catId]: [...(currentCoursesByCat[catId] || []), course] };
+        updateCurrentCourses(nextCoursesMap);
+        triggerAutoSaveToAPI(selectedTemplate.id, currentCategories, nextCoursesMap, currentWeightsByCourse);
+    }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCourses, triggerAutoSaveToAPI]);
 
     const handleUpdateCourse = useCallback((catId, updatedCourse) => {
-        updateCurrentCourses(p => ({
-            ...p,
-            [catId]: (p[catId] || []).map(c => c.id === updatedCourse.id ? updatedCourse : c),
-        }));
-    }, [updateCurrentCourses]);
+        if (!selectedTemplate || selectedTemplate.isActive) return;
+        const nextCoursesMap = {
+            ...currentCoursesByCat,
+            [catId]: (currentCoursesByCat[catId] || []).map(c => c.id === updatedCourse.id ? updatedCourse : c),
+        };
+        updateCurrentCourses(nextCoursesMap);
+        triggerAutoSaveToAPI(selectedTemplate.id, currentCategories, nextCoursesMap, currentWeightsByCourse);
+    }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCourses, triggerAutoSaveToAPI]);
 
     const handleReorderCourses = useCallback((catId, fromIdx, toIdx) => {
-        if (fromIdx === toIdx) return;
-        updateCurrentCourses(p => {
-            const list = [...(p[catId] || [])];
-            const [moved] = list.splice(fromIdx, 1);
-            list.splice(toIdx, 0, moved);
-            return { ...p, [catId]: list };
-        });
-    }, [updateCurrentCourses]);
+        if (fromIdx === toIdx || !selectedTemplate || selectedTemplate.isActive) return;
+        const list = [...(currentCoursesByCat[catId] || [])];
+        const [moved] = list.splice(fromIdx, 1);
+        list.splice(toIdx, 0, moved);
+        const nextCoursesMap = { ...currentCoursesByCat, [catId]: list };
+        updateCurrentCourses(nextCoursesMap);
+        triggerAutoSaveToAPI(selectedTemplate.id, currentCategories, nextCoursesMap, currentWeightsByCourse);
+    }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCourses, triggerAutoSaveToAPI]);
 
     const handleRequestDeleteCourse = useCallback((catId, course) => {
+        if (selectedTemplate?.isActive) {
+            alert('ไม่สามารถลบรายวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            return;
+        }
         setDeletingCourse({ ...course, _catId: catId });
-    }, []);
+    }, [selectedTemplate]);
 
     const handleConfirmDeleteCourse = useCallback(() => {
-        if (!deletingCourse || !selectedTemplate) return;
+        if (!deletingCourse || !selectedTemplate || selectedTemplate.isActive) return;
         const catId = deletingCourse._catId;
-        updateCurrentCourses(p => ({ ...p, [catId]: (p[catId] || []).filter(c => c.id !== deletingCourse.id) }));
-        setWeightsByTemplate(p => {
-            const tpl = { ...(p[selectedTemplate.id] || {}) };
-            delete tpl[deletingCourse.id];
-            return { ...p, [selectedTemplate.id]: tpl };
-        });
+        const nextCoursesMap = { ...currentCoursesByCat, [catId]: (currentCoursesByCat[catId] || []).filter(c => c.id !== deletingCourse.id) };
+        updateCurrentCourses(nextCoursesMap);
+        const nextWeightsMap = { ...currentWeightsByCourse };
+        delete nextWeightsMap[deletingCourse.id];
+        setWeightsByTemplate(p => ({ ...p, [selectedTemplate.id]: nextWeightsMap }));
         setDeletingCourse(null);
-    }, [deletingCourse, selectedTemplate, updateCurrentCourses]);
+        triggerAutoSaveToAPI(selectedTemplate.id, currentCategories, nextCoursesMap, nextWeightsMap);
+    }, [deletingCourse, selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCourses, triggerAutoSaveToAPI]);
 
     // ============================================================
     // Competency / Weight handlers
     // ============================================================
     const handleSetWeight = useCallback((courseId, compId, weight) => {
-        if (!selectedTemplate) return;
-        setWeightsByTemplate(p => {
-            const tpl    = p[selectedTemplate.id] || {};
-            const course = { ...(tpl[courseId] || {}), [compId]: weight };
-            const nextTpl = { ...tpl, [courseId]: course };
-
-            const items = [];
-            Object.entries(nextTpl).forEach(([cId, compMap]) => {
-                Object.entries(compMap || {}).forEach(([cpId, w]) => {
-                    if (Number(w) > 0) {
-                        items.push({
-                            course_id: Number(cId) || 0,
-                            competency_id: Number(cpId) || 0,
-                            weight: Number(w) || 0
-                        });
-                    }
-                });
-            });
-            saveTemplateItems(selectedTemplate.id, items).catch(err => {
-                console.error('Failed to save template items to API:', err);
-            });
-
-            return { ...p, [selectedTemplate.id]: nextTpl };
-        });
-    }, [selectedTemplate]);
+        if (!selectedTemplate || selectedTemplate.isActive) return;
+        const course = { ...(currentWeightsByCourse[courseId] || {}), [compId]: weight };
+        const nextWeightsMap = { ...currentWeightsByCourse, [courseId]: course };
+        setWeightsByTemplate(p => ({ ...p, [selectedTemplate.id]: nextWeightsMap }));
+        triggerAutoSaveToAPI(selectedTemplate.id, currentCategories, currentCoursesByCat, nextWeightsMap);
+    }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, triggerAutoSaveToAPI]);
 
     const handleAddCompetency = useCallback((name, color) => {
         const newComp = { id: ++compIdRef.current, code: `custom_${compIdRef.current}`, name, color, fromMaster: false };
-        setCompetencies(p => [...p, newComp]);
+        setAllCompetencies(p => [...p, newComp]);
+        if (selectedTemplate) {
+            setCompetenciesByTemplate(p => {
+                const cur = p[selectedTemplate.id] || [];
+                return { ...p, [selectedTemplate.id]: [...cur, newComp] };
+            });
+        }
         return newComp;
-    }, []);
+    }, [selectedTemplate]);
 
     const handleUpdateCompetency = useCallback((updated) => {
-        setCompetencies(p => p.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+        setAllCompetencies(p => p.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+        setCompetenciesByTemplate(p => {
+            const next = { ...p };
+            Object.keys(next).forEach(tplId => {
+                next[tplId] = (next[tplId] || []).map(c => c.id === updated.id ? { ...c, ...updated } : c);
+            });
+            return next;
+        });
     }, []);
 
     const handleToggleTemplateStatus = useCallback(async (newStatus) => {
@@ -501,12 +788,18 @@ export default function TemplateManagementPage() {
     }, [selectedTemplate]);
 
     const handleDeleteCompetency = useCallback((id) => {
-        setCompetencies(p => p.filter(c => c.id !== id));
+        setAllCompetencies(p => p.filter(c => c.id !== id));
+        if (selectedTemplate) {
+            setCompetenciesByTemplate(p => {
+                const cur = p[selectedTemplate.id] || [];
+                return { ...p, [selectedTemplate.id]: cur.filter(c => c.id !== id) };
+            });
+        }
         // ลบ weights ที่ผูกกับ competency นี้ออกด้วย
         setWeightsByTemplate(p => {
             const next = { ...p };
-            Object.keys(next).forEach(tplId => {
-                const tpl = { ...next[tplId] };
+            if (selectedTemplate && next[selectedTemplate.id]) {
+                const tpl = { ...next[selectedTemplate.id] };
                 Object.keys(tpl).forEach(courseId => {
                     if (tpl[courseId]?.[id] !== undefined) {
                         const w = { ...tpl[courseId] };
@@ -514,11 +807,11 @@ export default function TemplateManagementPage() {
                         tpl[courseId] = w;
                     }
                 });
-                next[tplId] = tpl;
-            });
+                next[selectedTemplate.id] = tpl;
+            }
             return next;
         });
-    }, []);
+    }, [selectedTemplate]);
 
     // ============================================================
     // Render
@@ -545,7 +838,7 @@ export default function TemplateManagementPage() {
                     {templates.length === 0 ? (
                         <div className="tpl-list-view__empty">
                             <BookOpenCheck size={48} opacity={0.2}/>
-                            <p>ยังไม่มี Template — กดปุ่ม "สร้าง Template ใหม่" เพื่อเริ่ม</p>
+                            <p>ยังไม่มี Template — กดปุ่ม &quot;สร้าง Template ใหม่&quot; เพื่อเริ่ม</p>
                             <button className="btn btn--primary" onClick={() => setShowTemplateModal(true)}>
                                 <Plus size={15}/> สร้าง Template ใหม่
                             </button>
@@ -571,7 +864,7 @@ export default function TemplateManagementPage() {
 
                 {/* Modals */}
                 {showTemplateModal && (
-                    <TemplateFormModal onClose={() => setShowTemplateModal(false)} onSave={handleSaveTemplate} allCompetencies={competencies} />
+                    <TemplateFormModal onClose={() => setShowTemplateModal(false)} onSave={handleSaveTemplate} allCompetencies={allCompetencies} />
                 )}
                 {deletingTemplate && (
                     <ConfirmDeleteModal
@@ -621,7 +914,7 @@ export default function TemplateManagementPage() {
 
                 <span className="editor-topbar__year">
                     {selectedTemplate?.masterData 
-                        ? `${selectedTemplate.masterData.name} (${selectedTemplate.masterData.year})`
+                        ? `${selectedTemplate.masterData.name || selectedTemplate.masterData.nameTh || selectedTemplate.masterData.curriculum_name_th || ''} (${selectedTemplate.masterData.year || selectedTemplate.masterData.cohort_year_be || selectedTemplate.academicYear || ''})`
                         : selectedTemplate?.academicYear 
                             ? `ปีการศึกษา ${selectedTemplate.academicYear}`
                             : 'ยังไม่กำหนด'}
@@ -652,7 +945,7 @@ export default function TemplateManagementPage() {
                     selectedCategory={selectedCategory}
                     coursesByCategoryId={currentCoursesByCat}
                     weightsByCourseId={currentWeightsByCourse}
-                    competencies={competencies}
+                    competencies={currentCompetencies}
                     creditMap={creditMap}
                     onSelectCategory={handleSelectCategory}
                     onDeselectCategory={handleDeselectCategory}
@@ -679,7 +972,7 @@ export default function TemplateManagementPage() {
                     selectedCategory={selectedCategory}
                     coursesByCategoryId={currentCoursesByCat}
                     weightsByCourseId={currentWeightsByCourse}
-                    competencies={competencies}
+                    competencies={currentCompetencies}
                     creditMap={creditMap}
                     onSelectCategory={handleSelectCategory}
                     onDeselectCategory={handleDeselectCategory}
@@ -704,7 +997,7 @@ export default function TemplateManagementPage() {
                     categories={currentCategories}
                     coursesByCategoryId={currentCoursesByCat}
                     weightsByCourseId={currentWeightsByCourse}
-                    competencies={competencies}
+                    competencies={currentCompetencies}
                     templateName={selectedTemplate?.name}
                     templateStatus={templateStatus}
                     academicYear={selectedTemplate?.academicYear ?? null}

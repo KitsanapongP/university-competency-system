@@ -20,6 +20,7 @@ type Template struct {
 	IsActive          bool      `json:"is_active"`
 	CompetencyCount   int       `json:"competency_count"`
 	MappedCourseCount int       `json:"mapped_course_count"`
+	TotalCourseCount  int       `json:"total_course_count"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
@@ -38,6 +39,34 @@ type TemplateItem struct {
 	Weight          *float64 `json:"weight"`
 	DisplayOrder    int      `json:"display_order"`
 	IsActive        bool     `json:"is_active"`
+	IsCustomCourse  bool     `json:"is_custom_course"`
+}
+
+// TemplateCategory represents a custom category created specifically inside a template
+type TemplateCategory struct {
+	TemplateCategoryID uint64  `json:"template_category_id,omitempty"`
+	TemplateID         uint64  `json:"template_id,omitempty"`
+	CurriculumParentID *uint64 `json:"curriculum_parent_id,omitempty"`
+	ParentID           *uint64 `json:"parent_id,omitempty"`
+	Code               *string `json:"code,omitempty"`
+	Name               string  `json:"name"`
+	DisplayOrder       int     `json:"display_order"`
+	IsActive           bool    `json:"is_active"`
+}
+
+// TemplateCourse represents a custom course (Template Additional Course) created inside a template
+type TemplateCourse struct {
+	TemplateCourseID     uint64  `json:"template_course_id,omitempty"`
+	TemplateID           uint64  `json:"template_id,omitempty"`
+	CurriculumCategoryID *uint64 `json:"curriculum_category_id,omitempty"`
+	TemplateCategoryID   *uint64 `json:"template_category_id,omitempty"`
+	Code                 string  `json:"code"`
+	NameTH               string  `json:"name_th"`
+	NameEN               *string `json:"name_en,omitempty"`
+	Credits              int     `json:"credits"`
+	Description          *string `json:"description,omitempty"`
+	DisplayOrder         int     `json:"display_order"`
+	IsActive             bool    `json:"is_active"`
 }
 
 // CreateCompetencyInput represents a new competency created inside the template wizard
@@ -57,17 +86,43 @@ type CreateTemplateRequest struct {
 
 // TemplateItemInput payload for mapping weights
 type TemplateItemInput struct {
-	CourseID     uint64  `json:"course_id"`
-	CompetencyID uint64  `json:"competency_id"`
-	Weight       float64 `json:"weight"`
+	CourseID       uint64  `json:"course_id"`
+	CompetencyID   uint64  `json:"competency_id"`
+	Weight         float64 `json:"weight"`
+	IsCustomCourse bool    `json:"is_custom_course"`
+}
+
+// TemplateCompetency represents a competency explicitly mapped or assigned to a template
+type TemplateCompetency struct {
+	CompetencyID uint64 `json:"id"`
+	Code         string `json:"code"`
+	NameTH       string `json:"name_th"`
+	NameEN       string `json:"name_en,omitempty"`
 }
 
 // UpdateTemplateItemsRequest payload for PUT /api/v1/templates/{id}/items
 type UpdateTemplateItemsRequest struct {
-	Items []TemplateItemInput `json:"items"`
+	Items            []TemplateItemInput `json:"items"`
+	CustomCategories []TemplateCategory  `json:"custom_categories,omitempty"`
+	CustomCourses    []TemplateCourse    `json:"custom_courses,omitempty"`
+	CompetencyIDs    []uint64            `json:"competency_ids,omitempty"`
+}
+
+// TemplateStructureResponse represents the complete template structure including custom items
+type TemplateStructureResponse struct {
+	Items            []TemplateItem       `json:"items"`
+	CustomCategories []TemplateCategory   `json:"custom_categories"`
+	CustomCourses    []TemplateCourse     `json:"custom_courses"`
+	Competencies     []TemplateCompetency `json:"competencies"`
 }
 
 // UpdateTemplateStatusRequest payload for PATCH /api/v1/templates/{id}/status
 type UpdateTemplateStatusRequest struct {
 	Status string `json:"status"` // "Active", "Inactive", "Draft"
 }
+
+// UpdateTemplateNameRequest payload for PATCH /api/v1/templates/{id}
+type UpdateTemplateNameRequest struct {
+	Name string `json:"name"`
+}
+

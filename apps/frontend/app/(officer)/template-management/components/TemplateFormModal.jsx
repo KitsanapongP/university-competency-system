@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search } from 'lucide-react';
-import { fetchCurriculums } from '../../../../lib/curriculum';
+import { fetchCurriculums, fetchCurriculumDetail } from '../../../../lib/curriculum';
 import { fetchCompetencies } from '../../../../lib/competency';
 
 // ============================================================
@@ -119,7 +119,7 @@ function AcademicYearSelector({ year, onChange }) {
 // ============================================================
 // Step 1 — ข้อมูลหลักสูตร + เลือก Curriculum Master
 // ============================================================
-function Step1({ form, setForm, masters = [], loadingMasters = false }) {
+function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false }) {
     const [search, setSearch] = useState('');
     const [previewId, setPreviewId] = useState(null);
 
@@ -132,8 +132,21 @@ function Step1({ form, setForm, masters = [], loadingMasters = false }) {
 
     const preview = masters.find(m => m.id === previewId);
 
-    const handleMasterSelect = (masterId) => {
-        const master = masterId ? masters.find(m => m.id === masterId) : null;
+    const handleMasterSelect = async (masterId) => {
+        let master = masterId ? masters.find(m => m.id === masterId) : null;
+        if (master && (!master.categories || master.categories.length === 0)) {
+            try {
+                const detail = await fetchCurriculumDetail(masterId);
+                if (detail) {
+                    master = { ...master, ...detail, name: detail.nameTh || detail.name || master.nameTh };
+                    if (setMasters) setMasters(prev => prev.map(m => m.id === masterId ? master : m));
+                }
+            } catch (err) {
+                console.error('Failed to fetch curriculum detail:', err);
+            }
+        } else if (master && !master.name) {
+            master.name = master.nameTh || master.name;
+        }
         const currentYear = new Date().getFullYear() + 543;
         const targetYear = master && master.year && Number(master.year) >= currentYear 
             ? Number(master.year) 
@@ -388,7 +401,7 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
 
     useEffect(() => {
         fetchCurriculums()
-            .then(data => setMasters(data || []))
+            .then(data => setMasters((data || []).map(m => ({ ...m, name: m.name || m.nameTh }))))
             .catch(err => {
                 console.error('Failed to load curriculums:', err);
                 setMasters([]);
@@ -448,7 +461,7 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
                     <StepIndicator step={step}/>
                 </div>
                 <div className="modal-body tfm-body">
-                    {step === 1 && <Step1 form={form} setForm={setForm} masters={masters} loadingMasters={loadingMasters}/>}
+                    {step === 1 && <Step1 form={form} setForm={setForm} masters={masters} setMasters={setMasters} loadingMasters={loadingMasters}/>}
                     {step === 2 && (
                         <Step2
                             form={form}

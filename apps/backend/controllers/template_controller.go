@@ -91,6 +91,28 @@ func (c *TemplateController) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (c *TemplateController) UpdateName(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid template id")
+		return
+	}
+
+	var req models.UpdateTemplateNameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json body")
+		return
+	}
+
+	err = c.Service.UpdateTemplateName(r.Context(), id, req)
+	if err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		return
+	}
+
+	utils.OK(w, map[string]interface{}{"success": true, "message": "อัปเดตชื่อ Template สำเร็จ"})
+}
+
 func (c *TemplateController) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
@@ -127,6 +149,22 @@ func (c *TemplateController) GetItems(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.OK(w, items)
+}
+
+func (c *TemplateController) GetStructure(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid template id")
+		return
+	}
+
+	structure, err := c.Service.GetTemplateStructure(r.Context(), id)
+	if err != nil {
+		utils.Error(w, http.StatusInternalServerError, "SERVER_ERROR", err.Error())
+		return
+	}
+
+	utils.OK(w, structure)
 }
 
 func (c *TemplateController) SaveItems(w http.ResponseWriter, r *http.Request) {
