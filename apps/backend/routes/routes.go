@@ -59,6 +59,11 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	activitySessionHandler := &controllers.ActivitySessionController{
 		Service: activitySessionSvc,
 	}
+	activitySessionWorkspaceRepo := repositories.NewActivitySessionWorkspaceRepository(db)
+	activitySessionWorkspaceSvc := services.NewActivitySessionWorkspaceService(activitySessionRepo, activitySessionWorkspaceRepo)
+	activitySessionWorkspaceHandler := &controllers.ActivitySessionWorkspaceController{
+		Service: activitySessionWorkspaceSvc,
+	}
 
 	curriculumRepo := repositories.NewCurriculumRepository(db)
 	curriculumSvc := services.NewCurriculumService(curriculumRepo)
@@ -109,6 +114,23 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				sr.Delete("/{session_id}", activitySessionHandler.Delete)
 				sr.Put("/{session_id}/assignments", activitySessionHandler.ReplaceAssignments)
 				sr.Put("/{session_id}/competencies", activitySessionHandler.ReplaceCompetencies)
+			})
+
+			// Participant, attendance, and scoring workspace. Assigned lecturers receive
+			// only the actions granted by their active session assignment.
+			pr.With(middleware.RequireRoles("admin", "officer", "lecturer")).Get("/my/activity-sessions", activitySessionWorkspaceHandler.GetMySessions)
+			pr.Route("/session-workspace", func(sw chi.Router) {
+				sw.Use(middleware.RequireRoles("admin", "officer", "lecturer"))
+				sw.Get("/{session_id}", activitySessionWorkspaceHandler.GetSession)
+				sw.Get("/{session_id}/participants", activitySessionWorkspaceHandler.GetParticipants)
+				sw.Get("/{session_id}/walk-in-candidates", activitySessionWorkspaceHandler.SearchWalkInCandidates)
+				sw.Post("/{session_id}/walk-ins", activitySessionWorkspaceHandler.AddWalkIn)
+				sw.Put("/{session_id}/attendance/{person_id}", activitySessionWorkspaceHandler.UpsertAttendance)
+				sw.Post("/{session_id}/attendance/mark-unrecorded-absent", activitySessionWorkspaceHandler.MarkUnrecordedAbsent)
+				sw.Get("/{session_id}/scores", activitySessionWorkspaceHandler.GetScores)
+				sw.Put("/{session_id}/scores", activitySessionWorkspaceHandler.SaveScores)
+				sw.Post("/{session_id}/scores/finalize", activitySessionWorkspaceHandler.FinalizeScores)
+				sw.Post("/{session_id}/score-corrections", activitySessionWorkspaceHandler.OpenCorrection)
 			})
 
 			pr.With(middleware.RequireRoles("admin", "officer")).Get("/faculties", curriculumHandler.GetFaculties)

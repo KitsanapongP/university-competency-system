@@ -1,5 +1,12 @@
 # Project Context: University Competency System
 
+## Session Attendance And Score Rules
+* **Session Setup Finalization:** `is_setup_finalized = 1` locks session configuration (time, location, assignments, and competency mapping). It does not block the lifecycle transition from `scheduled` to `completed` or `cancelled`.
+* **Score Finalization:** `scores_finalized_at` and `scores_finalized_by` lock attendance-derived scores and competency results after completion. Finalization requires setup lock, recorded attendance for every approved participant, and complete scores for all eligible participant-competency pairs.
+* **Attendance Source Of Truth:** `att_session_attendances` stores actual participation: `present`, `late`, `absent`, and `excused`. Registration is approval/admission only; APIs do not write legacy `checked_in` or `no_show` statuses.
+* **Score Correction:** An explicit reason opens one active `score_session_correction_logs` row per session. It sets `scores_recalculation_required = 1`, unlocks only attendance and session score records, then requires score finalization again to recompute and lock results.
+* **Session Score Roll-Up:** Session competency results are recomputed from source rows and combined with course competency scores for the learner's one active enrollment in the activity faculty. The system never incrementally adds a prior session result.
+
 ## Project Overview (โปรเจคนี้ทำอะไร และทำเพื่ออะไร)
 **University Competency System** เป็นระบบบริหารจัดการและประเมิน "สมรรถนะ (Competency)" ของนักศึกษาระดับมหาวิทยาลัย 
 *   **เป้าหมายหลัก:** เพื่อติดตามการสะสมทักษะของนักศึกษาตลอดการเรียนในหลักสูตร โดยอิงจากการได้มาซึ่งคะแนนสมรรถนะผ่านแต่ละรายวิชาที่ลงทะเบียนเรียน

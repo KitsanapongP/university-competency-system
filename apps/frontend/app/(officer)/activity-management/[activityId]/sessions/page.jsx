@@ -868,7 +868,7 @@ export default function ActivitySessionManagementPage() {
                                 >
                                     <div className="activity-session-card__top">
                                         <strong>ครั้งที่ {session.sessionNo}</strong>
-                                        <StatusBadge status={session.status} finalized={session.isFinalized} />
+                                    <StatusBadge status={session.status} finalized={session.isSetupFinalized} />
                                     </div>
                                     <span className="activity-session-card__time">
                                         <Clock size={13} />
@@ -907,7 +907,14 @@ export default function ActivitySessionManagementPage() {
                                     <p>{formatDateRange(selectedSession)}</p>
                                 </div>
                                 <div className="activity-session-detail__actions">
-                                    <StatusBadge status={selectedSummary?.status} finalized={selectedSummary?.isFinalized} />
+                                    <StatusBadge status={selectedSummary?.status} finalized={selectedSummary?.isSetupFinalized} />
+                                    <Link
+                                        className="course-btn course-btn--ghost"
+                                        href={`/activity-sessions/${selectedSession.sessionId}`}
+                                    >
+                                        <Users size={16} />
+                                        ผู้เข้าร่วมและคะแนน
+                                    </Link>
                                     <button
                                         className="course-btn course-btn--ghost"
                                         onClick={() => setConfirmAction({ type: 'complete', session: selectedSession })}

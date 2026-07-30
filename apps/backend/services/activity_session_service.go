@@ -96,12 +96,6 @@ func (s *ActivitySessionService) UpdateSessionStatus(ctx context.Context, sessio
 	if err := ensureActivityStatusAllowsSessionWrite(session.ActivityStatus); err != nil {
 		return nil, err
 	}
-	if session.IsFinalized {
-		return nil, ActivitySessionConflictError{
-			Code:    "SESSION_FINALIZED",
-			Message: "finalized session cannot be changed",
-		}
-	}
 	if session.Status != "scheduled" {
 		return nil, ActivitySessionConflictError{
 			Code:    "INVALID_SESSION_STATUS_TRANSITION",
@@ -132,10 +126,10 @@ func (s *ActivitySessionService) FinalizeSession(ctx context.Context, sessionID 
 	if err := ensureActivityStatusAllowsSessionWrite(session.ActivityStatus); err != nil {
 		return nil, err
 	}
-	if session.IsFinalized {
+	if session.IsSetupFinalized {
 		return nil, ActivitySessionConflictError{
-			Code:    "SESSION_FINALIZED",
-			Message: "session is already finalized",
+			Code:    "SESSION_SETUP_FINALIZED",
+			Message: "session setup is already finalized",
 		}
 	}
 	if session.Status == "cancelled" {
@@ -178,10 +172,10 @@ func (s *ActivitySessionService) DeleteSession(ctx context.Context, sessionID ui
 	if err := ensureActivityStatusAllowsSessionWrite(session.ActivityStatus); err != nil {
 		return err
 	}
-	if session.IsFinalized {
+	if session.IsSetupFinalized {
 		return ActivitySessionConflictError{
-			Code:    "SESSION_FINALIZED",
-			Message: "finalized session cannot be deleted",
+			Code:    "SESSION_SETUP_FINALIZED",
+			Message: "setup-finalized session cannot be deleted",
 		}
 	}
 	registrations, err := s.Repo.CountRegistrationsForSession(ctx, sessionID)
@@ -285,10 +279,10 @@ func (s *ActivitySessionService) getSessionForWrite(ctx context.Context, session
 	if err := ensureActivityStatusAllowsSessionWrite(session.ActivityStatus); err != nil {
 		return nil, err
 	}
-	if session.IsFinalized {
+	if session.IsSetupFinalized {
 		return nil, ActivitySessionConflictError{
-			Code:    "SESSION_FINALIZED",
-			Message: "finalized session cannot be changed",
+			Code:    "SESSION_SETUP_FINALIZED",
+			Message: "setup-finalized session cannot be changed",
 		}
 	}
 	if session.Status == "cancelled" {

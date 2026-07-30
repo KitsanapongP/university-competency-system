@@ -47,12 +47,15 @@ const MENU_CONFIG = {
         { id: 'users', icon: Users, labelKey: 'users' },
         { id: 'settings', icon: Settings, labelKey: 'settings' },
     ],
+    lecturer: [
+        { id: 'my-activity-sessions', icon: CalendarClock, label: 'รอบกิจกรรมของฉัน' },
+    ],
 };
 
 function resolveMenuItems(config, t) {
     return config.map(item => ({
         ...item,
-        label: t(item.labelKey),
+        label: item.label || t(item.labelKey),
     }));
 }
 

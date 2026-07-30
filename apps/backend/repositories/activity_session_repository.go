@@ -102,9 +102,10 @@ func (r *ActivitySessionRepository) CreateSession(ctx context.Context, activityI
 			require_checkout,
 			min_attendance_minutes,
 			status,
-			is_finalized
+			is_setup_finalized,
+			scores_recalculation_required
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', 0)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', 0, 0)
 	`, activityID, nextSessionNo, data.StartAt, data.EndAt, data.Timezone, data.LocationName, data.LocationDetail,
 		data.Latitude, data.Longitude, data.Capacity, data.RegistrationRequired, data.GradingMode, data.MaxRawScore,
 		data.PassThreshold, data.LateGraceMinutes, data.LatePenaltyFactor, data.RequireCheckout, data.MinAttendanceMinutes)
@@ -176,9 +177,9 @@ func (r *ActivitySessionRepository) UpdateSessionStatus(ctx context.Context, ses
 func (r *ActivitySessionRepository) FinalizeSession(ctx context.Context, sessionID uint64, userID int64) (*models.ActivitySession, error) {
 	result, err := r.DB.ExecContext(ctx, `
 		UPDATE act_sessions
-		SET is_finalized = 1,
-			finalized_at = NOW(),
-			finalized_by = ?,
+		SET is_setup_finalized = 1,
+			setup_finalized_at = NOW(),
+			setup_finalized_by = ?,
 			updated_at = NOW()
 		WHERE session_id = ?
 			AND deleted_at IS NULL
@@ -609,9 +610,12 @@ func activitySessionSelectQuery(whereClause string) string {
 			s.require_checkout,
 			s.min_attendance_minutes,
 			s.status,
-			s.is_finalized,
-			s.finalized_at,
-			s.finalized_by,
+			s.is_setup_finalized,
+			s.setup_finalized_at,
+			s.setup_finalized_by,
+			s.scores_finalized_at,
+			s.scores_finalized_by,
+			s.scores_recalculation_required,
 			COALESCE(assign_stats.assignment_count, 0) AS assignment_count,
 			COALESCE(comp_stats.competency_count, 0) AS competency_count,
 			COALESCE(comp_stats.percent_total, 0) AS competency_percent_total,
@@ -660,8 +664,10 @@ func scanActivitySession(scanner interface {
 	var capacity sql.NullInt64
 	var passThreshold sql.NullFloat64
 	var minAttendanceMinutes sql.NullInt64
-	var finalizedAt sql.NullTime
-	var finalizedBy sql.NullInt64
+	var setupFinalizedAt sql.NullTime
+	var setupFinalizedBy sql.NullInt64
+	var scoresFinalizedAt sql.NullTime
+	var scoresFinalizedBy sql.NullInt64
 	var deletedAt sql.NullTime
 
 	if err := scanner.Scan(
@@ -689,9 +695,12 @@ func scanActivitySession(scanner interface {
 		&session.RequireCheckout,
 		&minAttendanceMinutes,
 		&session.Status,
-		&session.IsFinalized,
-		&finalizedAt,
-		&finalizedBy,
+		&session.IsSetupFinalized,
+		&setupFinalizedAt,
+		&setupFinalizedBy,
+		&scoresFinalizedAt,
+		&scoresFinalizedBy,
+		&session.ScoresRecalculationRequired,
 		&session.AssignmentCount,
 		&session.CompetencyCount,
 		&session.CompetencyPercentTotal,
@@ -727,24 +736,31 @@ func scanActivitySession(scanner interface {
 		value := uint(minAttendanceMinutes.Int64)
 		session.MinAttendanceMinutes = &value
 	}
-	if finalizedAt.Valid {
-		session.FinalizedAt = &finalizedAt.Time
+	if setupFinalizedAt.Valid {
+		session.SetupFinalizedAt = &setupFinalizedAt.Time
 	}
-	if finalizedBy.Valid && finalizedBy.Int64 > 0 {
-		value := uint64(finalizedBy.Int64)
-		session.FinalizedBy = &value
+	if setupFinalizedBy.Valid && setupFinalizedBy.Int64 > 0 {
+		value := uint64(setupFinalizedBy.Int64)
+		session.SetupFinalizedBy = &value
+	}
+	if scoresFinalizedAt.Valid {
+		session.ScoresFinalizedAt = &scoresFinalizedAt.Time
+	}
+	if scoresFinalizedBy.Valid && scoresFinalizedBy.Int64 > 0 {
+		value := uint64(scoresFinalizedBy.Int64)
+		session.ScoresFinalizedBy = &value
 	}
 	if deletedAt.Valid {
 		session.DeletedAt = &deletedAt.Time
 	}
 
 	activityEditable := session.ActivityStatus == "draft" || session.ActivityStatus == "published"
-	locked := !activityEditable || session.IsFinalized || session.Status == "cancelled"
+	locked := !activityEditable || session.IsSetupFinalized || session.Status == "cancelled"
 	session.CanEdit = !locked
 	session.CanDelete = !locked && session.RegistrationCount == 0 && session.AttendanceCount == 0
-	session.CanFinalize = activityEditable && !session.IsFinalized && session.Status != "cancelled"
-	session.CanCancel = activityEditable && !session.IsFinalized && session.Status == "scheduled"
-	session.CanComplete = activityEditable && !session.IsFinalized && session.Status == "scheduled"
+	session.CanFinalize = activityEditable && !session.IsSetupFinalized && session.Status != "cancelled"
+	session.CanCancel = activityEditable && session.Status == "scheduled"
+	session.CanComplete = activityEditable && session.Status == "scheduled"
 
 	return &session, nil
 }

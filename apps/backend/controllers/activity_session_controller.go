@@ -286,6 +286,9 @@ func writeActivitySessionError(w http.ResponseWriter, err error) {
 		if strings.Contains(mysqlErr.Message, "uq_session_competency") {
 			message = "competency already exists in this session"
 		}
+		if strings.Contains(mysqlErr.Message, "uq_score_session_correction_open") {
+			message = "an open score correction already exists for this session"
+		}
 		utils.Error(w, http.StatusConflict, "DUPLICATE", message)
 		return
 	}

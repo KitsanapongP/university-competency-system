@@ -59,9 +59,12 @@ export function mapActivitySession(item) {
         requireCheckout: Boolean(item.require_checkout),
         minAttendanceMinutes: item.min_attendance_minutes,
         status: item.status || 'scheduled',
-        isFinalized: Boolean(item.is_finalized),
-        finalizedAt: item.finalized_at,
-        finalizedBy: item.finalized_by,
+        isSetupFinalized: Boolean(item.is_setup_finalized),
+        setupFinalizedAt: item.setup_finalized_at,
+        setupFinalizedBy: item.setup_finalized_by,
+        scoresFinalizedAt: item.scores_finalized_at,
+        scoresFinalizedBy: item.scores_finalized_by,
+        scoresRecalculationRequired: Boolean(item.scores_recalculation_required),
         assignmentCount: item.assignment_count || 0,
         competencyCount: item.competency_count || 0,
         competencyPercentTotal: Number(item.competency_percent_total || 0),
@@ -185,6 +188,11 @@ export async function fetchActivitySession(sessionId) {
     return mapActivitySession(unwrapData(response, null));
 }
 
+export async function fetchActivitySessionWorkspace(sessionId) {
+    const response = await apiFetch(`/api/v1/session-workspace/${sessionId}`);
+    return mapActivitySession(unwrapData(response, null));
+}
+
 export async function updateActivitySession(sessionId, form) {
     const response = await apiFetch(`/api/v1/sessions/${sessionId}`, {
         method: 'PATCH',
@@ -235,4 +243,114 @@ export async function replaceSessionCompetencies(sessionId, competencies) {
 export async function fetchSessionAssigneeOptions(activityId) {
     const response = await apiFetch(`/api/v1/activities/${activityId}/session-assignee-options`);
     return unwrapData(response, []).map(mapAssigneeOption);
+}
+
+function mapParticipant(item) {
+    return {
+        personId: item.person_id,
+        enrollmentId: item.enrollment_id,
+        studentCode: item.student_code || '',
+        nameTh: item.name_th || '',
+        nameEn: item.name_en || '',
+        registrationStatus: item.registration_status || '',
+        registrationSource: item.registration_source || '',
+        attendanceStatus: item.attendance_status || '',
+        checkinAt: item.checkin_at || '',
+        checkoutAt: item.checkout_at || '',
+        attendanceNotes: item.attendance_notes || '',
+        attendanceRecorded: Boolean(item.attendance_recorded),
+        eligibleForScoring: Boolean(item.eligible_for_scoring),
+        scoringIneligibilityReason: item.scoring_ineligibility_reason || '',
+        scores: (item.scores || []).map(score => ({
+            sessionCompetencyId: score.session_competency_id,
+            competencyId: score.competency_id,
+            competencyCode: score.competency_code || '',
+            competencyNameTh: score.competency_name_th || '',
+            maxPercent: Number(score.max_percent || 0),
+            rawScore: score.raw_score,
+            finalScore: score.final_score,
+            notes: score.notes || '',
+            gradingSource: score.grading_source || '',
+        })),
+    };
+}
+
+export async function fetchSessionParticipants(sessionId) {
+    const response = await apiFetch(`/api/v1/session-workspace/${sessionId}/participants`);
+    return unwrapData(response, []).map(mapParticipant);
+}
+
+export async function searchSessionWalkInCandidates(sessionId, query) {
+    const response = await apiFetch(`/api/v1/session-workspace/${sessionId}/walk-in-candidates?q=${encodeURIComponent(query || '')}`);
+    return unwrapData(response, []).map(item => ({
+        personId: item.person_id,
+        enrollmentId: item.enrollment_id,
+        studentCode: item.student_code || '',
+        nameTh: item.name_th || '',
+        nameEn: item.name_en || '',
+    }));
+}
+
+export async function addSessionWalkIn(sessionId, payload) {
+    return apiFetch(`/api/v1/session-workspace/${sessionId}/walk-ins`, {
+        method: 'POST',
+        body: JSON.stringify({
+            person_id: Number(payload.personId),
+            checkin_at: payload.checkinAt || '',
+            override_status: Boolean(payload.overrideStatus),
+            notes: toNullableString(payload.notes),
+        }),
+    });
+}
+
+export async function saveSessionAttendance(sessionId, personId, payload) {
+    return apiFetch(`/api/v1/session-workspace/${sessionId}/attendance/${personId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+            status: payload.status,
+            checkin_at: payload.checkinAt || '',
+            checkout_at: payload.checkoutAt || '',
+            override_status: Boolean(payload.overrideStatus),
+            notes: toNullableString(payload.notes),
+        }),
+    });
+}
+
+export async function markUnrecordedSessionParticipantsAbsent(sessionId) {
+    return apiFetch(`/api/v1/session-workspace/${sessionId}/attendance/mark-unrecorded-absent`, { method: 'POST' });
+}
+
+export async function fetchSessionScores(sessionId) {
+    const response = await apiFetch(`/api/v1/session-workspace/${sessionId}/scores`);
+    return unwrapData(response, []).map(mapParticipant);
+}
+
+export async function saveSessionScores(sessionId, scores) {
+    return apiFetch(`/api/v1/session-workspace/${sessionId}/scores`, {
+        method: 'PUT',
+        body: JSON.stringify({
+            scores: scores.map(score => ({
+                person_id: Number(score.personId),
+                session_competency_id: Number(score.sessionCompetencyId),
+                raw_score: score.rawScore === '' || score.rawScore === null || score.rawScore === undefined ? null : Number(score.rawScore),
+                notes: toNullableString(score.notes),
+            })),
+        }),
+    });
+}
+
+export async function finalizeSessionScores(sessionId) {
+    return apiFetch(`/api/v1/session-workspace/${sessionId}/scores/finalize`, { method: 'POST' });
+}
+
+export async function openSessionScoreCorrection(sessionId, reason) {
+    return apiFetch(`/api/v1/session-workspace/${sessionId}/score-corrections`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+    });
+}
+
+export async function fetchMyActivitySessions() {
+    const response = await apiFetch('/api/v1/my/activity-sessions');
+    return unwrapData(response, []).map(mapActivitySession);
 }
