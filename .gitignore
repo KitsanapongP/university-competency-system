@@ -86,3 +86,8 @@ change.patch
 backup_database
 backup_database_kku_competency_dump20260612.sql
 apps/backend/db/backup_migration
+
+# Local development artifacts
+apps/backend/tmp_build
+apps/frontend/next-dev.stdout.log
+apps/frontend/next-dev.stderr.log
