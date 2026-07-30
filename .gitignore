@@ -82,3 +82,7 @@ next-env.d.ts
 
 # patch
 change.patch
+
+backup_database
+backup_database_kku_competency_dump20260612.sql
+apps/backend/db/backup_migration
