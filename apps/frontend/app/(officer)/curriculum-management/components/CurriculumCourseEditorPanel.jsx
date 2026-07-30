@@ -229,6 +229,7 @@ export default function CurriculumCourseEditorPanel({
     onValidateCourse,
     onCourseDragStart,
     onCourseDragEnd,
+    onEditingStateChange,
 }) {
     const [editingCategoryName, setEditingCategoryName] = useState(false);
     const [categoryNameValue, setCategoryNameValue] = useState(category?.name || '');
@@ -243,6 +244,7 @@ export default function CurriculumCourseEditorPanel({
     const categoryId = category?.id ?? null;
     const isReadOnly = disabled || !canEdit || !category || isAllCoursesView;
     const canMutateCourses = !isReadOnly && isLeafCategory;
+    const hasActiveEdit = editingCategoryName || editingCourseId !== null || showAddCourse;
 
     useEffect(() => {
         setEditingCategoryName(false);
@@ -263,6 +265,12 @@ export default function CurriculumCourseEditorPanel({
             return next.size === current.size ? current : next;
         });
     }, [courses]);
+
+    useEffect(() => {
+        onEditingStateChange?.(hasActiveEdit);
+    }, [hasActiveEdit, onEditingStateChange]);
+
+    useEffect(() => () => onEditingStateChange?.(false), [onEditingStateChange]);
 
     const totalPages = Math.max(1, Math.ceil(courses.length / pageSize));
     const safeCurrentPage = Math.min(currentPage, totalPages);

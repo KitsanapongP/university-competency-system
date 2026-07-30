@@ -766,6 +766,7 @@ export default function CurriculumManagementPage() {
     const [draggedCategoryId, setDraggedCategoryId] = useState(null);
     const [draggedCourseId, setDraggedCourseId] = useState(null);
     const [dropTargetCategoryId, setDropTargetCategoryId] = useState(null);
+    const [isCourseEditorEditing, setIsCourseEditorEditing] = useState(false);
 
     useEffect(() => {
         const nextCategories = selectedCourse?.categories || [];
@@ -817,6 +818,11 @@ export default function CurriculumManagementPage() {
 
     const handleSelectCategory = useCallback((cat) => {
         setSelectedCategory(cat);
+        setShowAllCourses(false);
+    }, []);
+
+    const handleClearCurriculumSelection = useCallback(() => {
+        setSelectedCategory(null);
         setShowAllCourses(false);
     }, []);
 
@@ -1309,6 +1315,8 @@ export default function CurriculumManagementPage() {
                                 canEdit
                                 maxDepth={3}
                                 addDisabled={selectedCategory ? getCategoryDepth(selectedCategory, categories) >= 3 : false}
+                                clearSelectionDisabled={operationLoading || isCourseEditorEditing}
+                                onRequestClearSelection={handleClearCurriculumSelection}
                                 draggingCategoryId={draggedCategoryId}
                                 draggedCourseId={draggedCourseId}
                                 dropTargetCategoryId={dropTargetCategoryId}
@@ -1353,6 +1361,7 @@ export default function CurriculumManagementPage() {
                                 onValidateCourse={handleValidateCourseBeforeSave}
                                 onCourseDragStart={handleCourseDragStart}
                                 onCourseDragEnd={handleCourseDragEnd}
+                                onEditingStateChange={setIsCourseEditorEditing}
                                 canEdit={Boolean(selectedCategory) && !showAllCourses}
                                 disabled={operationLoading}
                             />

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronRight, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
 
 function collectCategoryIds(category) {
@@ -29,6 +29,19 @@ function getSubtreeDepth(category) {
     return Math.max(...category.children.map(child => 1 + getSubtreeDepth(child)));
 }
 
+function isTreeInteractionTarget(target) {
+    if (!(target instanceof Element)) return true;
+    return Boolean(target.closest([
+        'button',
+        'input',
+        'select',
+        'textarea',
+        'a',
+        '.curriculum-structure-row',
+        '.curriculum-structure-course',
+    ].join(', ')));
+}
+
 function CategoryTreeNode({
     category,
     depth = 0,
@@ -53,6 +66,7 @@ function CategoryTreeNode({
     onCourseCategoryDrop,
     onCourseDragStart,
     onCourseDragEnd,
+    onRenameStateChange,
 }) {
     const [expanded, setExpanded] = useState(true);
     const [renaming, setRenaming] = useState(category.isNew || false);
@@ -66,6 +80,11 @@ function CategoryTreeNode({
     useEffect(() => {
         if (!renaming) setNameValue(category.name || '');
     }, [category.name, renaming]);
+
+    useEffect(() => {
+        onRenameStateChange?.(category.id, renaming);
+        return () => onRenameStateChange?.(category.id, false);
+    }, [category.id, onRenameStateChange, renaming]);
 
     const hasChildren = (category.children || []).length > 0;
     const directCourses = coursesByCategory[category.id] || [];
@@ -237,6 +256,7 @@ function CategoryTreeNode({
                             onCourseCategoryDrop={onCourseCategoryDrop}
                             onCourseDragStart={onCourseDragStart}
                             onCourseDragEnd={onCourseDragEnd}
+                            onRenameStateChange={onRenameStateChange}
                         />
                     ))}
                 </div>
@@ -255,6 +275,7 @@ export default function CurriculumStructureSidebar({
     emptyText = 'กด "+ หมวดวิชา" เพื่อเริ่ม',
     showAllOption = false,
     disabled = false,
+    clearSelectionDisabled = false,
     canEdit = true,
     addDisabled = false,
     maxDepth = 3,
@@ -278,9 +299,40 @@ export default function CurriculumStructureSidebar({
     onCourseCategoryDrop,
     onCourseDragStart,
     onCourseDragEnd,
+    onRequestClearSelection,
 }) {
     const allCourses = Object.values(coursesByCategory).flat();
     const allCredits = allCourses.reduce((sum, course) => sum + (Number(course.credits) || 0), 0);
+    const renamingCategoryIdsRef = useRef(new Set());
+    const skipClearSelectionRef = useRef(false);
+
+    const handleRenameStateChange = useCallback((categoryId, isRenaming) => {
+        const next = new Set(renamingCategoryIdsRef.current);
+        if (isRenaming) {
+            next.add(categoryId);
+        } else {
+            next.delete(categoryId);
+        }
+        renamingCategoryIdsRef.current = next;
+    }, []);
+
+    const handleTreePointerDown = useCallback((event) => {
+        if (isTreeInteractionTarget(event.target)) {
+            skipClearSelectionRef.current = false;
+            return;
+        }
+        skipClearSelectionRef.current = clearSelectionDisabled || renamingCategoryIdsRef.current.size > 0;
+    }, [clearSelectionDisabled]);
+
+    const handleTreeClick = useCallback((event) => {
+        if (isTreeInteractionTarget(event.target)) return;
+        if (skipClearSelectionRef.current) {
+            skipClearSelectionRef.current = false;
+            return;
+        }
+        if (disabled || clearSelectionDisabled || renamingCategoryIdsRef.current.size > 0) return;
+        onRequestClearSelection?.();
+    }, [clearSelectionDisabled, disabled, onRequestClearSelection]);
 
     return (
         <div className="curriculum-structure-sidebar">
@@ -303,9 +355,8 @@ export default function CurriculumStructureSidebar({
                     'curriculum-structure-list',
                     dropTargetCategoryId === 'root' ? 'curriculum-structure-list--drop-target' : '',
                 ].filter(Boolean).join(' ')}
-                onClick={() => {
-                    if (!showAllOption) onSelectCategory?.(null);
-                }}
+                onPointerDown={handleTreePointerDown}
+                onClick={handleTreeClick}
                 onDragOver={onCategoryRootDragOver}
                 onDrop={onCategoryRootDrop}
             >
@@ -376,6 +427,7 @@ export default function CurriculumStructureSidebar({
                             onCourseCategoryDrop={onCourseCategoryDrop}
                             onCourseDragStart={onCourseDragStart}
                             onCourseDragEnd={onCourseDragEnd}
+                            onRenameStateChange={handleRenameStateChange}
                         />
                     ))
                 )}

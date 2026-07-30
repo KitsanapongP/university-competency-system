@@ -231,6 +231,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
     const [draggedCourseId, setDraggedCourseId] = useState(null);
     const [dropTargetCategoryId, setDropTargetCategoryId] = useState(null);
     const [courseDuplicateWarning, setCourseDuplicateWarning] = useState(null);
+    const [isCourseEditorEditing, setIsCourseEditorEditing] = useState(false);
 
     const MAX_CATEGORY_DEPTH = 3;
 
@@ -918,6 +919,8 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                         emptyText={'กด "+ หมวดวิชา" เพื่อเริ่ม'}
                         maxDepth={MAX_CATEGORY_DEPTH}
                         addDisabled={selectedCategory ? getCategoryDepth(selectedCategory, categories) >= MAX_CATEGORY_DEPTH : false}
+                        clearSelectionDisabled={isCourseEditorEditing}
+                        onRequestClearSelection={() => setSelectedCategory(null)}
                         draggingCategoryId={draggedCategoryId}
                         draggedCourseId={draggedCourseId}
                         dropTargetCategoryId={dropTargetCategoryId}
@@ -966,6 +969,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                     onValidateCourse={validateCourseBeforeSave}
                     onCourseDragStart={handleCourseDragStart}
                     onCourseDragEnd={handleCourseDragEnd}
+                    onEditingStateChange={setIsCourseEditorEditing}
                 />
             </div>
 
