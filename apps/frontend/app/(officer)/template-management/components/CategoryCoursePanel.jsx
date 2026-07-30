@@ -100,15 +100,15 @@ function AddCompetencyModal({ onAdd, onClose, existingColors = [] }) {
 // ============================================================
 function SpreadsheetRow({
     course, catId, competencies, weightMap,
-    onUpdate, onDelete, onSetWeight, isNew, hideEditActions=false, isSetupMode=false,
+    onUpdate, onDelete, onSetWeight, isNew, hideEditActions=false, isSetupMode=false, template,
 }) {
     const codeRef = useRef(null);
     useEffect(() => { if (isNew) codeRef.current?.focus(); }, [isNew]);
 
     const fromMaster = !!course.fromMaster;
-    const locked     = fromMaster || hideEditActions; // master ล็อคทุกอย่าง
+    const locked     = fromMaster || hideEditActions || template?.isActive; // master หรือ active ล็อคทุกอย่าง
 
-    const [editing, setEditing] = useState(!fromMaster && !!isNew);
+    const [editing, setEditing] = useState(!fromMaster && !!isNew && !template?.isActive);
     const [form, setForm] = useState({
         code: course.code||'', nameTh: course.nameTh||'',
         nameEn: course.nameEn||'', credits: course.credits||'',
@@ -197,13 +197,13 @@ function SpreadsheetRow({
                     return (
                         <td key={comp.id} className="ss-cell ss-cell--weight"
                             style={{ '--wc': comp.color }}>
-                            <div className={`ss-weight-wrap ${active ? 'ss-weight-wrap--active' : ''} ${!hasData ? 'ss-weight-wrap--locked' : ''}`}>
+                            <div className={`ss-weight-wrap ${active ? 'ss-weight-wrap--active' : ''} ${!hasData || template?.isActive ? 'ss-weight-wrap--locked' : ''}`}>
                                 <input
                                     className="ss-weight-input"
                                     type="number" min={0} max={100}
                                     value={Number(stored)}
-                                    disabled={!hasData}
-                                    title={!hasData ? 'กรอกข้อมูลวิชาก่อน' : `${comp.name} weight`}
+                                    disabled={!hasData || template?.isActive}
+                                    title={template?.isActive ? 'ล็อคการแก้ไข (Template สถานะ Active)' : !hasData ? 'กรอกข้อมูลวิชาก่อน' : `${comp.name} weight`}
                                     onFocus={e => e.target.select()}
                                     onChange={e => {
                                         const raw = e.target.value;
@@ -226,13 +226,15 @@ function SpreadsheetRow({
                                 <LockKeyhole size={12}/>
                             </span>
                         )
-                    ) : !hideEditActions && (
+                    ) : (
+                        /* Custom Course: แสดงปุ่มลบได้เสมอทุกหน้า */
                         <>
-                            {editing
-                                ? <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={handleSave}><Check size={13}/></button>
-                                : <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={() => setEditing(true)}><Pencil size={12}/></button>
-                            }
-                            <button className="icon-btn icon-btn--danger icon-btn--xs" onClick={() => onDelete(catId, course)}>
+                            {!locked && (
+                                editing
+                                    ? <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={handleSave}><Check size={13}/></button>
+                                    : <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={() => setEditing(true)}><Pencil size={12}/></button>
+                            )}
+                            <button className="icon-btn icon-btn--danger icon-btn--xs" onClick={() => onDelete(catId, course)} title="ลบรายวิชา">
                                 <Trash2 size={12}/>
                             </button>
                         </>
@@ -249,7 +251,7 @@ function SpreadsheetRow({
 function CourseSpreadsheet({
     catId, courses, competencies, weightsByCourseId,
     onAddCourse, onUpdateCourse, onDeleteCourse, onSetWeight,
-    hideEditActions=false, isSetupMode=false,
+    hideEditActions=false, isSetupMode=false, template,
 }) {
     const colCount = 1 + 1 + 2 + 1 + (isSetupMode ? 0 : competencies.length) + 1;
 
@@ -277,7 +279,7 @@ function CourseSpreadsheet({
                     <tbody>
                         {courses.length === 0 && (
                             <tr><td colSpan={colCount} className="ss-empty">
-                                ยังไม่มีรายวิชา — กดปุ่ม "+ เพิ่มรายวิชา" ด้านบน
+                                ยังไม่มีรายวิชา — กดปุ่ม &quot;+ เพิ่มรายวิชา&quot; ด้านบน
                             </td></tr>
                         )}
                         {courses.map((course, i) => (
@@ -293,6 +295,7 @@ function CourseSpreadsheet({
                                 isNew={i === courses.length - 1 && !course.code && !course.nameTh}
                                 hideEditActions={hideEditActions}
                                 isSetupMode={isSetupMode}
+                                template={template}
                             />
                         ))}
                     </tbody>
@@ -366,7 +369,7 @@ function GlobalCompSummary({ categories, coursesByCategoryId, weightsByCourseId,
 function AllCategoriesView({
     categories, coursesByCategoryId, competencies, weightsByCourseId,
     onAddCourse, onUpdateCourse, onDeleteCourse, onSetWeight,
-    scrollToCatId, hideEditActions=false, isSetupMode=false,
+    scrollToCatId, hideEditActions=false, isSetupMode=false, template,
 }) {
     const sectionRefs = useRef({});
     const sections = collectLeafSections(categories, coursesByCategoryId);
@@ -382,7 +385,7 @@ function AllCategoriesView({
         return (
             <div className="panel-empty" style={{padding:'3rem'}}>
                 <BookOpen size={24} opacity={0.3}/>
-                <span>ยังไม่มีหมวดวิชา — กด "+ หมวดวิชา" เพื่อเริ่ม</span>
+                <span>ยังไม่มีหมวดวิชา — กด &quot;+ หมวดวิชา&quot; เพื่อเริ่ม</span>
             </div>
         );
     }
@@ -418,8 +421,7 @@ function AllCategoriesView({
                                             <span className="cat-section__code">{cat.code}</span>
                                             <span className="cat-section__name">{cat.name || <em style={{color:'#475569'}}>ยังไม่ตั้งชื่อ</em>}</span>
                                             <span className="cat-section__path">{path}</span>
-                                            {/* เพิ่มวิชาใหม่ได้เสมอ (ไม่ใช่ master course) */}
-                                            {!hideEditActions && (
+                                            {!template?.isActive && (
                                                 <button className="btn btn--primary btn--sm cat-section__add-btn"
                                                     onClick={() => onAddCourse(cat.id, { code:'', nameTh:'', nameEn:'', credits:0 })}>
                                                     <Plus size={12}/> เพิ่มรายวิชา
@@ -449,6 +451,7 @@ function AllCategoriesView({
                                             isNew={i === courses.length - 1 && !course.code && !course.nameTh}
                                             hideEditActions={hideEditActions}
                                             isSetupMode={isSetupMode}
+                                            template={template}
                                         />
                                     ))
                                 )}
@@ -513,9 +516,9 @@ function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, on
 
                 <div className="tree-item__actions" onClick={e => e.stopPropagation()}>
                     {fromMaster ? (
-                        /* Master: ล็อค icon + ยังอนุญาตให้เพิ่มหมวดย่อยใหม่ได้ */
+                        /* Master: ล็อค icon + อนุญาตให้เพิ่มหมวดย่อยได้เฉพาะถ้ายังไม่มีรายวิชาอยู่ข้างใน */
                         <>
-                            {depth < 3 && hideActions && (
+                            {depth < 3 && courseCount === 0 && (
                                 <button className="icon-btn icon-btn--xs"
                                     title="เพิ่มหมวดย่อยใหม่ (ไม่ใช่ Master)"
                                     onClick={() => onCreateChild(cat)}>
@@ -526,10 +529,10 @@ function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, on
                                 <LockKeyhole size={12}/>
                             </span>
                         </>
-                    ) : !hideActions && (
-                        /* Non-master: ปุ่มเพิ่มหมวดย่อย + ปุ่มลบ */
+                    ) : (
+                        /* Non-master (Custom Category): ปุ่มเพิ่มหมวดย่อย (ถ้ายังไม่มีวิชา) + ปุ่มลบเสมอทุกหน้า */
                         <>
-                            {depth < 2 && (
+                            {depth < 2 && courseCount === 0 && (
                                 <button className="icon-btn icon-btn--xs"
                                     title="เพิ่มหมวดย่อย"
                                     onClick={() => onCreateChild(cat)}>
@@ -537,6 +540,7 @@ function TreeItem({ cat, depth=0, selectedId, coursesByCategoryId, creditMap, on
                                 </button>
                             )}
                             <button className="icon-btn icon-btn--danger icon-btn--xs"
+                                title="ลบหมวดวิชา"
                                 onClick={() => onDelete(cat)}>
                                 <Trash2 size={12}/>
                             </button>
@@ -591,24 +595,36 @@ export default function CategoryCoursePanel({
             {!template ? (
                 <div className="panel-empty">เลือก Template ก่อน</div>
             ) : (
-                <div className="ccp-body">
+                <div className="ccp-body" style={{ flexDirection: 'column' }}>
+                    {template?.isActive && (
+                        <div className="ccp-active-warning" style={{
+                            display: 'flex', alignItems: 'center', gap: '0.6rem',
+                            background: '#fef2f2', border: '1px solid #f87171', color: '#b91c1c',
+                            padding: '0.75rem 1rem', margin: '0.75rem 1rem 0 1rem', borderRadius: '8px',
+                            fontSize: '0.9rem', fontWeight: 500, flexShrink: 0
+                        }}>
+                            <TriangleAlert size={18} style={{ flexShrink: 0 }} />
+                            <span>⚠️ <b>Template มีสถานะพร้อมใช้งาน (Active)</b> : ระบบล็อคการแก้ไขค่าน้ำหนักและโครงสร้างรายวิชา กรุณาเปลี่ยนสถานะเป็น <b>&quot;ปิดใช้งาน&quot;</b> ที่แท็บ &quot;ภาพรวมสมรรถนะ&quot; ก่อนแก้ไขข้อมูล</span>
+                        </div>
+                    )}
+                    <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                     {/* ── Tree sidebar ── */}
                     <div className="ccp-tree">
                         <div className="ccp-tree__header">
                             <span>โครงสร้างหมวดวิชา</span>
-                            {!isWeightMode && (
-                                <button className="btn btn--primary btn--sm ccp-tree__add-btn"
-                                    onClick={() => onCreateCategory(selectedCategory?.id ?? null)}
-                                    title="เพิ่มหมวดวิชา">
-                                    <Plus size={12}/> หมวดวิชา
-                                </button>
-                            )}
+                            <button className="btn btn--primary btn--sm ccp-tree__add-btn"
+                                disabled={template?.isActive}
+                                style={{ opacity: template?.isActive ? 0.5 : 1, cursor: template?.isActive ? 'not-allowed' : 'pointer' }}
+                                onClick={() => !template?.isActive && onCreateCategory(selectedCategory?.id ?? null)}
+                                title="เพิ่มหมวดวิชา">
+                                <Plus size={12}/> หมวดวิชา
+                            </button>
                         </div>
                         {/* คลิกพื้นที่ว่างใน scroll → deselect */}
                         <div className="ccp-tree__scroll"
                             onClick={() => onDeselectCategory?.()}>
                             {categories.length === 0
-                                ? <div className="panel-empty panel-empty--sm">กด "+ หมวดวิชา" เพื่อเริ่ม</div>
+                                ? <div className="panel-empty panel-empty--sm">กด &quot;+ หมวดวิชา&quot; เพื่อเริ่ม</div>
                                 : categories.map(cat => (
                                     <TreeItem key={cat.id} cat={cat}
                                         selectedId={selectedCategory?.id}
@@ -652,7 +668,7 @@ export default function CategoryCoursePanel({
                                         <Pencil size={13}/> จัดการสมรรถนะ
                                     </button>
                                 )}
-                                {!isWeightMode && leaf && viewMode === 'single' && (
+                                {leaf && viewMode === 'single' && (
                                     <button className="btn btn--primary btn--sm"
                                         onClick={() => onAddCourse(selectedCategory.id, { code:'', nameTh:'', nameEn:'', credits:0 })}>
                                         <Plus size={13}/> เพิ่มรายวิชา
@@ -675,6 +691,7 @@ export default function CategoryCoursePanel({
                                 scrollToCatId={scrollToCatId}
                                 hideEditActions={isWeightMode}
                                 isSetupMode={!isWeightMode}
+                                template={template}
                             />
                         ) : (
                             !selectedCategory ? (
@@ -710,10 +727,12 @@ export default function CategoryCoursePanel({
                                         onSetWeight={onSetWeight}
                                         hideEditActions={isWeightMode}
                                         isSetupMode={isWeightMode ? false : true}
+                                        template={template}
                                     />
                                 </div>
                             )
                         )}
+                    </div>
                     </div>
                 </div>
             )}

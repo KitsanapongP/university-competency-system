@@ -71,6 +71,12 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 		Service: curriculumSvc,
 	}
 
+	templateRepo := repositories.NewTemplateRepository(db)
+	templateSvc := services.NewTemplateService(templateRepo)
+	templateHandler := &controllers.TemplateController{
+		Service: templateSvc,
+	}
+
 	// Versioned API routes
 	r.Route("/api/v1", func(api chi.Router) {
 		// --- Public ---
@@ -85,8 +91,8 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			pr.Post("/auth/logout", authHandler.Logout)
 
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)
+			pr.Get("/competencies", competencyHandler.GetAll)
 
-			pr.With(middleware.RequireRoles("admin", "officer")).Get("/competencies", competencyHandler.GetAll)
 			pr.With(middleware.RequireRoles("admin", "officer")).Post("/competencies", competencyHandler.Create)
 			pr.With(middleware.RequireRoles("admin", "officer")).Patch("/competencies/{competency_id}", competencyHandler.Update)
 			pr.With(middleware.RequireRoles("admin", "officer")).Delete("/competencies/{competency_id}", competencyHandler.Delete)
@@ -160,6 +166,22 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 					cir.Patch("/courses/{course_id}", curriculumHandler.UpdateCourse)
 					cir.Patch("/curriculum-courses/{curriculum_course_id}", curriculumHandler.UpdateCurriculumCoursePlacement)
 					cir.Delete("/curriculum-courses/{curriculum_course_id}", curriculumHandler.DeleteCurriculumCoursePlacement)
+				})
+			})
+
+			// Template Management Routes
+			pr.Route("/templates", func(tr chi.Router) {
+				tr.Use(middleware.RequireRoles("admin", "officer"))
+				tr.Get("/", templateHandler.GetAll)
+				tr.Post("/", templateHandler.Create)
+				tr.Route("/{id}", func(tir chi.Router) {
+					tir.Get("/", templateHandler.GetByID)
+					tir.Patch("/", templateHandler.UpdateName)
+					tir.Patch("/status", templateHandler.UpdateStatus)
+					tir.Delete("/", templateHandler.Delete)
+					tir.Get("/items", templateHandler.GetItems)
+					tir.Get("/structure", templateHandler.GetStructure)
+					tir.Put("/items", templateHandler.SaveItems)
 				})
 			})
 

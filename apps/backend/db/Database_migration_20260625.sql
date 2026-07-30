@@ -514,7 +514,7 @@ CREATE TABLE `comp_template_items` (
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Record last update timestamp',
   `deleted_at` datetime DEFAULT NULL COMMENT 'Soft delete timestamp',
   PRIMARY KEY (`template_item_id`),
-  UNIQUE KEY `uq_cti_template_competency` (`template_id`,`competency_id`),
+  UNIQUE KEY `uq_cti_template_course_competency` (`template_id`,`competency_id`,`course_id`),
   KEY `idx_cti_template` (`template_id`),
   KEY `idx_cti_competency` (`competency_id`),
   KEY `idx_cti_deleted_at` (`deleted_at`),
