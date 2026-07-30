@@ -111,6 +111,7 @@
 
 .course-editor-panels__sidebar {
     width: 320px;
+    min-height: 0;
     flex-shrink: 0;
 }
 
