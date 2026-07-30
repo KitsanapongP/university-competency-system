@@ -156,12 +156,6 @@
     font-size: 0.875rem;
 }
 
-.course-create-feedback--success {
-    background: rgba(34, 197, 94, 0.12);
-    border-color: rgba(34, 197, 94, 0.35);
-    color: #22c55e;
-}
-
 .course-create-feedback--error {
     background: rgba(239, 68, 68, 0.12);
     border-color: rgba(239, 68, 68, 0.35);

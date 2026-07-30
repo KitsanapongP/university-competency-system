@@ -1149,7 +1149,6 @@ function CreateCoursePageContent() {
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
     const [faculties, setFaculties] = useState([]);
     const [majors, setMajors] = useState([]);
     const [curriculums, setCurriculums] = useState([]);
@@ -1263,7 +1262,6 @@ function CreateCoursePageContent() {
     );
 
     const handleStep1Next = () => {
-        setSuccess('');
         if (!canNext()) return;
         if (duplicateNameWarning) {
             setError(duplicateNameWarning);
@@ -1274,7 +1272,6 @@ function CreateCoursePageContent() {
     };
 
     const handleStep2Next = () => {
-        setSuccess('');
         if (!canProceedFromStep2()) return;
         setError('');
         setStep(3);
@@ -1282,16 +1279,12 @@ function CreateCoursePageContent() {
 
     const handleSave = async () => {
         setError('');
-        setSuccess('');
         setSubmitting(true);
 
         try {
             await createCurriculumFromForm(form);
             sessionStorage.removeItem(CURRICULUM_CREATE_DRAFT_KEY);
-            setSuccess('สร้างหลักสูตรสำเร็จ');
-            setTimeout(() => {
-                router.push('/curriculum-management?created=1');
-            }, 600);
+            router.push('/curriculum-management?created=1');
         } catch (err) {
             setError(formatCreateCurriculumError(err, form, majors, language));
         } finally {
@@ -1356,9 +1349,9 @@ function CreateCoursePageContent() {
 
                 </div>
 
-                {step !== 2 && (error || success) && (
-                    <div className={`course-create-feedback ${error ? 'course-create-feedback--error' : 'course-create-feedback--success'}`}>
-                        {error || success}
+                {step !== 2 && error && (
+                    <div className="course-create-feedback course-create-feedback--error">
+                        {error}
                     </div>
                 )}
 
