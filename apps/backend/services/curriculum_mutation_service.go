@@ -188,10 +188,11 @@ func (s *CurriculumService) CreateCategory(ctx context.Context, curriculumID uin
 		if *payload.ParentID == 0 {
 			return nil, CurriculumValidationError{Message: "parent_id is invalid"}
 		}
-		if _, err := s.Repo.GetCategoryForCurriculum(ctx, curriculumID, *payload.ParentID); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, CurriculumValidationError{Message: "parent_id is invalid"}
-			}
+		categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateChildCategoryPlacement(categories, *payload.ParentID); err != nil {
 			return nil, err
 		}
 	}
@@ -218,12 +219,6 @@ func (s *CurriculumService) UpdateCategory(ctx context.Context, curriculumID uin
 		return nil, err
 	}
 	if err := s.ensureStructureEditable(ctx, curriculum, payload.ConfirmImpact); err != nil {
-		return nil, err
-	}
-	if _, err := s.Repo.GetCategoryForCurriculum(ctx, curriculumID, categoryID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrCurriculumNotFound
-		}
 		return nil, err
 	}
 	if err := validateUpdateCategoryMutation(payload); err != nil {
@@ -307,10 +302,11 @@ func (s *CurriculumService) CreateCourse(ctx context.Context, curriculumID uint6
 	if err := validateCreateCourseMutation(payload); err != nil {
 		return nil, err
 	}
-	if _, err := s.Repo.GetCategoryForCurriculum(ctx, curriculumID, categoryID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, CurriculumValidationError{Message: "category_id is invalid"}
-		}
+	categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateCourseCategoryPlacement(categories, categoryID); err != nil {
 		return nil, err
 	}
 
@@ -374,10 +370,11 @@ func (s *CurriculumService) UpdateCurriculumCoursePlacement(ctx context.Context,
 		if *payload.CategoryID == 0 {
 			return nil, CurriculumValidationError{Message: "category_id is invalid"}
 		}
-		if _, err := s.Repo.GetCategoryForCurriculum(ctx, curriculumID, *payload.CategoryID); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, CurriculumValidationError{Message: "category_id is invalid"}
-			}
+		categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateCourseCategoryPlacement(categories, *payload.CategoryID); err != nil {
 			return nil, err
 		}
 	}
@@ -631,13 +628,6 @@ func (s *CurriculumService) validateCategoryMove(ctx context.Context, curriculum
 	if parentID.Value == 0 || parentID.Value == categoryID {
 		return CurriculumValidationError{Message: "parent_id is invalid"}
 	}
-	if _, err := s.Repo.GetCategoryForCurriculum(ctx, curriculumID, parentID.Value); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return CurriculumValidationError{Message: "parent_id is invalid"}
-		}
-		return err
-	}
-
 	subtreeIDs, err := s.Repo.GetCategorySubtreeIDs(ctx, curriculumID, categoryID)
 	if err != nil {
 		return err
@@ -646,6 +636,14 @@ func (s *CurriculumService) validateCategoryMove(ctx context.Context, curriculum
 		if subtreeID == parentID.Value {
 			return CurriculumValidationError{Message: "category cannot be moved under itself or its child category"}
 		}
+	}
+
+	categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
+	if err != nil {
+		return err
+	}
+	if err := validateCategoryMovePlacement(categories, categoryID, parentID.Value); err != nil {
+		return err
 	}
 
 	return nil

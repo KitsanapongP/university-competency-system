@@ -29,6 +29,15 @@ function getSubtreeDepth(category) {
     return Math.max(...category.children.map(child => 1 + getSubtreeDepth(child)));
 }
 
+function getCategoryDepth(categories, categoryId, depth = 0) {
+    for (const category of categories || []) {
+        if (category.id === categoryId) return depth;
+        const childDepth = getCategoryDepth(category.children || [], categoryId, depth + 1);
+        if (childDepth !== -1) return childDepth;
+    }
+    return -1;
+}
+
 function isTreeInteractionTarget(target) {
     if (!(target instanceof Element)) return true;
     return Boolean(target.closest([
@@ -67,6 +76,9 @@ function CategoryTreeNode({
     onCourseDragStart,
     onCourseDragEnd,
     onRenameStateChange,
+    showInlineAddChild = true,
+    addChildLabel,
+    addChildDisabledReason,
 }) {
     const [expanded, setExpanded] = useState(true);
     const [renaming, setRenaming] = useState(category.isNew || false);
@@ -181,15 +193,18 @@ function CategoryTreeNode({
                         >
                             <Pencil size={12} />
                         </button>
-                        <button
-                            type="button"
-                            className="curriculum-structure-icon-btn"
-                            onClick={() => onAddChildCategory?.(category)}
-                            disabled={!canAddChild}
-                            title="เพิ่มหมวดย่อย"
-                        >
-                            <Plus size={12} />
-                        </button>
+                        {showInlineAddChild && (
+                            <button
+                                type="button"
+                                className="curriculum-structure-icon-btn"
+                                onClick={() => onAddChildCategory?.(category)}
+                                disabled={!canAddChild}
+                                title={!canAddChild ? addChildDisabledReason : addChildLabel}
+                                aria-label={addChildLabel}
+                            >
+                                <Plus size={12} />
+                            </button>
+                        )}
                         <button
                             type="button"
                             className="curriculum-structure-icon-btn curriculum-structure-icon-btn--danger"
@@ -257,6 +272,9 @@ function CategoryTreeNode({
                             onCourseDragStart={onCourseDragStart}
                             onCourseDragEnd={onCourseDragEnd}
                             onRenameStateChange={onRenameStateChange}
+                            showInlineAddChild={showInlineAddChild}
+                            addChildLabel={addChildLabel}
+                            addChildDisabledReason={addChildDisabledReason}
                         />
                     ))}
                 </div>
@@ -269,6 +287,7 @@ export default function CurriculumStructureSidebar({
     categories = [],
     coursesByCategory = {},
     selectedCategoryId,
+    selectedCategory = null,
     showAllCourses = false,
     title = 'โครงสร้างหมวดวิชา',
     addLabel = 'หมวดวิชา',
@@ -278,6 +297,9 @@ export default function CurriculumStructureSidebar({
     clearSelectionDisabled = false,
     canEdit = true,
     addDisabled = false,
+    showSelectedAddChildAction = false,
+    addChildLabel = 'เพิ่มหมวดย่อย',
+    addChildDisabledReason = 'สร้างหมวดย่อยได้สูงสุด 4 ระดับ',
     maxDepth = 3,
     draggingCategoryId = null,
     draggedCourseId = null,
@@ -305,6 +327,16 @@ export default function CurriculumStructureSidebar({
     const allCredits = allCourses.reduce((sum, course) => sum + (Number(course.credits) || 0), 0);
     const renamingCategoryIdsRef = useRef(new Set());
     const skipClearSelectionRef = useRef(false);
+    const selectedCategoryDepth = selectedCategory
+        ? getCategoryDepth(categories, selectedCategory.id)
+        : -1;
+    const canAddChildToSelected = selectedCategory
+        && selectedCategoryDepth >= 0
+        && selectedCategoryDepth + getSubtreeDepth(selectedCategory) < maxDepth;
+    const showAddChildLimitHint = showSelectedAddChildAction
+        && selectedCategory
+        && !disabled
+        && !canAddChildToSelected;
 
     const handleRenameStateChange = useCallback((categoryId, isRenaming) => {
         const next = new Set(renamingCategoryIdsRef.current);
@@ -339,16 +371,35 @@ export default function CurriculumStructureSidebar({
             <div className="curriculum-structure-sidebar__header">
                 <span className="curriculum-structure-sidebar__title">{title}</span>
                 {canEdit && (
-                    <button
-                        type="button"
-                        className="course-btn course-btn--primary course-btn--sm"
-                        onClick={onAddCategory}
-                        disabled={disabled || addDisabled}
-                    >
-                        <Plus size={12} /> {addLabel}
-                    </button>
+                    <div className="curriculum-structure-sidebar__header-actions">
+                        {showSelectedAddChildAction && selectedCategory && (
+                            <button
+                                type="button"
+                                className="course-btn course-btn--secondary course-btn--sm"
+                                onClick={() => onAddChildCategory?.(selectedCategory)}
+                                disabled={disabled || !canAddChildToSelected}
+                                title={!canAddChildToSelected ? addChildDisabledReason : addChildLabel}
+                                aria-describedby={showAddChildLimitHint ? 'curriculum-add-child-limit' : undefined}
+                            >
+                                <Plus size={12} /> {addChildLabel}
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            className="course-btn course-btn--primary course-btn--sm"
+                            onClick={onAddCategory}
+                            disabled={disabled || addDisabled}
+                        >
+                            <Plus size={12} /> {addLabel}
+                        </button>
+                    </div>
                 )}
             </div>
+            {showAddChildLimitHint && (
+                <p id="curriculum-add-child-limit" className="curriculum-structure-sidebar__action-hint" role="status">
+                    {addChildDisabledReason}
+                </p>
+            )}
 
             <div
                 className={[
@@ -428,6 +479,9 @@ export default function CurriculumStructureSidebar({
                             onCourseDragStart={onCourseDragStart}
                             onCourseDragEnd={onCourseDragEnd}
                             onRenameStateChange={handleRenameStateChange}
+                            showInlineAddChild={!showSelectedAddChildAction}
+                            addChildLabel={addChildLabel}
+                            addChildDisabledReason={addChildDisabledReason}
                         />
                     ))
                 )}

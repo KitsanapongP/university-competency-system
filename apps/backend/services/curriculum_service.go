@@ -371,46 +371,6 @@ func validateCreateCurriculumPayload(payload models.CreateCurriculumPayload) err
 	return validateCreateCategories(payload.Categories, seenCourseCodes)
 }
 
-func validateCreateCategories(categories []models.CreateCategoryPayload, seenCourseCodes map[string]bool) error {
-	for _, category := range categories {
-		if strings.TrimSpace(category.NameTH) == "" {
-			return CurriculumValidationError{Message: "category name_th is required"}
-		}
-		if category.RequiredCredits < 0 {
-			return CurriculumValidationError{Message: "category required_credits must be zero or greater"}
-		}
-
-		for _, course := range category.Courses {
-			if course.CourseID != 0 {
-				return CurriculumValidationError{Message: "course_id is not allowed when creating curriculum courses"}
-			}
-			if course.Credits < 0 {
-				return CurriculumValidationError{Message: "course credits must be zero or greater"}
-			}
-
-			code := strings.TrimSpace(course.Code)
-			if code == "" {
-				return CurriculumValidationError{Message: "course code is required"}
-			}
-			if strings.TrimSpace(course.NameTH) == "" {
-				return CurriculumValidationError{Message: "course name_th is required"}
-			}
-
-			normalizedCode := strings.ToLower(code)
-			if seenCourseCodes[normalizedCode] {
-				return CurriculumValidationError{Message: "duplicate course code in curriculum payload"}
-			}
-			seenCourseCodes[normalizedCode] = true
-		}
-
-		if err := validateCreateCategories(category.Children, seenCourseCodes); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func hasRole(roles []string, role string) bool {
 	for _, r := range roles {
 		if r == role {

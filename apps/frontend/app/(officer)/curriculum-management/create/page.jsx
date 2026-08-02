@@ -2,7 +2,7 @@
 
 import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { X, Check, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award } from 'lucide-react';
+import { X, Check, CheckCircle2, Circle, Info, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award } from 'lucide-react';
 import { createCurriculumFromForm, fetchCurriculums, fetchFaculties, fetchMajors } from '../../../../lib/curriculum';
 import { useLanguage } from '../../../../providers/LanguageContext';
 import ConfirmActionModal from '../../../../components/ui/ConfirmActionModal';
@@ -77,6 +77,20 @@ function formatCreateCurriculumError(err, form, majors, language = 'th') {
         ) {
             return duplicateCurriculumNameText(year, majorName, language);
         }
+    }
+
+    if (message.includes('category nesting cannot exceed 4 levels')) {
+        return language === 'en'
+            ? 'Categories can be nested up to 4 levels.'
+            : 'สร้างหมวดวิชาได้สูงสุด 4 ระดับ';
+    }
+    if (
+        message.includes('courses can only be placed in leaf categories')
+        || message.includes('categories with courses cannot have child categories')
+    ) {
+        return language === 'en'
+            ? 'Courses can be placed only in leaf categories.'
+            : 'เพิ่มรายวิชาได้เฉพาะหมวดปลายทาง';
     }
 
     return message;
@@ -217,7 +231,63 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
     );
 }
 
-function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearValidation, language = 'th' }) {
+function StructureGuide({ totalCategories, totalCourses, selectedCategory, isLeafCategory, t }) {
+    const steps = [
+        {
+            label: t('structure_guide_add_root'),
+            hint: t('structure_guide_add_root_hint'),
+            complete: totalCategories > 0,
+        },
+        {
+            label: t('structure_guide_select_leaf'),
+            hint: t('structure_guide_select_leaf_hint'),
+            complete: Boolean(selectedCategory && isLeafCategory),
+        },
+        {
+            label: t('structure_guide_add_course'),
+            hint: t('structure_guide_add_course_hint'),
+            complete: totalCourses > 0,
+        },
+    ];
+
+    return (
+        <section className="structure-guide" aria-labelledby="structure-guide-title" aria-live="polite">
+            <div className="structure-guide__header">
+                <Info size={18} aria-hidden="true" />
+                <div>
+                    <h3 id="structure-guide-title">{t('structure_guide_title')}</h3>
+                    <p>{t('structure_guide_description')}</p>
+                </div>
+            </div>
+            <ol className="structure-guide__steps">
+                {steps.map((item, index) => (
+                    <li
+                        key={item.label}
+                        className={`structure-guide__step ${item.complete ? 'structure-guide__step--complete' : ''}`}
+                    >
+                        <span className="structure-guide__step-icon" aria-hidden="true">
+                            {item.complete ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                        </span>
+                        <span className="structure-guide__step-copy">
+                            <span className="structure-guide__step-label">{index + 1}. {item.label}</span>
+                            <span className="structure-guide__step-hint">{item.hint}</span>
+                        </span>
+                        <span className="structure-guide__status">
+                            {item.complete ? t('structure_guide_complete') : t('structure_guide_pending')}
+                        </span>
+                    </li>
+                ))}
+            </ol>
+            <div className="structure-guide__constraints">
+                <strong>{t('structure_guide_constraints')}</strong>
+                <span>{t('structure_guide_max_depth')}</span>
+                <span>{t('structure_guide_leaf_only')}</span>
+            </div>
+        </section>
+    );
+}
+
+function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearValidation, language = 'th', t }) {
     const categories = form.categories || [];
     const coursesByCategory = form.coursesByCategory || {};
     const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
@@ -233,7 +303,8 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
     const [courseDuplicateWarning, setCourseDuplicateWarning] = useState(null);
     const [isCourseEditorEditing, setIsCourseEditorEditing] = useState(false);
 
-    const MAX_CATEGORY_DEPTH = 3;
+    const MAX_CATEGORY_LEVELS = 4;
+    const MAX_CATEGORY_DEPTH = MAX_CATEGORY_LEVELS - 1;
 
     const stripCourseMeta = (course) => {
         const { ownerCategoryId, ...cleanCourse } = course;
@@ -473,11 +544,6 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
 
     const handleAddCategory = () => {
         onClearValidation?.();
-        if (selectedCategory) {
-            handleAddChildCategory(selectedCategory);
-            return;
-        }
-
         const code = getNextCode(categories);
         const newCat = {
             id: `cat_${Date.now()}`,
@@ -500,7 +566,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         const parentCategoryDepth = getCategoryDepth(parent, categories);
 
         if (parentCategoryDepth >= MAX_CATEGORY_DEPTH) {
-            alert('ไม่สามารถสร้างหมวดวิชาลูกได้เกิน 4 ระดับ');
+            alert(t('structure_add_child_disabled'));
             return;
         }
 
@@ -890,6 +956,14 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
 
     return (
         <div className="course-structure-panel">
+            <StructureGuide
+                totalCategories={totalCategories}
+                totalCourses={totalCourses}
+                selectedCategory={selectedCategory}
+                isLeafCategory={isLeafCategory}
+                t={t}
+            />
+
             {/* Stats Bar */}
             <div className="course-stats-bar">
                 <div className="course-stats-bar__item">
@@ -914,11 +988,14 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                         categories={categories}
                         coursesByCategory={coursesByCategory}
                         selectedCategoryId={selectedCategory?.id}
-                        title="โครงสร้างหมวดวิชา"
-                        addLabel="หมวดวิชา"
-                        emptyText={'กด "+ หมวดวิชา" เพื่อเริ่ม'}
+                        selectedCategory={selectedCategory}
+                        title={language === 'en' ? 'Category structure' : 'โครงสร้างหมวดวิชา'}
+                        addLabel={t('structure_add_root')}
+                        addChildLabel={t('structure_add_child')}
+                        addChildDisabledReason={t('structure_add_child_disabled')}
+                        emptyText={t('structure_empty')}
                         maxDepth={MAX_CATEGORY_DEPTH}
-                        addDisabled={selectedCategory ? getCategoryDepth(selectedCategory, categories) >= MAX_CATEGORY_DEPTH : false}
+                        showSelectedAddChildAction
                         clearSelectionDisabled={isCourseEditorEditing}
                         onRequestClearSelection={() => setSelectedCategory(null)}
                         draggingCategoryId={draggedCategoryId}
@@ -951,6 +1028,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                     canEdit
                     disabled={false}
                     isLeafCategory={Boolean(isLeafCategory)}
+                    coursePlacementHint={t('structure_add_course_disabled')}
                     draggedCourseId={draggedCourseId}
                     onRenameCategory={(id, updates) => handleUpdateCategory(id, {
                         ...(Object.prototype.hasOwnProperty.call(updates, 'nameTh') || Object.prototype.hasOwnProperty.call(updates, 'name')
@@ -1141,7 +1219,7 @@ const EMPTY_FORM = {
 function CreateCoursePageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { language } = useLanguage();
+    const { language, t } = useLanguage();
     const createdMajorId = Number(searchParams.get('created_major_id') || 0);
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(EMPTY_FORM);
@@ -1260,6 +1338,15 @@ function CreateCoursePageContent() {
         && countAllCourses(form.coursesByCategory || {}) > 0
     );
 
+    const structureNextHint = () => {
+        const hasCategories = countAllCategories(form.categories || []) > 0;
+        const hasCourses = countAllCourses(form.coursesByCategory || {}) > 0;
+        if (!hasCategories && !hasCourses) return t('structure_next_requires_both');
+        if (!hasCategories) return t('structure_next_requires_category');
+        if (!hasCourses) return t('structure_next_requires_course');
+        return '';
+    };
+
     const handleStep1Next = () => {
         if (!canNext()) return;
         if (duplicateNameWarning) {
@@ -1342,6 +1429,7 @@ function CreateCoursePageContent() {
                             setSelectedCategory={setSelectedCategory}
                             onClearValidation={() => setError('')}
                             language={language}
+                            t={t}
                         />
                     )}
                     {step === 3 && <Step3 form={form} />}
@@ -1385,13 +1473,18 @@ function CreateCoursePageContent() {
                             </button>
                         )}
                         {step === 2 && (
-                            <button
-                                className='course-form-nav__btn course-form-nav__btn--primary'
-                                onClick={handleStep2Next}
-                                disabled={!canProceedFromStep2() || submitting}
-                            >
-                                ถัดไป <ArrowRight size={15} />
-                            </button>
+                            <>
+                                {!canProceedFromStep2() && (
+                                    <span className="course-form-nav__hint" aria-live="polite">{structureNextHint()}</span>
+                                )}
+                                <button
+                                    className='course-form-nav__btn course-form-nav__btn--primary'
+                                    onClick={handleStep2Next}
+                                    disabled={!canProceedFromStep2() || submitting}
+                                >
+                                    ถัดไป <ArrowRight size={15} />
+                                </button>
+                            </>
                         )}
                         {step === 3 && (
                             <button

@@ -216,6 +216,7 @@ export default function CurriculumCourseEditorPanel({
     canEdit = false,
     disabled = false,
     isLeafCategory = false,
+    coursePlacementHint = '',
     isAllCoursesView = false,
     pageSize = 10,
     draggedCourseId = null,
@@ -534,13 +535,19 @@ export default function CurriculumCourseEditorPanel({
                                         setEditingCourseId(NEW_COURSE_ID);
                                     }}
                                     disabled={!canMutateCourses || showAddCourse}
-                                    title={!isLeafCategory ? 'เพิ่มได้เฉพาะหมวดที่อยู่ระดับลึกที่สุด' : ''}
+                                    title={!isLeafCategory ? coursePlacementHint : ''}
                                 >
                                     <Plus size={13} /> เพิ่มรายวิชา
                                 </button>
                             )}
                         </div>
                     </div>
+
+                    {!isLeafCategory && !isReadOnly && coursePlacementHint && (
+                        <p className="curriculum-course-editor__placement-hint" role="status">
+                            {coursePlacementHint}
+                        </p>
+                    )}
 
                     <div className="course-two-panel__body curriculum-course-editor__body">
                         <div className={`course-spreadsheet-scroll ss-wrapper ${isDropZoneActive ? 'ss-wrapper--drop-zone-active' : ''}`}>
