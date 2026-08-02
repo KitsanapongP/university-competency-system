@@ -1060,20 +1060,39 @@
 }
 
 .structure-guide {
+    --structure-guide-background: rgba(30, 58, 95, 0.42);
+    --structure-guide-border: rgba(96, 165, 250, 0.42);
+    --structure-guide-icon: #93c5fd;
+    --structure-guide-step-background: rgba(15, 23, 42, 0.58);
+    --structure-guide-step-border: rgba(148, 163, 184, 0.32);
+    --structure-guide-complete-background: rgba(20, 83, 45, 0.44);
+    --structure-guide-complete-border: rgba(74, 222, 128, 0.48);
+    --structure-guide-complete-text: #86efac;
     display: grid;
     grid-template-columns: minmax(180px, 0.8fr) minmax(0, 2fr) minmax(220px, 1fr);
     gap: 1rem;
     align-items: stretch;
     padding: 1rem;
-    border: 1px solid rgba(59, 130, 246, 0.35);
+    border: 1px solid var(--structure-guide-border);
     border-radius: 10px;
-    background: rgba(239, 246, 255, 0.72);
+    background: var(--structure-guide-background);
+}
+
+:root:not(.dark) .structure-guide {
+    --structure-guide-background: rgba(239, 246, 255, 0.88);
+    --structure-guide-border: rgba(59, 130, 246, 0.35);
+    --structure-guide-icon: #1d4ed8;
+    --structure-guide-step-background: rgba(255, 255, 255, 0.82);
+    --structure-guide-step-border: rgba(148, 163, 184, 0.48);
+    --structure-guide-complete-background: rgba(240, 253, 244, 0.82);
+    --structure-guide-complete-border: rgba(22, 163, 74, 0.36);
+    --structure-guide-complete-text: #15803d;
 }
 
 .structure-guide__header {
     display: flex;
     gap: 0.625rem;
-    color: #1d4ed8;
+    color: var(--structure-guide-icon);
 }
 
 .structure-guide__header h3,
@@ -1110,9 +1129,9 @@
     flex: 1;
     min-width: 0;
     padding: 0.625rem;
-    border: 1px solid var(--course-border);
+    border: 1px solid var(--structure-guide-step-border);
     border-radius: 8px;
-    background: var(--course-card-bg);
+    background: var(--structure-guide-step-background);
     color: var(--course-text-muted);
 }
 
@@ -1142,9 +1161,9 @@
 }
 
 .structure-guide__step--complete {
-    border-color: rgba(22, 163, 74, 0.36);
-    background: rgba(240, 253, 244, 0.82);
-    color: #15803d;
+    border-color: var(--structure-guide-complete-border);
+    background: var(--structure-guide-complete-background);
+    color: var(--structure-guide-complete-text);
 }
 
 .structure-guide__constraints {
@@ -1152,7 +1171,7 @@
     flex-direction: column;
     gap: 0.25rem;
     padding-left: 1rem;
-    border-left: 1px solid rgba(59, 130, 246, 0.22);
+    border-left: 1px solid var(--structure-guide-border);
 }
 
 .structure-guide__constraints strong {
@@ -1864,7 +1883,7 @@
     .structure-guide__constraints {
         padding-top: 0.75rem;
         padding-left: 0;
-        border-top: 1px solid rgba(59, 130, 246, 0.22);
+        border-top: 1px solid var(--structure-guide-border);
         border-left: 0;
     }
 
