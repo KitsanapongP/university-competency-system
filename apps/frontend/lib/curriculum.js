@@ -82,6 +82,7 @@ export function mapApiCurriculum(curriculum) {
         status: curriculum.status || 'draft',
         isActive: curriculum.is_active ?? curriculum.status === 'active',
         templateCount: curriculum.template_count || 0,
+        activeTemplateCount: curriculum.active_template_count || 0,
         categories,
         coursesByCategory: buildCoursesByCategory(categories),
         stats: {
@@ -132,11 +133,17 @@ function mapMajorOption(major) {
         departmentNameEn: major.department_name_en || '',
         facultyNameTh: major.faculty_name_th || '',
         facultyNameEn: major.faculty_name_en || '',
+        isActive: major.is_active ?? true,
     };
 }
 
-export async function fetchMajors() {
-    const response = await apiFetch('/api/v1/majors');
+export async function fetchMajors(filters = {}) {
+    const query = new URLSearchParams();
+    if (filters.includeInactive) query.set('include_inactive', 'true');
+    if (filters.facultyId) query.set('faculty_id', String(filters.facultyId));
+    if (filters.departmentId) query.set('department_id', String(filters.departmentId));
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    const response = await apiFetch(`/api/v1/majors${suffix}`);
     return unwrapData(response, []).map(mapMajorOption);
 }
 
@@ -258,6 +265,22 @@ export async function updateCurriculumStatus(curriculumId, status, confirmImpact
         method: 'PATCH',
         body: JSON.stringify({
             status,
+            confirm_impact: confirmImpact,
+        }),
+    });
+
+    return toMutationResult(response);
+}
+
+export async function updateCurriculumMetadata(curriculumId, form, confirmImpact = false) {
+    const response = await apiFetch(`/api/v1/curricula/${curriculumId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+            major_id: toNumber(form.majorId, 0),
+            curriculum_code: toNullableString(form.code),
+            curriculum_name_th: toNullableString(form.nameTh),
+            curriculum_name_en: toNullableString(form.nameEn),
+            effective_year_be: toNumber(form.year, 0),
             confirm_impact: confirmImpact,
         }),
     });

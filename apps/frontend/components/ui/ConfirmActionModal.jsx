@@ -18,6 +18,7 @@ export default function ConfirmActionModal({
     confirmLabel = 'ยืนยัน',
     cancelLabel = 'ยกเลิก',
     variant = 'warning',
+    size = 'sm',
     loading = false,
     disabled = false,
     onConfirm,
@@ -33,7 +34,7 @@ export default function ConfirmActionModal({
         <BaseModal
             open={open}
             title={title}
-            size="sm"
+            size={size}
             variant={variant}
             icon={icon}
             onClose={onCancel}

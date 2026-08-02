@@ -133,7 +133,7 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
             </div>
 
             <div className="course-form-field">
-                <label className="course-form-field__label">ชื่อหลักสูตร (ภาษาอังกฤษ)<span className="course-form-field__required">*</span></label>
+                <label className="course-form-field__label">ชื่อหลักสูตร (ภาษาอังกฤษ)</label>
                 <input
                     className="course-form-field__input"
                     value={form.nameEn}
@@ -1238,7 +1238,6 @@ function CreateCoursePageContent() {
             return (
                 !lookupsLoading
                 && form.nameTh.trim()
-                && form.nameEn.trim()
                 && form.code.trim()
                 && form.facultyId
                 && form.majorId

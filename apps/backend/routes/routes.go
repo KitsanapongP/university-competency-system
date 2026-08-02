@@ -154,6 +154,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				cr.Delete("/{id}", curriculumHandler.DeleteCurriculum)
 				cr.Route("/{id}", func(cir chi.Router) {
 					cir.Get("/", curriculumHandler.GetByID)
+					cir.Patch("/", curriculumHandler.UpdateMetadata)
 					cir.Post("/duplicate", curriculumHandler.DuplicateCurriculum)
 					cir.Patch("/status", curriculumHandler.UpdateStatus)
 

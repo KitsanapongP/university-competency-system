@@ -60,6 +60,76 @@
     flex-shrink: 0;
 }
 
+.curriculum-detail-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin: 0 0 1.25rem;
+    border-bottom: 1px solid var(--course-border);
+}
+
+.curriculum-detail-tabs__tab {
+    position: relative;
+    padding: 0.7rem 1rem;
+    border: 0;
+    background: transparent;
+    color: var(--course-text-muted);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.curriculum-detail-tabs__tab:hover {
+    color: var(--course-text);
+}
+
+.curriculum-detail-tabs__tab--active {
+    color: var(--course-accent);
+}
+
+.curriculum-detail-tabs__tab--active::after {
+    position: absolute;
+    right: 0.75rem;
+    bottom: -1px;
+    left: 0.75rem;
+    height: 2px;
+    background: var(--course-accent);
+    content: '';
+}
+
+.curriculum-metadata-impact-list {
+    display: grid;
+    gap: 0.5rem;
+    max-height: 220px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.curriculum-metadata-impact-list__item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.625rem;
+    border: 1px solid var(--course-border);
+    border-radius: 6px;
+    color: var(--course-text-muted);
+    font-size: 0.8125rem;
+}
+
+.curriculum-metadata-impact-list__item strong {
+    overflow: hidden;
+    color: var(--course-text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.curriculum-metadata-impact-list__item--critical {
+    border-color: rgba(239, 68, 68, 0.5);
+}
+
 .course-status-badge {
     display: inline-flex;
     align-items: center;

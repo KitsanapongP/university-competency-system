@@ -9,6 +9,50 @@ import (
 	"github.com/spw32767/university-competency-system-backend/models"
 )
 
+func (r *CurriculumRepository) UpdateCurriculumMetadataTx(ctx context.Context, curriculumID uint64, payload models.UpdateCurriculumMetadataPayload, targetMajor MajorScope, updateCourseContext bool) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE edu_curricula
+		SET major_id = ?,
+			code = ?,
+			name_th = ?,
+			name_en = ?,
+			effective_year_be = ?,
+			updated_at = NOW()
+		WHERE curriculum_id = ?
+			AND deleted_at IS NULL
+	`, payload.MajorID, payload.CurriculumCode, payload.CurriculumNameTH, payload.CurriculumNameEN, payload.EffectiveYearBE, curriculumID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+
+	if updateCourseContext {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE crs_courses
+			SET faculty_id = ?,
+				degree_level = ?,
+				updated_at = NOW()
+			WHERE curriculum_id = ?
+		`, targetMajor.FacultyID, targetMajor.DegreeLevel, curriculumID); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 func (r *CurriculumRepository) GetCategoryForCurriculum(ctx context.Context, curriculumID uint64, categoryID uint64) (*models.CourseCategoryNode, error) {
 	query := `
 		SELECT category_id, curriculum_id, parent_id, code, name_th, name_en, required_credits, display_order, is_active, created_at, updated_at, deleted_at

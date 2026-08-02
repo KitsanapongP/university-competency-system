@@ -35,6 +35,31 @@ func (c *CurriculumController) UpdateStatus(w http.ResponseWriter, r *http.Reque
 	utils.OK(w, curriculum)
 }
 
+func (c *CurriculumController) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUintURLParam(w, r, "id", "invalid curriculum id")
+	if !ok {
+		return
+	}
+	claims, ok := curriculumClaims(w, r)
+	if !ok {
+		return
+	}
+
+	var payload models.UpdateCurriculumMetadataPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+
+	curriculum, err := c.Service.UpdateCurriculumMetadata(r.Context(), id, payload, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.OK(w, curriculum)
+}
+
 func (c *CurriculumController) CreateCategory(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseUintURLParam(w, r, "id", "invalid curriculum id")
 	if !ok {

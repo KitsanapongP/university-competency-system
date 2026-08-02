@@ -84,7 +84,12 @@ const curriculumStatsJoin = `
 		GROUP BY curriculum_id
 	) category_stats ON category_stats.curriculum_id = c.curriculum_id
 	LEFT JOIN (
-		SELECT cct.curriculum_id, COUNT(DISTINCT cct.template_id) AS template_count
+		SELECT
+			cct.curriculum_id,
+			COUNT(DISTINCT cct.template_id) AS template_count,
+			COUNT(DISTINCT CASE
+				WHEN cct.is_active = 1 AND tpl.is_active = 1 THEN cct.template_id
+			END) AS active_template_count
 		FROM curri_curriculum_templates cct
 		JOIN comp_templates tpl ON tpl.template_id = cct.template_id
 		WHERE cct.deleted_at IS NULL
@@ -117,6 +122,7 @@ func scanCurriculum(scanner rowScanner) (*models.Curriculum, error) {
 		&c.CourseCount,
 		&c.CategoryCount,
 		&c.TemplateCount,
+		&c.ActiveTemplateCount,
 		&c.CreatedAt,
 		&c.UpdatedAt,
 		&deletedAt,
@@ -145,6 +151,7 @@ func (r *CurriculumRepository) GetCurriculums(ctx context.Context) ([]*models.Cu
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
 			COALESCE(template_stats.template_count, 0),
+			COALESCE(template_stats.active_template_count, 0),
 			c.created_at, c.updated_at, c.deleted_at
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
@@ -182,6 +189,7 @@ func (r *CurriculumRepository) GetCurriculumsByFaculty(ctx context.Context, facu
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
 			COALESCE(template_stats.template_count, 0),
+			COALESCE(template_stats.active_template_count, 0),
 			c.created_at, c.updated_at, c.deleted_at
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
@@ -607,6 +615,7 @@ func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uin
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
 			COALESCE(template_stats.template_count, 0),
+			COALESCE(template_stats.active_template_count, 0),
 			c.created_at, c.updated_at, c.deleted_at
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
@@ -644,6 +653,7 @@ func (r *CurriculumRepository) GetCurriculumByID(ctx context.Context, id uint64)
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
 			COALESCE(template_stats.template_count, 0),
+			COALESCE(template_stats.active_template_count, 0),
 			c.created_at, c.updated_at, c.deleted_at
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
@@ -916,6 +926,49 @@ func (r *CurriculumRepository) CountLiveCurriculumCodeDuplicate(ctx context.Cont
 			AND code = ?
 			AND deleted_at IS NULL
 	`, majorID, code).Scan(&count)
+	return count, err
+}
+
+func (r *CurriculumRepository) FindLiveCurriculumNameDuplicateExcept(ctx context.Context, majorID uint64, effectiveYearBE uint64, nameTH string, curriculumID uint64) (*CurriculumNameDuplicate, error) {
+	query := `
+		SELECT c.curriculum_id, c.major_id, m.name_th, c.name_th, c.effective_year_be
+		FROM edu_curricula c
+		JOIN edu_majors m ON m.major_id = c.major_id
+		WHERE c.major_id = ?
+			AND c.effective_year_be = ?
+			AND c.name_th = ?
+			AND c.curriculum_id <> ?
+			AND c.deleted_at IS NULL
+		LIMIT 1
+	`
+
+	var duplicate CurriculumNameDuplicate
+	err := r.DB.QueryRowContext(ctx, query, majorID, effectiveYearBE, nameTH, curriculumID).Scan(
+		&duplicate.CurriculumID,
+		&duplicate.MajorID,
+		&duplicate.MajorNameTH,
+		&duplicate.NameTH,
+		&duplicate.EffectiveYearBE,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &duplicate, nil
+}
+
+func (r *CurriculumRepository) CountLiveCurriculumCodeDuplicateExcept(ctx context.Context, majorID uint64, code string, curriculumID uint64) (int, error) {
+	var count int
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM edu_curricula
+		WHERE major_id = ?
+			AND code = ?
+			AND curriculum_id <> ?
+			AND deleted_at IS NULL
+	`, majorID, code, curriculumID).Scan(&count)
 	return count, err
 }
 

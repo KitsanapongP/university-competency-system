@@ -8,23 +8,24 @@ import (
 
 // Core DB Models
 type Curriculum struct {
-	CurriculumID     uint64     `json:"curriculum_id"`
-	MajorID          uint64     `json:"major_id"`
-	MajorNameTH      string     `json:"major_name_th"`
-	MajorNameEN      *string    `json:"major_name_en"`
-	CurriculumNameTH string     `json:"curriculum_name_th"`
-	CurriculumNameEN *string    `json:"curriculum_name_en"`
-	CurriculumCode   string     `json:"curriculum_code"`
-	EffectiveYearBE  uint64     `json:"effective_year_be"`
-	Status           string     `json:"status"`
-	IsActive         bool       `json:"is_active"`
-	TotalCredits     int        `json:"total_credits"`
-	CourseCount      int        `json:"course_count"`
-	CategoryCount    int        `json:"category_count"`
-	TemplateCount    int        `json:"template_count"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	DeletedAt        *time.Time `json:"deleted_at"`
+	CurriculumID        uint64     `json:"curriculum_id"`
+	MajorID             uint64     `json:"major_id"`
+	MajorNameTH         string     `json:"major_name_th"`
+	MajorNameEN         *string    `json:"major_name_en"`
+	CurriculumNameTH    string     `json:"curriculum_name_th"`
+	CurriculumNameEN    *string    `json:"curriculum_name_en"`
+	CurriculumCode      string     `json:"curriculum_code"`
+	EffectiveYearBE     uint64     `json:"effective_year_be"`
+	Status              string     `json:"status"`
+	IsActive            bool       `json:"is_active"`
+	TotalCredits        int        `json:"total_credits"`
+	CourseCount         int        `json:"course_count"`
+	CategoryCount       int        `json:"category_count"`
+	TemplateCount       int        `json:"template_count"`
+	ActiveTemplateCount int        `json:"active_template_count"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	DeletedAt           *time.Time `json:"deleted_at"`
 }
 
 type MajorOption struct {
@@ -241,6 +242,15 @@ func (o *OptionalUint64) UnmarshalJSON(data []byte) error {
 type UpdateCurriculumStatusPayload struct {
 	Status        string `json:"status"`
 	ConfirmImpact bool   `json:"confirm_impact"`
+}
+
+type UpdateCurriculumMetadataPayload struct {
+	MajorID          uint64  `json:"major_id"`
+	CurriculumNameTH string  `json:"curriculum_name_th"`
+	CurriculumNameEN *string `json:"curriculum_name_en"`
+	CurriculumCode   string  `json:"curriculum_code"`
+	EffectiveYearBE  uint64  `json:"effective_year_be"`
+	ConfirmImpact    bool    `json:"confirm_impact"`
 }
 
 type CreateCurriculumCategoryPayload struct {
