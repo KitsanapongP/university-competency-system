@@ -102,7 +102,7 @@
 }
 
 .course-create-container--wide {
-    max-width: 1200px;
+    max-width: 1280px;
 }
 
 /* ============================================================
@@ -144,7 +144,7 @@
 }
 
 .course-form-container--wide {
-    max-width: 1100px;
+    max-width: 1280px;
 }
 
 .course-create-feedback {
@@ -176,7 +176,7 @@
 }
 
 .course-create-container--wide ~ .course-form-nav {
-    max-width: 1100px;
+    max-width: 1280px;
 }
 
 /* ============================================================
@@ -1179,14 +1179,6 @@
     font-size: 0.8125rem;
 }
 
-.course-form-nav__hint {
-    max-width: 360px;
-    color: var(--course-text-muted);
-    font-size: 0.75rem;
-    line-height: 1.35;
-    text-align: right;
-}
-
 .course-stats-bar {
     display: flex;
     gap: 1rem;
@@ -1887,7 +1879,4 @@
         border-left: 0;
     }
 
-    .course-form-nav__hint {
-        max-width: 220px;
-    }
 }

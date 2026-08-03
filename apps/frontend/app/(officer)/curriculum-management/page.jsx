@@ -1414,37 +1414,6 @@ export default function CurriculumManagementPage() {
 
                     {detailTab === 'structure' ? (
                         <>
-                    {/* Stats Row */}
-                    <div className="course-stats-row">
-                        <div className="course-stat-card">
-                            <div className="course-stat-card__icon">
-                                <BookOpen size={20} />
-                            </div>
-                            <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{selectedCourse.stats?.totalCourses ?? Object.values(coursesByCategory).flat().length}</span>
-                                <span className="course-stat-card__label">วิชา</span>
-                            </div>
-                        </div>
-                        <div className="course-stat-card">
-                            <div className="course-stat-card__icon">
-                                <Layers size={20} />
-                            </div>
-                            <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{selectedCourse.stats?.totalCategories ?? categories.length}</span>
-                                <span className="course-stat-card__label">หมวดวิชา</span>
-                            </div>
-                        </div>
-                        <div className="course-stat-card">
-                            <div className="course-stat-card__icon">
-                                <Award size={20} />
-                            </div>
-                            <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{selectedCourse.stats?.totalCredits ?? 0}</span>
-                                <span className="course-stat-card__label">หน่วยกิตรวม</span>
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Category Tree and Detail Panel - Side by Side */}
                     <div className="course-editor-panels">
                         <div className="course-editor-panels__sidebar">

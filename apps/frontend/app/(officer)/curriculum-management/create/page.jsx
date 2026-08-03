@@ -238,11 +238,6 @@ function StructureGuide({ totalCategories, totalCourses, selectedCategory, isLea
             complete: totalCategories > 0,
         },
         {
-            label: t('structure_guide_select_leaf'),
-            hint: t('structure_guide_select_leaf_hint'),
-            complete: Boolean(selectedCategory && isLeafCategory),
-        },
-        {
             label: t('structure_guide_add_course'),
             hint: t('structure_guide_add_course_hint'),
             complete: totalCourses > 0,
@@ -270,9 +265,6 @@ function StructureGuide({ totalCategories, totalCourses, selectedCategory, isLea
                         <span className="structure-guide__step-copy">
                             <span className="structure-guide__step-label">{index + 1}. {item.label}</span>
                             <span className="structure-guide__step-hint">{item.hint}</span>
-                        </span>
-                        <span className="structure-guide__status">
-                            {item.complete ? t('structure_guide_complete') : t('structure_guide_pending')}
                         </span>
                     </li>
                 ))}
@@ -1340,15 +1332,6 @@ function CreateCoursePageContent() {
         && countAllCourses(form.coursesByCategory || {}) > 0
     );
 
-    const structureNextHint = () => {
-        const hasCategories = countAllCategories(form.categories || []) > 0;
-        const hasCourses = countAllCourses(form.coursesByCategory || {}) > 0;
-        if (!hasCategories && !hasCourses) return t('structure_next_requires_both');
-        if (!hasCategories) return t('structure_next_requires_category');
-        if (!hasCourses) return t('structure_next_requires_course');
-        return '';
-    };
-
     const handleStep1Next = () => {
         if (!canNext()) return;
         if (duplicateNameWarning) {
@@ -1475,18 +1458,13 @@ function CreateCoursePageContent() {
                             </button>
                         )}
                         {step === 2 && (
-                            <>
-                                {!canProceedFromStep2() && (
-                                    <span className="course-form-nav__hint" aria-live="polite">{structureNextHint()}</span>
-                                )}
-                                <button
-                                    className='course-form-nav__btn course-form-nav__btn--primary'
-                                    onClick={handleStep2Next}
-                                    disabled={!canProceedFromStep2() || submitting}
-                                >
+                            <button
+                                className='course-form-nav__btn course-form-nav__btn--primary'
+                                onClick={handleStep2Next}
+                                disabled={!canProceedFromStep2() || submitting}
+                            >
                                     ถัดไป <ArrowRight size={15} />
-                                </button>
-                            </>
+                            </button>
                         )}
                         {step === 3 && (
                             <button
