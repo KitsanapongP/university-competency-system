@@ -181,6 +181,19 @@
     table-layout: fixed;
 }
 
+.curriculum-course-editor__col--grip,
+.curriculum-course-editor__col--checkbox {
+    width: 42px;
+}
+
+.curriculum-course-editor__col--credits {
+    width: 86px;
+}
+
+.curriculum-course-editor__col--actions {
+    width: 62px;
+}
+
 .curriculum-course-editor .ss-row {
     transition: background 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
 }
@@ -278,7 +291,7 @@
 
 .curriculum-course-editor .ss-th--text,
 .curriculum-course-editor .ss-cell--text {
-    width: calc((100% - 246px) / 3);
+    width: calc((100% - 232px) / 3);
 }
 
 .curriculum-course-editor .ss-th--num,

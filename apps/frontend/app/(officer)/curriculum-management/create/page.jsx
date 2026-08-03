@@ -14,7 +14,6 @@ import '../CourseLayout.css';
 import '../CourseCreate.css';
 import '../CurriculumCourseEditorPanel.css';
 import '../CurriculumStructureSidebar.css';
-import '../../template-management/TemplateManagement.css';
 
 function StepIndicator({ step }) {
     const steps = ['ข้อมูลหลักสูตร', 'โครงสร้างหลักสูตร', 'ภาพรวม'];

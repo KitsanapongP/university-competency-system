@@ -553,6 +553,15 @@ export default function CurriculumCourseEditorPanel({
                         <div className={`course-spreadsheet-scroll ss-wrapper ${isDropZoneActive ? 'ss-wrapper--drop-zone-active' : ''}`}>
                             <div className="ss-scroll">
                                 <table className="course-spreadsheet-table ss-table">
+                                    <colgroup>
+                                        <col className="curriculum-course-editor__col--grip" />
+                                        <col className="curriculum-course-editor__col--checkbox" />
+                                        <col className="curriculum-course-editor__col--text" />
+                                        <col className="curriculum-course-editor__col--text" />
+                                        <col className="curriculum-course-editor__col--text" />
+                                        <col className="curriculum-course-editor__col--credits" />
+                                        <col className="curriculum-course-editor__col--actions" />
+                                    </colgroup>
                                     <thead>
                                         <tr>
                                             <th className="course-spreadsheet-th ss-th course-spreadsheet-th--grip ss-th--grip"></th>

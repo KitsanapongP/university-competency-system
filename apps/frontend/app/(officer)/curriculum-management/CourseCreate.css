@@ -683,18 +683,18 @@
     text-align: left;
 }
 
-.course-spreadsheet-th--grip { width: 28px; padding: 0; }
-.course-spreadsheet-th--wide { width: 200px; }
-.course-spreadsheet-th--num { width: 80px; text-align: center; }
-.course-spreadsheet-th--actions { width: 64px; }
-.course-spreadsheet-th--checkbox {
+.course-spreadsheet-table:not(.ss-table) .course-spreadsheet-th--grip { width: 28px; padding: 0; }
+.course-spreadsheet-table:not(.ss-table) .course-spreadsheet-th--wide { width: 200px; }
+.course-spreadsheet-table:not(.ss-table) .course-spreadsheet-th--num { width: 80px; text-align: center; }
+.course-spreadsheet-table:not(.ss-table) .course-spreadsheet-th--actions { width: 64px; }
+.course-spreadsheet-table:not(.ss-table) .course-spreadsheet-th--checkbox {
     width: 40px;
     padding: 0;
     text-align: center;
     vertical-align: middle;
 }
 
-.course-spreadsheet-th--checkbox input[type="checkbox"] {
+.course-spreadsheet-table:not(.ss-table) .course-spreadsheet-th--checkbox input[type="checkbox"] {
     width: 16px;
     height: 16px;
     cursor: pointer;
