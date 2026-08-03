@@ -29,15 +29,6 @@ function getSubtreeDepth(category) {
     return Math.max(...category.children.map(child => 1 + getSubtreeDepth(child)));
 }
 
-function getCategoryDepth(categories, categoryId, depth = 0) {
-    for (const category of categories || []) {
-        if (category.id === categoryId) return depth;
-        const childDepth = getCategoryDepth(category.children || [], categoryId, depth + 1);
-        if (childDepth !== -1) return childDepth;
-    }
-    return -1;
-}
-
 function isTreeInteractionTarget(target) {
     if (!(target instanceof Element)) return true;
     return Boolean(target.closest([
@@ -287,7 +278,6 @@ export default function CurriculumStructureSidebar({
     categories = [],
     coursesByCategory = {},
     selectedCategoryId,
-    selectedCategory = null,
     showAllCourses = false,
     title = 'โครงสร้างหมวดวิชา',
     addLabel = 'หมวดวิชา',
@@ -297,7 +287,7 @@ export default function CurriculumStructureSidebar({
     clearSelectionDisabled = false,
     canEdit = true,
     addDisabled = false,
-    showSelectedAddChildAction = false,
+    showInlineAddChild = true,
     addChildLabel = 'เพิ่มหมวดย่อย',
     addChildDisabledReason = 'สร้างหมวดย่อยได้สูงสุด 4 ระดับ',
     maxDepth = 3,
@@ -327,16 +317,6 @@ export default function CurriculumStructureSidebar({
     const allCredits = allCourses.reduce((sum, course) => sum + (Number(course.credits) || 0), 0);
     const renamingCategoryIdsRef = useRef(new Set());
     const skipClearSelectionRef = useRef(false);
-    const selectedCategoryDepth = selectedCategory
-        ? getCategoryDepth(categories, selectedCategory.id)
-        : -1;
-    const canAddChildToSelected = selectedCategory
-        && selectedCategoryDepth >= 0
-        && selectedCategoryDepth + getSubtreeDepth(selectedCategory) < maxDepth;
-    const showAddChildLimitHint = showSelectedAddChildAction
-        && selectedCategory
-        && !disabled
-        && !canAddChildToSelected;
 
     const handleRenameStateChange = useCallback((categoryId, isRenaming) => {
         const next = new Set(renamingCategoryIdsRef.current);
@@ -372,18 +352,6 @@ export default function CurriculumStructureSidebar({
                 <span className="curriculum-structure-sidebar__title">{title}</span>
                 {canEdit && (
                     <div className="curriculum-structure-sidebar__header-actions">
-                        {showSelectedAddChildAction && selectedCategory && (
-                            <button
-                                type="button"
-                                className="course-btn course-btn--secondary course-btn--sm"
-                                onClick={() => onAddChildCategory?.(selectedCategory)}
-                                disabled={disabled || !canAddChildToSelected}
-                                title={!canAddChildToSelected ? addChildDisabledReason : addChildLabel}
-                                aria-describedby={showAddChildLimitHint ? 'curriculum-add-child-limit' : undefined}
-                            >
-                                <Plus size={12} /> {addChildLabel}
-                            </button>
-                        )}
                         <button
                             type="button"
                             className="course-btn course-btn--primary course-btn--sm"
@@ -395,11 +363,6 @@ export default function CurriculumStructureSidebar({
                     </div>
                 )}
             </div>
-            {showAddChildLimitHint && (
-                <p id="curriculum-add-child-limit" className="curriculum-structure-sidebar__action-hint" role="status">
-                    {addChildDisabledReason}
-                </p>
-            )}
 
             <div
                 className={[
@@ -479,7 +442,7 @@ export default function CurriculumStructureSidebar({
                             onCourseDragStart={onCourseDragStart}
                             onCourseDragEnd={onCourseDragEnd}
                             onRenameStateChange={handleRenameStateChange}
-                            showInlineAddChild={!showSelectedAddChildAction}
+                            showInlineAddChild={showInlineAddChild}
                             addChildLabel={addChildLabel}
                             addChildDisabledReason={addChildDisabledReason}
                         />

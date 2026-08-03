@@ -544,6 +544,11 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
 
     const handleAddCategory = () => {
         onClearValidation?.();
+        if (selectedCategory) {
+            handleAddChildCategory(selectedCategory);
+            return;
+        }
+
         const code = getNextCode(categories);
         const newCat = {
             id: `cat_${Date.now()}`,
@@ -988,14 +993,12 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                         categories={categories}
                         coursesByCategory={coursesByCategory}
                         selectedCategoryId={selectedCategory?.id}
-                        selectedCategory={selectedCategory}
                         title={language === 'en' ? 'Category structure' : 'โครงสร้างหมวดวิชา'}
                         addLabel={t('structure_add_root')}
-                        addChildLabel={t('structure_add_child')}
                         addChildDisabledReason={t('structure_add_child_disabled')}
                         emptyText={t('structure_empty')}
                         maxDepth={MAX_CATEGORY_DEPTH}
-                        showSelectedAddChildAction
+                        showInlineAddChild={false}
                         clearSelectionDisabled={isCourseEditorEditing}
                         onRequestClearSelection={() => setSelectedCategory(null)}
                         draggingCategoryId={draggedCategoryId}
