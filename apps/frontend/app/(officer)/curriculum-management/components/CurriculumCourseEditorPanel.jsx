@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
     BookOpen,
     Check,
@@ -9,11 +10,13 @@ import {
     ChevronLeft,
     ChevronRight,
     GripVertical,
+    MoreHorizontal,
     Pencil,
     Plus,
     Trash2,
     X,
 } from 'lucide-react';
+import { useLanguage } from '../../../../providers/LanguageContext';
 
 const NEW_COURSE_ID = '__new_course__';
 
@@ -40,12 +43,16 @@ function CurriculumCourseRow({
     onDrop,
     onDragEnd,
 }) {
+    const { t } = useLanguage();
     const [form, setForm] = useState({
         code: course.code || '',
         nameTh: course.nameTh || '',
         nameEn: course.nameEn || '',
         credits: course.credits || 0,
     });
+    const [actionMenuPosition, setActionMenuPosition] = useState(null);
+    const actionMenuRef = useRef(null);
+    const isActionMenuOpen = Boolean(actionMenuPosition);
 
     useEffect(() => {
         if (!isEditing) return;
@@ -86,10 +93,55 @@ function CurriculumCourseRow({
         if (event.key === 'Escape') handleCancel();
     };
 
-    const handleCellClick = () => {
-        if (!disabled && !isEditing) {
-            onStartEdit?.(course);
+    useEffect(() => {
+        if (!isActionMenuOpen) return undefined;
+
+        const handlePointerDown = (event) => {
+            if (!actionMenuRef.current?.contains(event.target)) {
+                setActionMenuPosition(null);
+            }
+        };
+        const closeActionMenu = () => setActionMenuPosition(null);
+
+        window.addEventListener('pointerdown', handlePointerDown);
+        window.addEventListener('scroll', closeActionMenu, true);
+        window.addEventListener('resize', closeActionMenu);
+        return () => {
+            window.removeEventListener('pointerdown', handlePointerDown);
+            window.removeEventListener('scroll', closeActionMenu, true);
+            window.removeEventListener('resize', closeActionMenu);
+        };
+    }, [isActionMenuOpen]);
+
+    const handleStartEdit = () => {
+        setActionMenuPosition(null);
+        onStartEdit?.(course);
+    };
+
+    const handleDelete = () => {
+        setActionMenuPosition(null);
+        onDelete?.(course);
+    };
+
+    const toggleActionMenu = (event) => {
+        event.stopPropagation();
+        if (isActionMenuOpen) {
+            setActionMenuPosition(null);
+            return;
         }
+
+        const rect = event.currentTarget.getBoundingClientRect();
+        const menuWidth = 154;
+        const menuHeight = 82;
+        const preferredTop = rect.bottom + 4;
+        const top = preferredTop + menuHeight > window.innerHeight
+            ? Math.max(8, rect.top - menuHeight - 4)
+            : preferredTop;
+
+        setActionMenuPosition({
+            top,
+            left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
+        });
     };
 
     return (
@@ -116,7 +168,7 @@ function CurriculumCourseRow({
                     />
                 )}
             </td>
-            <td className="ss-cell ss-cell--text" onClick={handleCellClick}>
+            <td className="ss-cell ss-cell--text">
                 {isEditing ? (
                     <input
                         className="ss-input"
@@ -131,7 +183,7 @@ function CurriculumCourseRow({
                     <span className="ss-code">{course.code || <span className="ss-placeholder">รหัสวิชา</span>}</span>
                 )}
             </td>
-            <td className="ss-cell ss-cell--text" onClick={handleCellClick}>
+            <td className="ss-cell ss-cell--text">
                 {isEditing ? (
                     <input
                         className="ss-input"
@@ -145,7 +197,7 @@ function CurriculumCourseRow({
                     <span>{course.nameTh || <span className="ss-placeholder">ชื่อภาษาไทย</span>}</span>
                 )}
             </td>
-            <td className="ss-cell ss-cell--text" onClick={handleCellClick}>
+            <td className="ss-cell ss-cell--text">
                 {isEditing ? (
                     <input
                         className="ss-input"
@@ -159,7 +211,7 @@ function CurriculumCourseRow({
                     <span>{course.nameEn || <span className="ss-placeholder">English Name</span>}</span>
                 )}
             </td>
-            <td className="ss-cell ss-cell--num" onClick={handleCellClick}>
+            <td className="ss-cell ss-cell--num">
                 {isEditing ? (
                     <input
                         className="ss-input ss-input--num"
@@ -178,7 +230,7 @@ function CurriculumCourseRow({
                     <span>{course.credits || <span className="ss-placeholder">0</span>}</span>
                 )}
             </td>
-            <td className="ss-cell ss-cell--actions" onClick={event => event.stopPropagation()}>
+            <td className="ss-cell ss-cell--actions">
                 {isEditing ? (
                     <>
                         <button
@@ -200,8 +252,49 @@ function CurriculumCourseRow({
                             <X size={12} />
                         </button>
                     </>
-                ) : (
-                    null
+                ) : !disabled && !isNew ? (
+                    <div className="curriculum-course-row-actions" ref={actionMenuRef}>
+                        <button
+                            type="button"
+                            className="curriculum-course-row-actions__trigger"
+                            onClick={toggleActionMenu}
+                            onPointerDown={event => event.stopPropagation()}
+                            aria-label={t('course_actions')}
+                            aria-haspopup="menu"
+                            aria-expanded={isActionMenuOpen}
+                            title={t('course_actions')}
+                        >
+                            <MoreHorizontal size={17} />
+                        </button>
+                    </div>
+                ) : null}
+                {isActionMenuOpen && createPortal(
+                    <div
+                        className="curriculum-course-row-actions__menu"
+                        ref={actionMenuRef}
+                        role="menu"
+                        style={{ top: actionMenuPosition.top, left: actionMenuPosition.left }}
+                    >
+                                <button
+                                    type="button"
+                                    className="curriculum-course-row-actions__item"
+                                    onClick={handleStartEdit}
+                                    role="menuitem"
+                                >
+                                    <Pencil size={15} />
+                                    {t('edit_course')}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="curriculum-course-row-actions__item curriculum-course-row-actions__item--danger"
+                                    onClick={handleDelete}
+                                    role="menuitem"
+                                >
+                                    <Trash2 size={15} />
+                                    {t('delete_course')}
+                                </button>
+                    </div>,
+                    document.body,
                 )}
             </td>
         </tr>

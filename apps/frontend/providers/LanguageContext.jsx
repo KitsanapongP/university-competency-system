@@ -130,9 +130,9 @@ const translations = {
         structure_add_child_disabled: 'This category is already at the maximum depth of 4 levels.',
         structure_add_course_disabled: 'Select a leaf category to add courses.',
         structure_empty: 'Add a main category to begin.',
-        structure_next_requires_both: 'Add at least one category and one course to continue.',
-        structure_next_requires_category: 'Add a main category to continue.',
-        structure_next_requires_course: 'Add at least one course to continue.',
+        course_actions: 'Course actions',
+        edit_course: 'Edit course',
+        delete_course: 'Delete course',
     },
     th: {
         dashboard: 'แดชบอร์ด',
@@ -261,9 +261,9 @@ const translations = {
         structure_add_child_disabled: 'หมวดนี้อยู่ระดับสูงสุด 4 ระดับแล้ว',
         structure_add_course_disabled: 'เลือกหมวดปลายทางเพื่อเพิ่มรายวิชา',
         structure_empty: 'เพิ่มหมวดหลักเพื่อเริ่มต้น',
-        structure_next_requires_both: 'เพิ่มอย่างน้อย 1 หมวดวิชาและ 1 รายวิชาเพื่อไปขั้นถัดไป',
-        structure_next_requires_category: 'เพิ่มหมวดหลักเพื่อไปขั้นถัดไป',
-        structure_next_requires_course: 'เพิ่มอย่างน้อย 1 รายวิชาเพื่อไปขั้นถัดไป',
+        course_actions: 'จัดการรายวิชา',
+        edit_course: 'แก้ไขรายวิชา',
+        delete_course: 'ลบรายวิชา',
     }
 };
 
