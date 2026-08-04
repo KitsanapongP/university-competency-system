@@ -3,97 +3,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     Plus, Trash2, GripVertical, ChevronRight, ChevronDown,
-    BookOpen, AlertCircle, Check, X, Pencil, LockKeyhole, TriangleAlert  
+    BookOpen, AlertCircle, Check, Pencil, LockKeyhole, TriangleAlert, ExternalLink
 } from 'lucide-react';
-import ManageCompetencyModal from './ManageCompetencyModal';
 
 function isLeaf(cat) { return !cat.children?.length; }
-
-// ============================================================
-// AddCompetencyModal
-// ============================================================
-// ============================================================
-// Preset colors สำหรับ Competency
-// ============================================================
-const COMP_PRESET_COLORS = [
-    '#ec4899','#3b82f6','#06b6d4','#f59e0b',
-    '#10b981','#8b5cf6','#ef4444','#f97316',
-    '#14b8a6','#a855f7','#84cc16','#0ea5e9',
-];
-
-function pickRandomColor(existing = []) {
-    const pool = COMP_PRESET_COLORS.filter(c => !existing.includes(c));
-    const src  = pool.length ? pool : COMP_PRESET_COLORS;
-    return src[Math.floor(Math.random() * src.length)];
-}
-
-// ============================================================
-// AddCompetencyModal
-// ============================================================
-function AddCompetencyModal({ onAdd, onClose, existingColors = [] }) {
-    const [name,  setName]  = useState('');
-    const [color, setColor] = useState(() => pickRandomColor(existingColors));
-
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h3>เพิ่ม Competency ใหม่</h3>
-                    <button className="modal-close" onClick={onClose}><X size={18}/></button>
-                </div>
-                <div className="modal-body" style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
-                    <div className="cfm-field">
-                        <label className="cfm-label">ชื่อ Competency <span className="cfm-required">*</span></label>
-                        <input className="cfm-input" value={name} autoFocus
-                            onChange={e => setName(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter' && name.trim()) { onAdd(name.trim(), color); onClose(); } }}
-                            placeholder="เช่น ความคิดสร้างสรรค์"/>
-                    </div>
-                    <div className="cfm-field">
-                        <label className="cfm-label">สี</label>
-                        {/* Preview + Preset swatches */}
-                        <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', flexWrap:'wrap' }}>
-                            <div style={{ width:28, height:28, borderRadius:7, background:color, border:'2px solid rgba(255,255,255,0.15)', flexShrink:0 }}/>
-                            <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
-                                {COMP_PRESET_COLORS.map(c => (
-                                    <button key={c}
-                                        style={{
-                                            width:20, height:20, borderRadius:'50%', background:c, border:`2px solid ${color===c?'#fff':'transparent'}`,
-                                            cursor:'pointer', padding:0, transform: color===c?'scale(1.2)':'scale(1)', transition:'transform 0.1s',
-                                        }}
-                                        onClick={() => setColor(c)}
-                                        title={c}
-                                    />
-                                ))}
-                            </div>
-                            {/* Custom color picker */}
-                            <label style={{ position:'relative', cursor:'pointer' }} title="เลือกสีเอง">
-                                <input type="color" value={color} onChange={e => setColor(e.target.value)}
-                                    style={{ opacity:0, position:'absolute', width:1, height:1 }}/>
-                                <div style={{
-                                    width:28, height:28, borderRadius:7, background:'#2d3748', border:'1px solid #334155',
-                                    display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.85rem'
-                                }}>🎨</div>
-                            </label>
-                            {/* สุ่มสีใหม่ */}
-                            <button style={{
-                                width:28, height:28, borderRadius:7, background:'#2d3748', border:'1px solid #334155',
-                                cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.85rem'
-                            }} onClick={() => setColor(pickRandomColor(existingColors))} title="สุ่มสี">🎲</button>
-                        </div>
-                    </div>
-                </div>
-                <div className="modal-footer">
-                    <button className="btn btn--ghost" onClick={onClose}>ยกเลิก</button>
-                    <button className="btn btn--primary" disabled={!name.trim()}
-                        onClick={() => { if (name.trim()) { onAdd(name.trim(), color); onClose(); } }}>
-                        เพิ่ม
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 // ============================================================
 // SpreadsheetRow
@@ -571,11 +484,9 @@ export default function CategoryCoursePanel({
     coursesByCategoryId={}, weightsByCourseId={}, competencies=[], creditMap={},
     onSelectCategory, onDeselectCategory, onCreateCategory, onRenameCategory, onDeleteCategory,
     onAddCourse, onUpdateCourse, onDeleteCourse,
-    onToggleCompetency, onSetWeight, onAddCompetency, onUpdateCompetency, onDeleteCompetency,
+    onToggleCompetency, onSetWeight,
     mode = 'setup',
 }) {
-    const [showAddComp,    setShowAddComp]    = useState(false);
-    const [showManageComp, setShowManageComp] = useState(false);
     const [viewMode,       setViewMode]       = useState('single');
     const [scrollToCatId,  setScrollToCatId]  = useState(null);
 
@@ -604,7 +515,7 @@ export default function CategoryCoursePanel({
                             fontSize: '0.9rem', fontWeight: 500, flexShrink: 0
                         }}>
                             <TriangleAlert size={18} style={{ flexShrink: 0 }} />
-                            <span>⚠️ <b>Template มีสถานะพร้อมใช้งาน (Active)</b> : ระบบล็อคการแก้ไขค่าน้ำหนักและโครงสร้างรายวิชา กรุณาเปลี่ยนสถานะเป็น <b>&quot;ปิดใช้งาน&quot;</b> ที่แท็บ &quot;ภาพรวมสมรรถนะ&quot; ก่อนแก้ไขข้อมูล</span>
+                            <span><b>Template มีสถานะพร้อมใช้งาน (Active)</b> : ระบบล็อคการแก้ไขค่าน้ำหนักและโครงสร้างรายวิชา กรุณาเปลี่ยนสถานะเป็น <b>&quot;ปิดใช้งาน&quot;</b> ที่แท็บ &quot;ภาพรวมสมรรถนะ&quot; ก่อนแก้ไขข้อมูล</span>
                         </div>
                     )}
                     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -664,8 +575,12 @@ export default function CategoryCoursePanel({
                             <div style={{ marginLeft:'auto', display:'flex', gap:'0.4rem', flexShrink:0 }}>
                                 {/* จัดการ Competency — แสดงทุกเฉพาะหน้าตั้งค่า Weight */}
                                 {isWeightMode && (
-                                    <button className="btn btn--primary btn--sm" onClick={() => setShowManageComp(true)}>
-                                        <Pencil size={13}/> จัดการสมรรถนะ
+                                    <button
+                                        type="button"
+                                        className="btn btn--primary btn--sm"
+                                        onClick={() => window.open('/competency-management', '_blank', 'noopener,noreferrer')}
+                                    >
+                                        <ExternalLink size={13}/> จัดการสมรรถนะ
                                     </button>
                                 )}
                                 {leaf && viewMode === 'single' && (
@@ -737,22 +652,6 @@ export default function CategoryCoursePanel({
                 </div>
             )}
 
-            {showManageComp && (
-                <ManageCompetencyModal
-                    competencies={competencies}
-                    onClose={() => setShowManageComp(false)}
-                    onUpdate={onUpdateCompetency}
-                    onDelete={onDeleteCompetency}
-                    onAdd={onAddCompetency}
-                />
-            )}
-            {showAddComp && (
-                <AddCompetencyModal
-                    onAdd={onAddCompetency}
-                    onClose={() => setShowAddComp(false)}
-                    existingColors={competencies.map(c => c.color)}
-                />
-            )}
         </div>
     );
 }

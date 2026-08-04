@@ -12,6 +12,34 @@ import TemplateFormModal    from './components/TemplateFormModal';
 import ConfirmDeleteModal   from './components/ConfirmDeleteModal';
 import './TemplateManagement.css';
 
+const COMPETENCY_COLORS = ['#ec4899', '#3b82f6', '#06b6d4', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444', '#f97316'];
+
+function stableCompetencyColor(competency) {
+    const source = String(competency.competency_id || competency.id || competency.code || 'competency');
+    const hash = [...source].reduce((sum, character) => ((sum * 31) + character.charCodeAt(0)) >>> 0, 0);
+    return COMPETENCY_COLORS[hash % COMPETENCY_COLORS.length];
+}
+
+function normalizeCompetencies(competencies) {
+    return (Array.isArray(competencies) ? competencies : [])
+        .filter(competency => competency.is_active ?? competency.isActive ?? true)
+        .map((competency, index) => {
+            const id = competency.id || competency.competency_id;
+            const code = competency.code || `comp_${index}`;
+            const nameTh = competency.name_th || competency.nameTh || competency.name || '';
+            const nameEn = competency.name_en || competency.nameEn || '';
+
+            return {
+                id,
+                code,
+                name: nameTh,
+                nameTh,
+                nameEn,
+                color: stableCompetencyColor({ ...competency, id, code }),
+            };
+        });
+}
+
 // ============================================================
 // Pure helpers
 // ============================================================
@@ -127,28 +155,24 @@ export default function TemplateManagementPage() {
     const [weightsByTemplate,  setWeightsByTemplate]  = useState({});
 
     const idRef       = useRef(50000);
-    const compIdRef      = useRef(8000);
     const templateRef    = useRef(7000);
     const courseIdRef    = useRef(50000);
     const saveTimeoutRef = useRef(null);
 
+    const loadCompetencies = useCallback(async () => {
+        const competencyData = await fetchCompetencies();
+        const mappedCompetencies = normalizeCompetencies(competencyData);
+        setAllCompetencies(mappedCompetencies);
+        return mappedCompetencies;
+    }, []);
+
     useEffect(() => {
         async function loadData() {
             try {
-                const [tmplData, compData] = await Promise.all([
+                const [tmplData] = await Promise.all([
                     fetchTemplates(),
-                    fetchCompetencies()
+                    loadCompetencies()
                 ]);
-
-                if (Array.isArray(compData) && compData.length > 0) {
-                    const mappedComps = compData.map((c, idx) => ({
-                        id: c.id || c.competency_id,
-                        code: c.code || `comp_${idx}`,
-                        name: c.name_th || c.name || '',
-                        color: ['#ec4899','#3b82f6','#06b6d4','#f59e0b','#10b981','#8b5cf6','#ef4444','#f97316'][idx % 8],
-                    }));
-                    setAllCompetencies(mappedComps);
-                }
 
                 const actualTmplData = Array.isArray(tmplData) ? tmplData : (tmplData?.data || []);
                 if (Array.isArray(actualTmplData)) {
@@ -167,7 +191,7 @@ export default function TemplateManagementPage() {
             }
         }
         loadData();
-    }, []);
+    }, [loadCompetencies]);
 
     // ── Derived ──
     const currentCategories      = selectedTemplate ? (categoriesByTemplate[selectedTemplate.id] || []) : [];
@@ -399,19 +423,16 @@ export default function TemplateManagementPage() {
         }
     }, [deletingTemplate, selectedTemplate, handleBackToList]);
 
-    const handleSaveTemplate = useCallback(async ({ name, academicYear, masterData, competencyIds, newCompetencies }) => {
+    const handleSaveTemplate = useCallback(async ({ name, academicYear, masterData, competencyIds }) => {
         let createdId = ++templateRef.current;
         let actualCreated = null;
         try {
-            const existingCompIds = (competencyIds || []).filter(id => !(newCompetencies || []).some(nc => nc.id === id));
-            const formattedNewComps = (newCompetencies || []).map(nc => ({ name: nc.name, color: nc.color }));
             const payload = {
                 name,
                 faculty_id: 11,
                 cohort_year_be: Number(academicYear) || 2568,
                 curriculum_id: masterData ? masterData.id : null,
-                competency_ids: existingCompIds,
-                new_competencies: formattedNewComps
+                competency_ids: competencyIds || [],
             };
             const created = await createTemplate(payload);
             actualCreated = created?.data || created;
@@ -431,15 +452,6 @@ export default function TemplateManagementPage() {
             isActive: typeof actualCreated?.is_active === 'boolean' ? actualCreated.is_active : (typeof actualCreated?.isActive === 'boolean' ? actualCreated.isActive : true)
         };
         setTemplates(p => [...p, newTemplate]);
-
-        // เพิ่ม competencies ใหม่ที่สร้างใน modal เข้า global state
-        if (newCompetencies?.length) {
-            setAllCompetencies(p => {
-                const existingIds = new Set(p.map(c => c.id));
-                const toAdd = newCompetencies.filter(c => !existingIds.has(c.id));
-                return toAdd.length ? [...p, ...toAdd] : p;
-            });
-        }
 
         // ถ้ามี masterData → แปลง categories และ courses จาก master
         if (masterData) {
@@ -494,9 +506,7 @@ export default function TemplateManagementPage() {
         if (competencyIds?.length) {
             setAllCompetencies(prev => {
                 const kept = prev.filter(c => competencyIds.includes(c.id));
-                const extra = (newCompetencies || []).filter(nc => competencyIds.includes(nc.id) && !kept.some(k => k.id === nc.id));
-                const selectedComps = [...kept, ...extra];
-                setCompetenciesByTemplate(p => ({ ...p, [id]: selectedComps }));
+                setCompetenciesByTemplate(p => ({ ...p, [id]: kept }));
                 return prev;
             });
         }
@@ -750,29 +760,6 @@ export default function TemplateManagementPage() {
         triggerAutoSaveToAPI(selectedTemplate.id, currentCategories, currentCoursesByCat, nextWeightsMap);
     }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, triggerAutoSaveToAPI]);
 
-    const handleAddCompetency = useCallback((name, color) => {
-        const newComp = { id: ++compIdRef.current, code: `custom_${compIdRef.current}`, name, color, fromMaster: false };
-        setAllCompetencies(p => [...p, newComp]);
-        if (selectedTemplate) {
-            setCompetenciesByTemplate(p => {
-                const cur = p[selectedTemplate.id] || [];
-                return { ...p, [selectedTemplate.id]: [...cur, newComp] };
-            });
-        }
-        return newComp;
-    }, [selectedTemplate]);
-
-    const handleUpdateCompetency = useCallback((updated) => {
-        setAllCompetencies(p => p.map(c => c.id === updated.id ? { ...c, ...updated } : c));
-        setCompetenciesByTemplate(p => {
-            const next = { ...p };
-            Object.keys(next).forEach(tplId => {
-                next[tplId] = (next[tplId] || []).map(c => c.id === updated.id ? { ...c, ...updated } : c);
-            });
-            return next;
-        });
-    }, []);
-
     const handleToggleTemplateStatus = useCallback(async (newStatus) => {
         if (!selectedTemplate) return;
         try {
@@ -785,32 +772,6 @@ export default function TemplateManagementPage() {
         } catch (err) {
             alert(err.message || 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะ');
         }
-    }, [selectedTemplate]);
-
-    const handleDeleteCompetency = useCallback((id) => {
-        setAllCompetencies(p => p.filter(c => c.id !== id));
-        if (selectedTemplate) {
-            setCompetenciesByTemplate(p => {
-                const cur = p[selectedTemplate.id] || [];
-                return { ...p, [selectedTemplate.id]: cur.filter(c => c.id !== id) };
-            });
-        }
-        // ลบ weights ที่ผูกกับ competency นี้ออกด้วย
-        setWeightsByTemplate(p => {
-            const next = { ...p };
-            if (selectedTemplate && next[selectedTemplate.id]) {
-                const tpl = { ...next[selectedTemplate.id] };
-                Object.keys(tpl).forEach(courseId => {
-                    if (tpl[courseId]?.[id] !== undefined) {
-                        const w = { ...tpl[courseId] };
-                        delete w[id];
-                        tpl[courseId] = w;
-                    }
-                });
-                next[selectedTemplate.id] = tpl;
-            }
-            return next;
-        });
     }, [selectedTemplate]);
 
     // ============================================================
@@ -864,7 +825,12 @@ export default function TemplateManagementPage() {
 
                 {/* Modals */}
                 {showTemplateModal && (
-                    <TemplateFormModal onClose={() => setShowTemplateModal(false)} onSave={handleSaveTemplate} allCompetencies={allCompetencies} />
+                    <TemplateFormModal
+                        onClose={() => setShowTemplateModal(false)}
+                        onSave={handleSaveTemplate}
+                        allCompetencies={allCompetencies}
+                        onRefreshCompetencies={loadCompetencies}
+                    />
                 )}
                 {deletingTemplate && (
                     <ConfirmDeleteModal
@@ -958,9 +924,6 @@ export default function TemplateManagementPage() {
                     onReorderCourses={handleReorderCourses}
                     onDeleteCourse={handleRequestDeleteCourse}
                     onSetWeight={handleSetWeight}
-                    onAddCompetency={handleAddCompetency}
-                    onUpdateCompetency={handleUpdateCompetency}
-                    onDeleteCompetency={handleDeleteCompetency}
                     mode="setup"
                 />
             )}
@@ -985,9 +948,6 @@ export default function TemplateManagementPage() {
                     onReorderCourses={handleReorderCourses}
                     onDeleteCourse={handleRequestDeleteCourse}
                     onSetWeight={handleSetWeight}
-                    onAddCompetency={handleAddCompetency}
-                    onUpdateCompetency={handleUpdateCompetency}
-                    onDeleteCompetency={handleDeleteCompetency}
                     mode="weight"
                 />
             )}
