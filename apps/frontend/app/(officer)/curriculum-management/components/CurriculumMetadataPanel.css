@@ -31,14 +31,14 @@
     gap: 0.5rem;
 }
 
-.curriculum-metadata-lock {
-    margin: 1rem 1.25rem 0;
-    padding: 0.75rem 0.875rem;
-    border: 1px solid rgba(245, 158, 11, 0.45);
-    background: rgba(245, 158, 11, 0.1);
-    color: #fbbf24;
-    border-radius: 6px;
-    font-size: 0.875rem;
+.curriculum-metadata-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(17rem, 0.7fr);
+    align-items: stretch;
+}
+
+.curriculum-metadata-workspace__main {
+    min-width: 0;
 }
 
 .curriculum-metadata-grid {
@@ -99,6 +99,133 @@
     text-decoration: underline;
 }
 
+.curriculum-metadata-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+    border-left: 1px solid var(--course-border);
+    background: color-mix(in srgb, var(--course-tree-hover) 38%, var(--course-card-bg));
+}
+
+.curriculum-metadata-summary__header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--course-accent);
+}
+
+.curriculum-metadata-summary__header h3 {
+    margin: 0;
+    color: var(--course-title);
+    font-size: 0.9375rem;
+}
+
+.curriculum-metadata-summary__metrics {
+    display: grid;
+    margin: 0;
+}
+
+.curriculum-metadata-summary__metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 3.4rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--course-border);
+}
+
+.curriculum-metadata-summary__metrics dt {
+    color: var(--course-text-muted);
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.curriculum-metadata-summary__metrics dd {
+    margin: 0;
+    color: var(--course-accent);
+    font-size: 1.25rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.curriculum-metadata-summary__metrics dd span {
+    color: var(--course-text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.curriculum-metadata-template-context {
+    display: grid;
+    gap: 0.75rem;
+    padding-top: 0.125rem;
+}
+
+.curriculum-metadata-template-context__count {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--course-text-muted);
+    font-size: 0.8125rem;
+}
+
+.curriculum-metadata-template-context__count svg {
+    flex-shrink: 0;
+    color: var(--course-accent);
+}
+
+.curriculum-metadata-template-context__count strong {
+    margin-left: auto;
+    color: var(--course-text);
+    font-size: 0.8125rem;
+    white-space: nowrap;
+}
+
+.curriculum-metadata-template-context__warning {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.7rem 0.75rem;
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    border-radius: 6px;
+    background: rgba(245, 158, 11, 0.1);
+    color: #fbbf24;
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+.curriculum-metadata-template-context__warning strong {
+    font-size: 0.8125rem;
+}
+
+.curriculum-metadata-summary__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    min-height: 2.5rem;
+    margin-top: auto;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--course-border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--course-accent);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.curriculum-metadata-summary__action span {
+    margin-left: auto;
+}
+
+.curriculum-metadata-summary__action:hover {
+    border-color: var(--course-accent);
+    background: color-mix(in srgb, var(--course-accent) 10%, transparent);
+}
+
 .curriculum-metadata-form {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -141,6 +268,17 @@
     .curriculum-metadata-panel__actions {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .curriculum-metadata-workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .curriculum-metadata-summary {
+        order: -1;
+        border-right: 0;
+        border-bottom: 1px solid var(--course-border);
+        border-left: 0;
     }
 
     .curriculum-metadata-grid,

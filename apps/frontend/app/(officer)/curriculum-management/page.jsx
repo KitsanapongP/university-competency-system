@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Search, BookOpen, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronRight, Layers, Award } from 'lucide-react';
 import { useAuth } from '../../../providers/auth-provider';
+import { useLanguage } from '../../../providers/LanguageContext';
 import {
     createCurriculumCategory,
     createCurriculumCourse,
@@ -523,6 +524,7 @@ function DuplicateCurriculumModal({
 export default function CurriculumManagementPage() {
     const router = useRouter();
     const { user } = useAuth();
+    const { t } = useLanguage();
     const isAdmin = user?.roles?.includes('admin');
     const [view, setView] = useState('list'); // 'list' | 'editor'
     const [courses, setCourses] = useState([]);
@@ -1399,7 +1401,7 @@ export default function CurriculumManagementPage() {
                             className={`curriculum-detail-tabs__tab ${detailTab === 'structure' ? 'curriculum-detail-tabs__tab--active' : ''}`}
                             onClick={() => handleDetailTabChange('structure')}
                         >
-                            โครงสร้างหลักสูตร
+                            {t('curriculum_detail_tab_structure')}
                         </button>
                         <button
                             type="button"
@@ -1408,7 +1410,7 @@ export default function CurriculumManagementPage() {
                             className={`curriculum-detail-tabs__tab ${detailTab === 'metadata' ? 'curriculum-detail-tabs__tab--active' : ''}`}
                             onClick={() => handleDetailTabChange('metadata')}
                         >
-                            ข้อมูลหลักสูตร
+                            {t('curriculum_detail_tab_metadata')}
                         </button>
                     </div>
 
@@ -1497,6 +1499,7 @@ export default function CurriculumManagementPage() {
                             onSave={handleSaveMetadata}
                             onFieldChange={handleMetadataFieldChange}
                             onEditingStateChange={setMetadataEditState}
+                            onManageStructure={() => handleDetailTabChange('structure')}
                         />
                     )}
                 </div>
