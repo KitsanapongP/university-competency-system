@@ -138,11 +138,10 @@ func (r *TemplateRepository) CreateTemplate(ctx context.Context, facultyID uint6
 	now := time.Now()
 	code := fmt.Sprintf("tpl_%d_%d_%d", facultyID, req.CohortYearBE, now.UnixNano())
 
-	// 1. Insert comp_templates
-	// 1. Insert comp_templates (เริ่มต้นที่สถานะ Active / is_active = 1 ทันทีเมื่อสร้าง Template ใหม่)
+	// 1. Insert comp_templates (เริ่มต้นที่สถานะ Inactive / is_active = 0 เพื่อให้แก้ไขน้ำหนักและโครงสร้างก่อน แล้วค่อย Active เมื่อพร้อม)
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO comp_templates (faculty_id, code, name, version_year_be, is_active, created_by, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+		VALUES (?, ?, ?, ?, 0, ?, ?, ?)
 	`, facultyID, code, req.Name, req.CohortYearBE, userID, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("insert comp_templates failed: %w", err)

@@ -130,7 +130,33 @@ export default function TemplateManagementPage() {
     const compIdRef      = useRef(8000);
     const templateRef    = useRef(7000);
     const courseIdRef    = useRef(50000);
-    const saveTimeoutRef = useRef(null);
+    const saveTimeoutRef   = useRef(null);
+    const pendingSaveFnRef = useRef(null);
+
+    // Flush pending auto-save on component unmount (e.g. navbar navigation)
+    // and on browser tab close/refresh
+    useEffect(() => {
+        const flushPendingSave = () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current = null;
+            }
+            if (pendingSaveFnRef.current) {
+                pendingSaveFnRef.current();
+                pendingSaveFnRef.current = null;
+            }
+        };
+
+        const handleBeforeUnload = () => {
+            flushPendingSave();
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            flushPendingSave();
+        };
+    }, []);
 
     useEffect(() => {
         async function loadData() {
@@ -361,6 +387,15 @@ export default function TemplateManagementPage() {
     }, []);
 
     const handleBackToList = useCallback(() => {
+        // Flush any pending auto-save before leaving the editor
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = null;
+        }
+        if (pendingSaveFnRef.current) {
+            pendingSaveFnRef.current();
+            pendingSaveFnRef.current = null;
+        }
         setView('list');
         setSelectedTemplate(null);
         setSelectedCategory(null);
@@ -428,7 +463,7 @@ export default function TemplateManagementPage() {
             academicYear,
             totalCourseCount: actualCreated?.total_course_count || actualCreated?.TotalCourseCount || (masterData?.total_courses || masterData?.course_count || 0),
             masterData: masterData ? { ...masterData, name: masterData.name || masterData.nameTh || masterData.curriculum_name_th || '' } : null,
-            isActive: typeof actualCreated?.is_active === 'boolean' ? actualCreated.is_active : (typeof actualCreated?.isActive === 'boolean' ? actualCreated.isActive : true)
+            isActive: typeof actualCreated?.is_active === 'boolean' ? actualCreated.is_active : (typeof actualCreated?.isActive === 'boolean' ? actualCreated.isActive : false)
         };
         setTemplates(p => [...p, newTemplate]);
 
@@ -519,7 +554,7 @@ export default function TemplateManagementPage() {
         }
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
-        saveTimeoutRef.current = setTimeout(() => {
+        const executeSave = () => {
             const activeCourseIds = new Set();
             Object.values(nextCoursesMap || {}).forEach(arr => {
                 (arr || []).forEach(c => {
@@ -555,7 +590,7 @@ export default function TemplateManagementPage() {
                     if (!c.fromMaster) {
                         const isCurriParent = parentId !== null && (isParentMaster || parentId < 50000);
                         custom_categories.push({
-                            template_category_id: typeof c.id === 'number' && c.id < 50000 ? 0 : (typeof c.id === 'number' ? c.id : 0),
+                            template_category_id: typeof c.id === 'number' ? c.id : 0,
                             curriculum_parent_id: isCurriParent ? parentId : null,
                             parent_id: (parentId !== null && !isCurriParent) ? parentId : null,
                             code: c.code || '',
@@ -577,7 +612,7 @@ export default function TemplateManagementPage() {
                 (arr || []).forEach((c, idx) => {
                     if (!c.fromMaster && c.code && (c.nameTh || c.name)) {
                         custom_courses.push({
-                            template_course_id: typeof c.id === 'number' && c.id < 50000 ? 0 : (typeof c.id === 'number' ? c.id : 0),
+                            template_course_id: typeof c.id === 'number' ? c.id : 0,
                             curriculum_category_id: isCatMaster ? catId : null,
                             template_category_id: !isCatMaster ? catId : null,
                             code: c.code || '',
@@ -595,6 +630,12 @@ export default function TemplateManagementPage() {
             saveTemplateItems(tplId, { items, custom_categories, custom_courses, competency_ids: tplCompIds }).catch(err => {
                 console.warn('Cannot auto-save or API notice:', err.message || err);
             });
+        };
+
+        pendingSaveFnRef.current = executeSave;
+        saveTimeoutRef.current = setTimeout(() => {
+            executeSave();
+            pendingSaveFnRef.current = null;
         }, 500);
     }, [competenciesByTemplate, selectedTemplate]);
 
@@ -775,6 +816,47 @@ export default function TemplateManagementPage() {
 
     const handleToggleTemplateStatus = useCallback(async (newStatus) => {
         if (!selectedTemplate) return;
+
+        // Validate before activating: every course must have at least one competency weight
+        if (newStatus === true) {
+            const tplId = selectedTemplate.id;
+            const coursesMap = coursesByTemplate[tplId] || {};
+            const weightsMap = weightsByTemplate[tplId] || {};
+            const comps = competenciesByTemplate[tplId] || [];
+
+            const allCourses = Object.values(coursesMap).flat();
+            if (allCourses.length === 0) {
+                alert('ไม่สามารถเปิดใช้งานได้: Template ยังไม่มีรายวิชา');
+                return;
+            }
+            if (comps.length === 0) {
+                alert('ไม่สามารถเปิดใช้งานได้: Template ยังไม่มีสมรรถนะ');
+                return;
+            }
+
+            const coursesWithoutComp = allCourses.filter(c => {
+                const courseWeights = weightsMap[c.id] || {};
+                return !comps.some(comp => (Number(courseWeights[comp.id]) || 0) > 0);
+            });
+
+            if (coursesWithoutComp.length > 0) {
+                const maxShow = 5;
+                const names = coursesWithoutComp
+                    .slice(0, maxShow)
+                    .map(c => `  - ${c.code || '(ไม่มีรหัส)'} ${c.nameTh || c.name || ''}`)
+                    .join('\n');
+                const extra = coursesWithoutComp.length > maxShow
+                    ? `\n  ... และอีก ${coursesWithoutComp.length - maxShow} วิชา`
+                    : '';
+                alert(
+                    `ไม่สามารถเปิดใช้งานได้: มี ${coursesWithoutComp.length} วิชาที่ยังไม่ได้กำหนดค่าน้ำหนักสมรรถนะ\n\n` +
+                    `วิชาที่ยังไม่ผูกสมรรถนะ:\n${names}${extra}\n\n` +
+                    `กรุณาไปที่แท็บ "ใส่น้ำหนักสมรรถนะ" เพื่อกำหนดค่าให้ครบทุกวิชา`
+                );
+                return;
+            }
+        }
+
         try {
             await updateTemplateStatus(selectedTemplate.id, newStatus ? 'Active' : 'Inactive');
             setTemplateStatus(newStatus);
@@ -785,7 +867,7 @@ export default function TemplateManagementPage() {
         } catch (err) {
             alert(err.message || 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะ');
         }
-    }, [selectedTemplate]);
+    }, [selectedTemplate, coursesByTemplate, weightsByTemplate, competenciesByTemplate]);
 
     const handleDeleteCompetency = useCallback((id) => {
         setAllCompetencies(p => p.filter(c => c.id !== id));
