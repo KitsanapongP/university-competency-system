@@ -10,6 +10,7 @@ import CategoryCoursePanel  from './components/CategoryCoursePanel';
 import CompetencyOverview   from './components/CompetencyOverview';
 import TemplateFormModal    from './components/TemplateFormModal';
 import ConfirmDeleteModal   from './components/ConfirmDeleteModal';
+import AlertModal           from './components/AlertModal';
 import './TemplateManagement.css';
 
 // ============================================================
@@ -121,6 +122,15 @@ export default function TemplateManagementPage() {
     const [deletingTemplate,  setDeletingTemplate]  = useState(null);
     const [deletingCategory,  setDeletingCategory]  = useState(null);
     const [deletingCourse,    setDeletingCourse]    = useState(null);
+
+    // AlertModal state (replaces native browser alert)
+    const [alertModal, setAlertModal] = useState({ open: false, title: '', message: '', details: '', type: 'warning' });
+    const showAlert = useCallback((message, { title, details, type = 'warning' } = {}) => {
+        setAlertModal({ open: true, title: title || '', message, details: details || '', type });
+    }, []);
+    const closeAlert = useCallback(() => {
+        setAlertModal(prev => ({ ...prev, open: false }));
+    }, []);
 
     const [categoriesByTemplate, setCategoriesByTemplate] = useState({});
     const [coursesByTemplate,  setCoursesByTemplate]  = useState({});
@@ -411,7 +421,7 @@ export default function TemplateManagementPage() {
                 setTemplates(p => p.map(t => t.id === selectedTemplate.id ? { ...t, name: trimmed } : t));
                 setSelectedTemplate(p => ({ ...p, name: trimmed }));
             } catch (err) {
-                alert('ไม่สามารถเปลี่ยนชื่อ Template ได้: ' + (err.message || 'เกิดข้อผิดพลาด'));
+                showAlert('ไม่สามารถเปลี่ยนชื่อ Template ได้: ' + (err.message || 'เกิดข้อผิดพลาด'), { type: 'error', title: 'เกิดข้อผิดพลาด' });
             }
         }
         setEditingTitle(false);
@@ -429,7 +439,7 @@ export default function TemplateManagementPage() {
             if (selectedTemplate?.id === id) handleBackToList();
             setDeletingTemplate(null);
         } catch (err) {
-            alert(err.message || 'ไม่สามารถลบ Template ได้');
+            showAlert(err.message || 'ไม่สามารถลบ Template ได้', { type: 'error', title: 'ไม่สามารถลบได้' });
             setDeletingTemplate(null);
         }
     }, [deletingTemplate, selectedTemplate, handleBackToList]);
@@ -649,7 +659,7 @@ export default function TemplateManagementPage() {
     const handleCreateCategory = useCallback((parentId = selectedCategory?.id ?? null) => {
         if (!selectedTemplate) return;
         if (selectedTemplate.isActive) {
-            alert('ไม่สามารถเพิ่มหมวดวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            showAlert('ไม่สามารถเพิ่มหมวดวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active)', { type: 'warning', title: 'Template อยู่ในสถานะ Active', details: 'กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข' });
             return;
         }
         const newId = ++idRef.current;
@@ -665,12 +675,12 @@ export default function TemplateManagementPage() {
             const parent = findById(currentCategories, parentId);
             if (!parent) return;
             if (getDepthFromCode(parent.code) >= 3) {
-                alert('ไม่สามารถสร้างหมวดวิชาที่ลึกกว่า 4 ระดับได้'); return;
+                showAlert('ไม่สามารถสร้างหมวดวิชาที่ลึกกว่า 4 ระดับได้', { type: 'info', title: 'ถึงระดับสูงสุดแล้ว' }); return;
             }
             // ถ้า parent มาจาก Master และมีวิชาอยู่แล้ว → ห้ามสร้างหมวดย่อย
             const parentCourses = currentCoursesByCat[parentId] || [];
             if (parent.fromMaster && parentCourses.length > 0) {
-                alert(`หมวด "${parent.code} ${parent.name}" มีรายวิชาอยู่แล้ว ไม่สามารถสร้างหมวดย่อยได้`);
+                showAlert(`หมวด "${parent.code} ${parent.name}" มีรายวิชาอยู่แล้ว ไม่สามารถสร้างหมวดย่อยได้`, { type: 'warning', title: 'ไม่สามารถสร้างหมวดย่อยได้' });
                 return;
             }
             const code = getNextCode(parent.code, getDirectChildren(currentCategories, parentId));
@@ -699,7 +709,7 @@ export default function TemplateManagementPage() {
 
     const handleRequestDeleteCategory = useCallback((cat) => {
         if (selectedTemplate?.isActive) {
-            alert('ไม่สามารถลบหมวดวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            showAlert('ไม่สามารถลบหมวดวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active)', { type: 'warning', title: 'Template อยู่ในสถานะ Active', details: 'กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข' });
             return;
         }
         setDeletingCategory(cat);
@@ -731,7 +741,7 @@ export default function TemplateManagementPage() {
     const handleAddCourse = useCallback((catId, data) => {
         if (!selectedTemplate) return;
         if (selectedTemplate.isActive) {
-            alert('ไม่สามารถเพิ่มรายวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            showAlert('ไม่สามารถเพิ่มรายวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active)', { type: 'warning', title: 'Template อยู่ในสถานะ Active', details: 'กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข' });
             return;
         }
         const course = { id: ++courseIdRef.current, ...data, fromMaster: false };
@@ -762,7 +772,7 @@ export default function TemplateManagementPage() {
 
     const handleRequestDeleteCourse = useCallback((catId, course) => {
         if (selectedTemplate?.isActive) {
-            alert('ไม่สามารถลบรายวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            showAlert('ไม่สามารถลบรายวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active)', { type: 'warning', title: 'Template อยู่ในสถานะ Active', details: 'กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข' });
             return;
         }
         setDeletingCourse({ ...course, _catId: catId });
@@ -826,11 +836,11 @@ export default function TemplateManagementPage() {
 
             const allCourses = Object.values(coursesMap).flat();
             if (allCourses.length === 0) {
-                alert('ไม่สามารถเปิดใช้งานได้: Template ยังไม่มีรายวิชา');
+                showAlert('ไม่สามารถเปิดใช้งานได้เนื่องจาก Template ยังไม่มีรายวิชา', { type: 'error', title: 'ไม่สามารถเปิดใช้งานได้' });
                 return;
             }
             if (comps.length === 0) {
-                alert('ไม่สามารถเปิดใช้งานได้: Template ยังไม่มีสมรรถนะ');
+                showAlert('ไม่สามารถเปิดใช้งานได้เนื่องจาก Template ยังไม่มีสมรรถนะ', { type: 'error', title: 'ไม่สามารถเปิดใช้งานได้' });
                 return;
             }
 
@@ -848,10 +858,13 @@ export default function TemplateManagementPage() {
                 const extra = coursesWithoutComp.length > maxShow
                     ? `\n  ... และอีก ${coursesWithoutComp.length - maxShow} วิชา`
                     : '';
-                alert(
-                    `ไม่สามารถเปิดใช้งานได้: มี ${coursesWithoutComp.length} วิชาที่ยังไม่ได้กำหนดค่าน้ำหนักสมรรถนะ\n\n` +
-                    `วิชาที่ยังไม่ผูกสมรรถนะ:\n${names}${extra}\n\n` +
-                    `กรุณาไปที่แท็บ "ใส่น้ำหนักสมรรถนะ" เพื่อกำหนดค่าให้ครบทุกวิชา`
+                showAlert(
+                    `ไม่สามารถเปิดใช้งานได้: มี ${coursesWithoutComp.length} วิชาที่ยังไม่ได้กำหนดค่าน้ำหนักสมรรถนะ`,
+                    {
+                        type: 'error',
+                        title: 'ไม่สามารถเปิดใช้งานได้',
+                        details: `วิชาที่ยังไม่ผูกสมรรถนะ:\n${names}${extra}\n\nกรุณาไปที่แท็บ "ใส่น้ำหนักสมรรถนะ" เพื่อกำหนดค่าให้ครบทุกวิชา`
+                    }
                 );
                 return;
             }
@@ -865,7 +878,7 @@ export default function TemplateManagementPage() {
             ));
             setSelectedTemplate(p => ({ ...p, isActive: newStatus }));
         } catch (err) {
-            alert(err.message || 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะ');
+            showAlert(err.message || 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะ', { type: 'error', title: 'เกิดข้อผิดพลาด' });
         }
     }, [selectedTemplate, coursesByTemplate, weightsByTemplate, competenciesByTemplate]);
 
@@ -956,6 +969,14 @@ export default function TemplateManagementPage() {
                         onCancel={() => setDeletingTemplate(null)}
                     />
                 )}
+                <AlertModal
+                    open={alertModal.open}
+                    title={alertModal.title}
+                    message={alertModal.message}
+                    details={alertModal.details}
+                    type={alertModal.type}
+                    onClose={closeAlert}
+                />
             </div>
         );
     }
@@ -1113,6 +1134,14 @@ export default function TemplateManagementPage() {
                     onCancel={() => setDeletingCourse(null)}
                 />
             )}
+            <AlertModal
+                open={alertModal.open}
+                title={alertModal.title}
+                message={alertModal.message}
+                details={alertModal.details}
+                type={alertModal.type}
+                onClose={closeAlert}
+            />
         </div>
     );
 }
