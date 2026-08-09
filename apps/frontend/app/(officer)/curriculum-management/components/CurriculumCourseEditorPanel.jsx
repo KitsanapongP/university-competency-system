@@ -342,6 +342,8 @@ export default function CurriculumCourseEditorPanel({
     getCourseCapabilities,
     allowExtraEditing = false,
     allowSelection = true,
+    showCategoryToolbar = true,
+    showCourseActions = true,
     extraColumnHeaders = [],
     renderExtraCells,
 }) {
@@ -551,6 +553,7 @@ export default function CurriculumCourseEditorPanel({
 
     return (
         <div className="course-two-panel__content curriculum-course-editor">
+            {showCategoryToolbar && (
             <div className="course-detail-toolbar curriculum-course-editor__toolbar">
                 <div className="course-detail-toolbar__left">
                     <span className="course-detail-toolbar__label">ชื่อหมวดวิชา</span>
@@ -616,9 +619,11 @@ export default function CurriculumCourseEditorPanel({
                     </div>
                 )}
             </div>
+            )}
 
             {category ? (
                 <>
+                    {showCourseActions && (
                     <div className="course-detail-courses curriculum-course-editor__actions">
                         <div className="curriculum-course-editor__summary">
                             <BookOpen size={14} />
@@ -661,6 +666,7 @@ export default function CurriculumCourseEditorPanel({
                             )}
                         </div>
                     </div>
+                    )}
 
                     {!isLeafCategory && !isReadOnly && coursePlacementHint && (
                         <p className="curriculum-course-editor__placement-hint" role="status">

@@ -15,6 +15,46 @@ function allCourseCredits(courses) {
     return courses.reduce((total, course) => total + (Number(course.credits) || 0), 0);
 }
 
+function TemplateWeightToolbar({
+    title,
+    courseCount,
+    totalCredits,
+    categories,
+    coursesByCategoryId,
+    weightsByCourseId,
+    competencies,
+}) {
+    return (
+        <div className="template-weight-editor__toolbar">
+            <div>
+                <span className="template-weight-editor__category">{title}</span>
+                <span className="template-weight-editor__hint">
+                    กำหนด Competency และน้ำหนักของแต่ละรายวิชา
+                </span>
+            </div>
+            <div className="template-weight-editor__actions">
+                <div className="template-weight-editor__course-summary" aria-label={`รายการวิชา ${courseCount} วิชา หน่วยกิตรวม ${totalCredits}`}>
+                    <span><BookOpen size={14} /> รายวิชา {courseCount} วิชา</span>
+                    <span>หน่วยกิตรวม <strong>{totalCredits}</strong></span>
+                </div>
+                <TemplateWeightSummary
+                    categories={categories}
+                    coursesByCategoryId={coursesByCategoryId}
+                    weightsByCourseId={weightsByCourseId}
+                    competencies={competencies}
+                />
+                <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    onClick={() => window.open('/competency-management', '_blank', 'noopener,noreferrer')}
+                >
+                    <ExternalLink size={13} /> จัดการสมรรถนะ
+                </button>
+            </div>
+        </div>
+    );
+}
+
 function TemplateWeightEditor({
     template,
     categories,
@@ -75,16 +115,31 @@ function TemplateWeightEditor({
 
     if (showAllCourses) {
         return (
-            <CurriculumCourseEditorPanel
-                category={{ id: '__template_all_courses__', name: 'วิชาทั้งหมด' }}
-                courses={allCourses}
-                allCourses={allCourses}
-                categoryTotalCredits={allCourseCredits(allCourses)}
-                canEdit={false}
-                disabled={Boolean(template?.isActive)}
-                isLeafCategory={false}
-                isAllCoursesView
-            />
+            <div className="template-weight-editor">
+                <TemplateWeightToolbar
+                    title="วิชาทั้งหมด"
+                    courseCount={allCourses.length}
+                    totalCredits={allCourseCredits(allCourses)}
+                    categories={categories}
+                    coursesByCategoryId={coursesByCategoryId}
+                    weightsByCourseId={weightsByCourseId}
+                    competencies={competencies}
+                />
+                <div className="template-weight-editor__body">
+                    <CurriculumCourseEditorPanel
+                        category={{ id: '__template_all_courses__', name: 'วิชาทั้งหมด' }}
+                        courses={allCourses}
+                        allCourses={allCourses}
+                        categoryTotalCredits={allCourseCredits(allCourses)}
+                        canEdit={false}
+                        disabled={Boolean(template?.isActive)}
+                        isLeafCategory={false}
+                        isAllCoursesView
+                        showCategoryToolbar={false}
+                        showCourseActions={false}
+                    />
+                </div>
+            </div>
         );
     }
 
@@ -99,31 +154,15 @@ function TemplateWeightEditor({
 
     return (
         <div className="template-weight-editor">
-            <div className="template-weight-editor__toolbar">
-                <div>
-                    <span className="template-weight-editor__category">
-                        {selectedCategory.code ? `${selectedCategory.code} ` : ''}{selectedCategory.name}
-                    </span>
-                    <span className="template-weight-editor__hint">
-                        กำหนด Competency และน้ำหนักของแต่ละรายวิชา
-                    </span>
-                </div>
-                <div className="template-weight-editor__actions">
-                    <TemplateWeightSummary
-                        categories={categories}
-                        coursesByCategoryId={coursesByCategoryId}
-                        weightsByCourseId={weightsByCourseId}
-                        competencies={competencies}
-                    />
-                    <button
-                        type="button"
-                        className="btn btn--primary btn--sm"
-                        onClick={() => window.open('/competency-management', '_blank', 'noopener,noreferrer')}
-                    >
-                        <ExternalLink size={13} /> จัดการสมรรถนะ
-                    </button>
-                </div>
-            </div>
+            <TemplateWeightToolbar
+                title={`${selectedCategory.code ? `${selectedCategory.code} ` : ''}${selectedCategory.name}`}
+                courseCount={selectedCourses.length}
+                totalCredits={allCourseCredits(selectedCourses)}
+                categories={categories}
+                coursesByCategoryId={coursesByCategoryId}
+                weightsByCourseId={weightsByCourseId}
+                competencies={competencies}
+            />
             <div className="template-weight-editor__body">
                 <CurriculumCourseEditorPanel
                     category={selectedCategory}
@@ -142,6 +181,8 @@ function TemplateWeightEditor({
                         canSelect: false,
                         canDrag: false,
                     })}
+                    showCategoryToolbar={false}
+                    showCourseActions={false}
                     extraColumnHeaders={weightColumnHeaders}
                     renderExtraCells={renderWeightCells}
                 />
