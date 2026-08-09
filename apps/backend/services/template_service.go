@@ -14,6 +14,17 @@ type TemplateService struct {
 	Repo *repositories.TemplateRepository
 }
 
+// TemplateCompetencyError is a client-safe error returned by competency association APIs.
+type TemplateCompetencyError struct {
+	Code    string
+	Message string
+	Data    any
+}
+
+func (e *TemplateCompetencyError) Error() string {
+	return e.Message
+}
+
 func NewTemplateService(repo *repositories.TemplateRepository) *TemplateService {
 	return &TemplateService{Repo: repo}
 }
@@ -140,6 +151,122 @@ func (s *TemplateService) GetTemplateItems(ctx context.Context, templateID uint6
 
 func (s *TemplateService) GetTemplateStructure(ctx context.Context, templateID uint64) (*models.TemplateStructureResponse, error) {
 	return s.Repo.GetTemplateStructure(ctx, templateID)
+}
+
+func (s *TemplateService) getTemplateForCompetencyManager(ctx context.Context, templateID, facultyID uint64, isAdmin bool) (*models.Template, error) {
+	template, err := s.Repo.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return nil, err
+	}
+	if template == nil {
+		return nil, &TemplateCompetencyError{Code: "NOT_FOUND", Message: "template not found"}
+	}
+	if !isAdmin && (facultyID == 0 || template.FacultyID != facultyID) {
+		return nil, &TemplateCompetencyError{Code: "FORBIDDEN", Message: "you do not have access to this template"}
+	}
+	return template, nil
+}
+
+func uniqueCompetencyIDs(ids []uint64) []uint64 {
+	seen := make(map[uint64]struct{}, len(ids))
+	unique := make([]uint64, 0, len(ids))
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	return unique
+}
+
+func (s *TemplateService) GetTemplateCompetencies(ctx context.Context, templateID, facultyID uint64, isAdmin bool) (*models.TemplateCompetencyManagementResponse, error) {
+	template, err := s.getTemplateForCompetencyManager(ctx, templateID, facultyID, isAdmin)
+	if err != nil {
+		return nil, err
+	}
+
+	competencies, err := s.Repo.GetTemplateCompetencies(ctx, templateID)
+	if err != nil {
+		return nil, err
+	}
+	hasScores, err := s.Repo.HasLearnerCourseScores(ctx, templateID)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &models.TemplateCompetencyManagementResponse{
+		TemplateID:             template.TemplateID,
+		Competencies:           competencies,
+		CanManage:              !template.IsActive && !hasScores,
+		HasLearnerCourseScores: hasScores,
+	}
+	if template.IsActive {
+		response.LockReason = "template_active"
+	} else if hasScores {
+		response.LockReason = "learner_course_scores"
+	}
+	return response, nil
+}
+
+func (s *TemplateService) UpdateTemplateCompetencies(ctx context.Context, templateID, facultyID uint64, isAdmin bool, req models.UpdateTemplateCompetenciesRequest) (*models.TemplateCompetencyManagementResponse, error) {
+	template, err := s.getTemplateForCompetencyManager(ctx, templateID, facultyID, isAdmin)
+	if err != nil {
+		return nil, err
+	}
+	if template.IsActive {
+		return nil, &TemplateCompetencyError{Code: "TEMPLATE_ACTIVE", Message: "template is active; deactivate it before managing competencies"}
+	}
+
+	hasScores, err := s.Repo.HasLearnerCourseScores(ctx, templateID)
+	if err != nil {
+		return nil, err
+	}
+	if hasScores {
+		return nil, &TemplateCompetencyError{Code: "TEMPLATE_COMPETENCIES_LOCKED_BY_SCORES", Message: "template competencies cannot be changed because learner course scores exist"}
+	}
+
+	selectedIDs := uniqueCompetencyIDs(req.CompetencyIDs)
+	if err := s.Repo.ValidateActiveCompetencyIDs(ctx, selectedIDs); err != nil {
+		return nil, &TemplateCompetencyError{Code: "BAD_REQUEST", Message: "one or more selected competencies are unavailable"}
+	}
+
+	existing, err := s.Repo.GetTemplateCompetencies(ctx, templateID)
+	if err != nil {
+		return nil, err
+	}
+	selectedSet := make(map[uint64]struct{}, len(selectedIDs))
+	for _, competencyID := range selectedIDs {
+		selectedSet[competencyID] = struct{}{}
+	}
+	removedIDs := make([]uint64, 0)
+	for _, competency := range existing {
+		if _, kept := selectedSet[competency.CompetencyID]; !kept {
+			removedIDs = append(removedIDs, competency.CompetencyID)
+		}
+	}
+
+	impacts, err := s.Repo.GetTemplateCompetencyImpacts(ctx, templateID, removedIDs)
+	if err != nil {
+		return nil, err
+	}
+	if len(impacts) > 0 && !req.ConfirmRemoval {
+		return nil, &TemplateCompetencyError{
+			Code:    "CONFIRMATION_REQUIRED",
+			Message: "removing selected competencies will also remove their course mappings",
+			Data: map[string]any{
+				"removed_competencies": impacts,
+			},
+		}
+	}
+
+	if err := s.Repo.ReplaceTemplateCompetencies(ctx, templateID, selectedIDs, removedIDs); err != nil {
+		return nil, err
+	}
+	return s.GetTemplateCompetencies(ctx, templateID, facultyID, isAdmin)
 }
 
 func (s *TemplateService) DeleteTemplate(ctx context.Context, templateID uint64) error {

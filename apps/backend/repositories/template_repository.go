@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spw32767/university-competency-system-backend/models"
@@ -419,11 +420,11 @@ func (r *TemplateRepository) GetTemplateCourses(ctx context.Context, templateID 
 
 func (r *TemplateRepository) GetTemplateCompetencies(ctx context.Context, templateID uint64) ([]models.TemplateCompetency, error) {
 	query := `
-		SELECT c.competency_id, c.code, c.name_th, COALESCE(c.name_en, '')
+		SELECT c.competency_id, c.code, c.name_th, COALESCE(c.name_en, ''), c.is_active
 		FROM comp_template_items cti
 		JOIN comp_competencies c ON cti.competency_id = c.competency_id AND c.deleted_at IS NULL
 		WHERE cti.template_id = ? AND cti.deleted_at IS NULL AND cti.course_id IS NULL
-		GROUP BY c.competency_id, c.code, c.name_th, COALESCE(c.name_en, '')
+		GROUP BY c.competency_id, c.code, c.name_th, COALESCE(c.name_en, ''), c.is_active
 		ORDER BY MIN(cti.display_order) ASC, c.competency_id ASC
 	`
 	rows, err := r.DB.QueryContext(ctx, query, templateID)
@@ -436,7 +437,7 @@ func (r *TemplateRepository) GetTemplateCompetencies(ctx context.Context, templa
 	for rows.Next() {
 		var comp models.TemplateCompetency
 		var nameEN string
-		err := rows.Scan(&comp.CompetencyID, &comp.Code, &comp.NameTH, &nameEN)
+		err := rows.Scan(&comp.CompetencyID, &comp.Code, &comp.NameTH, &nameEN, &comp.IsActive)
 		if err != nil {
 			return nil, err
 		}
@@ -449,11 +450,11 @@ func (r *TemplateRepository) GetTemplateCompetencies(ctx context.Context, templa
 	// Fallback for legacy templates where course_id IS NULL items were not created
 	if len(comps) == 0 {
 		fallbackQuery := `
-			SELECT c.competency_id, c.code, c.name_th, COALESCE(c.name_en, '')
+			SELECT c.competency_id, c.code, c.name_th, COALESCE(c.name_en, ''), c.is_active
 			FROM comp_template_items cti
 			JOIN comp_competencies c ON cti.competency_id = c.competency_id AND c.deleted_at IS NULL
 			WHERE cti.template_id = ? AND cti.deleted_at IS NULL
-			GROUP BY c.competency_id, c.code, c.name_th, COALESCE(c.name_en, '')
+			GROUP BY c.competency_id, c.code, c.name_th, COALESCE(c.name_en, ''), c.is_active
 			ORDER BY c.competency_id ASC
 		`
 		fRows, err := r.DB.QueryContext(ctx, fallbackQuery, templateID)
@@ -462,7 +463,7 @@ func (r *TemplateRepository) GetTemplateCompetencies(ctx context.Context, templa
 			for fRows.Next() {
 				var comp models.TemplateCompetency
 				var nameEN string
-				if err := fRows.Scan(&comp.CompetencyID, &comp.Code, &comp.NameTH, &nameEN); err == nil {
+				if err := fRows.Scan(&comp.CompetencyID, &comp.Code, &comp.NameTH, &nameEN, &comp.IsActive); err == nil {
 					if nameEN != "" {
 						comp.NameEN = nameEN
 					}
@@ -473,6 +474,195 @@ func (r *TemplateRepository) GetTemplateCompetencies(ctx context.Context, templa
 	}
 
 	return comps, nil
+}
+
+func templateCompetencyPlaceholders(ids []uint64) (string, []any) {
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for index, id := range ids {
+		placeholders[index] = "?"
+		args[index] = id
+	}
+	return strings.Join(placeholders, ", "), args
+}
+
+// ValidateActiveCompetencyIDs ensures every requested competency is available for selection.
+func (r *TemplateRepository) ValidateActiveCompetencyIDs(ctx context.Context, competencyIDs []uint64) error {
+	if len(competencyIDs) == 0 {
+		return nil
+	}
+
+	placeholders, args := templateCompetencyPlaceholders(competencyIDs)
+	query := fmt.Sprintf(`
+		SELECT competency_id
+		FROM comp_competencies
+		WHERE competency_id IN (%s)
+		  AND is_active = 1
+		  AND deleted_at IS NULL
+	`, placeholders)
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	found := make(map[uint64]struct{}, len(competencyIDs))
+	for rows.Next() {
+		var competencyID uint64
+		if err := rows.Scan(&competencyID); err != nil {
+			return err
+		}
+		found[competencyID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(found) != len(competencyIDs) {
+		return fmt.Errorf("one or more selected competencies are unavailable")
+	}
+	return nil
+}
+
+// HasLearnerCourseScores reports whether the template's Curriculum+Cohort already has course scores.
+func (r *TemplateRepository) HasLearnerCourseScores(ctx context.Context, templateID uint64) (bool, error) {
+	const query = `
+		SELECT EXISTS (
+			SELECT 1
+			FROM score_course_competency_scores sccs
+			JOIN crs_course_enrollment cce
+				ON cce.course_student_id = sccs.course_student_id
+				AND cce.deleted_at IS NULL
+			JOIN kku_enrollment_curricula kec
+				ON kec.enrollment_curriculum_id = cce.student_curricula_id
+				AND kec.deleted_at IS NULL
+			JOIN curri_curriculum_templates cct
+				ON cct.template_id = ?
+				AND cct.curriculum_id = kec.curriculum_id
+				AND cct.cohort_year_be = kec.start_academic_year_be
+				AND cct.deleted_at IS NULL
+			WHERE sccs.deleted_at IS NULL
+		)
+	`
+
+	var hasScores bool
+	if err := r.DB.QueryRowContext(ctx, query, templateID).Scan(&hasScores); err != nil {
+		return false, err
+	}
+	return hasScores, nil
+}
+
+func (r *TemplateRepository) GetTemplateCompetencyImpacts(ctx context.Context, templateID uint64, competencyIDs []uint64) ([]models.TemplateCompetencyImpact, error) {
+	if len(competencyIDs) == 0 {
+		return []models.TemplateCompetencyImpact{}, nil
+	}
+
+	placeholders, args := templateCompetencyPlaceholders(competencyIDs)
+	query := fmt.Sprintf(`
+		SELECT cti.competency_id, c.code, c.name_th, COUNT(*)
+		FROM comp_template_items cti
+		JOIN comp_competencies c ON c.competency_id = cti.competency_id
+		WHERE cti.template_id = ?
+		  AND cti.competency_id IN (%s)
+		  AND cti.course_id IS NOT NULL
+		  AND cti.deleted_at IS NULL
+		GROUP BY cti.competency_id, c.code, c.name_th
+		ORDER BY c.name_th, c.code
+	`, placeholders)
+
+	queryArgs := append([]any{templateID}, args...)
+	rows, err := r.DB.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	impacts := make([]models.TemplateCompetencyImpact, 0)
+	for rows.Next() {
+		var impact models.TemplateCompetencyImpact
+		if err := rows.Scan(&impact.CompetencyID, &impact.Code, &impact.NameTH, &impact.MappingCount); err != nil {
+			return nil, err
+		}
+		impacts = append(impacts, impact)
+	}
+	return impacts, rows.Err()
+}
+
+// ReplaceTemplateCompetencies synchronizes template competency markers and removes related mappings.
+func (r *TemplateRepository) ReplaceTemplateCompetencies(ctx context.Context, templateID uint64, competencyIDs, removedCompetencyIDs []uint64) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var lockedTemplateID uint64
+	if err := tx.QueryRowContext(ctx, `SELECT template_id FROM comp_templates WHERE template_id = ? AND deleted_at IS NULL FOR UPDATE`, templateID).Scan(&lockedTemplateID); err != nil {
+		return err
+	}
+
+	now := time.Now()
+	if len(removedCompetencyIDs) > 0 {
+		placeholders, args := templateCompetencyPlaceholders(removedCompetencyIDs)
+		query := fmt.Sprintf(`
+			UPDATE comp_template_items
+			SET deleted_at = ?, updated_at = ?
+			WHERE template_id = ?
+			  AND competency_id IN (%s)
+			  AND deleted_at IS NULL
+		`, placeholders)
+		queryArgs := append([]any{now, now, templateID}, args...)
+		if _, err := tx.ExecContext(ctx, query, queryArgs...); err != nil {
+			return fmt.Errorf("remove template competency mappings failed: %w", err)
+		}
+	}
+
+	for index, competencyID := range competencyIDs {
+		var markerID uint64
+		err := tx.QueryRowContext(ctx, `
+			SELECT template_item_id
+			FROM comp_template_items
+			WHERE template_id = ?
+			  AND competency_id = ?
+			  AND course_id IS NULL
+			ORDER BY (deleted_at IS NULL) DESC, template_item_id DESC
+			LIMIT 1
+		`, templateID, competencyID).Scan(&markerID)
+		if err != nil && err != sql.ErrNoRows {
+			return fmt.Errorf("find template competency marker failed: %w", err)
+		}
+
+		if err == sql.ErrNoRows {
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO comp_template_items (template_id, competency_id, course_id, display_order, is_active, created_at, updated_at)
+				VALUES (?, ?, NULL, ?, 1, ?, ?)
+			`, templateID, competencyID, index+1, now, now); err != nil {
+				return fmt.Errorf("insert template competency marker failed: %w", err)
+			}
+			continue
+		}
+
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE comp_template_items
+			SET deleted_at = NULL, display_order = ?, is_active = 1, updated_at = ?
+			WHERE template_item_id = ?
+		`, index+1, now, markerID); err != nil {
+			return fmt.Errorf("restore template competency marker failed: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE comp_template_items
+			SET deleted_at = ?, updated_at = ?
+			WHERE template_id = ?
+			  AND competency_id = ?
+			  AND course_id IS NULL
+			  AND template_item_id <> ?
+			  AND deleted_at IS NULL
+		`, now, now, templateID, competencyID, markerID); err != nil {
+			return fmt.Errorf("deduplicate template competency markers failed: %w", err)
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *TemplateRepository) GetTemplateStructure(ctx context.Context, templateID uint64) (*models.TemplateStructureResponse, error) {

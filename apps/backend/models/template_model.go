@@ -27,19 +27,19 @@ type Template struct {
 
 // TemplateItem represents a mapping between template, course, and competency with weight
 type TemplateItem struct {
-	TemplateItemID  uint64   `json:"template_item_id"`
-	TemplateID      uint64   `json:"template_id"`
-	CourseID        *uint64  `json:"course_id"`
-	CourseCode      string   `json:"course_code,omitempty"`
-	CourseNameTH    string   `json:"course_name_th,omitempty"`
-	CourseNameEN    *string  `json:"course_name_en,omitempty"`
-	CompetencyID    uint64   `json:"competency_id"`
-	CompetencyCode  string   `json:"competency_code,omitempty"`
-	CompetencyName  string   `json:"competency_name,omitempty"`
-	Weight          *float64 `json:"weight"`
-	DisplayOrder    int      `json:"display_order"`
-	IsActive        bool     `json:"is_active"`
-	IsCustomCourse  bool     `json:"is_custom_course"`
+	TemplateItemID uint64   `json:"template_item_id"`
+	TemplateID     uint64   `json:"template_id"`
+	CourseID       *uint64  `json:"course_id"`
+	CourseCode     string   `json:"course_code,omitempty"`
+	CourseNameTH   string   `json:"course_name_th,omitempty"`
+	CourseNameEN   *string  `json:"course_name_en,omitempty"`
+	CompetencyID   uint64   `json:"competency_id"`
+	CompetencyCode string   `json:"competency_code,omitempty"`
+	CompetencyName string   `json:"competency_name,omitempty"`
+	Weight         *float64 `json:"weight"`
+	DisplayOrder   int      `json:"display_order"`
+	IsActive       bool     `json:"is_active"`
+	IsCustomCourse bool     `json:"is_custom_course"`
 }
 
 // TemplateCategory represents a custom category created specifically inside a template
@@ -98,6 +98,30 @@ type TemplateCompetency struct {
 	Code         string `json:"code"`
 	NameTH       string `json:"name_th"`
 	NameEN       string `json:"name_en,omitempty"`
+	IsActive     bool   `json:"is_active"`
+}
+
+// TemplateCompetencyManagementResponse describes the competency selection state for one template.
+type TemplateCompetencyManagementResponse struct {
+	TemplateID             uint64               `json:"template_id"`
+	Competencies           []TemplateCompetency `json:"competencies"`
+	CanManage              bool                 `json:"can_manage"`
+	LockReason             string               `json:"lock_reason,omitempty"`
+	HasLearnerCourseScores bool                 `json:"has_learner_course_scores"`
+}
+
+// TemplateCompetencyImpact describes the course mappings removed with a competency selection.
+type TemplateCompetencyImpact struct {
+	CompetencyID uint64 `json:"competency_id"`
+	Code         string `json:"code"`
+	NameTH       string `json:"name_th"`
+	MappingCount int    `json:"mapping_count"`
+}
+
+// UpdateTemplateCompetenciesRequest replaces the selected competency masters for a template.
+type UpdateTemplateCompetenciesRequest struct {
+	CompetencyIDs  []uint64 `json:"competency_ids"`
+	ConfirmRemoval bool     `json:"confirm_removal"`
 }
 
 // UpdateTemplateItemsRequest payload for PUT /api/v1/templates/{id}/items
@@ -125,4 +149,3 @@ type UpdateTemplateStatusRequest struct {
 type UpdateTemplateNameRequest struct {
 	Name string `json:"name"`
 }
-

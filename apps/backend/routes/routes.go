@@ -182,7 +182,9 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 					tir.Delete("/", templateHandler.Delete)
 					tir.Get("/items", templateHandler.GetItems)
 					tir.Get("/structure", templateHandler.GetStructure)
+					tir.Get("/competencies", templateHandler.GetCompetencies)
 					tir.Put("/items", templateHandler.SaveItems)
+					tir.Put("/competencies", templateHandler.UpdateCompetencies)
 				})
 			})
 
