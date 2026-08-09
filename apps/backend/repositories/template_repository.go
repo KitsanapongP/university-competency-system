@@ -138,11 +138,10 @@ func (r *TemplateRepository) CreateTemplate(ctx context.Context, facultyID uint6
 	now := time.Now()
 	code := fmt.Sprintf("tpl_%d_%d_%d", facultyID, req.CohortYearBE, now.UnixNano())
 
-	// 1. Insert comp_templates
-	// 1. Insert comp_templates (เริ่มต้นที่สถานะ Active / is_active = 1 ทันทีเมื่อสร้าง Template ใหม่)
+	// New templates begin inactive. Activation runs the readiness validation in the service.
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO comp_templates (faculty_id, code, name, version_year_be, is_active, created_by, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+		VALUES (?, ?, ?, ?, 0, ?, ?, ?)
 	`, facultyID, code, req.Name, req.CohortYearBE, userID, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("insert comp_templates failed: %w", err)
@@ -157,10 +156,10 @@ func (r *TemplateRepository) CreateTemplate(ctx context.Context, facultyID uint6
 	if req.CurriculumID > 0 {
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO curri_curriculum_templates (curriculum_id, template_id, cohort_year_be, is_active, created_by, created_at, updated_at)
-			VALUES (?, ?, ?, 1, ?, ?, ?)
+			VALUES (?, ?, ?, 0, ?, ?, ?)
 			ON DUPLICATE KEY UPDATE
 				template_id = VALUES(template_id),
-				is_active = 1,
+				is_active = 0,
 				deleted_at = NULL,
 				updated_at = VALUES(updated_at)
 		`, req.CurriculumID, templateID, req.CohortYearBE, userID, now, now)

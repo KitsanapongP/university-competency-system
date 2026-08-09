@@ -180,7 +180,7 @@ export default function TemplateManagementPage() {
                         ...t,
                         id: t.template_id || t.id,
                         academicYear: t.cohort_year_be || t.academicYear || 2568,
-                        isActive: t.is_active !== undefined ? t.is_active : (t.isActive !== undefined ? t.isActive : true),
+                        isActive: t.is_active !== undefined ? t.is_active : (t.isActive !== undefined ? t.isActive : false),
                         totalCourseCount: t.total_course_count !== undefined ? t.total_course_count : (t.TotalCourseCount !== undefined ? t.TotalCourseCount : (t.mapped_course_count || 0)),
                         masterData: t.curriculum_name_th ? { id: t.curriculum_id, name: t.curriculum_name_th, year: t.cohort_year_be } : t.masterData,
                     }));
@@ -449,7 +449,7 @@ export default function TemplateManagementPage() {
             academicYear,
             totalCourseCount: actualCreated?.total_course_count || actualCreated?.TotalCourseCount || (masterData?.total_courses || masterData?.course_count || 0),
             masterData: masterData ? { ...masterData, name: masterData.name || masterData.nameTh || masterData.curriculum_name_th || '' } : null,
-            isActive: typeof actualCreated?.is_active === 'boolean' ? actualCreated.is_active : (typeof actualCreated?.isActive === 'boolean' ? actualCreated.isActive : true)
+            isActive: typeof actualCreated?.is_active === 'boolean' ? actualCreated.is_active : (typeof actualCreated?.isActive === 'boolean' ? actualCreated.isActive : false)
         };
         setTemplates(p => [...p, newTemplate]);
 
