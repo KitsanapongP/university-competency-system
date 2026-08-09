@@ -129,7 +129,6 @@ type UpdateTemplateItemsRequest struct {
 	Items            []TemplateItemInput `json:"items"`
 	CustomCategories []TemplateCategory  `json:"custom_categories,omitempty"`
 	CustomCourses    []TemplateCourse    `json:"custom_courses,omitempty"`
-	CompetencyIDs    []uint64            `json:"competency_ids,omitempty"`
 }
 
 // TemplateStructureResponse represents the complete template structure including custom items

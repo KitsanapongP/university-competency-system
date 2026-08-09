@@ -663,12 +663,11 @@ export default function TemplateManagementPage() {
                 });
             });
 
-            const tplCompIds = (competenciesByTemplate[tplId] || []).map(c => c.id);
-            saveTemplateItems(tplId, { items, custom_categories, custom_courses, competency_ids: tplCompIds }).catch(err => {
+            saveTemplateItems(tplId, { items, custom_categories, custom_courses }).catch(err => {
                 console.warn('Cannot auto-save or API notice:', err.message || err);
             });
         }, 500);
-    }, [competenciesByTemplate, selectedTemplate]);
+    }, [selectedTemplate]);
 
     // ============================================================
     // Category handlers

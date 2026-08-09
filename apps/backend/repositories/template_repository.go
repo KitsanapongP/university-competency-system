@@ -820,27 +820,5 @@ func (r *TemplateRepository) SaveTemplateItems(ctx context.Context, templateID u
 		}
 	}
 
-	// 6. Synchronize template competencies if provided
-	if len(req.CompetencyIDs) > 0 {
-		_, err = tx.ExecContext(ctx, `UPDATE comp_template_items SET deleted_at = ?, updated_at = ? WHERE template_id = ? AND course_id IS NULL AND deleted_at IS NULL`, now, now, templateID)
-		if err != nil {
-			return fmt.Errorf("clear old template competencies failed: %w", err)
-		}
-		for idx, cid := range req.CompetencyIDs {
-			_, err = tx.ExecContext(ctx, `
-				INSERT INTO comp_template_items (template_id, competency_id, course_id, display_order, is_active, created_at, updated_at)
-				VALUES (?, ?, NULL, ?, 1, ?, ?)
-				ON DUPLICATE KEY UPDATE
-					deleted_at = NULL,
-					display_order = VALUES(display_order),
-					is_active = 1,
-					updated_at = VALUES(updated_at)
-			`, templateID, cid, idx+1, now, now)
-			if err != nil {
-				return fmt.Errorf("insert template competency item failed: %w", err)
-			}
-		}
-	}
-
 	return tx.Commit()
 }
