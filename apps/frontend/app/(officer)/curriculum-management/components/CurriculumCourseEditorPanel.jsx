@@ -10,6 +10,7 @@ import {
     ChevronLeft,
     ChevronRight,
     GripVertical,
+    LockKeyhole,
     MoreHorizontal,
     Pencil,
     Plus,
@@ -32,6 +33,11 @@ function CurriculumCourseRow({
     isDragging = false,
     isDropTarget = false,
     isNew = false,
+    isLocked = false,
+    originBadge = '',
+    canDrag = true,
+    canSelect = true,
+    renderExtraCells,
     onToggleSelect,
     onStartEdit,
     onCancelEdit,
@@ -64,8 +70,10 @@ function CurriculumCourseRow({
         });
     }, [course.code, course.nameTh, course.nameEn, course.credits, isEditing]);
 
+    const rowDisabled = disabled || isLocked;
+
     const handleSave = async () => {
-        if (disabled || !String(form.code || '').trim() || !String(form.nameTh || '').trim()) return;
+        if (rowDisabled || !String(form.code || '').trim() || !String(form.nameTh || '').trim()) return;
         const result = await onSave?.({
             ...course,
             code: String(form.code || '').trim(),
@@ -147,7 +155,7 @@ function CurriculumCourseRow({
     return (
         <tr
             className={`ss-row ${isEditing ? 'ss-row--editing' : ''} ${isSelected ? 'ss-row--selected' : ''} ${isDragging ? 'ss-row--dragging' : ''} ${isDropTarget ? 'ss-row--drop-target' : ''}`}
-            draggable={!disabled && !isEditing && !isNew}
+            draggable={!rowDisabled && canDrag && !isEditing && !isNew}
             onDragStart={event => onDragStart?.(event, course)}
             onDragOver={event => onDragOver?.(event, course)}
             onDragLeave={event => onDragLeave?.(event, course)}
@@ -155,14 +163,15 @@ function CurriculumCourseRow({
             onDragEnd={onDragEnd}
         >
             <td className="ss-cell ss-cell--grip">
-                <GripVertical size={13} />
+                {!isLocked && canDrag && <GripVertical size={13} />}
+                {isLocked && <LockKeyhole size={12} />}
             </td>
             <td className="ss-cell ss-cell--checkbox">
-                {!isNew && (
+                {!isNew && !isLocked && canSelect && (
                     <input
                         type="checkbox"
                         checked={isSelected}
-                        disabled={disabled}
+                        disabled={rowDisabled}
                         onChange={() => onToggleSelect?.(course)}
                         aria-label="เลือกวิชา"
                     />
@@ -176,11 +185,14 @@ function CurriculumCourseRow({
                         onChange={event => setForm(current => ({ ...current, code: event.target.value }))}
                         onKeyDown={handleKey}
                         placeholder="รหัสวิชา"
-                        disabled={disabled}
+                        disabled={rowDisabled}
                         autoFocus={isNew}
                     />
                 ) : (
-                    <span className="ss-code">{course.code || <span className="ss-placeholder">รหัสวิชา</span>}</span>
+                    <span className="ss-code">
+                        {course.code || <span className="ss-placeholder">รหัสวิชา</span>}
+                        {originBadge && <span className="curriculum-course-origin-badge">{originBadge}</span>}
+                    </span>
                 )}
             </td>
             <td className="ss-cell ss-cell--text">
@@ -191,7 +203,7 @@ function CurriculumCourseRow({
                         onChange={event => setForm(current => ({ ...current, nameTh: event.target.value }))}
                         onKeyDown={handleKey}
                         placeholder="ชื่อวิชาภาษาไทย"
-                        disabled={disabled}
+                        disabled={rowDisabled}
                     />
                 ) : (
                     <span>{course.nameTh || <span className="ss-placeholder">ชื่อภาษาไทย</span>}</span>
@@ -205,7 +217,7 @@ function CurriculumCourseRow({
                         onChange={event => setForm(current => ({ ...current, nameEn: event.target.value }))}
                         onKeyDown={handleKey}
                         placeholder="English Name"
-                        disabled={disabled}
+                        disabled={rowDisabled}
                     />
                 ) : (
                     <span>{course.nameEn || <span className="ss-placeholder">English Name</span>}</span>
@@ -224,12 +236,13 @@ function CurriculumCourseRow({
                         }}
                         onKeyDown={handleKey}
                         placeholder="0"
-                        disabled={disabled}
+                        disabled={rowDisabled}
                     />
                 ) : (
                     <span>{course.credits || <span className="ss-placeholder">0</span>}</span>
                 )}
             </td>
+            {renderExtraCells?.(course)}
             <td className="ss-cell ss-cell--actions">
                 {isEditing ? (
                     <>
@@ -252,7 +265,7 @@ function CurriculumCourseRow({
                             <X size={12} />
                         </button>
                     </>
-                ) : !disabled && !isNew ? (
+                ) : !rowDisabled && !isNew ? (
                     <div className="curriculum-course-row-actions" ref={actionMenuRef}>
                         <button
                             type="button"
@@ -324,6 +337,13 @@ export default function CurriculumCourseEditorPanel({
     onCourseDragStart,
     onCourseDragEnd,
     onEditingStateChange,
+    canEditCategoryMetadata = canEdit,
+    canManageCourses = canEdit,
+    getCourseCapabilities,
+    allowExtraEditing = false,
+    allowSelection = true,
+    extraColumnHeaders = [],
+    renderExtraCells,
 }) {
     const [editingCategoryName, setEditingCategoryName] = useState(false);
     const [categoryNameValue, setCategoryNameValue] = useState(category?.name || '');
@@ -336,8 +356,9 @@ export default function CurriculumCourseEditorPanel({
     const [isDropZoneActive, setIsDropZoneActive] = useState(false);
 
     const categoryId = category?.id ?? null;
-    const isReadOnly = disabled || !canEdit || !category || isAllCoursesView;
-    const canMutateCourses = !isReadOnly && isLeafCategory;
+    const isReadOnly = disabled || !category || isAllCoursesView || (!canEdit && !allowExtraEditing);
+    const canEditCategory = !isReadOnly && canEditCategoryMetadata;
+    const canMutateCourses = !isReadOnly && isLeafCategory && canManageCourses;
     const hasActiveEdit = editingCategoryName || editingCourseId !== null || showAddCourse;
 
     useEffect(() => {
@@ -352,13 +373,16 @@ export default function CurriculumCourseEditorPanel({
         setIsDropZoneActive(false);
     }, [categoryId, category?.name, category?.requiredCredits]);
 
+    const resolveCourseCapabilities = (course) => getCourseCapabilities?.(course) || {};
+    const canSelectCourse = (course) => !isReadOnly && allowSelection && resolveCourseCapabilities(course).canSelect !== false;
+
     useEffect(() => {
         setSelectedCourseIds(current => {
-            const validIds = new Set(courses.map(normalizeCourseId));
+            const validIds = new Set(courses.filter(canSelectCourse).map(normalizeCourseId));
             const next = new Set([...current].filter(id => validIds.has(id)));
             return next.size === current.size ? current : next;
         });
-    }, [courses]);
+    }, [courses, getCourseCapabilities, isReadOnly]);
 
     useEffect(() => {
         onEditingStateChange?.(hasActiveEdit);
@@ -370,13 +394,15 @@ export default function CurriculumCourseEditorPanel({
     const safeCurrentPage = Math.min(currentPage, totalPages);
     const startIndex = (safeCurrentPage - 1) * pageSize;
     const paginatedCourses = courses.slice(startIndex, startIndex + pageSize);
-    const visibleCourseIds = useMemo(() => paginatedCourses.map(normalizeCourseId), [paginatedCourses]);
+    const visibleCourseIds = useMemo(() => paginatedCourses
+        .filter(canSelectCourse)
+        .map(normalizeCourseId), [paginatedCourses, getCourseCapabilities, isReadOnly]);
     const isCurrentPageSelected = visibleCourseIds.length > 0 && visibleCourseIds.every(id => selectedCourseIds.has(id));
-    const selectedCourses = courses.filter(course => selectedCourseIds.has(normalizeCourseId(course)));
+    const selectedCourses = courses.filter(course => canSelectCourse(course) && selectedCourseIds.has(normalizeCourseId(course)));
     const hasSelectedCourses = selectedCourseIds.size > 0;
 
     const saveCategoryName = () => {
-        if (isReadOnly || !category?.id) return;
+        if (!canEditCategory || !category?.id) return;
         const nextName = categoryNameValue.trim() || 'หมวดวิชาใหม่';
         if (nextName === category.name) {
             setEditingCategoryName(false);
@@ -387,7 +413,7 @@ export default function CurriculumCourseEditorPanel({
     };
 
     const saveCategoryCredits = () => {
-        if (isReadOnly || !category?.id) return;
+        if (!canEditCategory || !category?.id) return;
         const nextCredits = Number(categoryCreditsValue);
         if (!Number.isFinite(nextCredits) || nextCredits < 0) {
             setCategoryCreditsValue(category?.requiredCredits || 0);
@@ -551,7 +577,7 @@ export default function CurriculumCourseEditorPanel({
                                     <span className="course-detail-toolbar__name-text">
                                         {category.code ? `${category.code} ` : ''}{category.name || <em>ยังไม่ตั้งชื่อ</em>}
                                     </span>
-                                    {!isReadOnly && (
+                                    {canEditCategory && (
                                         <button
                                             type="button"
                                             className="course-detail-toolbar__edit-btn"
@@ -577,7 +603,7 @@ export default function CurriculumCourseEditorPanel({
                             <span className="course-detail-toolbar__credits-label">หน่วยกิตรวม</span>
                             <span className="course-detail-toolbar__credits-value">{categoryTotalCredits}</span>
                         </div>
-                        {!isReadOnly && (
+                        {canEditCategory && (
                             <button
                                 type="button"
                                 className="course-detail-toolbar__delete-btn"
@@ -653,6 +679,9 @@ export default function CurriculumCourseEditorPanel({
                                         <col className="curriculum-course-editor__col--text" />
                                         <col className="curriculum-course-editor__col--text" />
                                         <col className="curriculum-course-editor__col--credits" />
+                                        {extraColumnHeaders.map((column, index) => (
+                                            <col key={column.key || index} className={column.colClassName || 'curriculum-course-editor__col--extra'} />
+                                        ))}
                                         <col className="curriculum-course-editor__col--actions" />
                                     </colgroup>
                                     <thead>
@@ -662,7 +691,7 @@ export default function CurriculumCourseEditorPanel({
                                                 <input
                                                     type="checkbox"
                                                     checked={isCurrentPageSelected}
-                                                    disabled={!paginatedCourses.length || disabled || isReadOnly}
+                                                    disabled={!visibleCourseIds.length || disabled || isReadOnly}
                                                     onChange={toggleCurrentPageSelection}
                                                     title="เลือกวิชาหน้านี้"
                                                 />
@@ -671,6 +700,14 @@ export default function CurriculumCourseEditorPanel({
                                             <th className="course-spreadsheet-th ss-th ss-th--text">ชื่อวิชา (ไทย)</th>
                                             <th className="course-spreadsheet-th ss-th ss-th--text">ชื่อวิชา (Eng)</th>
                                             <th className="course-spreadsheet-th ss-th course-spreadsheet-th--num ss-th--num">หน่วยกิต</th>
+                                            {extraColumnHeaders.map((column, index) => (
+                                                <th
+                                                    key={column.key || index}
+                                                    className={`course-spreadsheet-th ss-th ${column.className || 'ss-th--text'}`}
+                                                >
+                                                    {column.label ?? column}
+                                                </th>
+                                            ))}
                                             <th className="course-spreadsheet-th ss-th course-spreadsheet-th--actions ss-th--actions"></th>
                                         </tr>
                                     </thead>
@@ -690,6 +727,7 @@ export default function CurriculumCourseEditorPanel({
                                                 isNew
                                                 isEditing
                                                 disabled={disabled}
+                                                renderExtraCells={renderExtraCells}
                                                 onSave={handleSaveCourse}
                                                 onCancelEdit={() => {
                                                     setShowAddCourse(false);
@@ -699,12 +737,18 @@ export default function CurriculumCourseEditorPanel({
                                         )}
                                         {paginatedCourses.map(course => {
                                             const courseId = normalizeCourseId(course);
+                                            const courseCapabilities = resolveCourseCapabilities(course);
+                                            const rowDisabled = disabled || isReadOnly || courseCapabilities.canEdit === false;
                                             return (
                                                 <CurriculumCourseRow
                                                     key={`${courseId}:${course.code}:${course.nameTh}:${course.nameEn}:${course.credits}`}
                                                     course={course}
-                                                    disabled={disabled || isReadOnly}
-                                                    isSelected={selectedCourseIds.has(courseId)}
+                                                    disabled={rowDisabled}
+                                                    isLocked={Boolean(courseCapabilities.locked)}
+                                                    originBadge={courseCapabilities.badge || ''}
+                                                    canDrag={courseCapabilities.canDrag !== false}
+                                                    canSelect={courseCapabilities.canSelect !== false}
+                                                    isSelected={courseCapabilities.canSelect !== false && selectedCourseIds.has(courseId)}
                                                     isEditing={editingCourseId === courseId}
                                                     isDragging={String(draggedCourseId) === courseId}
                                                     isDropTarget={dropTargetCourseId === courseId}
@@ -718,6 +762,7 @@ export default function CurriculumCourseEditorPanel({
                                                     onDragLeave={handleCourseDragLeave}
                                                     onDrop={handleCourseDrop}
                                                     onDragEnd={handleCourseDragEnd}
+                                                    renderExtraCells={renderExtraCells}
                                                 />
                                             );
                                         })}

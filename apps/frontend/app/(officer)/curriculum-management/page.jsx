@@ -23,6 +23,7 @@ import {
 	updateCurriculumMetadata,
     updateCurriculumStatus,
 } from '../../../lib/curriculum';
+import { getDisplayCourses } from '../../../lib/curriculum-structure';
 import CurriculumCourseEditorPanel from './components/CurriculumCourseEditorPanel';
 import CurriculumMetadataPanel from './components/CurriculumMetadataPanel';
 import CurriculumStructureSidebar from './components/CurriculumStructureSidebar';
@@ -83,19 +84,6 @@ function findCourseOwnerId(courseId, coursesByCategory) {
         return (courses || []).some(course => String(course.id) === String(courseId));
     });
     return entry?.[0] || null;
-}
-
-function collectCoursesFromCategories(categories) {
-    const result = [];
-    for (const category of categories || []) {
-        if (category.courses?.length) {
-            result.push(...category.courses);
-        }
-        if (category.children?.length) {
-            result.push(...collectCoursesFromCategories(category.children));
-        }
-    }
-    return result;
 }
 
 function getCourseIdentity(course) {
@@ -273,60 +261,6 @@ function mapCurriculumError(error) {
         userMessage: translateBackendMessage(englishMessage) || 'ไม่สามารถบันทึกข้อมูลหลักสูตรได้',
         debugMessage: englishMessage,
     };
-}
-
-function getDisplayCourses(categories, selectedCategory, showAll) {
-    if (showAll) {
-        const collectAll = (cats) => {
-            const result = [];
-            for (const cat of cats) {
-                if (cat.courses?.length) result.push(...cat.courses);
-                if (cat.children?.length) result.push(...collectAll(cat.children));
-            }
-            return result;
-        };
-        return collectAll(categories);
-    }
-
-    if (!selectedCategory) return [];
-
-    // หา category และ depth จริงใน tree
-    const findCategory = (cats, targetId, depth = 0) => {
-        for (const cat of cats) {
-            if (cat.id === targetId) {
-                return { category: cat, depth };
-            }
-            if (cat.children?.length) {
-                const found = findCategory(cat.children, targetId, depth + 1);
-                if (found) return found;
-            }
-        }
-        return null;
-    };
-
-    const found = findCategory(categories, selectedCategory.id);
-    if (!found) return [];
-
-    const { category, depth } = found;
-
-    // ถ้า depth >= 2 แสดงเฉพาะ courses ของ category นั้น
-    if (depth >= 2) {
-        return category.courses || [];
-    }
-
-    // ถ้า depth < 2 แสดง courses ของ category + children
-    const result = [...(category.courses || [])];
-    if (category.children?.length) {
-        for (const child of category.children) {
-            result.push(...(child.courses || []));
-            if (child.children?.length) {
-                for (const grandchild of child.children) {
-                    result.push(...(grandchild.courses || []));
-                }
-            }
-        }
-    }
-    return result;
 }
 
 // ============================================================
@@ -1463,7 +1397,7 @@ export default function CurriculumManagementPage() {
                                 key={`${showAllCourses ? 'all' : selectedCategory?.id || 'none'}:${selectedCategory?.name || ''}:${selectedCategory?.requiredCredits ?? 0}`}
                                 category={showAllCourses ? { id: 'all', code: '', name: 'วิชาทั้งหมดในหลักสูตร' } : selectedCategory}
                                 courses={getDisplayCourses(categories, selectedCategory, showAllCourses)}
-                                allCourses={collectCoursesFromCategories(categories)}
+                                allCourses={getDisplayCourses(categories, null, true)}
                                 categoryTotalCredits={showAllCourses ? selectedCourse.stats?.totalCredits ?? 0 : getDisplayCourses(categories, selectedCategory, false).reduce((sum, course) => sum + (Number(course.credits) || 0), 0)}
                                 isLeafCategory={Boolean(selectedCategory && !selectedCategory.children?.length)}
                                 isAllCoursesView={showAllCourses}

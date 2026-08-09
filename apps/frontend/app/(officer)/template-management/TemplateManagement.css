@@ -4135,3 +4135,153 @@
         min-width: 100%;
     }
 }
+
+/* ============================================================
+   Shared Template structure workspace
+   ============================================================ */
+.template-structure-workspace {
+    --course-bg: var(--tm-bg);
+    --course-card-bg: var(--tm-card-bg);
+    --course-border: var(--tm-card-border);
+    --course-text: var(--tm-text);
+    --course-text-muted: var(--tm-text-muted);
+    --course-accent: var(--tm-accent);
+    --course-hover: var(--tm-hover);
+    --course-tree-hover: var(--tm-panel-hover);
+    --course-input-bg: var(--tm-input-bg);
+    --course-form-input-bg: var(--tm-form-input-bg);
+    --course-form-input-border: var(--tm-form-input-border);
+    min-height: 0;
+}
+
+.template-structure-workspace.tm-panel {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+}
+
+.template-structure-workspace__active-warning {
+    align-items: center;
+    background: color-mix(in srgb, #ef4444 10%, var(--tm-card-bg));
+    border: 1px solid color-mix(in srgb, #ef4444 55%, var(--tm-card-border));
+    border-radius: 8px;
+    color: var(--tm-text);
+    display: flex;
+    flex-shrink: 0;
+    font-size: 0.8125rem;
+    gap: 0.55rem;
+    margin-bottom: 0.75rem;
+    padding: 0.7rem 0.875rem;
+}
+
+.template-structure-workspace__active-warning svg {
+    color: #ef4444;
+    flex: 0 0 auto;
+}
+
+.template-structure-workspace__panels {
+    align-items: stretch;
+    display: grid;
+    flex: 1;
+    gap: 1rem;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    min-height: 0;
+}
+
+.template-structure-workspace__sidebar,
+.template-structure-workspace__content {
+    min-height: 0;
+}
+
+.template-structure-workspace__content {
+    display: flex;
+    min-width: 0;
+}
+
+.template-structure-workspace__content > * {
+    flex: 1;
+    min-width: 0;
+}
+
+.template-structure-workspace .curriculum-structure-sidebar,
+.template-structure-workspace .curriculum-course-editor,
+.template-weight-editor,
+.template-structure-empty {
+    min-height: 520px;
+}
+
+.template-structure-empty {
+    align-items: center;
+    background: var(--tm-card-bg);
+    border: 1px solid var(--tm-card-border);
+    border-radius: 10px;
+    color: var(--tm-text-muted);
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    font-size: 0.875rem;
+    gap: 0.75rem;
+    justify-content: center;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.template-weight-editor {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.template-weight-editor__toolbar {
+    align-items: center;
+    border-bottom: 1px solid var(--tm-card-border);
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+}
+
+.template-weight-editor__category {
+    color: var(--tm-text);
+    display: block;
+    font-size: 0.9375rem;
+    font-weight: 700;
+}
+
+.template-weight-editor__hint {
+    color: var(--tm-text-muted);
+    display: block;
+    font-size: 0.75rem;
+    margin-top: 0.2rem;
+}
+
+.template-weight-editor__actions {
+    align-items: center;
+    display: flex;
+    flex-shrink: 0;
+    gap: 0.5rem;
+}
+
+.template-weight-editor__body {
+    flex: 1;
+    min-height: 0;
+}
+
+.template-weight-editor__body .curriculum-course-editor {
+    height: 100%;
+}
+
+@media (max-width: 900px) {
+    .template-structure-workspace__panels {
+        grid-template-columns: 1fr;
+    }
+
+    .template-structure-workspace .curriculum-structure-sidebar,
+    .template-structure-workspace .curriculum-course-editor,
+    .template-weight-editor,
+    .template-structure-empty {
+        min-height: 420px;
+    }
+}

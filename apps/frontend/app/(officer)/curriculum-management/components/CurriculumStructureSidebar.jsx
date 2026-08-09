@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, Layers, LockKeyhole, Pencil, Plus, Trash2 } from 'lucide-react';
 
 function collectCategoryIds(category) {
     return [category.id, ...(category.children || []).flatMap(collectCategoryIds)];
@@ -67,6 +67,10 @@ function CategoryTreeNode({
     onCourseDragStart,
     onCourseDragEnd,
     onRenameStateChange,
+    getCategoryCapabilities,
+    getCourseCapabilities,
+    getCategoryBadge,
+    getCourseBadge,
     showInlineAddChild = true,
     addChildLabel,
     addChildDisabledReason,
@@ -96,8 +100,20 @@ function CategoryTreeNode({
     const isDragging = draggingCategoryId === category.id;
     const totalCredits = sumCredits(category, coursesByCategory);
     const totalCourses = countCourses(category, coursesByCategory);
-    const canAddChild = canEdit && !disabled && depth + getSubtreeDepth(category) < maxDepth;
-    const canModify = canEdit && !disabled;
+    const categoryCapabilities = getCategoryCapabilities?.(category, {
+        depth,
+        directCourses,
+        hasChildren,
+    }) || {};
+    const canModify = canEdit && !disabled && categoryCapabilities.canEdit !== false;
+    const canRename = canModify && categoryCapabilities.canRename !== false;
+    const canDelete = canModify && categoryCapabilities.canDelete !== false;
+    const canDrag = canModify && categoryCapabilities.canDrag !== false;
+    const canAddChild = !disabled && (categoryCapabilities.canAddChild ?? (
+        canModify && depth + getSubtreeDepth(category) < maxDepth
+    ));
+    const categoryBadge = getCategoryBadge?.(category);
+    const categoryLocked = Boolean(categoryCapabilities.locked);
 
     const confirmRename = () => {
         const nextName = nameValue.trim() || 'หมวดวิชาใหม่';
@@ -126,7 +142,7 @@ function CategoryTreeNode({
                 ].filter(Boolean).join(' ')}
                 style={{ '--depth': depth }}
                 onClick={handleRowClick}
-                draggable={canModify && !renaming}
+                draggable={canDrag && !renaming}
                 onDragStart={event => onCategoryDragStart?.(event, category)}
                 onDragOver={event => {
                     onCategoryDragOver?.(event, category);
@@ -168,14 +184,18 @@ function CategoryTreeNode({
                             {category.code ? `${category.code} ` : ''}
                             {category.name || <em>ยังไม่ตั้งชื่อ</em>}
                         </span>
+                        {categoryBadge && (
+                            <span className="curriculum-structure-origin-badge">{categoryBadge}</span>
+                        )}
                         <span className="curriculum-structure-row__meta">
                             {totalCourses} วิชา · {totalCredits} หน่วยกิต
                         </span>
                     </div>
                 )}
 
-                {canModify && !renaming && (
+                {(canRename || canAddChild || canDelete || categoryLocked) && !renaming && (
                     <div className="curriculum-structure-row__actions" onClick={event => event.stopPropagation()}>
+                        {canRename && (
                         <button
                             type="button"
                             className="curriculum-structure-icon-btn"
@@ -184,7 +204,8 @@ function CategoryTreeNode({
                         >
                             <Pencil size={12} />
                         </button>
-                        {showInlineAddChild && (
+                        )}
+                        {showInlineAddChild && canAddChild && (
                             <button
                                 type="button"
                                 className="curriculum-structure-icon-btn"
@@ -196,6 +217,7 @@ function CategoryTreeNode({
                                 <Plus size={12} />
                             </button>
                         )}
+                        {canDelete && (
                         <button
                             type="button"
                             className="curriculum-structure-icon-btn curriculum-structure-icon-btn--danger"
@@ -204,20 +226,33 @@ function CategoryTreeNode({
                         >
                             <Trash2 size={12} />
                         </button>
+                        )}
+                        {categoryLocked && (
+                            <span className="curriculum-structure-row__lock" title="This category comes from the curriculum and is read-only">
+                                <LockKeyhole size={12} />
+                            </span>
+                        )}
                     </div>
                 )}
             </div>
 
             {expanded && directCourses.length > 0 && (
                 <div className="curriculum-structure-courses" style={{ '--depth': depth }}>
-                    {directCourses.map(course => (
+                    {directCourses.map(course => {
+                        const courseCapabilities = getCourseCapabilities?.(course, category) || {};
+                        const canDragCourse = canEdit && !disabled && courseCapabilities.canDrag !== false;
+                        const courseBadge = getCourseBadge?.(course, category);
+                        const courseLocked = Boolean(courseCapabilities.locked);
+
+                        return (
                         <div
                             key={course.id}
                             className={[
                                 'curriculum-structure-course',
+                                courseLocked ? 'curriculum-structure-course--locked' : '',
                                 draggedCourseId === course.id ? 'curriculum-structure-course--dragging' : '',
                             ].filter(Boolean).join(' ')}
-                            draggable={canModify}
+                            draggable={canDragCourse}
                             onClick={event => {
                                 event.stopPropagation();
                                 onSelectCategory?.(category);
@@ -226,11 +261,16 @@ function CategoryTreeNode({
                             onDragEnd={onCourseDragEnd}
                             title={`${course.code || '-'} ${course.nameTh || course.nameEn || 'ยังไม่มีชื่อวิชา'}`}
                         >
-                            <span className="curriculum-structure-course__code">{course.code || '-'}</span>
+                            <span className="curriculum-structure-course__code">
+                                {course.code || '-'}
+                                {courseBadge && <span className="curriculum-structure-origin-badge">{courseBadge}</span>}
+                                {courseLocked && <LockKeyhole className="curriculum-structure-course__lock" size={11} />}
+                            </span>
                             <span className="curriculum-structure-course__name">{course.nameTh || course.nameEn || 'ยังไม่มีชื่อวิชา'}</span>
                             <span className="curriculum-structure-course__credits">{Number(course.credits) || 0}</span>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
@@ -263,6 +303,10 @@ function CategoryTreeNode({
                             onCourseDragStart={onCourseDragStart}
                             onCourseDragEnd={onCourseDragEnd}
                             onRenameStateChange={onRenameStateChange}
+                            getCategoryCapabilities={getCategoryCapabilities}
+                            getCourseCapabilities={getCourseCapabilities}
+                            getCategoryBadge={getCategoryBadge}
+                            getCourseBadge={getCourseBadge}
                             showInlineAddChild={showInlineAddChild}
                             addChildLabel={addChildLabel}
                             addChildDisabledReason={addChildDisabledReason}
@@ -312,6 +356,10 @@ export default function CurriculumStructureSidebar({
     onCourseDragStart,
     onCourseDragEnd,
     onRequestClearSelection,
+    getCategoryCapabilities,
+    getCourseCapabilities,
+    getCategoryBadge,
+    getCourseBadge,
 }) {
     const allCourses = Object.values(coursesByCategory).flat();
     const allCredits = allCourses.reduce((sum, course) => sum + (Number(course.credits) || 0), 0);
@@ -442,6 +490,10 @@ export default function CurriculumStructureSidebar({
                             onCourseDragStart={onCourseDragStart}
                             onCourseDragEnd={onCourseDragEnd}
                             onRenameStateChange={handleRenameStateChange}
+                            getCategoryCapabilities={getCategoryCapabilities}
+                            getCourseCapabilities={getCourseCapabilities}
+                            getCategoryBadge={getCategoryBadge}
+                            getCourseBadge={getCourseBadge}
                             showInlineAddChild={showInlineAddChild}
                             addChildLabel={addChildLabel}
                             addChildDisabledReason={addChildDisabledReason}

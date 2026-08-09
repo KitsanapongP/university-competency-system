@@ -6,11 +6,15 @@ import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck,
 import { fetchTemplates, deleteTemplate, updateTemplateStatus, updateTemplateName, fetchTemplateItems, fetchTemplateStructure, createTemplate, saveTemplateItems } from '../../../lib/template';
 import { fetchCompetencies } from '../../../lib/competency';
 import { fetchCurriculumDetail } from '../../../lib/curriculum';
-import CategoryCoursePanel  from './components/CategoryCoursePanel';
+import TemplateStructureWorkspace from './components/TemplateStructureWorkspace';
 import CompetencyOverview   from './components/CompetencyOverview';
 import TemplateFormModal    from './components/TemplateFormModal';
 import ConfirmDeleteModal   from './components/ConfirmDeleteModal';
 import './TemplateManagement.css';
+import '../curriculum-management/CourseLayout.css';
+import '../curriculum-management/CourseEditor.css';
+import '../curriculum-management/CurriculumCourseEditorPanel.css';
+import '../curriculum-management/CurriculumStructureSidebar.css';
 
 const COMPETENCY_COLORS = ['#ec4899', '#3b82f6', '#06b6d4', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444', '#f97316'];
 
@@ -58,16 +62,9 @@ function renameCategory(cats, id, name) {
     });
 }
 function removeCategory(cats, id) {
-    return recodeSiblings(
-        cats.filter(c => c.id !== id)
-            .map(c => ({ ...c, children: removeCategory(c.children || [], id) }))
-    );
-}
-function recodeSiblings(cats, parentCode = '') {
-    return cats.map((c, i) => {
-        const code = parentCode ? `${parentCode}.${i + 1}` : `${i + 1}`;
-        return { ...c, code, children: c.children?.length ? recodeSiblings(c.children, code) : c.children };
-    });
+    return cats
+        .filter(c => c.id !== id)
+        .map(c => ({ ...c, children: removeCategory(c.children || [], id) }));
 }
 function findById(cats, id) {
     for (const c of cats) {
@@ -84,9 +81,60 @@ function getDirectChildren(cats, parentId) {
     return findById(cats, parentId)?.children || [];
 }
 function getNextCode(parentCode, siblings) {
-    return parentCode ? `${parentCode}.${siblings.length + 1}` : `${siblings.length + 1}`;
+    const nextIndex = (siblings || []).reduce((highest, sibling) => {
+        const segment = Number(String(sibling.code || '').split('.').pop());
+        return Number.isFinite(segment) ? Math.max(highest, segment) : highest;
+    }, 0) + 1;
+    return parentCode ? `${parentCode}.${nextIndex}` : `${nextIndex}`;
 }
 function getDepthFromCode(code) { return code ? code.split('.').length - 1 : 0; }
+function getSubtreeDepth(category) {
+    if (!category?.children?.length) return 0;
+    return Math.max(...category.children.map(child => 1 + getSubtreeDepth(child)));
+}
+function recodeCategorySubtree(category, code) {
+    return {
+        ...category,
+        code,
+        children: (category.children || []).map((child, index) => (
+            recodeCategorySubtree(child, `${code}.${index + 1}`)
+        )),
+    };
+}
+function moveCategory(cats, categoryId, targetParentId = null) {
+    const moving = findById(cats, categoryId);
+    if (!moving) return cats;
+
+    const withoutMoving = removeCategory(cats, categoryId);
+    if (!targetParentId) {
+        const nextCode = getNextCode('', withoutMoving);
+        return [...withoutMoving, recodeCategorySubtree(moving, nextCode)];
+    }
+
+    const targetParent = findById(withoutMoving, targetParentId);
+    if (!targetParent) return cats;
+    const siblings = targetParent.children || [];
+    const moved = recodeCategorySubtree(moving, getNextCode(targetParent.code, siblings));
+    return insertChild(withoutMoving, targetParentId, moved);
+}
+function moveCourseToCategory(coursesByCategory, course, targetCategoryId, beforeCourseId = null) {
+    const sourceCategoryId = course?.ownerCategoryId;
+    if (!course?.id || !sourceCategoryId || !targetCategoryId) return coursesByCategory;
+
+    const next = { ...coursesByCategory };
+    const sourceCourses = [...(next[sourceCategoryId] || [])].filter(item => item.id !== course.id);
+    const targetCourses = sourceCategoryId === targetCategoryId
+        ? sourceCourses
+        : [...(next[targetCategoryId] || [])].filter(item => item.id !== course.id);
+    const insertionIndex = beforeCourseId
+        ? Math.max(0, targetCourses.findIndex(item => item.id === beforeCourseId))
+        : targetCourses.length;
+
+    targetCourses.splice(insertionIndex, 0, { ...course, ownerCategoryId: undefined });
+    next[sourceCategoryId] = sourceCourses;
+    next[targetCategoryId] = targetCourses;
+    return next;
+}
 
 // ============================================================
 // TemplateCard — การ์ดแสดงใน list view
@@ -145,6 +193,10 @@ export default function TemplateManagementPage() {
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [templateStatus, setTemplateStatus] = useState(true);
     const [selectedCategory, setSelectedCategory] = useState(null);
+    const [showAllCourses, setShowAllCourses] = useState(false);
+    const [draggingCategoryId, setDraggingCategoryId] = useState(null);
+    const [draggedTemplateCourse, setDraggedTemplateCourse] = useState(null);
+    const [dropTargetCategoryId, setDropTargetCategoryId] = useState(null);
     const [showTemplateModal, setShowTemplateModal] = useState(false);
     const [deletingTemplate,  setDeletingTemplate]  = useState(null);
     const [deletingCategory,  setDeletingCategory]  = useState(null);
@@ -217,19 +269,6 @@ export default function TemplateManagementPage() {
         }));
     }, [selectedTemplate]);
 
-    // ── Credit map ──
-    const creditMap = useMemo(() => {
-        const map = {};
-        function calc(cat) {
-            const own = (currentCoursesByCat[cat.id] || []).reduce((s, c) => s + (Number(c.credits) || 0), 0);
-            const child = (cat.children || []).reduce((s, ch) => s + calc(ch), 0);
-            map[cat.id] = own + child;
-            return map[cat.id];
-        }
-        currentCategories.forEach(calc);
-        return map;
-    }, [currentCategories, currentCoursesByCat]);
-
     const courseCountMap = useMemo(() => {
         const m = {};
         templates.forEach(t => {
@@ -283,57 +322,71 @@ export default function TemplateManagementPage() {
                 }
                 const cats = detail && detail.categories ? convertCats(detail.categories, courseMap) : [];
 
-                // Merge custom categories from struct
-                if (struct && struct.custom_categories) {
-                    struct.custom_categories.forEach(c => {
-                        const cid = c.template_category_id || c.id;
-                        const newCat = {
-                            id: cid,
-                            code: c.code || '',
-                            name: c.name || '',
-                            requiredCredits: 0,
-                            children: [],
-                            isNew: false,
-                            fromMaster: false,
-                        };
-                        const parentTargetId = c.curriculum_parent_id || c.parent_id;
-                        if (parentTargetId) {
-                            function attach(list) {
-                                for (let item of list) {
-                                    if (item.id === parentTargetId) {
-                                        item.children = [...(item.children || []), newCat];
-                                        return true;
-                                    }
-                                    if (item.children?.length && attach(item.children)) return true;
-                                }
-                                return false;
-                            }
-                            if (!attach(cats)) cats.push(newCat);
-                        } else {
-                            cats.push(newCat);
-                        }
-                    });
-                }
+                // The save API recreates Additional records in one transaction. Keep a
+                // local ID for every loaded Additional record so parent/course/weight
+                // references can be remapped to the newly inserted database IDs.
+                const customCategoryIds = new Map();
+                const customCourseIds = new Map();
+                const customCategories = struct?.custom_categories || [];
 
-                // Merge custom courses from struct
-                if (struct && struct.custom_courses) {
-                    struct.custom_courses.forEach(c => {
-                        const targetCatId = c.template_category_id || c.curriculum_category_id;
-                        if (targetCatId) {
-                            if (!courseMap[targetCatId]) courseMap[targetCatId] = [];
-                            courseMap[targetCatId].push({
-                                id: c.template_course_id || c.id,
-                                courseId: c.template_course_id || c.id,
-                                code: c.code,
-                                nameTh: c.name_th || c.nameTh || '',
-                                nameEn: c.name_en || c.nameEn || '',
-                                credits: c.credits || 0,
-                                fromMaster: false,
-                                isCoreCourse: false,
-                            });
+                customCategories.forEach(category => {
+                    const serverId = category.template_category_id || category.id;
+                    if (serverId) customCategoryIds.set(serverId, ++idRef.current);
+                });
+
+                customCategories.forEach(category => {
+                    const serverId = category.template_category_id || category.id;
+                    const newCat = {
+                        id: customCategoryIds.get(serverId) || ++idRef.current,
+                        code: category.code || '',
+                        name: category.name || '',
+                        requiredCredits: 0,
+                        children: [],
+                        isNew: false,
+                        fromMaster: false,
+                    };
+                    const parentTargetId = category.curriculum_parent_id
+                        || customCategoryIds.get(category.parent_id)
+                        || null;
+                    if (parentTargetId) {
+                        function attach(list) {
+                            for (const item of list) {
+                                if (item.id === parentTargetId) {
+                                    item.children = [...(item.children || []), newCat];
+                                    return true;
+                                }
+                                if (item.children?.length && attach(item.children)) return true;
+                            }
+                            return false;
                         }
+                        if (!attach(cats)) cats.push(newCat);
+                    } else {
+                        cats.push(newCat);
+                    }
+                });
+
+                // Merge Additional courses using the same local-ID policy.
+                (struct?.custom_courses || []).forEach(course => {
+                    const serverCourseId = course.template_course_id || course.id;
+                    const localCourseId = ++courseIdRef.current;
+                    if (serverCourseId) customCourseIds.set(serverCourseId, localCourseId);
+                    const targetCatId = course.template_category_id
+                        ? customCategoryIds.get(course.template_category_id)
+                        : course.curriculum_category_id;
+                    if (!targetCatId) return;
+
+                    if (!courseMap[targetCatId]) courseMap[targetCatId] = [];
+                    courseMap[targetCatId].push({
+                        id: localCourseId,
+                        courseId: localCourseId,
+                        code: course.code,
+                        nameTh: course.name_th || course.nameTh || '',
+                        nameEn: course.name_en || course.nameEn || '',
+                        credits: course.credits || 0,
+                        fromMaster: false,
+                        isCoreCourse: false,
                     });
-                }
+                });
 
                 const validCourseIds = new Set();
                 Object.values(courseMap).forEach(arr => {
@@ -345,9 +398,10 @@ export default function TemplateManagementPage() {
                 if (struct && struct.items) {
                     struct.items.forEach(it => {
                         if (it.course_id && it.competency_id && it.weight !== null && it.weight !== undefined) {
-                            if (!validCourseIds.has(it.course_id)) return;
-                            if (!weightMap[it.course_id]) weightMap[it.course_id] = {};
-                            weightMap[it.course_id][it.competency_id] = it.weight;
+                            const courseId = customCourseIds.get(it.course_id) || it.course_id;
+                            if (!validCourseIds.has(courseId)) return;
+                            if (!weightMap[courseId]) weightMap[courseId] = {};
+                            weightMap[courseId][it.competency_id] = it.weight;
                         }
                     });
                 }
@@ -380,7 +434,11 @@ export default function TemplateManagementPage() {
     const handleOpenTemplate = useCallback((t) => {
         setSelectedTemplate(t);
         setSelectedCategory(null);
-        setTemplateStatus(t.isActive ?? true);
+        setShowAllCourses(false);
+        setDraggingCategoryId(null);
+        setDraggedTemplateCourse(null);
+        setDropTargetCategoryId(null);
+        setTemplateStatus(t.isActive ?? false);
         setView('editor');
     }, []);
 
@@ -388,6 +446,10 @@ export default function TemplateManagementPage() {
         setView('list');
         setSelectedTemplate(null);
         setSelectedCategory(null);
+        setShowAllCourses(false);
+        setDraggingCategoryId(null);
+        setDraggedTemplateCourse(null);
+        setDropTargetCategoryId(null);
     }, []);
 
     const handleRequestDeleteTemplate = useCallback((t) => setDeletingTemplate(t), []);
@@ -611,8 +673,18 @@ export default function TemplateManagementPage() {
     // ============================================================
     // Category handlers
     // ============================================================
-    const handleSelectCategory = useCallback((cat) => setSelectedCategory(cat), []);
-    const handleDeselectCategory = useCallback(() => setSelectedCategory(null), []);
+    const handleSelectCategory = useCallback((cat) => {
+        setShowAllCourses(false);
+        setSelectedCategory(cat);
+    }, []);
+    const handleSelectAllCourses = useCallback(() => {
+        setSelectedCategory(null);
+        setShowAllCourses(true);
+    }, []);
+    const handleDeselectCategory = useCallback(() => {
+        setSelectedCategory(null);
+        setShowAllCourses(false);
+    }, []);
 
     // parentId = null → เพิ่มที่ root, parentId = id → เพิ่มเป็นลูกของ parent
     const handleCreateCategory = useCallback((parentId = selectedCategory?.id ?? null) => {
@@ -659,12 +731,130 @@ export default function TemplateManagementPage() {
         triggerAutoSaveToAPI(selectedTemplate.id, nextCats, currentCoursesByCat, currentWeightsByCourse);
     }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCategories, triggerAutoSaveToAPI]);
 
-    const handleReorderCategories = useCallback((newCats) => {
-        if (!selectedTemplate || selectedTemplate.isActive) return;
-        updateCurrentCategories(newCats);
-        setSelectedCategory(p => p ? findById(newCats, p.id) || null : null);
-        triggerAutoSaveToAPI(selectedTemplate.id, newCats, currentCoursesByCat, currentWeightsByCourse);
-    }, [selectedTemplate, currentCoursesByCat, currentWeightsByCourse, updateCurrentCategories, triggerAutoSaveToAPI]);
+    const clearStructureDragState = useCallback(() => {
+        setDraggingCategoryId(null);
+        setDraggedTemplateCourse(null);
+        setDropTargetCategoryId(null);
+    }, []);
+
+    const canMoveTemplateCategory = useCallback((targetCategory = null) => {
+        if (!draggingCategoryId || !selectedTemplate || selectedTemplate.isActive) return false;
+        const movingCategory = findById(currentCategories, draggingCategoryId);
+        if (!movingCategory || movingCategory.fromMaster) return false;
+        if (!targetCategory) return true;
+        if (targetCategory.id === movingCategory.id || isDescendantOf(movingCategory, targetCategory.id)) return false;
+        if ((currentCoursesByCat[targetCategory.id] || []).length > 0) return false;
+        return getDepthFromCode(targetCategory.code) + 1 + getSubtreeDepth(movingCategory) <= 3;
+    }, [draggingCategoryId, selectedTemplate, currentCategories, currentCoursesByCat]);
+
+    const handleTemplateCategoryDragStart = useCallback((event, category) => {
+        if (category?.fromMaster || selectedTemplate?.isActive) return;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(category.id));
+        setDraggingCategoryId(category.id);
+        setDraggedTemplateCourse(null);
+        setDropTargetCategoryId(null);
+    }, [selectedTemplate]);
+
+    const handleTemplateCategoryDragOver = useCallback((event, targetCategory) => {
+        if (!canMoveTemplateCategory(targetCategory)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setDropTargetCategoryId(targetCategory.id);
+    }, [canMoveTemplateCategory]);
+
+    const handleTemplateCategoryRootDragOver = useCallback((event) => {
+        if (!canMoveTemplateCategory()) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setDropTargetCategoryId('root');
+    }, [canMoveTemplateCategory]);
+
+    const commitTemplateCategoryMove = useCallback((targetCategory = null) => {
+        if (!canMoveTemplateCategory(targetCategory)) {
+            clearStructureDragState();
+            return;
+        }
+        const nextCategories = moveCategory(currentCategories, draggingCategoryId, targetCategory?.id ?? null);
+        updateCurrentCategories(nextCategories);
+        setSelectedCategory(current => current ? findById(nextCategories, current.id) || null : null);
+        triggerAutoSaveToAPI(selectedTemplate.id, nextCategories, currentCoursesByCat, currentWeightsByCourse);
+        clearStructureDragState();
+    }, [
+        canMoveTemplateCategory,
+        clearStructureDragState,
+        currentCategories,
+        currentCoursesByCat,
+        currentWeightsByCourse,
+        draggingCategoryId,
+        selectedTemplate,
+        triggerAutoSaveToAPI,
+        updateCurrentCategories,
+    ]);
+
+    const handleTemplateCategoryDrop = useCallback((event, targetCategory) => {
+        event.preventDefault();
+        commitTemplateCategoryMove(targetCategory);
+    }, [commitTemplateCategoryMove]);
+
+    const handleTemplateCategoryRootDrop = useCallback((event) => {
+        event.preventDefault();
+        commitTemplateCategoryMove(null);
+    }, [commitTemplateCategoryMove]);
+
+    const handleTemplateCourseDragStart = useCallback((event, course) => {
+        if (course?.fromMaster || selectedTemplate?.isActive) return;
+        event?.dataTransfer?.setData('text/plain', String(course.id));
+        if (event?.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+        setDraggedTemplateCourse(course);
+        setDraggingCategoryId(null);
+        setDropTargetCategoryId(null);
+    }, [selectedTemplate]);
+
+    const moveTemplateCourse = useCallback((targetCategory, beforeCourseId = null) => {
+        if (!draggedTemplateCourse || selectedTemplate?.isActive || !targetCategory) {
+            clearStructureDragState();
+            return;
+        }
+        if (draggedTemplateCourse.fromMaster || (targetCategory.children || []).length > 0) {
+            clearStructureDragState();
+            return;
+        }
+        const nextCourses = moveCourseToCategory(
+            currentCoursesByCat,
+            draggedTemplateCourse,
+            targetCategory.id,
+            beforeCourseId,
+        );
+        updateCurrentCourses(nextCourses);
+        triggerAutoSaveToAPI(selectedTemplate.id, currentCategories, nextCourses, currentWeightsByCourse);
+        clearStructureDragState();
+    }, [
+        clearStructureDragState,
+        currentCategories,
+        currentCoursesByCat,
+        currentWeightsByCourse,
+        draggedTemplateCourse,
+        selectedTemplate,
+        triggerAutoSaveToAPI,
+        updateCurrentCourses,
+    ]);
+
+    const handleTemplateCourseCategoryDragOver = useCallback((event, targetCategory) => {
+        if (!draggedTemplateCourse || selectedTemplate?.isActive || (targetCategory.children || []).length > 0) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setDropTargetCategoryId(targetCategory.id);
+    }, [draggedTemplateCourse, selectedTemplate]);
+
+    const handleTemplateCourseCategoryDrop = useCallback((event, targetCategory) => {
+        event.preventDefault();
+        moveTemplateCourse(targetCategory);
+    }, [moveTemplateCourse]);
+
+    const handleTemplateCourseMove = useCallback(({ targetCategory, beforeCourseId }) => {
+        moveTemplateCourse(targetCategory, beforeCourseId);
+    }, [moveTemplateCourse]);
 
     const handleRequestDeleteCategory = useCallback((cat) => {
         if (selectedTemplate?.isActive) {
@@ -710,32 +900,57 @@ export default function TemplateManagementPage() {
     }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCourses, triggerAutoSaveToAPI]);
 
     const handleUpdateCourse = useCallback((catId, updatedCourse) => {
-        if (!selectedTemplate || selectedTemplate.isActive) return;
+        if (!selectedTemplate || selectedTemplate.isActive || updatedCourse?.fromMaster) return false;
         const nextCoursesMap = {
             ...currentCoursesByCat,
             [catId]: (currentCoursesByCat[catId] || []).map(c => c.id === updatedCourse.id ? updatedCourse : c),
         };
         updateCurrentCourses(nextCoursesMap);
         triggerAutoSaveToAPI(selectedTemplate.id, currentCategories, nextCoursesMap, currentWeightsByCourse);
-    }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCourses, triggerAutoSaveToAPI]);
-
-    const handleReorderCourses = useCallback((catId, fromIdx, toIdx) => {
-        if (fromIdx === toIdx || !selectedTemplate || selectedTemplate.isActive) return;
-        const list = [...(currentCoursesByCat[catId] || [])];
-        const [moved] = list.splice(fromIdx, 1);
-        list.splice(toIdx, 0, moved);
-        const nextCoursesMap = { ...currentCoursesByCat, [catId]: list };
-        updateCurrentCourses(nextCoursesMap);
-        triggerAutoSaveToAPI(selectedTemplate.id, currentCategories, nextCoursesMap, currentWeightsByCourse);
+        return true;
     }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCourses, triggerAutoSaveToAPI]);
 
     const handleRequestDeleteCourse = useCallback((catId, course) => {
+        if (course?.fromMaster) return;
         if (selectedTemplate?.isActive) {
             alert('ไม่สามารถลบรายวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
             return;
         }
         setDeletingCourse({ ...course, _catId: catId });
     }, [selectedTemplate]);
+
+    const handleBulkDeleteTemplateCourses = useCallback((catId, courses) => {
+        if (!selectedTemplate || selectedTemplate.isActive || !courses?.length) return false;
+        const deletingIds = new Set(courses.filter(course => !course.fromMaster).map(course => course.id));
+        if (!deletingIds.size) return false;
+
+        const nextCoursesMap = {
+            ...currentCoursesByCat,
+            [catId]: (currentCoursesByCat[catId] || []).filter(course => !deletingIds.has(course.id)),
+        };
+        const nextWeightsMap = { ...currentWeightsByCourse };
+        deletingIds.forEach(courseId => delete nextWeightsMap[courseId]);
+
+        updateCurrentCourses(nextCoursesMap);
+        setWeightsByTemplate(previous => ({ ...previous, [selectedTemplate.id]: nextWeightsMap }));
+        triggerAutoSaveToAPI(selectedTemplate.id, currentCategories, nextCoursesMap, nextWeightsMap);
+        return true;
+    }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, triggerAutoSaveToAPI, updateCurrentCourses]);
+
+    const validateTemplateCourseBeforeSave = useCallback((candidate) => {
+        const candidateCode = String(candidate?.code || '').trim().toLowerCase();
+        if (!candidateCode) return true;
+        const duplicate = Object.values(currentCoursesByCat)
+            .flat()
+            .find(course => (
+                String(course.id) !== String(candidate.id)
+                && String(course.code || '').trim().toLowerCase() === candidateCode
+            ));
+        if (!duplicate) return true;
+
+        alert(`ไม่สามารถบันทึกรายวิชาได้ เพราะมีรหัสวิชา ${candidate.code} อยู่ใน Template นี้แล้ว`);
+        return false;
+    }, [currentCoursesByCat]);
 
     const handleConfirmDeleteCourse = useCallback(() => {
         if (!deletingCourse || !selectedTemplate || selectedTemplate.isActive) return;
@@ -905,49 +1120,81 @@ export default function TemplateManagementPage() {
 
             {/* Tab content */}
             {editorTab === 'setup' && (
-                <CategoryCoursePanel
+                <TemplateStructureWorkspace
                     template={selectedTemplate}
                     categories={currentCategories}
                     selectedCategory={selectedCategory}
+                    showAllCourses={showAllCourses}
                     coursesByCategoryId={currentCoursesByCat}
                     weightsByCourseId={currentWeightsByCourse}
                     competencies={currentCompetencies}
-                    creditMap={creditMap}
                     onSelectCategory={handleSelectCategory}
                     onDeselectCategory={handleDeselectCategory}
+                    onSelectAllCourses={handleSelectAllCourses}
                     onCreateCategory={handleCreateCategory}
                     onRenameCategory={handleRenameCategory}
-                    onReorderCategories={handleReorderCategories}
                     onDeleteCategory={handleRequestDeleteCategory}
                     onAddCourse={handleAddCourse}
                     onUpdateCourse={handleUpdateCourse}
-                    onReorderCourses={handleReorderCourses}
                     onDeleteCourse={handleRequestDeleteCourse}
+                    onBulkDeleteCourses={handleBulkDeleteTemplateCourses}
+                    onMoveCourse={handleTemplateCourseMove}
+                    onValidateCourse={validateTemplateCourseBeforeSave}
                     onSetWeight={handleSetWeight}
+                    draggingCategoryId={draggingCategoryId}
+                    draggedCourseId={draggedTemplateCourse?.id ?? null}
+                    dropTargetCategoryId={dropTargetCategoryId}
+                    onCategoryRootDragOver={handleTemplateCategoryRootDragOver}
+                    onCategoryRootDrop={handleTemplateCategoryRootDrop}
+                    onCategoryDragStart={handleTemplateCategoryDragStart}
+                    onCategoryDragOver={handleTemplateCategoryDragOver}
+                    onCategoryDrop={handleTemplateCategoryDrop}
+                    onCategoryDragEnd={clearStructureDragState}
+                    onCategoryDragLeave={() => setDropTargetCategoryId(null)}
+                    onCourseCategoryDragOver={handleTemplateCourseCategoryDragOver}
+                    onCourseCategoryDrop={handleTemplateCourseCategoryDrop}
+                    onCourseDragStart={handleTemplateCourseDragStart}
+                    onCourseDragEnd={clearStructureDragState}
                     mode="setup"
                 />
             )}
 
             {editorTab === 'weight' && (
-                <CategoryCoursePanel
+                <TemplateStructureWorkspace
                     template={selectedTemplate}
                     categories={currentCategories}
                     selectedCategory={selectedCategory}
+                    showAllCourses={showAllCourses}
                     coursesByCategoryId={currentCoursesByCat}
                     weightsByCourseId={currentWeightsByCourse}
                     competencies={currentCompetencies}
-                    creditMap={creditMap}
                     onSelectCategory={handleSelectCategory}
                     onDeselectCategory={handleDeselectCategory}
+                    onSelectAllCourses={handleSelectAllCourses}
                     onCreateCategory={handleCreateCategory}
                     onRenameCategory={handleRenameCategory}
-                    onReorderCategories={handleReorderCategories}
                     onDeleteCategory={handleRequestDeleteCategory}
                     onAddCourse={handleAddCourse}
                     onUpdateCourse={handleUpdateCourse}
-                    onReorderCourses={handleReorderCourses}
                     onDeleteCourse={handleRequestDeleteCourse}
+                    onBulkDeleteCourses={handleBulkDeleteTemplateCourses}
+                    onMoveCourse={handleTemplateCourseMove}
+                    onValidateCourse={validateTemplateCourseBeforeSave}
                     onSetWeight={handleSetWeight}
+                    draggingCategoryId={draggingCategoryId}
+                    draggedCourseId={draggedTemplateCourse?.id ?? null}
+                    dropTargetCategoryId={dropTargetCategoryId}
+                    onCategoryRootDragOver={handleTemplateCategoryRootDragOver}
+                    onCategoryRootDrop={handleTemplateCategoryRootDrop}
+                    onCategoryDragStart={handleTemplateCategoryDragStart}
+                    onCategoryDragOver={handleTemplateCategoryDragOver}
+                    onCategoryDrop={handleTemplateCategoryDrop}
+                    onCategoryDragEnd={clearStructureDragState}
+                    onCategoryDragLeave={() => setDropTargetCategoryId(null)}
+                    onCourseCategoryDragOver={handleTemplateCourseCategoryDragOver}
+                    onCourseCategoryDrop={handleTemplateCourseCategoryDrop}
+                    onCourseDragStart={handleTemplateCourseDragStart}
+                    onCourseDragEnd={clearStructureDragState}
                     mode="weight"
                 />
             )}

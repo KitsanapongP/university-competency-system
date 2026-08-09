@@ -145,6 +145,21 @@
     line-height: 1.2;
 }
 
+.curriculum-structure-origin-badge {
+    align-items: center;
+    background: color-mix(in srgb, var(--course-accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--course-accent) 34%, transparent);
+    border-radius: 999px;
+    color: var(--course-accent);
+    display: inline-flex;
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.2rem 0.38rem;
+    white-space: nowrap;
+    width: fit-content;
+}
+
 .curriculum-structure-row--selected .curriculum-structure-row__meta {
     color: rgba(255, 255, 255, 0.72);
 }
@@ -205,6 +220,16 @@
     color: #ef4444;
 }
 
+.curriculum-structure-row__lock {
+    align-items: center;
+    color: var(--course-text-muted);
+    display: inline-flex;
+    height: 24px;
+    justify-content: center;
+    opacity: 0.7;
+    width: 24px;
+}
+
 .curriculum-structure-row--selected .curriculum-structure-icon-btn--danger {
     color: #fecaca;
 }
@@ -236,8 +261,26 @@
 
 .curriculum-structure-course__code {
     color: var(--course-accent);
+    align-items: center;
+    display: inline-flex;
+    gap: 0.25rem;
     font-family: monospace;
     font-weight: 600;
+}
+
+.curriculum-structure-course--locked {
+    cursor: default;
+    opacity: 0.78;
+}
+
+.curriculum-structure-course--locked:hover {
+    background: transparent;
+    color: var(--course-text-muted);
+}
+
+.curriculum-structure-course__lock {
+    color: var(--course-text-muted);
+    flex: 0 0 auto;
 }
 
 .curriculum-structure-course__name {

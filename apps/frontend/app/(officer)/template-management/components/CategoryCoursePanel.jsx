@@ -147,9 +147,11 @@ function SpreadsheetRow({
                                     ? <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={handleSave}><Check size={13}/></button>
                                     : <button className="icon-btn icon-btn--edit icon-btn--xs" onClick={() => setEditing(true)}><Pencil size={12}/></button>
                             )}
-                            <button className="icon-btn icon-btn--danger icon-btn--xs" onClick={() => onDelete(catId, course)} title="ลบรายวิชา">
-                                <Trash2 size={12}/>
-                            </button>
+                            {!hideEditActions && !template?.isActive && (
+                                <button className="icon-btn icon-btn--danger icon-btn--xs" onClick={() => onDelete(catId, course)} title="ลบรายวิชา">
+                                    <Trash2 size={12}/>
+                                </button>
+                            )}
                         </>
                     )}
                 </td>
@@ -655,3 +657,5 @@ export default function CategoryCoursePanel({
         </div>
     );
 }
+
+export { GlobalCompSummary as TemplateWeightSummary };

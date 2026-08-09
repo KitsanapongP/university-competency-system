@@ -190,6 +190,10 @@
     width: 86px;
 }
 
+.curriculum-course-editor__col--extra {
+    width: 112px;
+}
+
 .curriculum-course-editor__col--actions {
     width: 62px;
 }
@@ -307,6 +311,23 @@
 .curriculum-course-editor .ss-cell--actions {
     width: 62px;
     text-align: center;
+}
+
+.curriculum-course-origin-badge {
+    align-items: center;
+    background: color-mix(in srgb, var(--course-accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--course-accent) 34%, transparent);
+    border-radius: 999px;
+    color: var(--course-accent);
+    display: inline-flex;
+    font-family: inherit;
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-left: 0.4rem;
+    padding: 0.18rem 0.35rem;
+    vertical-align: middle;
+    white-space: nowrap;
 }
 
 .curriculum-course-editor .ss-cell--actions {
