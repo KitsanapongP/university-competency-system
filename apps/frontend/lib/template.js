@@ -56,6 +56,19 @@ export async function fetchTemplateStructure(id) {
     return unwrapData(res, { items: [], custom_categories: [], custom_courses: [] });
 }
 
+export async function fetchTemplateCompetencies(id) {
+    const res = await apiFetch(`/api/v1/templates/${id}/competencies`);
+    return unwrapData(res, null);
+}
+
+export async function updateTemplateCompetencies(id, payload) {
+    const res = await apiFetch(`/api/v1/templates/${id}/competencies`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+    });
+    return unwrapData(res, null);
+}
+
 export async function saveTemplateItems(id, payload) {
     const body = Array.isArray(payload) ? { items: payload } : payload;
     const res = await apiFetch(`/api/v1/templates/${id}/items`, {

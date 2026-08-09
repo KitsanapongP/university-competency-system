@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useMemo } from 'react';
-import { BookOpen, ExternalLink, TriangleAlert } from 'lucide-react';
+import { BookOpen, Settings2, TriangleAlert } from 'lucide-react';
 import CurriculumCourseEditorPanel from '../../curriculum-management/components/CurriculumCourseEditorPanel';
 import CurriculumStructureSidebar from '../../curriculum-management/components/CurriculumStructureSidebar';
 import { getDisplayCourses } from '../../../../lib/curriculum-structure';
@@ -23,6 +23,7 @@ function TemplateWeightToolbar({
     coursesByCategoryId,
     weightsByCourseId,
     competencies,
+    onManageCompetencies,
 }) {
     return (
         <div className="template-weight-editor__toolbar">
@@ -46,9 +47,9 @@ function TemplateWeightToolbar({
                 <button
                     type="button"
                     className="btn btn--primary btn--sm"
-                    onClick={() => window.open('/competency-management', '_blank', 'noopener,noreferrer')}
+                    onClick={onManageCompetencies}
                 >
-                    <ExternalLink size={13} /> จัดการสมรรถนะ
+                    <Settings2 size={13} /> จัดการสมรรถนะ
                 </button>
             </div>
         </div>
@@ -65,6 +66,7 @@ function TemplateWeightEditor({
     competencies,
     allCourses,
     onSetWeight,
+    onManageCompetencies,
 }) {
     const getCoursesForCategory = useCallback(
         category => coursesByCategoryId[category.id] || [],
@@ -124,6 +126,7 @@ function TemplateWeightEditor({
                     coursesByCategoryId={coursesByCategoryId}
                     weightsByCourseId={weightsByCourseId}
                     competencies={competencies}
+                    onManageCompetencies={onManageCompetencies}
                 />
                 <div className="template-weight-editor__body">
                     <CurriculumCourseEditorPanel
@@ -162,6 +165,7 @@ function TemplateWeightEditor({
                 coursesByCategoryId={coursesByCategoryId}
                 weightsByCourseId={weightsByCourseId}
                 competencies={competencies}
+                onManageCompetencies={onManageCompetencies}
             />
             <div className="template-weight-editor__body">
                 <CurriculumCourseEditorPanel
@@ -216,6 +220,7 @@ export default function TemplateStructureWorkspace({
     onMoveCourse,
     onValidateCourse,
     onSetWeight,
+    onManageCompetencies,
     onCategoryRootDragOver,
     onCategoryRootDrop,
     onCategoryDragStart,
@@ -401,6 +406,7 @@ export default function TemplateStructureWorkspace({
                             competencies={competencies}
                             allCourses={allCourses}
                             onSetWeight={onSetWeight}
+                            onManageCompetencies={onManageCompetencies}
                         />
                     )}
                 </div>

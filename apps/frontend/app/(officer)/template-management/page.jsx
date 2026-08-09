@@ -3,13 +3,17 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, Settings, SlidersHorizontal, BarChart3, Files } from 'lucide-react';
-import { fetchTemplates, deleteTemplate, updateTemplateStatus, updateTemplateName, fetchTemplateItems, fetchTemplateStructure, createTemplate, saveTemplateItems } from '../../../lib/template';
+import { fetchTemplates, deleteTemplate, updateTemplateStatus, updateTemplateName, fetchTemplateItems, fetchTemplateStructure, fetchTemplateCompetencies, updateTemplateCompetencies, createTemplate, saveTemplateItems } from '../../../lib/template';
 import { fetchCompetencies } from '../../../lib/competency';
 import { fetchCurriculumDetail } from '../../../lib/curriculum';
+import { useLanguage } from '../../../providers/LanguageContext';
 import TemplateStructureWorkspace from './components/TemplateStructureWorkspace';
 import CompetencyOverview   from './components/CompetencyOverview';
 import TemplateFormModal    from './components/TemplateFormModal';
 import ConfirmDeleteModal   from './components/ConfirmDeleteModal';
+import TemplateCompetencyManagerModal from './components/TemplateCompetencyManagerModal';
+import ConfirmActionModal from '../../../components/ui/ConfirmActionModal';
+import ToastNotifications from '../../../components/ui/ToastNotifications';
 import './TemplateManagement.css';
 import '../curriculum-management/CourseLayout.css';
 import '../curriculum-management/CourseEditor.css';
@@ -181,6 +185,7 @@ function TemplateCard({ template, courseCount, onOpen, onDelete }) {
 // Main Page
 // ============================================================
 export default function TemplateManagementPage() {
+    const { language } = useLanguage();
     // ── view: 'list' | 'editor' ──
     const [view, setView] = useState('list');
     const [editorTab, setEditorTab] = useState('setup'); // 'setup' | 'weight' | 'overview'
@@ -201,6 +206,12 @@ export default function TemplateManagementPage() {
     const [deletingTemplate,  setDeletingTemplate]  = useState(null);
     const [deletingCategory,  setDeletingCategory]  = useState(null);
     const [deletingCourse,    setDeletingCourse]    = useState(null);
+    const [showCompetencyManager, setShowCompetencyManager] = useState(false);
+    const [competencyManagerState, setCompetencyManagerState] = useState(null);
+    const [competencyManagerLoading, setCompetencyManagerLoading] = useState(false);
+    const [competencyManagerSaving, setCompetencyManagerSaving] = useState(false);
+    const [competencyRemovalConfirmation, setCompetencyRemovalConfirmation] = useState(null);
+    const [toast, setToast] = useState({ success: '', error: '', errorDebug: '' });
 
     const [categoriesByTemplate, setCategoriesByTemplate] = useState({});
     const [coursesByTemplate,  setCoursesByTemplate]  = useState({});
@@ -210,6 +221,7 @@ export default function TemplateManagementPage() {
     const templateRef    = useRef(7000);
     const courseIdRef    = useRef(50000);
     const saveTimeoutRef = useRef(null);
+    const toastTimeoutRef = useRef(null);
 
     const loadCompetencies = useCallback(async () => {
         const competencyData = await fetchCompetencies();
@@ -217,6 +229,40 @@ export default function TemplateManagementPage() {
         setAllCompetencies(mappedCompetencies);
         return mappedCompetencies;
     }, []);
+
+    const showTemplateToast = useCallback((type, message, debug = '') => {
+        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+        setToast(type === 'success'
+            ? { success: message, error: '', errorDebug: '' }
+            : { success: '', error: message, errorDebug: debug || message });
+        toastTimeoutRef.current = setTimeout(() => {
+            setToast(current => type === 'success'
+                ? { ...current, success: '' }
+                : { ...current, error: '', errorDebug: '' });
+        }, 5000);
+    }, []);
+
+    const templateCompetencyMessage = useCallback((error) => {
+        const messages = {
+            TEMPLATE_ACTIVE: {
+                th: 'Template นี้เปิดใช้งานอยู่ จึงไม่สามารถเปลี่ยนสมรรถนะได้',
+                en: 'This template is active, so its competencies cannot be changed.',
+            },
+            TEMPLATE_COMPETENCIES_LOCKED_BY_SCORES: {
+                th: 'Template นี้มีคะแนนรายวิชาของผู้เรียนแล้ว จึงไม่สามารถเปลี่ยนสมรรถนะได้',
+                en: 'This template already has learner course scores, so its competencies cannot be changed.',
+            },
+            FORBIDDEN: {
+                th: 'คุณไม่มีสิทธิ์จัดการสมรรถนะของ Template นี้',
+                en: 'You do not have permission to manage this template’s competencies.',
+            },
+            BAD_REQUEST: {
+                th: 'สมรรถนะที่เลือกบางรายการไม่พร้อมใช้งานแล้ว กรุณาโหลดข้อมูลใหม่',
+                en: 'One or more selected competencies are no longer available. Refresh and try again.',
+            },
+        };
+        return messages[error?.code]?.[language] || error?.message || (language === 'th' ? 'ไม่สามารถจัดการสมรรถนะได้' : 'Unable to manage competencies.');
+    }, [language]);
 
     useEffect(() => {
         async function loadData() {
@@ -676,6 +722,77 @@ export default function TemplateManagementPage() {
         setShowAllCourses(false);
         setSelectedCategory(cat);
     }, []);
+
+    const loadTemplateCompetencyManager = useCallback(async (templateID) => {
+        if (!templateID) return null;
+        setCompetencyManagerLoading(true);
+        try {
+            const [managerData] = await Promise.all([
+                fetchTemplateCompetencies(templateID),
+                loadCompetencies(),
+            ]);
+            setCompetencyManagerState(managerData);
+            return managerData;
+        } catch (error) {
+            showTemplateToast('error', templateCompetencyMessage(error), error.message);
+            return null;
+        } finally {
+            setCompetencyManagerLoading(false);
+        }
+    }, [loadCompetencies, showTemplateToast, templateCompetencyMessage]);
+
+    const handleOpenCompetencyManager = useCallback(async () => {
+        if (!selectedTemplate) return;
+        setCompetencyManagerState(null);
+        setShowCompetencyManager(true);
+        const managerData = await loadTemplateCompetencyManager(selectedTemplate.id);
+        if (!managerData) setShowCompetencyManager(false);
+    }, [selectedTemplate, loadTemplateCompetencyManager]);
+
+    const refreshTemplateStructure = useCallback((templateID) => {
+        setCategoriesByTemplate(current => {
+            const next = { ...current };
+            delete next[templateID];
+            return next;
+        });
+    }, []);
+
+    const applyTemplateCompetencySelection = useCallback(async (competencyIds, confirmRemoval = false) => {
+        if (!selectedTemplate) return;
+        setCompetencyManagerSaving(true);
+        try {
+            const result = await updateTemplateCompetencies(selectedTemplate.id, {
+                competency_ids: competencyIds,
+                confirm_removal: confirmRemoval,
+            });
+            const updatedCompetencies = normalizeCompetencies(result?.competencies || []);
+            setCompetenciesByTemplate(current => ({ ...current, [selectedTemplate.id]: updatedCompetencies }));
+            refreshTemplateStructure(selectedTemplate.id);
+            setCompetencyRemovalConfirmation(null);
+            setShowCompetencyManager(false);
+            showTemplateToast('success', language === 'th' ? 'บันทึกสมรรถนะของ Template แล้ว' : 'Template competencies saved.');
+        } catch (error) {
+            if (error?.code === 'CONFIRMATION_REQUIRED') {
+                setCompetencyRemovalConfirmation({
+                    competencyIds,
+                    impacts: error?.payload?.error?.data?.removed_competencies || [],
+                });
+                return;
+            }
+            showTemplateToast('error', templateCompetencyMessage(error), error.message);
+        } finally {
+            setCompetencyManagerSaving(false);
+        }
+    }, [language, refreshTemplateStructure, selectedTemplate, showTemplateToast, templateCompetencyMessage]);
+
+    const handleSaveTemplateCompetencies = useCallback((competencyIds) => {
+        applyTemplateCompetencySelection(competencyIds);
+    }, [applyTemplateCompetencySelection]);
+
+    const handleConfirmCompetencyRemoval = useCallback(() => {
+        if (!competencyRemovalConfirmation) return;
+        applyTemplateCompetencySelection(competencyRemovalConfirmation.competencyIds, true);
+    }, [applyTemplateCompetencySelection, competencyRemovalConfirmation]);
     const handleSelectAllCourses = useCallback(() => {
         setSelectedCategory(null);
         setShowAllCourses(true);
@@ -1054,6 +1171,13 @@ export default function TemplateManagementPage() {
                         onCancel={() => setDeletingTemplate(null)}
                     />
                 )}
+                <ToastNotifications
+                    success={toast.success}
+                    error={toast.error}
+                    errorDebug={toast.errorDebug}
+                    onCloseSuccess={() => setToast(current => ({ ...current, success: '' }))}
+                    onCloseError={() => setToast(current => ({ ...current, error: '', errorDebug: '' }))}
+                />
             </div>
         );
     }
@@ -1140,6 +1264,7 @@ export default function TemplateManagementPage() {
                     onMoveCourse={handleTemplateCourseMove}
                     onValidateCourse={validateTemplateCourseBeforeSave}
                     onSetWeight={handleSetWeight}
+                    onManageCompetencies={handleOpenCompetencyManager}
                     draggingCategoryId={draggingCategoryId}
                     draggedCourseId={draggedTemplateCourse?.id ?? null}
                     dropTargetCategoryId={dropTargetCategoryId}
@@ -1180,6 +1305,7 @@ export default function TemplateManagementPage() {
                     onMoveCourse={handleTemplateCourseMove}
                     onValidateCourse={validateTemplateCourseBeforeSave}
                     onSetWeight={handleSetWeight}
+                    onManageCompetencies={handleOpenCompetencyManager}
                     draggingCategoryId={draggingCategoryId}
                     draggedCourseId={draggedTemplateCourse?.id ?? null}
                     dropTargetCategoryId={dropTargetCategoryId}
@@ -1237,6 +1363,52 @@ export default function TemplateManagementPage() {
                     onCancel={() => setDeletingCourse(null)}
                 />
             )}
+            <TemplateCompetencyManagerModal
+                open={showCompetencyManager}
+                template={selectedTemplate}
+                availableCompetencies={allCompetencies}
+                managerState={competencyManagerState}
+                loading={competencyManagerLoading}
+                saving={competencyManagerSaving}
+                language={language}
+                onClose={() => {
+                    if (!competencyManagerSaving) setShowCompetencyManager(false);
+                }}
+                onRefresh={() => loadTemplateCompetencyManager(selectedTemplate?.id)}
+                onSave={handleSaveTemplateCompetencies}
+            />
+            <ConfirmActionModal
+                open={Boolean(competencyRemovalConfirmation)}
+                title={language === 'th' ? 'ยืนยันการถอดสมรรถนะ' : 'Confirm competency removal'}
+                message={language === 'th'
+                    ? 'การถอดสมรรถนะจะล้างการเชื่อมรายวิชาและน้ำหนักของสมรรถนะที่เลือก'
+                    : 'Removing competencies will clear their course mappings and weights.'}
+                hint={language === 'th'
+                    ? 'การดำเนินการนี้ไม่ลบสมรรถนะออกจากระบบกลาง'
+                    : 'This does not delete the competency from the global master list.'}
+                impact={competencyRemovalConfirmation?.impacts?.length ? (
+                    <ul className="template-competency-manager__impact-list">
+                        {competencyRemovalConfirmation.impacts.map(impact => (
+                            <li key={impact.competency_id}>
+                                <strong>{impact.code}</strong> {impact.name_th} ({impact.mapping_count} {language === 'th' ? 'รายวิชา' : 'courses'})
+                            </li>
+                        ))}
+                    </ul>
+                ) : null}
+                confirmLabel={language === 'th' ? 'ถอดสมรรถนะ' : 'Remove competencies'}
+                cancelLabel={language === 'th' ? 'ยกเลิก' : 'Cancel'}
+                variant="danger"
+                loading={competencyManagerSaving}
+                onConfirm={handleConfirmCompetencyRemoval}
+                onCancel={() => !competencyManagerSaving && setCompetencyRemovalConfirmation(null)}
+            />
+            <ToastNotifications
+                success={toast.success}
+                error={toast.error}
+                errorDebug={toast.errorDebug}
+                onCloseSuccess={() => setToast(current => ({ ...current, success: '' }))}
+                onCloseError={() => setToast(current => ({ ...current, error: '', errorDebug: '' }))}
+            />
         </div>
     );
 }
