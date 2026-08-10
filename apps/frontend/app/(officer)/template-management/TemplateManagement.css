@@ -4334,6 +4334,11 @@
     gap: 0.5rem;
 }
 
+.template-competency-manager__add-master {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 .template-competency-manager__search {
     align-items: center;
     background: var(--tm-input-bg);
@@ -4491,5 +4496,14 @@
 
     .template-competency-manager__list {
         max-height: 260px;
+    }
+
+    .template-competency-manager__toolbar {
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+
+    .template-competency-manager__search {
+        flex-basis: 100%;
     }
 }

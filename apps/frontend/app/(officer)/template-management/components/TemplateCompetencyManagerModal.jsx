@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { CheckSquare, RefreshCw, Search, ShieldAlert } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CheckSquare, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-react';
 import BaseModal from '../../../../components/ui/BaseModal';
 
 const COPY = {
@@ -15,6 +15,8 @@ const COPY = {
         activeLock: 'Template นี้เปิดใช้งานอยู่ จึงไม่สามารถเปลี่ยนสมรรถนะได้',
         scoreLock: 'Template นี้มีคะแนนรายวิชาของผู้เรียนแล้ว จึงไม่สามารถเปลี่ยนสมรรถนะได้',
         refresh: 'โหลดใหม่',
+        addMaster: 'เพิ่มสมรรถนะใหม่',
+        addMasterHint: 'ไปหน้าจัดการสมรรถนะเพื่อสร้าง Competency master ใหม่',
         cancel: 'ยกเลิก',
         save: 'บันทึกสมรรถนะ',
         saving: 'กำลังบันทึก...',
@@ -30,6 +32,8 @@ const COPY = {
         activeLock: 'This template is active, so its competencies cannot be changed.',
         scoreLock: 'This template already has learner course scores, so its competencies cannot be changed.',
         refresh: 'Refresh',
+        addMaster: 'Add new competency',
+        addMasterHint: 'Open Competency Management to create a new competency master',
         cancel: 'Cancel',
         save: 'Save competencies',
         saving: 'Saving...',
@@ -56,14 +60,31 @@ export default function TemplateCompetencyManagerModal({
     const copy = COPY[language] || COPY.th;
     const [query, setQuery] = useState('');
     const [selectedIds, setSelectedIds] = useState([]);
+    const initializedTemplateIdRef = useRef(null);
     const selectedCompetencies = managerState?.competencies || [];
     const canManage = Boolean(managerState?.can_manage);
 
     useEffect(() => {
-        if (!open) return;
+        if (!open) {
+            initializedTemplateIdRef.current = null;
+            return;
+        }
+
+        const templateID = managerState?.template_id || template?.id;
+        if (!templateID || initializedTemplateIdRef.current === templateID || !managerState) return;
+
+        initializedTemplateIdRef.current = templateID;
         setQuery('');
         setSelectedIds(selectedCompetencies.map(normalizeId).filter(Boolean));
-    }, [open, managerState]);
+    }, [open, managerState, selectedCompetencies, template?.id]);
+
+    useEffect(() => {
+        if (!open) return undefined;
+
+        const handleWindowFocus = () => onRefresh?.();
+        window.addEventListener('focus', handleWindowFocus);
+        return () => window.removeEventListener('focus', handleWindowFocus);
+    }, [open, onRefresh]);
 
     const allOptions = useMemo(() => {
         const byId = new Map();
@@ -108,6 +129,10 @@ export default function TemplateCompetencyManagerModal({
             : [...current, competencyID]);
     };
 
+    const openCompetencyManagement = () => {
+        window.open('/competency-management', '_blank', 'noopener,noreferrer');
+    };
+
     const footer = (
         <>
             <button type="button" className="course-btn course-btn--ghost" onClick={onClose} disabled={saving}>
@@ -145,6 +170,16 @@ export default function TemplateCompetencyManagerModal({
                     </label>
                     <button type="button" className="course-btn course-btn--ghost course-btn--icon" onClick={onRefresh} disabled={loading || saving} title={copy.refresh}>
                         <RefreshCw size={16} className={loading ? 'template-competency-manager__spin' : ''} />
+                    </button>
+                    <button
+                        type="button"
+                        className="course-btn course-btn--ghost template-competency-manager__add-master"
+                        onClick={openCompetencyManagement}
+                        disabled={!canManage || loading || saving}
+                        title={copy.addMasterHint}
+                        aria-label={copy.addMaster}
+                    >
+                        <Plus size={16} /> {copy.addMaster}
                     </button>
                 </div>
 
