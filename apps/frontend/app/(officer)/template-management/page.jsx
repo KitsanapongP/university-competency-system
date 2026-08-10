@@ -14,6 +14,7 @@ import ConfirmDeleteModal   from './components/ConfirmDeleteModal';
 import TemplateCompetencyManagerModal from './components/TemplateCompetencyManagerModal';
 import ConfirmActionModal from '../../../components/ui/ConfirmActionModal';
 import ToastNotifications from '../../../components/ui/ToastNotifications';
+import AlertModal           from './components/AlertModal';
 import './TemplateManagement.css';
 import '../curriculum-management/CourseLayout.css';
 import '../curriculum-management/CourseEditor.css';
@@ -213,6 +214,15 @@ export default function TemplateManagementPage() {
     const [competencyRemovalConfirmation, setCompetencyRemovalConfirmation] = useState(null);
     const [toast, setToast] = useState({ success: '', error: '', errorDebug: '' });
 
+    // AlertModal state (replaces native browser alert)
+    const [alertModal, setAlertModal] = useState({ open: false, title: '', message: '', details: '', type: 'warning' });
+    const showAlert = useCallback((message, { title, details, type = 'warning' } = {}) => {
+        setAlertModal({ open: true, title: title || '', message, details: details || '', type });
+    }, []);
+    const closeAlert = useCallback(() => {
+        setAlertModal(prev => ({ ...prev, open: false }));
+    }, []);
+
     const [categoriesByTemplate, setCategoriesByTemplate] = useState({});
     const [coursesByTemplate,  setCoursesByTemplate]  = useState({});
     const [weightsByTemplate,  setWeightsByTemplate]  = useState({});
@@ -263,6 +273,32 @@ export default function TemplateManagementPage() {
         };
         return messages[error?.code]?.[language] || error?.message || (language === 'th' ? 'ไม่สามารถจัดการสมรรถนะได้' : 'Unable to manage competencies.');
     }, [language]);
+    const pendingSaveFnRef = useRef(null);
+
+    // Flush pending auto-save on component unmount (e.g. navbar navigation)
+    // and on browser tab close/refresh
+    useEffect(() => {
+        const flushPendingSave = () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current = null;
+            }
+            if (pendingSaveFnRef.current) {
+                pendingSaveFnRef.current();
+                pendingSaveFnRef.current = null;
+            }
+        };
+
+        const handleBeforeUnload = () => {
+            flushPendingSave();
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            flushPendingSave();
+        };
+    }, []);
 
     useEffect(() => {
         async function loadData() {
@@ -489,6 +525,15 @@ export default function TemplateManagementPage() {
     }, []);
 
     const handleBackToList = useCallback(() => {
+        // Flush any pending auto-save before leaving the editor
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = null;
+        }
+        if (pendingSaveFnRef.current) {
+            pendingSaveFnRef.current();
+            pendingSaveFnRef.current = null;
+        }
         setView('list');
         setSelectedTemplate(null);
         setSelectedCategory(null);
@@ -508,7 +553,7 @@ export default function TemplateManagementPage() {
                 setTemplates(p => p.map(t => t.id === selectedTemplate.id ? { ...t, name: trimmed } : t));
                 setSelectedTemplate(p => ({ ...p, name: trimmed }));
             } catch (err) {
-                alert('ไม่สามารถเปลี่ยนชื่อ Template ได้: ' + (err.message || 'เกิดข้อผิดพลาด'));
+                showAlert('ไม่สามารถเปลี่ยนชื่อ Template ได้: ' + (err.message || 'เกิดข้อผิดพลาด'), { type: 'error', title: 'เกิดข้อผิดพลาด' });
             }
         }
         setEditingTitle(false);
@@ -526,7 +571,7 @@ export default function TemplateManagementPage() {
             if (selectedTemplate?.id === id) handleBackToList();
             setDeletingTemplate(null);
         } catch (err) {
-            alert(err.message || 'ไม่สามารถลบ Template ได้');
+            showAlert(err.message || 'ไม่สามารถลบ Template ได้', { type: 'error', title: 'ไม่สามารถลบได้' });
             setDeletingTemplate(null);
         }
     }, [deletingTemplate, selectedTemplate, handleBackToList]);
@@ -638,7 +683,7 @@ export default function TemplateManagementPage() {
         }
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
-        saveTimeoutRef.current = setTimeout(() => {
+        const executeSave = () => {
             const activeCourseIds = new Set();
             Object.values(nextCoursesMap || {}).forEach(arr => {
                 (arr || []).forEach(c => {
@@ -674,7 +719,7 @@ export default function TemplateManagementPage() {
                     if (!c.fromMaster) {
                         const isCurriParent = parentId !== null && (isParentMaster || parentId < 50000);
                         custom_categories.push({
-                            template_category_id: typeof c.id === 'number' && c.id < 50000 ? 0 : (typeof c.id === 'number' ? c.id : 0),
+                            template_category_id: typeof c.id === 'number' ? c.id : 0,
                             curriculum_parent_id: isCurriParent ? parentId : null,
                             parent_id: (parentId !== null && !isCurriParent) ? parentId : null,
                             code: c.code || '',
@@ -696,7 +741,7 @@ export default function TemplateManagementPage() {
                 (arr || []).forEach((c, idx) => {
                     if (!c.fromMaster && c.code && (c.nameTh || c.name)) {
                         custom_courses.push({
-                            template_course_id: typeof c.id === 'number' && c.id < 50000 ? 0 : (typeof c.id === 'number' ? c.id : 0),
+                            template_course_id: typeof c.id === 'number' ? c.id : 0,
                             curriculum_category_id: isCatMaster ? catId : null,
                             template_category_id: !isCatMaster ? catId : null,
                             code: c.code || '',
@@ -713,6 +758,12 @@ export default function TemplateManagementPage() {
             saveTemplateItems(tplId, { items, custom_categories, custom_courses }).catch(err => {
                 console.warn('Cannot auto-save or API notice:', err.message || err);
             });
+        };
+
+        pendingSaveFnRef.current = executeSave;
+        saveTimeoutRef.current = setTimeout(() => {
+            executeSave();
+            pendingSaveFnRef.current = null;
         }, 500);
     }, [selectedTemplate]);
 
@@ -807,7 +858,7 @@ export default function TemplateManagementPage() {
     const handleCreateCategory = useCallback((parentId = selectedCategory?.id ?? null) => {
         if (!selectedTemplate) return;
         if (selectedTemplate.isActive) {
-            alert('ไม่สามารถเพิ่มหมวดวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            showAlert('ไม่สามารถเพิ่มหมวดวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active)', { type: 'warning', title: 'Template อยู่ในสถานะ Active', details: 'กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข' });
             return;
         }
         const newId = ++idRef.current;
@@ -823,12 +874,12 @@ export default function TemplateManagementPage() {
             const parent = findById(currentCategories, parentId);
             if (!parent) return;
             if (getDepthFromCode(parent.code) >= 3) {
-                alert('ไม่สามารถสร้างหมวดวิชาที่ลึกกว่า 4 ระดับได้'); return;
+                showAlert('ไม่สามารถสร้างหมวดวิชาที่ลึกกว่า 4 ระดับได้', { type: 'info', title: 'ถึงระดับสูงสุดแล้ว' }); return;
             }
             // ถ้า parent มาจาก Master และมีวิชาอยู่แล้ว → ห้ามสร้างหมวดย่อย
             const parentCourses = currentCoursesByCat[parentId] || [];
             if (parent.fromMaster && parentCourses.length > 0) {
-                alert(`หมวด "${parent.code} ${parent.name}" มีรายวิชาอยู่แล้ว ไม่สามารถสร้างหมวดย่อยได้`);
+                showAlert(`หมวด "${parent.code} ${parent.name}" มีรายวิชาอยู่แล้ว ไม่สามารถสร้างหมวดย่อยได้`, { type: 'warning', title: 'ไม่สามารถสร้างหมวดย่อยได้' });
                 return;
             }
             const code = getNextCode(parent.code, getDirectChildren(currentCategories, parentId));
@@ -975,7 +1026,7 @@ export default function TemplateManagementPage() {
 
     const handleRequestDeleteCategory = useCallback((cat) => {
         if (selectedTemplate?.isActive) {
-            alert('ไม่สามารถลบหมวดวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            showAlert('ไม่สามารถลบหมวดวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active)', { type: 'warning', title: 'Template อยู่ในสถานะ Active', details: 'กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข' });
             return;
         }
         setDeletingCategory(cat);
@@ -1007,7 +1058,7 @@ export default function TemplateManagementPage() {
     const handleAddCourse = useCallback((catId, data) => {
         if (!selectedTemplate) return;
         if (selectedTemplate.isActive) {
-            alert('ไม่สามารถเพิ่มรายวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            showAlert('ไม่สามารถเพิ่มรายวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active)', { type: 'warning', title: 'Template อยู่ในสถานะ Active', details: 'กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข' });
             return;
         }
         const course = { id: ++courseIdRef.current, ...data, fromMaster: false };
@@ -1030,7 +1081,7 @@ export default function TemplateManagementPage() {
     const handleRequestDeleteCourse = useCallback((catId, course) => {
         if (course?.fromMaster) return;
         if (selectedTemplate?.isActive) {
-            alert('ไม่สามารถลบรายวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข');
+            showAlert('ไม่สามารถลบรายวิชาได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active)', { type: 'warning', title: 'Template อยู่ในสถานะ Active', details: 'กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข' });
             return;
         }
         setDeletingCourse({ ...course, _catId: catId });
@@ -1094,6 +1145,50 @@ export default function TemplateManagementPage() {
 
     const handleToggleTemplateStatus = useCallback(async (newStatus) => {
         if (!selectedTemplate) return;
+
+        // Validate before activating: every course must have at least one competency weight
+        if (newStatus === true) {
+            const tplId = selectedTemplate.id;
+            const coursesMap = coursesByTemplate[tplId] || {};
+            const weightsMap = weightsByTemplate[tplId] || {};
+            const comps = competenciesByTemplate[tplId] || [];
+
+            const allCourses = Object.values(coursesMap).flat();
+            if (allCourses.length === 0) {
+                showAlert('ไม่สามารถเปิดใช้งานได้เนื่องจาก Template ยังไม่มีรายวิชา', { type: 'error', title: 'ไม่สามารถเปิดใช้งานได้' });
+                return;
+            }
+            if (comps.length === 0) {
+                showAlert('ไม่สามารถเปิดใช้งานได้เนื่องจาก Template ยังไม่มีสมรรถนะ', { type: 'error', title: 'ไม่สามารถเปิดใช้งานได้' });
+                return;
+            }
+
+            const coursesWithoutComp = allCourses.filter(c => {
+                const courseWeights = weightsMap[c.id] || {};
+                return !comps.some(comp => (Number(courseWeights[comp.id]) || 0) > 0);
+            });
+
+            if (coursesWithoutComp.length > 0) {
+                const maxShow = 5;
+                const names = coursesWithoutComp
+                    .slice(0, maxShow)
+                    .map(c => `  - ${c.code || '(ไม่มีรหัส)'} ${c.nameTh || c.name || ''}`)
+                    .join('\n');
+                const extra = coursesWithoutComp.length > maxShow
+                    ? `\n  ... และอีก ${coursesWithoutComp.length - maxShow} วิชา`
+                    : '';
+                showAlert(
+                    `ไม่สามารถเปิดใช้งานได้: มี ${coursesWithoutComp.length} วิชาที่ยังไม่ได้กำหนดค่าน้ำหนักสมรรถนะ`,
+                    {
+                        type: 'error',
+                        title: 'ไม่สามารถเปิดใช้งานได้',
+                        details: `วิชาที่ยังไม่ผูกสมรรถนะ:\n${names}${extra}\n\nกรุณาไปที่แท็บ "ใส่น้ำหนักสมรรถนะ" เพื่อกำหนดค่าให้ครบทุกวิชา`
+                    }
+                );
+                return;
+            }
+        }
+
         try {
             await updateTemplateStatus(selectedTemplate.id, newStatus ? 'Active' : 'Inactive');
             setTemplateStatus(newStatus);
@@ -1102,9 +1197,9 @@ export default function TemplateManagementPage() {
             ));
             setSelectedTemplate(p => ({ ...p, isActive: newStatus }));
         } catch (err) {
-            alert(err.message || 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะ');
+            showAlert(err.message || 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะ', { type: 'error', title: 'เกิดข้อผิดพลาด' });
         }
-    }, [selectedTemplate]);
+    }, [selectedTemplate, coursesByTemplate, weightsByTemplate, competenciesByTemplate]);
 
     // ============================================================
     // Render
@@ -1178,6 +1273,14 @@ export default function TemplateManagementPage() {
                     errorDebug={toast.errorDebug}
                     onCloseSuccess={() => setToast(current => ({ ...current, success: '' }))}
                     onCloseError={() => setToast(current => ({ ...current, error: '', errorDebug: '' }))}
+                />
+                <AlertModal
+                    open={alertModal.open}
+                    title={alertModal.title}
+                    message={alertModal.message}
+                    details={alertModal.details}
+                    type={alertModal.type}
+                    onClose={closeAlert}
                 />
             </div>
         );
@@ -1409,6 +1512,14 @@ export default function TemplateManagementPage() {
                 errorDebug={toast.errorDebug}
                 onCloseSuccess={() => setToast(current => ({ ...current, success: '' }))}
                 onCloseError={() => setToast(current => ({ ...current, error: '', errorDebug: '' }))}
+            />
+            <AlertModal
+                open={alertModal.open}
+                title={alertModal.title}
+                message={alertModal.message}
+                details={alertModal.details}
+                type={alertModal.type}
+                onClose={closeAlert}
             />
         </div>
     );

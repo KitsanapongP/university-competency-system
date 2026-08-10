@@ -4507,3 +4507,272 @@
         flex-basis: 100%;
     }
 }
+/* ============================================================
+   AlertModal — custom styled replacement for native alert()
+   ============================================================ */
+@keyframes alertModalFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes alertModalSlideUp {
+    from { opacity: 0; transform: translateY(24px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes alertIconPulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
+.alert-modal__overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    backdrop-filter: blur(6px);
+    animation: alertModalFadeIn 0.2s ease-out;
+}
+
+.alert-modal__box {
+    position: relative;
+    background: var(--tm-card-bg, #1a1f2e);
+    border: 1px solid var(--tm-card-border, #2d3748);
+    border-radius: 16px;
+    width: 420px;
+    max-width: 90vw;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 1.75rem 1.75rem;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    animation: alertModalSlideUp 0.25s ease-out;
+}
+
+.alert-modal__accent {
+    width: 100%;
+    height: 4px;
+    border-radius: 4px 4px 0 0;
+    margin-bottom: 1.5rem;
+    margin-left: -1.75rem;
+    margin-right: -1.75rem;
+    width: calc(100% + 3.5rem);
+}
+
+.alert-modal__close {
+    position: absolute;
+    top: 0.85rem;
+    right: 0.85rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--tm-text-muted, #94a3b8);
+    display: flex;
+    padding: 0.35rem;
+    border-radius: 8px;
+    transition: all 0.15s;
+}
+
+.alert-modal__close:hover {
+    color: var(--tm-text, #e2e8f0);
+    background: var(--tm-hover, #334155);
+}
+
+/* Icon circle */
+.alert-modal__icon-wrap {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    animation: alertIconPulse 0.5s ease-out;
+}
+
+.alert-modal__icon--error {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1.5px solid rgba(239, 68, 68, 0.25);
+}
+
+.alert-modal__icon--warning {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1.5px solid rgba(245, 158, 11, 0.25);
+}
+
+.alert-modal__icon--info {
+    background: rgba(59, 130, 246, 0.12);
+    color: #3b82f6;
+    border: 1.5px solid rgba(59, 130, 246, 0.25);
+}
+
+.alert-modal__icon--success {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: 1.5px solid rgba(16, 185, 129, 0.25);
+}
+
+/* Title */
+.alert-modal__title {
+    margin: 0 0 0.6rem 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--tm-text, #e2e8f0);
+    text-align: center;
+}
+
+/* Message */
+.alert-modal__message {
+    text-align: center;
+    color: var(--tm-text-muted, #94a3b8);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    margin-bottom: 0.25rem;
+    max-width: 340px;
+}
+
+.alert-modal__line {
+    margin: 0 0 0.25rem 0;
+}
+
+.alert-modal__line:last-child {
+    margin-bottom: 0;
+}
+
+/* Details box */
+.alert-modal__details {
+    width: 100%;
+    background: var(--tm-competency-row-bg, #243044);
+    border: 1px solid var(--tm-form-input-border, #3b4a63);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0 0.25rem 0;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.alert-modal__detail-line {
+    margin: 0 0 0.2rem 0;
+    font-size: 0.8rem;
+    color: var(--tm-text, #e2e8f0);
+    line-height: 1.6;
+}
+
+.alert-modal__detail-line:last-child {
+    margin-bottom: 0;
+}
+
+/* Action button */
+.alert-modal__btn {
+    margin-top: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.55rem 2rem;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 500;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    min-width: 120px;
+}
+
+.alert-modal__btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.alert-modal__btn:active {
+    transform: translateY(0);
+}
+
+.alert-modal__btn--error {
+    background: #ef4444;
+    color: #fff;
+}
+.alert-modal__btn--error:hover {
+    background: #dc2626;
+}
+
+.alert-modal__btn--warning {
+    background: #f59e0b;
+    color: #1a1f2e;
+}
+.alert-modal__btn--warning:hover {
+    background: #d97706;
+}
+
+.alert-modal__btn--info {
+    background: #3b82f6;
+    color: #fff;
+}
+.alert-modal__btn--info:hover {
+    background: #2563eb;
+}
+
+.alert-modal__btn--success {
+    background: #10b981;
+    color: #fff;
+}
+.alert-modal__btn--success:hover {
+    background: #059669;
+}
+
+/* ============================================================
+   ConfirmStatusModal — Improved design
+   ============================================================ */
+.confirm-status__icon-wrap {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem auto;
+    animation: alertIconPulse 0.5s ease-out;
+}
+
+.confirm-status__icon-wrap--enabled {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: 1.5px solid rgba(16, 185, 129, 0.25);
+}
+
+.confirm-status__icon-wrap--disabled {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1.5px solid rgba(245, 158, 11, 0.25);
+}
+
+.confirm-status__warn-box {
+    text-align: center;
+    font-size: 0.8rem;
+    border-radius: 10px;
+    padding: 0.7rem 1rem;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.confirm-status__warn-box--enabled {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.confirm-status__warn-box--disabled {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}

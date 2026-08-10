@@ -5,32 +5,47 @@ import { Check, X, BookOpen } from 'lucide-react';
 
 function ConfirmStatusModal({ isEnabling, onConfirm, onCancel }) {
     return (
-        <div className="modal-overlay" onClick={onCancel}>
-            <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h3>ยืนยันการเปลี่ยนสถานะ</h3>
-                    <button className="modal-close" onClick={onCancel}>
-                        <X size={18} />
-                    </button>
+        <div className="alert-modal__overlay" onClick={onCancel}>
+            <div className="alert-modal__box" onClick={e => e.stopPropagation()}>
+                {/* Top accent bar */}
+                <div
+                    className="alert-modal__accent"
+                    style={{ background: isEnabling ? '#10b981' : '#f59e0b' }}
+                />
+
+                {/* Close button */}
+                <button className="alert-modal__close" onClick={onCancel} aria-label="Close">
+                    <X size={16} />
+                </button>
+
+                {/* Icon */}
+                <div className={`confirm-status__icon-wrap ${isEnabling ? 'confirm-status__icon-wrap--enabled' : 'confirm-status__icon-wrap--disabled'}`}>
+                    {isEnabling
+                        ? <Check size={28} />
+                        : <AlertTriangle size={28} />}
                 </div>
-                <div className="modal-body">
-                    <div>
-                        {isEnabling 
-                            ? <div className='confirm-active__icon--enabled'><Check size={36} /></div>
-                            : <div className='confirm-active__icon--disabled'><AlertTriangle size={36} /></div>}
-                    </div>
-                    <p className="confirm-delete__desc">
-                        {isEnabling 
-                            ? 'คุณต้องการเปิดใช้งาน Template นี้ใช่หรือไม่?' 
+
+                {/* Title */}
+                <h3 className="alert-modal__title">ยืนยันการเปลี่ยนสถานะ</h3>
+
+                {/* Description */}
+                <div className="alert-modal__message">
+                    <p className="alert-modal__line">
+                        {isEnabling
+                            ? 'คุณต้องการเปิดใช้งาน Template นี้ใช่หรือไม่?'
                             : 'คุณต้องการปิดใช้งาน Template นี้ใช่หรือไม่?'}
                     </p>
-                    <div>
-                        {isEnabling
-                            ? <div className='confirm-active__warn--enabled'>Template นี้จะพร้อมใช้งานสำหรับการกำหนดกับนักศึกษา</div>
-                            : <div className='confirm-active__warn--disabled'>Template นี้จะไม่สามารถใช้กับนักศึกษาได้อีกต่อไป</div>}
-                    </div>
                 </div>
-                <div className="modal-footer">
+
+                {/* Warning box */}
+                <div className={`confirm-status__warn-box ${isEnabling ? 'confirm-status__warn-box--enabled' : 'confirm-status__warn-box--disabled'}`}>
+                    {isEnabling
+                        ? 'Template นี้จะพร้อมใช้งานสำหรับการกำหนดกับนักศึกษา'
+                        : 'Template นี้จะไม่สามารถใช้กับนักศึกษาได้อีกต่อไป'}
+                </div>
+
+                {/* Footer */}
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', width: '100%', justifyContent: 'flex-end' }}>
                     <button className="btn btn--ghost" onClick={onCancel}>
                         ยกเลิก
                     </button>
