@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useCallback, useMemo } from 'react';
-import { BookOpen, Settings2, TriangleAlert } from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { BookOpen, Plus, Settings2, TriangleAlert } from 'lucide-react';
 import CurriculumCourseEditorPanel from '../../curriculum-management/components/CurriculumCourseEditorPanel';
 import CurriculumStructureSidebar from '../../curriculum-management/components/CurriculumStructureSidebar';
 import { getDisplayCourses } from '../../../../lib/curriculum-structure';
@@ -13,6 +13,48 @@ function isLeafCategory(category) {
 
 function allCourseCredits(courses) {
     return courses.reduce((total, course) => total + (Number(course.credits) || 0), 0);
+}
+
+function TemplateWorkspacePanel({
+    title,
+    hint,
+    courseCount,
+    totalCredits,
+    summary = null,
+    action = null,
+    children,
+}) {
+    const ActionIcon = action?.icon;
+
+    return (
+        <div className="template-weight-editor">
+            <div className="template-weight-editor__toolbar">
+                <div>
+                    <span className="template-weight-editor__category">{title}</span>
+                    {hint && <span className="template-weight-editor__hint">{hint}</span>}
+                </div>
+                <div className="template-weight-editor__actions">
+                    <div className="template-weight-editor__course-summary" aria-label={`รายการวิชา ${courseCount} วิชา หน่วยกิตรวม ${totalCredits}`}>
+                        <span><BookOpen size={14} /> รายวิชา {courseCount} วิชา</span>
+                        <span>หน่วยกิตรวม <strong>{totalCredits}</strong></span>
+                    </div>
+                    {summary}
+                    {action && (
+                        <button
+                            type="button"
+                            className="btn btn--primary btn--sm"
+                            onClick={action.onClick}
+                            disabled={action.disabled}
+                            title={action.title}
+                        >
+                            {ActionIcon && <ActionIcon size={13} />} {action.label}
+                        </button>
+                    )}
+                </div>
+            </div>
+            <div className="template-weight-editor__body">{children}</div>
+        </div>
+    );
 }
 
 function TemplateWeightToolbar({
@@ -117,8 +159,7 @@ function TemplateWeightEditor({
 
     if (showAllCourses) {
         return (
-            <div className="template-weight-editor">
-                <TemplateWeightToolbar
+            <TemplateWorkspacePanel
                     title="วิชาทั้งหมด"
                     courseCount={allCourses.length}
                     totalCredits={allCourseCredits(allCourses)}
@@ -127,8 +168,20 @@ function TemplateWeightEditor({
                     weightsByCourseId={weightsByCourseId}
                     competencies={competencies}
                     onManageCompetencies={onManageCompetencies}
-                />
-                <div className="template-weight-editor__body">
+                    summary={(
+                        <TemplateWeightSummary
+                            categories={categories}
+                            coursesByCategoryId={coursesByCategoryId}
+                            weightsByCourseId={weightsByCourseId}
+                            competencies={competencies}
+                        />
+                    )}
+                    action={{
+                        label: 'จัดการสมรรถนะ',
+                        icon: Settings2,
+                        onClick: onManageCompetencies,
+                    }}
+                >
                     <CurriculumCourseEditorPanel
                         category={{ id: '__template_all_courses__', name: 'วิชาทั้งหมด' }}
                         courses={allCourses}
@@ -140,9 +193,11 @@ function TemplateWeightEditor({
                         isAllCoursesView
                         showCategoryToolbar={false}
                         showCourseActions={false}
+                        allowSelection={false}
+                        extraColumnHeaders={weightColumnHeaders}
+                        renderExtraCells={renderWeightCells}
                     />
-                </div>
-            </div>
+            </TemplateWorkspacePanel>
         );
     }
 
@@ -156,8 +211,7 @@ function TemplateWeightEditor({
     }
 
     return (
-        <div className="template-weight-editor">
-            <TemplateWeightToolbar
+        <TemplateWorkspacePanel
                 title={`${selectedCategory.code ? `${selectedCategory.code} ` : ''}${selectedCategory.name}`}
                 courseCount={selectedCourses.length}
                 totalCredits={allCourseCredits(selectedCourses)}
@@ -166,8 +220,20 @@ function TemplateWeightEditor({
                 weightsByCourseId={weightsByCourseId}
                 competencies={competencies}
                 onManageCompetencies={onManageCompetencies}
-            />
-            <div className="template-weight-editor__body">
+                summary={(
+                    <TemplateWeightSummary
+                        categories={categories}
+                        coursesByCategoryId={coursesByCategoryId}
+                        weightsByCourseId={weightsByCourseId}
+                        competencies={competencies}
+                    />
+                )}
+                action={{
+                    label: 'จัดการสมรรถนะ',
+                    icon: Settings2,
+                    onClick: onManageCompetencies,
+                }}
+            >
                 <CurriculumCourseEditorPanel
                     category={selectedCategory}
                     courses={selectedCourses}
@@ -190,8 +256,7 @@ function TemplateWeightEditor({
                     extraColumnHeaders={weightColumnHeaders}
                     renderExtraCells={renderWeightCells}
                 />
-            </div>
-        </div>
+        </TemplateWorkspacePanel>
     );
 }
 
@@ -234,6 +299,7 @@ export default function TemplateStructureWorkspace({
     onCourseDragEnd,
 }) {
     const isSetupMode = mode === 'setup';
+    const [addCourseRequestId, setAddCourseRequestId] = useState(0);
     const getCoursesForCategory = useCallback(
         category => coursesByCategoryId[category.id] || [],
         [coursesByCategoryId],
@@ -253,6 +319,34 @@ export default function TemplateStructureWorkspace({
         [categories, selectedCategory, showAllCourses, getCoursesForCategory],
     );
     const categoryTotalCredits = allCourseCredits(editorCourses);
+    const canRequestCourse = Boolean(
+        isSetupMode
+        && !template?.isActive
+        && !showAllCourses
+        && selectedCategory
+        && isLeafCategory(selectedCategory),
+    );
+    const setupPanelTitle = showAllCourses
+        ? 'วิชาทั้งหมด'
+        : selectedCategory
+            ? `${selectedCategory.code ? `${selectedCategory.code} ` : ''}${selectedCategory.name}`
+            : 'เลือกหมวดวิชา';
+    const setupPanelHint = template?.isActive
+        ? 'Template พร้อมใช้งานแล้ว จึงดูข้อมูลได้อย่างเดียว'
+        : showAllCourses
+            ? 'แสดงรายวิชาทั้งหมดใน Template ข้อมูลในมุมมองนี้แก้ไขไม่ได้'
+            : !selectedCategory
+                ? 'เลือกหมวดวิชาเพื่อจัดการรายวิชาเพิ่มเติมเฉพาะ Template'
+                : isLeafCategory(selectedCategory)
+                    ? 'เพิ่มและจัดการรายวิชาเพิ่มเติมเฉพาะ Template ได้ในหมวดนี้'
+                    : 'หมวดนี้ใช้ดูรายวิชารวมจากหมวดย่อย เพิ่มรายวิชาได้เฉพาะหมวดย่อยที่สุด';
+    const setupActionTitle = template?.isActive
+        ? 'Template พร้อมใช้งานแล้ว จึงไม่สามารถแก้ไขรายวิชาได้'
+        : canRequestCourse
+            ? 'เพิ่มรายวิชา'
+            : showAllCourses
+                ? 'ไม่สามารถเพิ่มรายวิชาจากมุมมองวิชาทั้งหมดได้'
+                : 'เลือกหมวดวิชาย่อยที่สุดก่อนเพิ่มรายวิชา';
 
     const getCategoryCapabilities = (category, { depth, directCourses }) => {
         const canAddChild = isSetupMode
@@ -366,6 +460,19 @@ export default function TemplateStructureWorkspace({
 
                 <div className="template-structure-workspace__content">
                     {isSetupMode ? (
+                        <TemplateWorkspacePanel
+                            title={setupPanelTitle}
+                            hint={setupPanelHint}
+                            courseCount={editorCourses.length}
+                            totalCredits={categoryTotalCredits}
+                            action={{
+                                label: 'เพิ่มรายวิชา',
+                                icon: Plus,
+                                disabled: !canRequestCourse,
+                                title: setupActionTitle,
+                                onClick: () => setAddCourseRequestId(current => current + 1),
+                            }}
+                        >
                         <CurriculumCourseEditorPanel
                             category={editorCategory}
                             courses={editorCourses}
@@ -375,7 +482,10 @@ export default function TemplateStructureWorkspace({
                             disabled={Boolean(template.isActive)}
                             isLeafCategory={!showAllCourses && isLeafCategory(selectedCategory)}
                             isAllCoursesView={showAllCourses}
-                            coursePlacementHint="เพิ่มรายวิชาได้เฉพาะหมวดวิชาที่ย่อยที่สุด"
+                            showCategoryToolbar={false}
+                            showCourseSummary={false}
+                            showAddCourseAction={false}
+                            externalAddCourseRequestId={addCourseRequestId}
                             draggedCourseId={draggedCourseId}
                             canEditCategoryMetadata={Boolean(selectedCategory && !selectedCategory.fromMaster && isSetupMode && !isAggregateCategoryView)}
                             canManageCourses={isSetupMode}
@@ -395,6 +505,7 @@ export default function TemplateStructureWorkspace({
                             })}
                             onCourseDragEnd={onCourseDragEnd}
                         />
+                        </TemplateWorkspacePanel>
                     ) : (
                         <TemplateWeightEditor
                             template={template}
