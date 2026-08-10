@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
     BookOpen,
@@ -344,6 +344,9 @@ export default function CurriculumCourseEditorPanel({
     allowSelection = true,
     showCategoryToolbar = true,
     showCourseActions = true,
+    showCourseSummary = true,
+    showAddCourseAction = true,
+    externalAddCourseRequestId = 0,
     extraColumnHeaders = [],
     renderExtraCells,
 }) {
@@ -356,12 +359,26 @@ export default function CurriculumCourseEditorPanel({
     const [currentPage, setCurrentPage] = useState(1);
     const [dropTargetCourseId, setDropTargetCourseId] = useState(null);
     const [isDropZoneActive, setIsDropZoneActive] = useState(false);
+    const handledExternalAddRequestRef = useRef(externalAddCourseRequestId);
 
     const categoryId = category?.id ?? null;
     const isReadOnly = disabled || !category || isAllCoursesView || (!canEdit && !allowExtraEditing);
     const canEditCategory = !isReadOnly && canEditCategoryMetadata;
     const canMutateCourses = !isReadOnly && isLeafCategory && canManageCourses;
     const hasActiveEdit = editingCategoryName || editingCourseId !== null || showAddCourse;
+
+    const startAddingCourse = useCallback(() => {
+        if (!canMutateCourses || showAddCourse) return;
+        setSelectedCourseIds(new Set());
+        setShowAddCourse(true);
+        setEditingCourseId(NEW_COURSE_ID);
+    }, [canMutateCourses, showAddCourse]);
+
+    useEffect(() => {
+        if (externalAddCourseRequestId === handledExternalAddRequestRef.current) return;
+        handledExternalAddRequestRef.current = externalAddCourseRequestId;
+        startAddingCourse();
+    }, [externalAddCourseRequestId, startAddingCourse]);
 
     useEffect(() => {
         setEditingCategoryName(false);
@@ -402,6 +419,7 @@ export default function CurriculumCourseEditorPanel({
     const isCurrentPageSelected = visibleCourseIds.length > 0 && visibleCourseIds.every(id => selectedCourseIds.has(id));
     const selectedCourses = courses.filter(course => canSelectCourse(course) && selectedCourseIds.has(normalizeCourseId(course)));
     const hasSelectedCourses = selectedCourseIds.size > 0;
+    const shouldShowCourseActions = showCourseActions && (showCourseSummary || hasSelectedCourses || showAddCourseAction);
 
     const saveCategoryName = () => {
         if (!canEditCategory || !category?.id) return;
@@ -623,13 +641,15 @@ export default function CurriculumCourseEditorPanel({
 
             {category ? (
                 <>
-                    {showCourseActions && (
+                    {shouldShowCourseActions && (
                     <div className="course-detail-courses curriculum-course-editor__actions">
+                        {showCourseSummary && (
                         <div className="curriculum-course-editor__summary">
                             <BookOpen size={14} />
                             <span>รายวิชา {courses.length} วิชา</span>
                             {hasSelectedCourses && <span className="curriculum-course-editor__selected">เลือกแล้ว {selectedCourseIds.size}</span>}
                         </div>
+                        )}
                         <div className="curriculum-course-editor__action-buttons">
                             {hasSelectedCourses ? (
                                 <>
@@ -650,20 +670,17 @@ export default function CurriculumCourseEditorPanel({
                                         <Trash2 size={13} /> ลบ ({selectedCourseIds.size})
                                     </button>
                                 </>
-                            ) : (
+                            ) : showAddCourseAction ? (
                                 <button
                                     type="button"
                                     className="course-btn course-btn--primary course-btn--sm"
-                                    onClick={() => {
-                                        setShowAddCourse(true);
-                                        setEditingCourseId(NEW_COURSE_ID);
-                                    }}
+                                    onClick={startAddingCourse}
                                     disabled={!canMutateCourses || showAddCourse}
                                     title={!isLeafCategory ? coursePlacementHint : ''}
                                 >
                                     <Plus size={13} /> เพิ่มรายวิชา
                                 </button>
-                            )}
+                            ) : null}
                         </div>
                     </div>
                     )}
