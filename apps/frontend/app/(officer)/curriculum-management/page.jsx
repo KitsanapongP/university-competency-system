@@ -605,6 +605,8 @@ export default function CurriculumManagementPage() {
         try {
             const detail = await fetchCurriculumDetail(course.curriculumId || course.id);
             setSelectedCourse(detail);
+            setSelectedCategory(null);
+            setShowAllCourses(true);
             setDetailTab('structure');
             setMetadataFieldErrors({});
             setMetadataEditState({ editing: false, dirty: false });

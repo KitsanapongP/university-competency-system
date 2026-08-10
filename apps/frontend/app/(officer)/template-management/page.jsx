@@ -480,7 +480,7 @@ export default function TemplateManagementPage() {
     const handleOpenTemplate = useCallback((t) => {
         setSelectedTemplate(t);
         setSelectedCategory(null);
-        setShowAllCourses(false);
+        setShowAllCourses(true);
         setDraggingCategoryId(null);
         setDraggedTemplateCourse(null);
         setDropTargetCategoryId(null);
@@ -622,6 +622,7 @@ export default function TemplateManagementPage() {
         setShowTemplateModal(false);
         setSelectedTemplate(newTemplate);
         setSelectedCategory(null);
+        setShowAllCourses(true);
         setView('editor');
     }, []);
 
