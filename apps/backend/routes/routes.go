@@ -77,6 +77,12 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 		Service: templateSvc,
 	}
 
+	studentCohortRepo := repositories.NewStudentCohortRepository(db)
+	studentCohortSvc := services.NewStudentCohortService(studentCohortRepo)
+	studentCohortHandler := &controllers.StudentCohortController{
+		Service: studentCohortSvc,
+	}
+
 	// Versioned API routes
 	r.Route("/api/v1", func(api chi.Router) {
 		// --- Public ---
@@ -145,6 +151,25 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			pr.With(middleware.RequireRoles("admin", "officer")).Post("/majors", curriculumHandler.CreateMajor)
 			pr.With(middleware.RequireRoles("admin", "officer")).Patch("/majors/{major_id}", curriculumHandler.UpdateMajor)
 			pr.With(middleware.RequireRoles("admin", "officer")).Patch("/majors/{major_id}/status", curriculumHandler.UpdateMajorStatus)
+
+			// Student Management and cohort roster routes.
+			pr.Route("/student-cohorts", func(scr chi.Router) {
+				scr.Use(middleware.RequireRoles("admin", "officer"))
+				scr.Get("/", studentCohortHandler.GetAll)
+				scr.Post("/", studentCohortHandler.Create)
+				scr.Route("/{cohort_id}", func(cor chi.Router) {
+					cor.Get("/", studentCohortHandler.GetByID)
+					cor.Patch("/", studentCohortHandler.Update)
+					cor.Patch("/status", studentCohortHandler.UpdateStatus)
+					cor.Delete("/", studentCohortHandler.Delete)
+					cor.Get("/students", studentCohortHandler.GetStudents)
+					cor.Post("/students", studentCohortHandler.AddStudent)
+					cor.Patch("/students/{enrollment_id}", studentCohortHandler.UpdateStudent)
+					cor.Delete("/students/{enrollment_id}", studentCohortHandler.RemoveStudent)
+					cor.Post("/imports/preview", studentCohortHandler.PreviewImport)
+					cor.Post("/imports/commit", studentCohortHandler.CommitImport)
+				})
+			})
 
 			// Curriculum Management Routes
 			pr.Route("/curricula", func(cr chi.Router) {
