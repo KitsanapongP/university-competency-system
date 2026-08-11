@@ -377,6 +377,9 @@ const translations = {
     }
 };
 
+translations.en.student_management = 'Student Management';
+translations.th.student_management = 'จัดการข้อมูลนักศึกษา';
+
 export function LanguageProvider({ children }) {
     // Always start with 'th' to match server render and avoid hydration mismatch
     const [language, setLanguage] = useState('th');

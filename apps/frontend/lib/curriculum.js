@@ -72,6 +72,7 @@ export function mapApiCurriculum(curriculum) {
     return {
         id: curriculum.curriculum_id,
         curriculumId: curriculum.curriculum_id,
+        facultyId: curriculum.faculty_id,
         majorId: curriculum.major_id,
         code: curriculum.curriculum_code || '',
         nameTh: curriculum.curriculum_name_th || '',

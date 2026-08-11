@@ -35,6 +35,7 @@ const MENU_CONFIG = {
     officer: [
         { id: 'curriculum-management', icon: BookOpen, labelKey: 'curriculum_management' },
         { id: 'major-management', icon: GraduationCap, labelKey: 'major_management' },
+        { id: 'student-management', icon: Users, labelKey: 'student_management' },
         { id: 'competency-management', icon: ShieldCheck, labelKey: 'competency_management' },
         { id: 'activity-management', icon: CalendarClock, labelKey: 'activity_management' },
         { id: 'template-management', icon: BookOpen, labelKey: 'templates' },
@@ -42,6 +43,7 @@ const MENU_CONFIG = {
     admin: [
         { id: 'dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
         { id: 'major-management', icon: GraduationCap, labelKey: 'major_management' },
+        { id: 'student-management', icon: Users, labelKey: 'student_management' },
         { id: 'competency-management', icon: ShieldCheck, labelKey: 'competency_management' },
         { id: 'activity-management', icon: CalendarClock, labelKey: 'activity_management' },
         { id: 'users', icon: Users, labelKey: 'users' },
