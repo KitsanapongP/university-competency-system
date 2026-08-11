@@ -76,6 +76,14 @@ EXECUTE stmt_live;
 DEALLOCATE PREPARE stmt_live;
 
 -- 6. Modify UNIQUE KEY on comp_template_items to support soft delete and is_custom_course
+-- The initial schema used uq_cti_template_competency. It conflicts with
+-- per-course mappings because a template can map one competency to many courses.
+SET @idx_legacy_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'comp_template_items' AND INDEX_NAME = 'uq_cti_template_competency');
+SET @sql_drop_legacy_idx = IF(@idx_legacy_exists > 0, 'ALTER TABLE `comp_template_items` DROP INDEX `uq_cti_template_competency`;', 'SELECT "INDEX uq_cti_template_competency already dropped";');
+PREPARE stmt_drop_legacy_idx FROM @sql_drop_legacy_idx;
+EXECUTE stmt_drop_legacy_idx;
+DEALLOCATE PREPARE stmt_drop_legacy_idx;
+
 SET @idx_old_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = @schema_name AND TABLE_NAME = 'comp_template_items' AND INDEX_NAME = 'uq_cti_template_course_competency');
 SET @sql_drop_idx = IF(@idx_old_exists > 0, 'ALTER TABLE `comp_template_items` DROP INDEX `uq_cti_template_course_competency`;', 'SELECT "INDEX uq_cti_template_course_competency already dropped";');
 PREPARE stmt_drop_idx FROM @sql_drop_idx;

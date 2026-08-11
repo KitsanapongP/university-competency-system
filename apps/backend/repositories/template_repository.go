@@ -807,13 +807,6 @@ func (r *TemplateRepository) SaveTemplateItems(ctx context.Context, templateID u
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO comp_template_items (template_id, competency_id, course_id, is_custom_course, weight, display_order, is_active, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-			ON DUPLICATE KEY UPDATE
-				deleted_at = NULL,
-				is_custom_course = VALUES(is_custom_course),
-				weight = VALUES(weight),
-				display_order = VALUES(display_order),
-				is_active = 1,
-				updated_at = VALUES(updated_at)
 		`, templateID, item.CompetencyID, cID, customInt, item.Weight, idx+1, now, now)
 		if err != nil {
 			return fmt.Errorf("insert template item failed for course %d comp %d: %w", cID, item.CompetencyID, err)
