@@ -1,0 +1,31 @@
+.cohort-roster-page { padding-top: 1.25rem; }
+.cohort-roster-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; margin-bottom: 1.25rem; }
+.cohort-roster-header h1 { margin: 0.75rem 0 0.25rem; color: var(--course-text); font-size: 1.55rem; }
+.cohort-roster-header p { margin: 0; color: var(--course-text-muted); }
+.cohort-back { width: fit-content; }
+.cohort-summary { display: flex; align-items: stretch; gap: 0; margin-bottom: 1rem; overflow: hidden; border: 1px solid var(--course-card-border); border-radius: 8px; background: var(--course-card-bg); }
+.cohort-summary > div { display: flex; min-width: 130px; flex: 1; flex-direction: column; gap: 0.2rem; padding: 0.875rem 1rem; border-right: 1px solid var(--course-border); }
+.cohort-summary span { color: var(--course-text-muted); font-size: 0.75rem; }
+.cohort-summary strong { color: var(--course-text); }
+.cohort-summary p { align-self: center; margin: 0; padding: 0.875rem 1rem; color: #d97706; font-size: 0.8125rem; }
+.cohort-roster-toolbar { display: flex; align-items: center; gap: 0.875rem; padding: 1rem; border-bottom: 1px solid var(--course-border); }
+.cohort-roster-toolbar .student-search { flex: 1; }
+.cohort-roster-toolbar > span { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--course-text-muted); font-size: 0.8125rem; white-space: nowrap; }
+.student-enrollment-status { display: inline-flex; padding: 0.3rem 0.55rem; border-radius: 999px; background: rgba(59, 130, 246, 0.12); color: var(--course-accent-light); font-size: 0.75rem; font-weight: 700; }
+.student-enrollment-status--suspended { background: rgba(245, 158, 11, 0.14); color: #d97706; }
+.student-enrollment-status--alumni, .student-enrollment-status--inactive { background: rgba(148, 163, 184, 0.16); color: var(--course-text-muted); }
+.student-file-picker { position: relative; overflow: hidden; }
+.student-file-picker input { position: absolute; inset: 0; cursor: pointer; opacity: 0; }
+.student-import-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; }
+.student-import-toolbar > span { color: var(--course-text-muted); font-size: 0.8125rem; }
+.student-import-empty { padding: 3rem 1rem; color: var(--course-text-muted); text-align: center; }
+.student-import-summary { display: flex; flex-wrap: wrap; gap: 0.65rem; margin: 1rem 0; }
+.student-import-summary > * { padding: 0.35rem 0.55rem; border-radius: 6px; background: var(--course-ss-header-bg); color: var(--course-text-muted); font-size: 0.8125rem; }
+.student-import-summary > strong { color: #16a34a; }
+.student-import-summary__error { color: #dc2626; }
+.student-import-section { display: grid; gap: 0.45rem; margin-top: 1rem; padding: 0.875rem; border: 1px solid var(--course-border); border-radius: 8px; color: var(--course-text); font-size: 0.875rem; }
+.student-import-section p { margin: 0; color: var(--course-text-muted); font-size: 0.8125rem; }
+.student-import-section--error { border-color: rgba(220, 38, 38, 0.4); color: #dc2626; }
+.student-import-candidate { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+.student-import-candidate input { width: 16px; height: 16px; accent-color: var(--course-accent); }
+@media (max-width: 900px) { .cohort-roster-header { flex-direction: column; } .cohort-summary { flex-wrap: wrap; } .cohort-summary > div { min-width: 45%; } .cohort-roster-toolbar { align-items: stretch; flex-direction: column; } }
