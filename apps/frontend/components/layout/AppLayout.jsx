@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useSyncExternalStore } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import { Menu, LayoutDashboard, User, ClipboardCheck, BookOpen, GraduationCap, Users, Settings, ShieldCheck, CalendarClock } from 'lucide-react';
 import { useLanguage } from '../../providers/LanguageContext';
@@ -10,8 +10,10 @@ import ColorBends from '../ColorBends';
 import ThemeToggle from '../ThemeToggle';
 import LanguageSwitcher from '../LanguageSwitcher';
 import { DARK_BACKGROUND_COLORS, LIGHT_BACKGROUND_COLORS } from '../../config/theme';
-import { AppSidebarMobile } from './AppSidebar';
+import { AppSidebar, AppSidebarMobile, AppSidebarMobileShell } from './AppSidebar';
 import './AppLayout.css';
+
+const SIDEBAR_COLLAPSE_STORAGE_KEY = 'kku.sidebar.collapsed';
 
 function subscribeToClient(callback) {
     const frame = requestAnimationFrame(callback);
@@ -73,6 +75,7 @@ export function AppLayout({
     const { resolvedTheme } = useTheme();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const mounted = useSyncExternalStore(subscribeToClient, getClientSnapshot, getServerSnapshot);
 
     const isDark = mounted && resolvedTheme === 'dark';
@@ -80,6 +83,7 @@ export function AppLayout({
 
     const menuConfig = MENU_CONFIG[role] || MENU_CONFIG.user;
     const menuItems = resolveMenuItems(menuConfig, t);
+    const usesSidebarNavigation = role === 'officer' || role === 'admin';
 
     const displayName = user?.display_name || user?.username || 'Guest';
     const primaryRole = user?.roles?.[0] || '';
@@ -89,6 +93,26 @@ export function AppLayout({
         onNavigate?.(page);
         setMobileMenuOpen(false);
     };
+
+    useEffect(() => {
+        if (!usesSidebarNavigation) return;
+
+        const frame = requestAnimationFrame(() => {
+            setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY) === 'true');
+        });
+
+        return () => cancelAnimationFrame(frame);
+    }, [usesSidebarNavigation]);
+
+    const handleToggleSidebar = () => {
+        setSidebarCollapsed((collapsed) => {
+            const nextCollapsed = !collapsed;
+            localStorage.setItem(SIDEBAR_COLLAPSE_STORAGE_KEY, String(nextCollapsed));
+            return nextCollapsed;
+        });
+    };
+
+    const mainContentClass = role === 'officer' ? 'main-content-officer' : 'main-content';
 
     return (
         <ClickSpark sparkColor="#2563eb" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
@@ -118,93 +142,137 @@ export function AppLayout({
                         }}
                     />
                 )}
-                <div className="competency-app">
-                    <nav className={role === 'officer' ? 'navbar-officer' : 'navbar'}>
-                        <div className={role === 'officer' ? 'nav-inner-officer' : 'container nav-inner'}>
-                            <div className="logo">
-                                <Image
-                                    src="/images/Logo.png"
-                                    alt="KKU Competency"
-                                    width={36}
-                                    height={36}
-                                    className="logo-img"
-                                    priority
-                                />
-                                <span className="logo-text">KKU Competency</span>
-                            </div>
-                            <div className="nav-menu">
-                                {menuItems.map((item) => (
-                                    <button
-                                        key={item.id}
-                                        className={`nav-item ${activePage === item.id ? 'active' : ''}`}
-                                        onClick={() => handleNavigate(item.id)}
-                                    >
-                                        {item.icon && <item.icon size={18} />}
-                                        <span>{item.label}</span>
-                                    </button>
-                                ))}
-                            </div>
-                            <div className="nav-right-section">
-                                <div className="desktop-quick-controls">
-                                    <ThemeToggle />
-                                    <LanguageSwitcher />
-                                </div>
-                                <div className="user-area-wrapper">
-                                    <button
-                                        className="user-area"
-                                        onClick={() => setUserMenuOpen(v => !v)}
-                                    >
-                                        <div className="user-info">
-                                            <span className="user-name">
-                                                {loading ? t('loading') : displayName}
-                                            </span>
-                                            <span className="user-role">{primaryRole}</span>
-                                        </div>
-                                        <div className="avatar">{avatarLabel}</div>
-                                    </button>
-                                    {userMenuOpen && (
-                                        <div className="user-dropdown">
-                                            <button
-                                                className="logout-btn"
-                                                onClick={() => { setUserMenuOpen(false); onLogout?.(); }}
-                                            >
-                                                <span>{t('logout')}</span>
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <button 
-                                    className="mobile-menu-btn" 
-                                    onClick={() => setMobileMenuOpen(true)}
-                                >
-                                    <Menu size={24} />
-                                </button>
-                            </div>
+                <div className={`competency-app ${usesSidebarNavigation ? 'competency-app--sidebar' : ''}`}>
+                    {usesSidebarNavigation ? (
+                        <div className={`app-sidebar-shell ${sidebarCollapsed ? 'app-sidebar-shell--collapsed' : ''}`}>
+                            <AppSidebar
+                                items={menuItems}
+                                activeItem={activePage}
+                                onNavigate={handleNavigate}
+                                collapsed={sidebarCollapsed}
+                                onToggleCollapsed={handleToggleSidebar}
+                                loading={loading}
+                                displayName={displayName}
+                                primaryRole={primaryRole}
+                                avatarLabel={avatarLabel}
+                                onLogout={onLogout}
+                                t={t}
+                            />
+                            <AppSidebarMobileShell
+                                items={menuItems}
+                                activeItem={activePage}
+                                onNavigate={handleNavigate}
+                                isOpen={mobileMenuOpen}
+                                onOpen={() => setMobileMenuOpen(true)}
+                                onClose={() => setMobileMenuOpen(false)}
+                                loading={loading}
+                                displayName={displayName}
+                                primaryRole={primaryRole}
+                                avatarLabel={avatarLabel}
+                                onLogout={onLogout}
+                                t={t}
+                            />
+                            {children && (
+                                <main className={`${mainContentClass} main-content--sidebar`}>
+                                    <div className={role === 'officer' ? 'container-officer' : 'container'}>
+                                        {children}
+                                    </div>
+                                </main>
+                            )}
                         </div>
-                    </nav>
+                    ) : (
+                        <>
+                            <nav className={role === 'officer' ? 'navbar-officer' : 'navbar'}>
+                                <div className={role === 'officer' ? 'nav-inner-officer' : 'container nav-inner'}>
+                                    <div className="logo">
+                                        <Image
+                                            src="/images/Logo.png"
+                                            alt="KKU Competency"
+                                            width={36}
+                                            height={36}
+                                            className="logo-img"
+                                            priority
+                                        />
+                                        <span className="logo-text">KKU Competency</span>
+                                    </div>
+                                    <div className="nav-menu">
+                                        {menuItems.map((item) => (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                className={`nav-item ${activePage === item.id ? 'active' : ''}`}
+                                                onClick={() => handleNavigate(item.id)}
+                                            >
+                                                {item.icon && <item.icon size={18} />}
+                                                <span>{item.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="nav-right-section">
+                                        <div className="desktop-quick-controls">
+                                            <ThemeToggle />
+                                            <LanguageSwitcher />
+                                        </div>
+                                        <div className="user-area-wrapper">
+                                            <button
+                                                type="button"
+                                                className="user-area"
+                                                onClick={() => setUserMenuOpen((value) => !value)}
+                                            >
+                                                <div className="user-info">
+                                                    <span className="user-name">
+                                                        {loading ? t('loading') : displayName}
+                                                    </span>
+                                                    <span className="user-role">{primaryRole}</span>
+                                                </div>
+                                                <div className="avatar">{avatarLabel}</div>
+                                            </button>
+                                            {userMenuOpen && (
+                                                <div className="user-dropdown">
+                                                    <button
+                                                        type="button"
+                                                        className="logout-btn"
+                                                        onClick={() => { setUserMenuOpen(false); onLogout?.(); }}
+                                                    >
+                                                        <span>{t('logout')}</span>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="mobile-menu-btn"
+                                            onClick={() => setMobileMenuOpen(true)}
+                                        >
+                                            <Menu size={24} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </nav>
 
-                    <AppSidebarMobile
-                        items={menuItems}
-                        activeItem={activePage}
-                        onNavigate={handleNavigate}
-                        isOpen={mobileMenuOpen}
-                        onClose={() => setMobileMenuOpen(false)}
-                        user={user}
-                        loading={loading}
-                        displayName={displayName}
-                        primaryRole={primaryRole}
-                        avatarLabel={avatarLabel}
-                        onLogout={onLogout}
-                        t={t}
-                    />
-                    
-                    {/* Main content area */}
-                    {children && (
-                        <main className={role === 'officer' ? 'main-content-officer' : 'main-content'}>
-                            <div className={role === 'officer' ? 'container-officer' : 'container'}>
-                                {children}
-                            </div>
-                        </main>
+                            <AppSidebarMobile
+                                items={menuItems}
+                                activeItem={activePage}
+                                onNavigate={handleNavigate}
+                                isOpen={mobileMenuOpen}
+                                onClose={() => setMobileMenuOpen(false)}
+                                user={user}
+                                loading={loading}
+                                displayName={displayName}
+                                primaryRole={primaryRole}
+                                avatarLabel={avatarLabel}
+                                onLogout={onLogout}
+                                t={t}
+                            />
+
+                            {children && (
+                                <main className={mainContentClass}>
+                                    <div className={role === 'officer' ? 'container-officer' : 'container'}>
+                                        {children}
+                                    </div>
+                                </main>
+                            )}
+                        </>
                     )}
                 </div>
             </>
