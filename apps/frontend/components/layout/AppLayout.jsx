@@ -2,7 +2,7 @@
 
 import React, { useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
-import { Menu, LayoutDashboard, User, ClipboardCheck, BookOpen, GraduationCap, Users, Settings, ShieldCheck, CalendarClock } from 'lucide-react';
+import { Menu, LayoutDashboard, User, ClipboardCheck, BookOpen, GraduationCap, Users, Settings, ShieldCheck, CalendarClock, Link2 } from 'lucide-react';
 import { useLanguage } from '../../providers/LanguageContext';
 import { useTheme } from '../../providers/theme-provider';
 import ClickSpark from '../ClickSpark';
@@ -39,6 +39,7 @@ const MENU_CONFIG = {
         { id: 'competency-management', icon: ShieldCheck, labelKey: 'competency_management' },
         { id: 'activity-management', icon: CalendarClock, labelKey: 'activity_management' },
         { id: 'template-management', icon: BookOpen, labelKey: 'templates' },
+        { id: 'template-assignments', icon: Link2, labelKey: 'template_assignments' },
     ],
     admin: [
         { id: 'dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
@@ -46,6 +47,7 @@ const MENU_CONFIG = {
         { id: 'student-management', icon: Users, labelKey: 'student_management' },
         { id: 'competency-management', icon: ShieldCheck, labelKey: 'competency_management' },
         { id: 'activity-management', icon: CalendarClock, labelKey: 'activity_management' },
+        { id: 'template-assignments', icon: Link2, labelKey: 'template_assignments' },
         { id: 'users', icon: Users, labelKey: 'users' },
         { id: 'settings', icon: Settings, labelKey: 'settings' },
     ],

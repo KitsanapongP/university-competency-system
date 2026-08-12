@@ -84,39 +84,6 @@ function CourseMasterTree({ categories, depth = 0 }) {
 }
 
 // ============================================================
-// AcademicYearSelector — เลือก 1 ปีการศึกษา
-// ============================================================
-function AcademicYearSelector({ year, onChange }) {
-    const currentYear = new Date().getFullYear() + 543;
-
-    return (
-        <div className="tfm-year-selector">
-            <label className="cfm-label">ปีการศึกษา <span className="cfm-required">*</span></label>
-            <input
-                type="number"
-                className="cfm-input"
-                min={currentYear}
-                value={year || ''}
-                placeholder={`ระบุปี พ.ศ. (ตั้งแต่ ${currentYear} เป็นต้นไป)`}
-                onChange={e => {
-                    const val = e.target.value ? parseInt(e.target.value, 10) : '';
-                    onChange(val);
-                }}
-                onBlur={e => {
-                    const val = parseInt(e.target.value, 10);
-                    if (isNaN(val) || val < currentYear) {
-                        onChange(currentYear);
-                    }
-                }}
-            />
-            <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
-                * กรอกเป็นตัวเลขปี พ.ศ. ตั้งแต่ปีปัจจุบัน ({currentYear}) เป็นต้นไป (ห้ามกรอกปีย้อนหลัง)
-            </span>
-        </div>
-    );
-}
-
-// ============================================================
 // Step 1 — ข้อมูลหลักสูตร + เลือก Curriculum Master
 // ============================================================
 function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false }) {
@@ -147,14 +114,9 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
         } else if (master && !master.name) {
             master.name = master.nameTh || master.name;
         }
-        const currentYear = new Date().getFullYear() + 543;
-        const targetYear = master && master.year && Number(master.year) >= currentYear 
-            ? Number(master.year) 
-            : currentYear;
         setForm(p => ({ 
             ...p, 
-            masterId,
-            academicYear: targetYear
+            masterId
         }));
         setPreviewId(masterId);
     };
@@ -174,7 +136,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
             {/* เลือก Curriculum Master */}
             <div className="cfm-field" style={{ marginTop: '1.25rem' }}>
                 <label className="cfm-label">หลักสูตร <span className="cfm-required">*</span></label>
-                <p className="tfm-hint">เลือกหลักสูตรต้นแบบ ปีการศึกษาจะถูกกำหนดอัตโนมัติตามหลักสูตรที่เลือก</p>
+                <p className="tfm-hint">Template จะเป็นของหลักสูตรที่เลือก และเชื่อมกับรุ่นนักศึกษาในภายหลัง</p>
             </div>
 
             {/* Search */}
@@ -191,6 +153,8 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                     <div
                         className={`tfm-master-card ${form.masterId === null ? 'tfm-master-card--selected' : ''}`}
                         onClick={() => handleMasterSelect(null)}
+                        style={{ display: 'none' }}
+                        aria-hidden="true"
                     >
                         <div className={`tfm-master-card__icon ${form.masterId === null ? 'tfm-master-card__icon--blue' : ''}`}>
                             <PenLine size={20}/>
@@ -258,13 +222,6 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                 )}
             </div>
 
-            {/* แสดงปีการศึกษาที่เลือก */}
-            <div className="tfm-selected-year">
-                <AcademicYearSelector
-                    year={form.academicYear}
-                    onChange={(year) => setForm(p => ({ ...p, academicYear: year }))}
-                />
-            </div>
         </div>
     );
 }
@@ -465,7 +422,6 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
     const [step, setStep] = useState(1);
     const [form, setForm] = useState({
         name:          '',
-        academicYear:  new Date().getFullYear() + 543,
         masterId:      null,
         competencyIds: new Set(),
     });
@@ -492,7 +448,6 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
         const master = masters.find(m => m.id === form.masterId) ?? null;
         onSave({
             name:              form.name.trim(),
-            academicYear:      form.academicYear,
             masterId:          form.masterId,
             masterData:        master,
             competencyIds:     [...form.competencyIds],

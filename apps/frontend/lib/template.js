@@ -16,9 +16,12 @@ export async function fetchTemplateById(id) {
 }
 
 export async function createTemplate(payload) {
+    const body = { ...(payload || {}) };
+    delete body.cohort_year_be;
+    delete body.academic_year;
     const res = await apiFetch('/api/v1/templates', {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
     });
     return unwrapData(res, res);
 }

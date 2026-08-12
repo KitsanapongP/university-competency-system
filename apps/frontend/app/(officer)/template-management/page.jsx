@@ -145,11 +145,8 @@ function moveCourseToCategory(coursesByCategory, course, targetCategoryId, befor
 // TemplateCard — การ์ดแสดงใน list view
 // ============================================================
 function TemplateCard({ template, courseCount, onOpen, onDelete }) {
-    const yearDisplay = template.academicYear 
-        ? template.academicYear 
-        : 'ยังไม่กำหนด';
-    const courseMasterDisplay = template.masterData 
-        ? `${template.masterData.name || template.masterData.nameTh || template.masterData.curriculum_name_th || ''} (${template.masterData.year || template.masterData.cohort_year_be || template.academicYear || ''})`
+    const courseMasterDisplay = template.masterData
+        ? `${template.masterData.name || template.masterData.nameTh || template.masterData.curriculum_name_th || ''}`
         : null;
     
     return (
@@ -163,11 +160,8 @@ function TemplateCard({ template, courseCount, onOpen, onDelete }) {
                     {courseMasterDisplay ? (
                         <>
                             <span>หลักสูตร: {courseMasterDisplay}</span>
-                            <span>ปีการศึกษา: {yearDisplay}</span>
                         </>
-                    ) : (
-                        <span> ปีการศึกษา: {yearDisplay}</span>
-                    )}
+                    ) : null}
                     <span> มีทั้งหมด {courseCount} วิชา</span>
                 </div>
             </div>
@@ -228,7 +222,6 @@ export default function TemplateManagementPage() {
     const [weightsByTemplate,  setWeightsByTemplate]  = useState({});
 
     const idRef       = useRef(50000);
-    const templateRef    = useRef(7000);
     const courseIdRef    = useRef(50000);
     const saveTimeoutRef = useRef(null);
     const toastTimeoutRef = useRef(null);
@@ -313,10 +306,9 @@ export default function TemplateManagementPage() {
                     const mapped = actualTmplData.map(t => ({
                         ...t,
                         id: t.template_id || t.id,
-                        academicYear: t.cohort_year_be || t.academicYear || 2568,
                         isActive: t.is_active !== undefined ? t.is_active : (t.isActive !== undefined ? t.isActive : false),
                         totalCourseCount: t.total_course_count !== undefined ? t.total_course_count : (t.TotalCourseCount !== undefined ? t.TotalCourseCount : (t.mapped_course_count || 0)),
-                        masterData: t.curriculum_name_th ? { id: t.curriculum_id, name: t.curriculum_name_th, year: t.cohort_year_be } : t.masterData,
+                        masterData: t.curriculum_name_th ? { id: t.curriculum_id, name: t.curriculum_name_th, code: t.curriculum_code } : t.masterData,
                     }));
                     setTemplates(mapped);
                 }
@@ -576,30 +568,29 @@ export default function TemplateManagementPage() {
         }
     }, [deletingTemplate, selectedTemplate, handleBackToList]);
 
-    const handleSaveTemplate = useCallback(async ({ name, academicYear, masterData, competencyIds }) => {
-        let createdId = ++templateRef.current;
+    const handleSaveTemplate = useCallback(async ({ name, masterData, competencyIds }) => {
+        let createdId = null;
         let actualCreated = null;
         try {
             const payload = {
                 name,
-                faculty_id: 11,
-                cohort_year_be: Number(academicYear) || 2568,
-                curriculum_id: masterData ? masterData.id : null,
+                curriculum_id: masterData?.id,
                 competency_ids: competencyIds || [],
             };
             const created = await createTemplate(payload);
             actualCreated = created?.data || created;
-            if (actualCreated && (actualCreated.template_id || actualCreated.id)) createdId = actualCreated.template_id || actualCreated.id;
+            createdId = actualCreated?.template_id || actualCreated?.id || null;
+            if (!createdId) throw new Error('template creation returned no template id');
         } catch (err) {
-            console.error('Create template API failed, falling back to local ID:', err);
+            console.error('Create template API failed:', err);
+            showAlert(err.message || 'Unable to create template.', { type: 'error', title: 'Template was not created' });
+            return;
         }
 
         const id = createdId;
         const newTemplate = { 
             id, 
             name, 
-            year: academicYear || 2568, 
-            academicYear,
             totalCourseCount: actualCreated?.total_course_count || actualCreated?.TotalCourseCount || (masterData?.total_courses || masterData?.course_count || 0),
             masterData: masterData ? { ...masterData, name: masterData.name || masterData.nameTh || masterData.curriculum_name_th || '' } : null,
             isActive: typeof actualCreated?.is_active === 'boolean' ? actualCreated.is_active : (typeof actualCreated?.isActive === 'boolean' ? actualCreated.isActive : false)
@@ -669,7 +660,7 @@ export default function TemplateManagementPage() {
         setSelectedCategory(null);
         setShowAllCourses(true);
         setView('editor');
-    }, []);
+    }, [showAlert]);
 
     // ============================================================
     // Auto Save Helper
@@ -1322,10 +1313,8 @@ export default function TemplateManagementPage() {
 
                 <span className="editor-topbar__year">
                     {selectedTemplate?.masterData 
-                        ? `${selectedTemplate.masterData.name || selectedTemplate.masterData.nameTh || selectedTemplate.masterData.curriculum_name_th || ''} (${selectedTemplate.masterData.year || selectedTemplate.masterData.cohort_year_be || selectedTemplate.academicYear || ''})`
-                        : selectedTemplate?.academicYear 
-                            ? `ปีการศึกษา ${selectedTemplate.academicYear}`
-                            : 'ยังไม่กำหนด'}
+                        ? `${selectedTemplate.masterData.name || selectedTemplate.masterData.nameTh || selectedTemplate.masterData.curriculum_name_th || ''}`
+                        : 'ยังไม่กำหนดหลักสูตร'}
                 </span>
             </div>
 
