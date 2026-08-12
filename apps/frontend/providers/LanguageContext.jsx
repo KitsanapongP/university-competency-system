@@ -381,6 +381,8 @@ const translations = {
 
 translations.en.student_management = 'Student Management';
 translations.th.student_management = 'จัดการข้อมูลนักศึกษา';
+translations.en.menu_management = 'Management';
+translations.th.menu_management = 'เมนูการจัดการ';
 
 export function LanguageProvider({ children }) {
     // Always start with 'th' to match server render and avoid hydration mismatch
