@@ -100,11 +100,8 @@ func (r *CurriculumRepository) GetCurriculumCourseForCurriculum(ctx context.Cont
 func (r *CurriculumRepository) CountActiveTemplatesForCurriculum(ctx context.Context, curriculumID uint64) (int, error) {
 	query := `
 		SELECT COUNT(*)
-		FROM curri_curriculum_templates cct
-		JOIN comp_templates tpl ON tpl.template_id = cct.template_id
-		WHERE cct.curriculum_id = ?
-			AND cct.deleted_at IS NULL
-			AND cct.is_active = 1
+		FROM comp_templates tpl
+		WHERE tpl.curriculum_id = ?
 			AND tpl.deleted_at IS NULL
 			AND tpl.is_active = 1
 	`
@@ -120,19 +117,19 @@ func (r *CurriculumRepository) CountActiveTemplatesForCurriculum(ctx context.Con
 func (r *CurriculumRepository) GetAffectedTemplatesForCurriculum(ctx context.Context, curriculumID uint64) ([]models.AffectedTemplate, error) {
 	query := `
 		SELECT
-			cct.curriculum_template_id,
-			cct.template_id,
+			tpl.template_id,
+			tpl.template_id,
 			tpl.code,
 			tpl.name,
-			cct.cohort_year_be,
-			cct.is_active,
+			COALESCE(sc.entry_year_be, 0),
+			1,
 			tpl.is_active
-		FROM curri_curriculum_templates cct
-		JOIN comp_templates tpl ON tpl.template_id = cct.template_id
-		WHERE cct.curriculum_id = ?
-			AND cct.deleted_at IS NULL
+		FROM comp_templates tpl
+		LEFT JOIN curri_template_assignments ta ON ta.template_id = tpl.template_id AND ta.deleted_at IS NULL
+		LEFT JOIN edu_student_cohorts sc ON sc.cohort_id = ta.cohort_id AND sc.deleted_at IS NULL
+		WHERE tpl.curriculum_id = ?
 			AND tpl.deleted_at IS NULL
-		ORDER BY cct.cohort_year_be DESC, cct.curriculum_template_id DESC
+		ORDER BY sc.entry_year_be DESC, tpl.template_id DESC
 	`
 
 	rows, err := r.DB.QueryContext(ctx, query, curriculumID)
@@ -787,10 +784,8 @@ func (r *CurriculumRepository) CountConnectedTemplatesForCurriculum(ctx context.
 	var count int
 	err := r.DB.QueryRowContext(ctx, `
 		SELECT COUNT(*)
-		FROM curri_curriculum_templates cct
-		JOIN comp_templates tpl ON tpl.template_id = cct.template_id
-		WHERE cct.curriculum_id = ?
-			AND cct.deleted_at IS NULL
+		FROM comp_templates tpl
+		WHERE tpl.curriculum_id = ?
 			AND tpl.deleted_at IS NULL
 	`, curriculumID).Scan(&count)
 	return count, err

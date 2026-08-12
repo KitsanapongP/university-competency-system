@@ -25,6 +25,61 @@ type Template struct {
 	UpdatedAt         time.Time `json:"updated_at"`
 }
 
+// TemplateAssignment is the current or historical relationship between one
+// Template and one Student Cohort.
+type TemplateAssignment struct {
+	TemplateAssignmentID uint64     `json:"template_assignment_id"`
+	TemplateID           uint64     `json:"template_id"`
+	TemplateName         string     `json:"template_name"`
+	TemplateCode         string     `json:"template_code"`
+	TemplateIsActive     bool       `json:"template_is_active"`
+	CurriculumID         uint64     `json:"curriculum_id"`
+	CurriculumCode       string     `json:"curriculum_code"`
+	CurriculumNameTH     string     `json:"curriculum_name_th"`
+	CohortID             uint64     `json:"cohort_id"`
+	EntryYearBE          uint64     `json:"entry_year_be"`
+	CohortStatus         string     `json:"cohort_status"`
+	RosterCount          int        `json:"roster_count"`
+	ScoreLocked          bool       `json:"score_locked"`
+	AssignedBy           *uint64    `json:"assigned_by,omitempty"`
+	AssignedAt           time.Time  `json:"assigned_at"`
+	EndedBy              *uint64    `json:"ended_by,omitempty"`
+	EndedAt              *time.Time `json:"ended_at,omitempty"`
+	EndReason            *string    `json:"end_reason,omitempty"`
+	DeletedAt            *time.Time `json:"deleted_at,omitempty"`
+}
+
+// TemplateAssignmentCandidate is a Template or Cohort returned to the
+// assignment workspace before an Assignment is created.
+type TemplateAssignmentCandidate struct {
+	TemplateID       uint64 `json:"template_id,omitempty"`
+	TemplateCode     string `json:"template_code,omitempty"`
+	TemplateName     string `json:"template_name,omitempty"`
+	CurriculumID     uint64 `json:"curriculum_id"`
+	CurriculumCode   string `json:"curriculum_code"`
+	CurriculumNameTH string `json:"curriculum_name_th"`
+	CohortID         uint64 `json:"cohort_id,omitempty"`
+	EntryYearBE      uint64 `json:"entry_year_be,omitempty"`
+	RosterCount      int    `json:"roster_count,omitempty"`
+}
+
+type CreateTemplateAssignmentRequest struct {
+	TemplateID uint64 `json:"template_id"`
+	CohortID   uint64 `json:"cohort_id"`
+	Confirm    bool   `json:"confirm"`
+}
+
+type ReplaceTemplateAssignmentRequest struct {
+	TemplateID uint64 `json:"template_id"`
+	Reason     string `json:"reason"`
+	Confirm    bool   `json:"confirm"`
+}
+
+type RemoveTemplateAssignmentRequest struct {
+	Reason  string `json:"reason"`
+	Confirm bool   `json:"confirm"`
+}
+
 // TemplateItem represents a mapping between template, course, and competency with weight
 type TemplateItem struct {
 	TemplateItemID uint64   `json:"template_item_id"`
@@ -79,7 +134,6 @@ type CreateCompetencyInput struct {
 type CreateTemplateRequest struct {
 	Name            string                  `json:"name"`
 	CurriculumID    uint64                  `json:"curriculum_id"`
-	CohortYearBE    uint64                  `json:"cohort_year_be"`
 	CompetencyIDs   []uint64                `json:"competency_ids"`
 	NewCompetencies []CreateCompetencyInput `json:"new_competencies"`
 }

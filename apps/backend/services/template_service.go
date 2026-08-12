@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/spw32767/university-competency-system-backend/models"
 	"github.com/spw32767/university-competency-system-backend/repositories"
@@ -38,14 +39,25 @@ func (s *TemplateService) GetTemplateByID(ctx context.Context, templateID uint64
 }
 
 func (s *TemplateService) CreateTemplate(ctx context.Context, facultyID uint64, userID uint64, req models.CreateTemplateRequest) (*models.Template, error) {
+	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
 		return nil, errors.New("กรุณาระบุชื่อ Template")
+	}
+	if req.CurriculumID == 0 {
+		return nil, errors.New("curriculum is required")
+	}
+	ownerFacultyID, err := s.Repo.GetCurriculumFacultyID(ctx, req.CurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	if facultyID != 0 && ownerFacultyID != facultyID {
+		return nil, errors.New("curriculum is unavailable in this faculty")
 	}
 	if len(req.CompetencyIDs) == 0 && len(req.NewCompetencies) == 0 {
 		return nil, errors.New("กรุณาเลือกหรือเพิ่ม Competency อย่างน้อย 1 ตัว")
 	}
 
-	return s.Repo.CreateTemplate(ctx, facultyID, userID, req)
+	return s.Repo.CreateTemplate(ctx, ownerFacultyID, userID, req)
 }
 
 func (s *TemplateService) UpdateTemplateName(ctx context.Context, templateID uint64, req models.UpdateTemplateNameRequest) error {
@@ -75,6 +87,9 @@ func (s *TemplateService) UpdateTemplateStatus(ctx context.Context, templateID u
 
 	// ถ้าพยายามเปลี่ยนเป็น Active ต้องทำการตรวจสอบกฎ (Validation Guardrails)
 	if isActive {
+		if t.CurriculumID == 0 {
+			return errors.New("template has no curriculum owner and cannot be activated")
+		}
 		items, err := s.Repo.GetTemplateItems(ctx, templateID)
 		if err != nil {
 			return err
@@ -280,6 +295,13 @@ func (s *TemplateService) DeleteTemplate(ctx context.Context, templateID uint64)
 
 	if t.IsActive {
 		return errors.New("ไม่สามารถลบ Template ที่เปิดใช้งานอยู่ได้ กรุณาปิดใช้งานก่อน")
+	}
+	assigned, err := s.Repo.HasLiveTemplateAssignment(ctx, templateID)
+	if err != nil {
+		return err
+	}
+	if assigned {
+		return errors.New("template cannot be deleted while it is assigned to a student cohort")
 	}
 
 	return s.Repo.DeleteTemplate(ctx, templateID)

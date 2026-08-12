@@ -132,7 +132,14 @@ func (c *TemplateController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	facultyID := resolveFacultyID(r, claims)
+	facultyID := uint64(0)
+	if !isTemplateAdmin(claims) {
+		if claims.FacultyID == nil || *claims.FacultyID <= 0 {
+			utils.Error(w, http.StatusForbidden, "FORBIDDEN", "faculty scope is required")
+			return
+		}
+		facultyID = uint64(*claims.FacultyID)
+	}
 	created, err := c.Service.CreateTemplate(r.Context(), facultyID, uint64(claims.UserID), req)
 	if err != nil {
 		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())

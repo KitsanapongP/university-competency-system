@@ -52,9 +52,11 @@ func (r *StudentCohortRepository) GetCohortByID(ctx context.Context, cohortID ui
 func (r *StudentCohortRepository) GetCurriculumForCohort(ctx context.Context, curriculumID uint64) (*CohortCurriculum, error) {
 	item := &CohortCurriculum{}
 	err := r.DB.QueryRowContext(ctx, `
-		SELECT curriculum_id, faculty_id, effective_year_be, status
-		FROM edu_curricula
-		WHERE curriculum_id = ? AND deleted_at IS NULL
+		SELECT c.curriculum_id, d.faculty_id, c.effective_year_be, c.status
+		FROM edu_curricula c
+		JOIN edu_majors m ON m.major_id = c.major_id AND m.deleted_at IS NULL
+		JOIN org_departments d ON d.department_id = m.department_id AND d.deleted_at IS NULL
+		WHERE c.curriculum_id = ? AND c.deleted_at IS NULL
 	`, curriculumID).Scan(&item.CurriculumID, &item.FacultyID, &item.EffectiveYearBE, &item.Status)
 	if err != nil {
 		return nil, err
@@ -300,11 +302,11 @@ func (r *StudentCohortRepository) CountActiveTemplatesForCohort(ctx context.Cont
 	var count int
 	err := r.DB.QueryRowContext(ctx, `
 		SELECT COUNT(*)
-		FROM curri_curriculum_templates cct
-		JOIN comp_templates t ON t.template_id = cct.template_id
-		WHERE cct.curriculum_id = ? AND cct.cohort_year_be = ? AND cct.deleted_at IS NULL
-			AND cct.is_active = 1 AND t.deleted_at IS NULL AND t.is_active = 1
-	`, cohort.CurriculumID, cohort.EntryYearBE).Scan(&count)
+		FROM curri_template_assignments ta
+		JOIN comp_templates t ON t.template_id = ta.template_id
+		WHERE ta.cohort_id = ? AND ta.deleted_at IS NULL
+			AND t.deleted_at IS NULL AND t.is_active = 1
+	`, cohort.CohortID).Scan(&count)
 	return count, err
 }
 
@@ -379,7 +381,7 @@ func buildStudentCohortQuery(filters models.StudentCohortFilters, byID bool) (st
 		where = append(where, "sc.cohort_id = ?")
 	} else {
 		if filters.FacultyID != nil {
-			where = append(where, "c.faculty_id = ?")
+			where = append(where, "d.faculty_id = ?")
 			args = append(args, *filters.FacultyID)
 		}
 		if filters.MajorID != nil {
@@ -406,14 +408,15 @@ func buildStudentCohortQuery(filters models.StudentCohortFilters, byID bool) (st
 	}
 	query := `
 		SELECT sc.cohort_id, sc.curriculum_id, c.code, c.name_th, c.name_en, c.effective_year_be,
-			c.major_id, m.name_th, c.faculty_id, f.name_th, sc.entry_year_be, sc.status, sc.note,
+			c.major_id, m.name_th, d.faculty_id, f.name_th, sc.entry_year_be, sc.status, sc.note,
 			COALESCE(roster.roster_count, 0), COALESCE(roster.student_count, 0), COALESCE(roster.suspended_count, 0),
 			COALESCE(templates.template_count, 0), COALESCE(templates.active_template_count, 0), sc.last_reactivation_reason,
 			sc.last_reactivated_at, sc.last_reactivated_by, sc.created_at, sc.updated_at
 		FROM edu_student_cohorts sc
 		JOIN edu_curricula c ON c.curriculum_id = sc.curriculum_id AND c.deleted_at IS NULL
-		JOIN edu_majors m ON m.major_id = c.major_id
-		JOIN org_faculties f ON f.faculty_id = c.faculty_id
+		JOIN edu_majors m ON m.major_id = c.major_id AND m.deleted_at IS NULL
+		JOIN org_departments d ON d.department_id = m.department_id AND d.deleted_at IS NULL
+		JOIN org_faculties f ON f.faculty_id = d.faculty_id AND f.deleted_at IS NULL
 		LEFT JOIN (
 			SELECT ec.cohort_id, COUNT(*) AS roster_count,
 				SUM(e.enrollment_status = 'student') AS student_count,
@@ -424,14 +427,14 @@ func buildStudentCohortQuery(filters models.StudentCohortFilters, byID bool) (st
 			GROUP BY ec.cohort_id
 		) roster ON roster.cohort_id = sc.cohort_id
 		LEFT JOIN (
-			SELECT cct.curriculum_id, cct.cohort_year_be,
+			SELECT ta.cohort_id,
 				COUNT(*) AS template_count,
-				SUM(CASE WHEN cct.is_active = 1 AND t.is_active = 1 THEN 1 ELSE 0 END) AS active_template_count
-			FROM curri_curriculum_templates cct
-			JOIN comp_templates t ON t.template_id = cct.template_id AND t.deleted_at IS NULL
-			WHERE cct.deleted_at IS NULL
-			GROUP BY cct.curriculum_id, cct.cohort_year_be
-		) templates ON templates.curriculum_id = sc.curriculum_id AND templates.cohort_year_be = sc.entry_year_be
+				SUM(CASE WHEN t.is_active = 1 THEN 1 ELSE 0 END) AS active_template_count
+			FROM curri_template_assignments ta
+			JOIN comp_templates t ON t.template_id = ta.template_id AND t.deleted_at IS NULL
+			WHERE ta.deleted_at IS NULL
+			GROUP BY ta.cohort_id
+		) templates ON templates.cohort_id = sc.cohort_id
 		WHERE ` + strings.Join(where, " AND ") + `
 	`
 	if !byID {

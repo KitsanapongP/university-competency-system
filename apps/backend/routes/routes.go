@@ -76,11 +76,15 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	templateHandler := &controllers.TemplateController{
 		Service: templateSvc,
 	}
-
 	studentCohortRepo := repositories.NewStudentCohortRepository(db)
 	studentCohortSvc := services.NewStudentCohortService(studentCohortRepo)
 	studentCohortHandler := &controllers.StudentCohortController{
 		Service: studentCohortSvc,
+	}
+	templateAssignmentRepo := repositories.NewTemplateAssignmentRepository(db)
+	templateAssignmentSvc := services.NewTemplateAssignmentService(templateRepo, studentCohortRepo, templateAssignmentRepo)
+	templateAssignmentHandler := &controllers.TemplateAssignmentController{
+		Service: templateAssignmentSvc,
 	}
 
 	// Versioned API routes
@@ -211,6 +215,18 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 					tir.Put("/items", templateHandler.SaveItems)
 					tir.Put("/competencies", templateHandler.UpdateCompetencies)
 				})
+			})
+
+			// Template assignments connect an already active template to one active cohort.
+			pr.Route("/template-assignments", func(tar chi.Router) {
+				tar.Use(middleware.RequireRoles("admin", "officer"))
+				tar.Get("/", templateAssignmentHandler.GetAll)
+				tar.Get("/available-templates", templateAssignmentHandler.GetAvailableTemplates)
+				tar.Get("/available-cohorts", templateAssignmentHandler.GetAvailableCohorts)
+				tar.Post("/", templateAssignmentHandler.Create)
+				tar.Get("/cohorts/{cohort_id}/history", templateAssignmentHandler.GetHistory)
+				tar.Patch("/{assignment_id}", templateAssignmentHandler.Replace)
+				tar.Delete("/{assignment_id}", templateAssignmentHandler.Delete)
 			})
 
 			// Examples (optional)

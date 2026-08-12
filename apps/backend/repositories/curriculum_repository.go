@@ -85,16 +85,13 @@ const curriculumStatsJoin = `
 	) category_stats ON category_stats.curriculum_id = c.curriculum_id
 	LEFT JOIN (
 		SELECT
-			cct.curriculum_id,
-			COUNT(DISTINCT cct.template_id) AS template_count,
-			COUNT(DISTINCT CASE
-				WHEN cct.is_active = 1 AND tpl.is_active = 1 THEN cct.template_id
-			END) AS active_template_count
-		FROM curri_curriculum_templates cct
-		JOIN comp_templates tpl ON tpl.template_id = cct.template_id
-		WHERE cct.deleted_at IS NULL
-			AND tpl.deleted_at IS NULL
-		GROUP BY cct.curriculum_id
+			tpl.curriculum_id,
+			COUNT(DISTINCT tpl.template_id) AS template_count,
+			COUNT(DISTINCT CASE WHEN tpl.is_active = 1 THEN tpl.template_id END) AS active_template_count
+		FROM comp_templates tpl
+		WHERE tpl.deleted_at IS NULL
+			AND tpl.curriculum_id IS NOT NULL
+		GROUP BY tpl.curriculum_id
 	) template_stats ON template_stats.curriculum_id = c.curriculum_id
 `
 
