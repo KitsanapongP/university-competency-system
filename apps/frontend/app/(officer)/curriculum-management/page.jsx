@@ -1473,7 +1473,7 @@ export default function CurriculumManagementPage() {
                                 onAddCategory={() => handleAddCategory()}
                                 onAddChildCategory={handleAddCategory}
                                 onRenameCategory={handleRenameCategory}
-                                allowCategoryCodeEdit
+                                showRenameAction={false}
                                 headerActions={(
                                     <button
                                         type="button"
@@ -1511,6 +1511,7 @@ export default function CurriculumManagementPage() {
                                 isAllCoursesView={showAllCourses}
                                 draggedCourseId={draggedCourseId}
                                 onRenameCategory={selectedCategory ? handleRenameCategory : () => { }}
+                                allowCategoryCodeEdit
                                 onDeleteCategory={selectedCategory ? handleRequestDeleteCategory : () => { }}
                                 onAddCourse={handleAddCourse}
                                 onUpdateCourse={handleUpdateCourse}

@@ -1030,7 +1030,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                         emptyText={t('structure_empty')}
                         maxDepth={MAX_CATEGORY_DEPTH}
                         showInlineAddChild={false}
-                        allowCategoryCodeEdit
+                        showRenameAction={false}
                         headerActions={(
                             <button
                                 type="button"
@@ -1070,18 +1070,28 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                     allCourses={getAllCurrentCourses()}
                     categoryTotalCredits={selectedCategory ? getCategoryTotalCredits(selectedCategory) : 0}
                     canEdit
+                    allowCategoryCodeEdit
                     disabled={false}
                     isLeafCategory={Boolean(isLeafCategory)}
                     coursePlacementHint={t('structure_add_course_disabled')}
                     draggedCourseId={draggedCourseId}
-                    onRenameCategory={(id, updates) => handleUpdateCategory(id, {
-                        ...(Object.prototype.hasOwnProperty.call(updates, 'nameTh') || Object.prototype.hasOwnProperty.call(updates, 'name')
-                            ? { name: updates.nameTh ?? updates.name }
-                            : {}),
-                        ...(Object.prototype.hasOwnProperty.call(updates, 'requiredCredits')
-                            ? { requiredCredits: updates.requiredCredits }
-                            : {}),
-                    })}
+                    onRenameCategory={(id, updates) => {
+                        const changesIdentity = Object.prototype.hasOwnProperty.call(updates, 'nameTh')
+                            || Object.prototype.hasOwnProperty.call(updates, 'name')
+                            || Object.prototype.hasOwnProperty.call(updates, 'code');
+
+                        if (changesIdentity) {
+                            handleRenameCategory(id, {
+                                nameTh: updates.nameTh ?? updates.name,
+                                code: updates.code,
+                            });
+                            return;
+                        }
+
+                        if (Object.prototype.hasOwnProperty.call(updates, 'requiredCredits')) {
+                            handleUpdateCategory(id, { requiredCredits: updates.requiredCredits });
+                        }
+                    }}
                     onDeleteCategory={handleDeleteCategory}
                     onAddCourse={handleAddCourse}
                     onUpdateCourse={handleUpdateCourse}

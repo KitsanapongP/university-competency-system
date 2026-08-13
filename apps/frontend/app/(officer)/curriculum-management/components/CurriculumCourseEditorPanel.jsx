@@ -359,6 +359,7 @@ export default function CurriculumCourseEditorPanel({
     onCourseDragEnd,
     onEditingStateChange,
     canEditCategoryMetadata = canEdit,
+    allowCategoryCodeEdit = false,
     canManageCourses = canEdit,
     getCourseCapabilities,
     allowExtraEditing = false,
@@ -374,6 +375,7 @@ export default function CurriculumCourseEditorPanel({
     const { t } = useLanguage();
     const [editingCategoryName, setEditingCategoryName] = useState(false);
     const [categoryNameValue, setCategoryNameValue] = useState(category?.name || '');
+    const [categoryCodeValue, setCategoryCodeValue] = useState(category?.code || '');
     const [categoryCreditsValue, setCategoryCreditsValue] = useState(category?.requiredCredits || 0);
     const [draftCourse, setDraftCourse] = useState(null);
     const [editingCourseId, setEditingCourseId] = useState(null);
@@ -421,6 +423,7 @@ export default function CurriculumCourseEditorPanel({
     useEffect(() => {
         setEditingCategoryName(false);
         setCategoryNameValue(category?.name || '');
+        setCategoryCodeValue(category?.code || '');
         setCategoryCreditsValue(category?.requiredCredits || 0);
         setEditingCourseId(null);
         setShowAddCourse(false);
@@ -428,7 +431,7 @@ export default function CurriculumCourseEditorPanel({
         setCurrentPage(1);
         setDropTargetCourseId(null);
         setIsDropZoneActive(false);
-    }, [categoryId, category?.name, category?.requiredCredits]);
+    }, [categoryId, category?.code, category?.name, category?.requiredCredits]);
 
     const resolveCourseCapabilities = (course) => getCourseCapabilities?.(course) || {};
     const canSelectCourse = (course) => !isReadOnly && allowSelection && resolveCourseCapabilities(course).canSelect !== false;
@@ -462,12 +465,36 @@ export default function CurriculumCourseEditorPanel({
     const saveCategoryName = () => {
         if (!canEditCategory || !category?.id) return;
         const nextName = categoryNameValue.trim() || 'หมวดวิชาใหม่';
-        if (nextName === category.name) {
+        const nextCode = categoryCodeValue.trim();
+        const codeChanged = allowCategoryCodeEdit && nextCode !== (category.code || '');
+        if (nextName === category.name && !codeChanged) {
             setEditingCategoryName(false);
             return;
         }
-        onRenameCategory?.(category.id, { nameTh: nextName });
+        onRenameCategory?.(category.id, {
+            nameTh: nextName,
+            ...(allowCategoryCodeEdit ? { code: nextCode } : {}),
+        });
         setEditingCategoryName(false);
+    };
+
+    const cancelCategoryNameEdit = () => {
+        setCategoryNameValue(category?.name || '');
+        setCategoryCodeValue(category?.code || '');
+        setEditingCategoryName(false);
+    };
+
+    const handleCategoryEditKeyDown = (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            saveCategoryName();
+            return;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            cancelCategoryNameEdit();
+        }
     };
 
     const saveCategoryCredits = () => {
@@ -615,21 +642,55 @@ export default function CurriculumCourseEditorPanel({
                     {category ? (
                         <div className="course-detail-toolbar__name">
                             {editingCategoryName ? (
-                                <input
-                                    autoFocus
-                                    className="course-detail-toolbar__name-input"
-                                    value={categoryNameValue}
-                                    onChange={event => setCategoryNameValue(event.target.value)}
-                                    onBlur={saveCategoryName}
-                                    onKeyDown={event => {
-                                        if (event.key === 'Enter') saveCategoryName();
-                                        if (event.key === 'Escape') {
-                                            setCategoryNameValue(category?.name || '');
-                                            setEditingCategoryName(false);
-                                        }
+                                <form
+                                    className="course-detail-toolbar__edit-fields"
+                                    onSubmit={event => {
+                                        event.preventDefault();
+                                        saveCategoryName();
                                     }}
-                                    disabled={isReadOnly}
-                                />
+                                >
+                                    {allowCategoryCodeEdit && (
+                                        <input
+                                            autoFocus
+                                            className="course-detail-toolbar__code-input"
+                                            value={categoryCodeValue}
+                                            onChange={event => setCategoryCodeValue(event.target.value)}
+                        onKeyDown={handleCategoryEditKeyDown}
+                                            aria-label="Category code"
+                                            placeholder="1.1"
+                                            disabled={isReadOnly}
+                                        />
+                                    )}
+                                    <input
+                                        autoFocus={!allowCategoryCodeEdit}
+                                        className="course-detail-toolbar__name-input"
+                                        value={categoryNameValue}
+                                        onChange={event => setCategoryNameValue(event.target.value)}
+                    onKeyDown={handleCategoryEditKeyDown}
+                    disabled={isReadOnly}
+                />
+                <div className="course-detail-toolbar__edit-actions">
+                    <button
+                        type="submit"
+                        className="course-detail-toolbar__save-btn"
+                        title="บันทึกการแก้ไข"
+                        aria-label="บันทึกการแก้ไข"
+                        disabled={isReadOnly}
+                    >
+                        <Save size={15} />
+                    </button>
+                    <button
+                        type="button"
+                        className="course-detail-toolbar__cancel-btn"
+                        onClick={cancelCategoryNameEdit}
+                        title="ยกเลิกการแก้ไข"
+                        aria-label="ยกเลิกการแก้ไข"
+                        disabled={isReadOnly}
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+            </form>
                             ) : (
                                 <>
                                     <span className="course-detail-toolbar__name-text">
@@ -641,9 +702,10 @@ export default function CurriculumCourseEditorPanel({
                                             className="course-detail-toolbar__edit-btn"
                                             onClick={() => {
                                                 setCategoryNameValue(category.name || '');
+                                                setCategoryCodeValue(category.code || '');
                                                 setEditingCategoryName(true);
                                             }}
-                                            title="แก้ไขชื่อหมวดวิชา"
+                                            title="แก้ไขข้อมูลหมวดวิชา"
                                         >
                                             <Pencil size={14} />
                                         </button>
