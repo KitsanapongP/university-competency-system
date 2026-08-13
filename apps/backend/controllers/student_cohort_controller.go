@@ -3,6 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -349,5 +350,6 @@ func writeStudentCohortError(w http.ResponseWriter, err error) {
 		utils.Error(w, http.StatusConflict, "DUPLICATE", message)
 		return
 	}
+	log.Printf("student cohort operation failed: %v", err)
 	utils.Error(w, http.StatusInternalServerError, "SERVER_ERROR", "student cohort operation failed")
 }
