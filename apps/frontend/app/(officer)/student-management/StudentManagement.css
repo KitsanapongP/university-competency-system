@@ -2,6 +2,7 @@
     min-height: 100vh;
     box-sizing: border-box;
     padding: 1.5rem 8rem 3rem;
+    background: var(--course-bg);
     color: var(--course-text);
     font-family: 'Sarabun', sans-serif;
 }
