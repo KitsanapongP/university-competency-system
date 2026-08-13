@@ -301,6 +301,58 @@ type UpdateCurriculumCoursePlacementPayload struct {
 	ConfirmImpact bool    `json:"confirm_impact"`
 }
 
+type CurriculumStructureImportCategory struct {
+	Code   string `json:"code"`
+	NameTH string `json:"name_th"`
+}
+
+type CurriculumStructureImportRow struct {
+	RowNumber    int                                 `json:"row_number"`
+	Categories   []CurriculumStructureImportCategory `json:"categories"`
+	CourseCode   string                              `json:"course_code"`
+	CourseNameTH string                              `json:"course_name_th"`
+	CourseNameEN *string                             `json:"course_name_en"`
+	Credits      int                                 `json:"credits"`
+}
+
+type CurriculumStructureImportPayload struct {
+	Rows          []CurriculumStructureImportRow `json:"rows"`
+	ConfirmImpact bool                           `json:"confirm_impact"`
+}
+
+type CurriculumStructureImportIssue struct {
+	RowNumber int    `json:"row_number"`
+	Field     string `json:"field"`
+	Message   string `json:"message"`
+}
+
+type CurriculumStructureImportPreview struct {
+	Valid                 bool                             `json:"valid"`
+	ExistingCategoryCount int                              `json:"existing_category_count"`
+	NewCategoryCount      int                              `json:"new_category_count"`
+	CourseCount           int                              `json:"course_count"`
+	Issues                []CurriculumStructureImportIssue `json:"issues"`
+}
+
+type CurriculumStructureImportCategoryPlan struct {
+	Code       string
+	NameTH     string
+	ParentCode string
+}
+
+type CurriculumStructureImportCoursePlan struct {
+	CategoryCode string
+	Code         string
+	NameTH       string
+	NameEN       *string
+	Credits      int
+}
+
+type CurriculumStructureImportPlan struct {
+	Categories []CurriculumStructureImportCategoryPlan
+	Courses    []CurriculumStructureImportCoursePlan
+}
+
 type AffectedTemplate struct {
 	CurriculumTemplateID uint64 `json:"curriculum_template_id"`
 	TemplateID           uint64 `json:"template_id"`

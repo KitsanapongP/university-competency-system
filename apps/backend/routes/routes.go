@@ -157,6 +157,8 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 					cir.Patch("/", curriculumHandler.UpdateMetadata)
 					cir.Post("/duplicate", curriculumHandler.DuplicateCurriculum)
 					cir.Patch("/status", curriculumHandler.UpdateStatus)
+					cir.Post("/structure-imports/preview", curriculumHandler.PreviewStructureImport)
+					cir.Post("/structure-imports/commit", curriculumHandler.CommitStructureImport)
 
 					cir.Post("/categories", curriculumHandler.CreateCategory)
 					cir.Get("/categories/{category_id}/delete-preview", curriculumHandler.GetDeleteCategoryPreview)
