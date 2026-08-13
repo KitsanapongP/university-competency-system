@@ -811,13 +811,6 @@
 
 .course-spreadsheet-input--num { text-align: center; }
 
-.course-spreadsheet-empty {
-    padding: 2rem;
-    text-align: center;
-    color: var(--course-text-muted);
-    font-size: 0.8rem;
-}
-
 /* ============================================================
    Overview Stats
    ============================================================ */

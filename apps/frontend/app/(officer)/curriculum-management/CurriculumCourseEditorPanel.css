@@ -172,6 +172,18 @@
     text-align: center;
 }
 
+.curriculum-course-editor .course-spreadsheet-empty {
+    align-items: center;
+    color: var(--course-text-muted);
+    display: flex;
+    flex: 1;
+    font-size: 0.8rem;
+    justify-content: center;
+    min-height: 220px;
+    padding: 2rem;
+    text-align: center;
+}
+
 .curriculum-course-editor .ss-wrapper {
     min-width: 0;
 }
