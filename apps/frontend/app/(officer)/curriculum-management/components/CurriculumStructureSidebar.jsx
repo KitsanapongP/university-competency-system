@@ -72,12 +72,14 @@ function CategoryTreeNode({
     getCategoryBadge,
     getCourseBadge,
     showInlineAddChild = true,
+    allowCategoryCodeEdit = false,
     addChildLabel,
     addChildDisabledReason,
 }) {
     const [expanded, setExpanded] = useState(true);
     const [renaming, setRenaming] = useState(category.isNew || false);
     const [nameValue, setNameValue] = useState(category.name || '');
+    const [codeValue, setCodeValue] = useState(category.code || '');
     const inputRef = useRef(null);
 
     useEffect(() => {
@@ -85,8 +87,11 @@ function CategoryTreeNode({
     }, [renaming]);
 
     useEffect(() => {
-        if (!renaming) setNameValue(category.name || '');
-    }, [category.name, renaming]);
+        if (!renaming) {
+            setNameValue(category.name || '');
+            setCodeValue(category.code || '');
+        }
+    }, [category.code, category.name, renaming]);
 
     useEffect(() => {
         onRenameStateChange?.(category.id, renaming);
@@ -117,7 +122,10 @@ function CategoryTreeNode({
 
     const confirmRename = () => {
         const nextName = nameValue.trim() || 'หมวดวิชาใหม่';
-        onRenameCategory?.(category.id, nextName);
+        const nextCode = codeValue.trim();
+        onRenameCategory?.(category.id, allowCategoryCodeEdit
+            ? { nameTh: nextName, code: nextCode }
+            : nextName);
         setRenaming(false);
     };
 
@@ -166,18 +174,28 @@ function CategoryTreeNode({
                 </button>
 
                 {renaming ? (
-                    <input
-                        ref={inputRef}
-                        className="curriculum-structure-row__input"
-                        value={nameValue}
-                        onChange={event => setNameValue(event.target.value)}
-                        onBlur={confirmRename}
-                        onClick={event => event.stopPropagation()}
-                        onKeyDown={event => {
-                            if (event.key === 'Enter') confirmRename();
-                            if (event.key === 'Escape') setRenaming(false);
-                        }}
-                    />
+                    <div className="curriculum-structure-row__edit-fields" onClick={event => event.stopPropagation()}>
+                        {allowCategoryCodeEdit && (
+                            <input
+                                className="curriculum-structure-row__code-input"
+                                value={codeValue}
+                                onChange={event => setCodeValue(event.target.value)}
+                                aria-label="Category code"
+                                placeholder="1.1"
+                            />
+                        )}
+                        <input
+                            ref={inputRef}
+                            className="curriculum-structure-row__input"
+                            value={nameValue}
+                            onChange={event => setNameValue(event.target.value)}
+                            onBlur={confirmRename}
+                            onKeyDown={event => {
+                                if (event.key === 'Enter') confirmRename();
+                                if (event.key === 'Escape') setRenaming(false);
+                            }}
+                        />
+                    </div>
                 ) : (
                     <div className="curriculum-structure-row__main">
                         <span className="curriculum-structure-row__name">
@@ -308,6 +326,7 @@ function CategoryTreeNode({
                             getCategoryBadge={getCategoryBadge}
                             getCourseBadge={getCourseBadge}
                             showInlineAddChild={showInlineAddChild}
+                            allowCategoryCodeEdit={allowCategoryCodeEdit}
                             addChildLabel={addChildLabel}
                             addChildDisabledReason={addChildDisabledReason}
                         />
@@ -360,6 +379,8 @@ export default function CurriculumStructureSidebar({
     getCourseCapabilities,
     getCategoryBadge,
     getCourseBadge,
+    allowCategoryCodeEdit = false,
+    headerActions = null,
 }) {
     const allCourses = Object.values(coursesByCategory).flat();
     const allCredits = allCourses.reduce((sum, course) => sum + (Number(course.credits) || 0), 0);
@@ -400,6 +421,7 @@ export default function CurriculumStructureSidebar({
                 <span className="curriculum-structure-sidebar__title">{title}</span>
                 {canEdit && (
                     <div className="curriculum-structure-sidebar__header-actions">
+                        {headerActions}
                         <button
                             type="button"
                             className="course-btn course-btn--primary course-btn--sm"
@@ -495,6 +517,7 @@ export default function CurriculumStructureSidebar({
                             getCategoryBadge={getCategoryBadge}
                             getCourseBadge={getCourseBadge}
                             showInlineAddChild={showInlineAddChild}
+                            allowCategoryCodeEdit={allowCategoryCodeEdit}
                             addChildLabel={addChildLabel}
                             addChildDisabledReason={addChildDisabledReason}
                         />

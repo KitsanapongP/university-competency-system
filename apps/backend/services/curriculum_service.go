@@ -368,7 +368,7 @@ func validateCreateCurriculumPayload(payload models.CreateCurriculumPayload) err
 	}
 
 	seenCourseCodes := map[string]bool{}
-	return validateCreateCategories(payload.Categories, seenCourseCodes)
+	return validateCreateCategories(payload.Categories, seenCourseCodes, map[string]bool{})
 }
 
 func hasRole(roles []string, role string) bool {

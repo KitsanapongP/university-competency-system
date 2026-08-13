@@ -343,20 +343,12 @@ func (r *CurriculumRepository) UpdateCategory(ctx context.Context, curriculumID 
 	return nil
 }
 
-func (r *CurriculumRepository) RenumberCategoryCodes(ctx context.Context, curriculumID uint64) error {
-	categories, err := r.getCurriculumCategories(ctx, curriculumID)
-	if err != nil {
-		return err
-	}
-
-	childrenByParent := make(map[uint64][]*models.CourseCategoryNode)
-	roots := make([]*models.CourseCategoryNode, 0)
-	for _, category := range categories {
-		if category.ParentID == nil {
-			roots = append(roots, category)
-			continue
-		}
-		childrenByParent[*category.ParentID] = append(childrenByParent[*category.ParentID], category)
+// UpdateCategoryWithCodeCascade persists a category edit and the code changes
+// inherited by descendants as one unit. display_order remains independent from code.
+func (r *CurriculumRepository) UpdateCategoryWithCodeCascade(ctx context.Context, curriculumID uint64, categoryID uint64, payload models.UpdateCurriculumCategoryPayload, codeUpdates map[uint64]string) error {
+	var parentID any
+	if payload.ParentID.Set && payload.ParentID.Valid {
+		parentID = payload.ParentID.Value
 	}
 
 	tx, err := r.DB.BeginTx(ctx, nil)

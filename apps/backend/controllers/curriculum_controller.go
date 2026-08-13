@@ -356,6 +356,8 @@ func writeCurriculumError(w http.ResponseWriter, err error) {
 		message := "curriculum already exists"
 		if strings.Contains(mysqlErr.Message, "uq_crs_courses_curriculum_code_live") {
 			message = "course code already exists in this curriculum"
+		} else if strings.Contains(mysqlErr.Message, "uq_crs_course_categories_curriculum_code_live") {
+			message = "category code already exists in this curriculum"
 		} else if strings.Contains(mysqlErr.Message, "uq_majors_department_code") {
 			message = "major code already exists in this department"
 		} else if strings.Contains(mysqlErr.Message, "uq_curricula_major_code_live") ||
