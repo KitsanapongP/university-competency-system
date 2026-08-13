@@ -1,7 +1,11 @@
 .template-assignments-page {
+    min-height: 100vh;
+    box-sizing: border-box;
     display: grid;
     gap: 1.25rem;
-    padding-bottom: 2rem;
+    padding: 1.5rem 8rem 3rem;
+    color: var(--course-text);
+    font-family: 'Sarabun', sans-serif;
 }
 
 .template-assignment-filter,
@@ -70,7 +74,12 @@
 @keyframes template-assignment-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 720px) {
+    .template-assignments-page { padding: 1rem; }
     .template-assignment-filter { align-items: stretch; flex-direction: column; }
     .template-assignment-filter p { margin: 0; }
     .template-assignment-section__header { align-items: center; }
+}
+
+@media (min-width: 721px) and (max-width: 1280px) {
+    .template-assignments-page { padding-inline: 2rem; }
 }
