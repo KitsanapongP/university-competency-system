@@ -88,6 +88,7 @@ export function AppLayout({
     const menuConfig = MENU_CONFIG[role] || MENU_CONFIG.user;
     const menuItems = resolveMenuItems(menuConfig, t);
     const usesSidebarNavigation = role === 'officer' || role === 'admin';
+    const shouldShowAnimatedBackground = showBackground && !usesSidebarNavigation;
 
     const displayName = user?.display_name || user?.username || 'Guest';
     const primaryRole = user?.roles?.[0] || '';
@@ -121,7 +122,7 @@ export function AppLayout({
     return (
         <ClickSpark sparkColor="#2563eb" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
             <>
-                {showBackground && mounted && (
+                {shouldShowAnimatedBackground && mounted && (
                     <ColorBends
                         className="color-bends-bg"
                         transparent={true}
