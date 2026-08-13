@@ -2,13 +2,15 @@
 
 import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { X, Check, CheckCircle2, Circle, Info, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award } from 'lucide-react';
+import { X, Check, CheckCircle2, Circle, Info, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, Upload } from 'lucide-react';
 import { createCurriculumFromForm, fetchCurriculums, fetchFaculties, fetchMajors } from '../../../../lib/curriculum';
 import { useLanguage } from '../../../../providers/LanguageContext';
 import ConfirmActionModal from '../../../../components/ui/ConfirmActionModal';
 import DuplicateCourseWarningModal from '../../../../components/ui/DuplicateCourseWarningModal';
 import CurriculumCourseEditorPanel from '../components/CurriculumCourseEditorPanel';
 import CurriculumStructureSidebar from '../components/CurriculumStructureSidebar';
+import CurriculumStructureImportModal from '../components/CurriculumStructureImportModal';
+import { applyDraftCurriculumStructureImport, previewDraftCurriculumStructureImport } from '../../../../lib/curriculum-structure-import';
 import '../../../../app/Competency.css';
 import '../CourseLayout.css';
 import '../CourseCreate.css';
@@ -293,6 +295,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
     const [dropTargetCategoryId, setDropTargetCategoryId] = useState(null);
     const [courseDuplicateWarning, setCourseDuplicateWarning] = useState(null);
     const [isCourseEditorEditing, setIsCourseEditorEditing] = useState(false);
+    const [showStructureImport, setShowStructureImport] = useState(false);
 
     const MAX_CATEGORY_LEVELS = 4;
     const MAX_CATEGORY_DEPTH = MAX_CATEGORY_LEVELS - 1;
@@ -357,15 +360,6 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         return null;
     };
 
-    const renumberCategoryCodes = (cats, parentCode = '') => cats.map((cat, index) => {
-        const code = parentCode ? `${parentCode}.${index + 1}` : `${index + 1}`;
-        return {
-            ...cat,
-            code,
-            children: renumberCategoryCodes(cat.children || [], code),
-        };
-    });
-
     const removeCategoryFromTree = (cats, id) => {
         let removed = null;
         const nextCategories = cats.flatMap(cat => {
@@ -386,6 +380,28 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         }
         return { ...cat, children: insertCategoryUnder(cat.children || [], targetId, movedCategory) };
     });
+
+    const updateCategoryCodePrefix = (category, previousCode, nextCode) => {
+        const normalizedPreviousCode = String(previousCode || '').trim();
+        const normalizedNextCode = String(nextCode || '').trim();
+        const updateChildren = (children) => (children || []).map(child => {
+            const currentChildCode = String(child.code || '').trim();
+            const childCode = normalizedPreviousCode && currentChildCode.startsWith(`${normalizedPreviousCode}.`)
+                ? `${normalizedNextCode}${currentChildCode.slice(normalizedPreviousCode.length)}`
+                : currentChildCode;
+            return {
+                ...child,
+                code: childCode,
+                children: updateChildren(child.children),
+            };
+        });
+
+        return {
+            ...category,
+            code: normalizedNextCode,
+            children: updateChildren(category.children),
+        };
+    };
 
     const categoryContains = (cat, targetId) => (cat.children || []).some(child => (
         child.id === targetId || categoryContains(child, targetId)
@@ -601,16 +617,36 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         setSelectedCategory(newCat);
     };
 
-    const handleRenameCategory = (id, name) => {
+    const handleRenameCategory = (id, updates) => {
         onClearValidation?.();
-        const uniqueName = getUniqueCategoryName(name, id);
+        const nextName = typeof updates === 'string' ? updates : updates?.nameTh;
+        const nextCode = typeof updates === 'string' ? undefined : updates?.code;
+        const uniqueName = getUniqueCategoryName(nextName, id);
         const update = (cats) => cats.map(c => {
-            if (c.id === id) return { ...c, name: uniqueName, isNew: false };
+            if (c.id === id) {
+                const currentCode = c.code || '';
+                const normalizedCode = String(nextCode ?? currentCode).trim();
+                return updateCategoryCodePrefix(
+                    { ...c, name: uniqueName, isNew: false },
+                    currentCode,
+                    normalizedCode,
+                );
+            }
             if (c.children?.length) return { ...c, children: update(c.children) };
             return c;
         });
         setForm(p => ({ ...p, categories: update(p.categories) }));
-        setSelectedCategory(p => p?.id === id ? { ...p, name: uniqueName } : p);
+        setSelectedCategory(p => p?.id === id
+            ? { ...p, name: uniqueName, code: String(nextCode ?? p.code ?? '').trim() }
+            : p);
+    };
+
+    const handleApplyStructureImport = (rows) => {
+        const preview = previewDraftCurriculumStructureImport(categories, coursesByCategory, rows);
+        const imported = applyDraftCurriculumStructureImport(categories, coursesByCategory, preview);
+        setForm(previous => ({ ...previous, ...imported }));
+        setSelectedCategory(null);
+        onClearValidation?.();
     };
 
     const handleDeleteCategory = (cat) => {
@@ -637,7 +673,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
             ];
         }
 
-        const nextCategories = renumberCategoryCodes(result.categories);
+        const nextCategories = result.categories;
         const nextSelectedCategory = preview?.moveTarget
             ? findCategoryInfo(nextCategories, preview.moveTarget.id)?.category || preview.moveTarget
             : null;
@@ -804,7 +840,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         const result = removeCategoryFromTree(categories, draggedCategoryId);
         if (!result.removed) return;
 
-        const nextCategories = renumberCategoryCodes(insertCategoryUnder(result.categories, targetCat.id, result.removed));
+        const nextCategories = insertCategoryUnder(result.categories, targetCat.id, result.removed);
         const nextSelectedCategory = findCategoryInfo(nextCategories, result.removed.id)?.category || result.removed;
         setForm(p => ({ ...p, categories: nextCategories }));
         setSelectedCategory(nextSelectedCategory);
@@ -829,7 +865,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         const result = removeCategoryFromTree(categories, draggedCategoryId);
         if (!result.removed) return;
 
-        const nextCategories = renumberCategoryCodes([...result.categories, result.removed]);
+        const nextCategories = [...result.categories, result.removed];
         const nextSelectedCategory = findCategoryInfo(nextCategories, result.removed.id)?.category || result.removed;
         setForm(p => ({ ...p, categories: nextCategories }));
         setSelectedCategory(nextSelectedCategory);
@@ -994,6 +1030,16 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                         onRequestClearSelection={() => setSelectedCategory(null)}
                         draggingCategoryId={draggedCategoryId}
                         draggedCourseId={draggedCourseId}
+                        allowCategoryCodeEdit
+                        headerActions={(
+                            <button
+                                type="button"
+                                className="course-btn course-btn--ghost course-btn--sm"
+                                onClick={() => setShowStructureImport(true)}
+                            >
+                                <Upload size={12} /> {language === 'en' ? 'Import courses' : 'นำเข้ารายวิชา'}
+                            </button>
+                        )}
                         dropTargetCategoryId={dropTargetCategoryId}
                         onSelectCategory={setSelectedCategory}
                         onAddCategory={handleAddCategory}
@@ -1056,6 +1102,15 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
             <ConfirmActionModal
                 open={showDeleteModal}
                 title="ยืนยันการลบวิชา"
+            <CurriculumStructureImportModal
+                open={showStructureImport}
+                onClose={() => setShowStructureImport(false)}
+                categories={categories}
+                coursesByCategory={coursesByCategory}
+                language={language}
+                onImport={async (rows) => handleApplyStructureImport(rows)}
+            />
+
                 message={`คุณแน่ใจหรือไม่ที่จะลบวิชาที่เลือก (${selectedCourseIds.size} วิชา)?`}
                 hint="การลบวิชาจะไม่สามารถกู้คืนได้"
                 confirmLabel="ยืนยันการลบ"

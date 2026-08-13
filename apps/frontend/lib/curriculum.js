@@ -444,3 +444,19 @@ export async function deleteCurriculumCoursePlacement(curriculumId, curriculumCo
 
     return toMutationResult(response);
 }
+
+export async function previewCurriculumStructureImport(curriculumId, rows) {
+    const response = await apiFetch(`/api/v1/curricula/${curriculumId}/structure-imports/preview`, {
+        method: 'POST',
+        body: JSON.stringify({ rows }),
+    });
+    return unwrapData(response, null);
+}
+
+export async function commitCurriculumStructureImport(curriculumId, rows, confirmImpact = false) {
+    const response = await apiFetch(`/api/v1/curricula/${curriculumId}/structure-imports/commit`, {
+        method: 'POST',
+        body: JSON.stringify({ rows, confirm_impact: confirmImpact }),
+    });
+    return mapApiCurriculum(unwrapData(response, null));
+}

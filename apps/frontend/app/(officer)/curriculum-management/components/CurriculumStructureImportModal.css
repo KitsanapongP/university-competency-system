@@ -1,0 +1,111 @@
+.curriculum-import-modal {
+    display: grid;
+    gap: 1rem;
+}
+
+.curriculum-import-modal__intro {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    color: var(--course-text-muted);
+    font-size: 0.875rem;
+}
+
+.curriculum-import-modal__intro p {
+    margin: 0;
+    line-height: 1.55;
+}
+
+.curriculum-import-modal__file-input {
+    display: none;
+}
+
+.curriculum-import-modal__file-picker {
+    display: grid;
+    justify-items: center;
+    gap: 0.45rem;
+    min-height: 132px;
+    padding: 1rem;
+    border: 1px dashed var(--course-border);
+    border-radius: 8px;
+    background: var(--course-bg);
+    color: var(--course-accent-light);
+    cursor: pointer;
+}
+
+.curriculum-import-modal__file-picker:hover:not(:disabled) {
+    border-color: var(--course-accent);
+    background: var(--course-tree-hover);
+}
+
+.curriculum-import-modal__file-picker:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+.curriculum-import-modal__file-picker span {
+    color: var(--course-text);
+    font-weight: 600;
+}
+
+.curriculum-import-modal__file-picker small {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--course-text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.curriculum-import-modal__empty,
+.curriculum-import-modal__ready,
+.curriculum-import-modal__error,
+.curriculum-import-modal__impact {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.curriculum-import-modal__empty { color: var(--course-text-muted); }
+.curriculum-import-modal__ready { color: #22c55e; }
+.curriculum-import-modal__error { color: #f87171; }
+.curriculum-import-modal__impact { color: #fbbf24; }
+
+.curriculum-import-modal__summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid var(--course-border);
+    border-radius: 8px;
+}
+
+.curriculum-import-modal__summary div {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    border-right: 1px solid var(--course-border);
+}
+
+.curriculum-import-modal__summary div:last-child { border-right: 0; }
+.curriculum-import-modal__summary span { color: var(--course-text-muted); font-size: 0.75rem; }
+.curriculum-import-modal__summary strong { color: var(--course-text); font-size: 1.125rem; }
+
+.curriculum-import-modal__issues {
+    max-height: 180px;
+    overflow: auto;
+    padding: 0.875rem;
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: 8px;
+    background: rgba(248, 113, 113, 0.07);
+    color: var(--course-text);
+    font-size: 0.82rem;
+}
+
+.curriculum-import-modal__issues ul { margin: 0.5rem 0 0; padding-left: 1.15rem; }
+.curriculum-import-modal__issues li + li { margin-top: 0.35rem; }
+
+@media (max-width: 600px) {
+    .curriculum-import-modal__intro { align-items: flex-start; flex-direction: column; }
+    .curriculum-import-modal__summary { grid-template-columns: 1fr; }
+    .curriculum-import-modal__summary div { border-right: 0; border-bottom: 1px solid var(--course-border); }
+    .curriculum-import-modal__summary div:last-child { border-bottom: 0; }
+}

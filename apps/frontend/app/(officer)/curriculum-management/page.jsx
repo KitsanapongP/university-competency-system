@@ -8,6 +8,7 @@ import { useLanguage } from '../../../providers/LanguageContext';
 import {
     createCurriculumCategory,
     createCurriculumCourse,
+    commitCurriculumStructureImport,
     deleteCurriculum,
     deleteCurriculumCategory,
     deleteCurriculumCoursePlacement,
@@ -17,6 +18,7 @@ import {
 	fetchFaculties,
     fetchMajors,
     getDeleteCurriculumCategoryPreview,
+    previewCurriculumStructureImport,
     updateCurriculumCategory,
     updateCurriculumCoursePlacement,
     updateCurriculumCourseDetail,
@@ -27,6 +29,7 @@ import { getDisplayCourses } from '../../../lib/curriculum-structure';
 import CurriculumCourseEditorPanel from './components/CurriculumCourseEditorPanel';
 import CurriculumMetadataPanel from './components/CurriculumMetadataPanel';
 import CurriculumStructureSidebar from './components/CurriculumStructureSidebar';
+import CurriculumStructureImportModal from './components/CurriculumStructureImportModal';
 import ToastNotifications from '../../../components/ui/ToastNotifications';
 import BaseModal from '../../../components/ui/BaseModal';
 import ConfirmActionModal from '../../../components/ui/ConfirmActionModal';
@@ -50,7 +53,11 @@ function findById(cats, id) {
 }
 
 function getNextCode(parentCode, siblings) {
-    return parentCode ? `${parentCode}.${siblings.length + 1}` : `${siblings.length + 1}`;
+    const nextSegment = (siblings || []).reduce((max, sibling) => {
+        const segments = String(sibling.code || '').split('.');
+        return Math.max(max, Number(segments.at(-1)) || 0);
+    }, 0) + 1;
+    return parentCode ? `${parentCode}.${nextSegment}` : `${nextSegment}`;
 }
 
 function findCategoryInfo(cats, id, parent = null, siblings = cats, depth = 0) {
@@ -458,7 +465,7 @@ function DuplicateCurriculumModal({
 export default function CurriculumManagementPage() {
     const router = useRouter();
     const { user } = useAuth();
-    const { t } = useLanguage();
+    const { language, t } = useLanguage();
     const isAdmin = user?.roles?.includes('admin');
     const [view, setView] = useState('list'); // 'list' | 'editor'
     const [courses, setCourses] = useState([]);
@@ -488,6 +495,7 @@ export default function CurriculumManagementPage() {
     const [errorDebug, setErrorDebug] = useState('');
     const [success, setSuccess] = useState('');
     const [toast, setToast] = useState({ success: '', error: '', errorDebug: '' });
+    const [showStructureImport, setShowStructureImport] = useState(false);
 
     const loadCurriculums = useCallback(async () => {
         setLoading(true);
@@ -784,6 +792,29 @@ export default function CurriculumManagementPage() {
 
     const handleSelectAllCourses = useCallback(() => {
         setSelectedCategory(null);
+    const handleCommitStructureImport = useCallback(async (rows, confirmImpact) => {
+        if (!selectedCourse) return null;
+        setOperationLoading(true);
+        setError('');
+        setErrorDebug('');
+        try {
+            const detail = await commitCurriculumStructureImport(selectedCourse.curriculumId, rows, confirmImpact);
+            setSelectedCourse(detail);
+            setSelectedCategory(null);
+            setShowAllCourses(true);
+            setSuccess(language === 'en' ? 'Courses imported successfully.' : 'นำเข้ารายวิชาสำเร็จ');
+            await loadCurriculums();
+            return detail;
+        } catch (err) {
+            const mapped = mapCurriculumError(err);
+            setError(mapped.userMessage);
+            setErrorDebug(mapped.debugMessage);
+            throw err;
+        } finally {
+            setOperationLoading(false);
+        }
+    }, [language, loadCurriculums, selectedCourse]);
+
         setShowAllCourses(true);
     }, []);
 
@@ -1442,6 +1473,17 @@ export default function CurriculumManagementPage() {
             ) : null}
 
             {/* Modals */}
+                                allowCategoryCodeEdit
+                                headerActions={(
+                                    <button
+                                        type="button"
+                                        className="course-btn course-btn--ghost course-btn--sm"
+                                        onClick={() => setShowStructureImport(true)}
+                                        disabled={operationLoading}
+                                    >
+                                        <Upload size={12} /> {language === 'en' ? 'Import courses' : 'นำเข้ารายวิชา'}
+                                    </button>
+                                )}
             <DuplicateCourseWarningModal
                 open={Boolean(courseDuplicateWarning)}
                 issues={courseDuplicateWarning?.issues || []}
@@ -1512,6 +1554,19 @@ export default function CurriculumManagementPage() {
                 open={Boolean(discardConfirmation)}
                 title="ยกเลิกการแก้ไขข้อมูลหลักสูตร"
                 message="มีข้อมูลที่ยังไม่ได้บันทึก ต้องการละทิ้งการแก้ไขหรือไม่?"
+            <CurriculumStructureImportModal
+                open={showStructureImport}
+                onClose={() => setShowStructureImport(false)}
+                mode="persisted"
+                curriculumId={selectedCourse?.curriculumId}
+                categories={categories}
+                coursesByCategory={coursesByCategory}
+                language={language}
+                disabled={operationLoading}
+                onPreview={previewCurriculumStructureImport}
+                onImport={handleCommitStructureImport}
+            />
+
                 hint="ข้อมูลที่กรอกไว้ในแบบฟอร์มจะไม่ถูกบันทึก"
                 confirmLabel="ละทิ้งการแก้ไข"
                 variant="warning"
