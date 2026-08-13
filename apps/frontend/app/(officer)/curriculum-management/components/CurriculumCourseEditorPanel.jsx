@@ -402,7 +402,7 @@ export default function CurriculumCourseEditorPanel({
         if (!canMutateCourses || showAddCourse || !course) return;
         setSelectedCourseIds(new Set());
         setDraftCourse({
-            code: '',
+            code: course.code || '',
             nameTh: course.nameTh ? `${course.nameTh} ${t('copy_course_suffix')}` : '',
             nameEn: course.nameEn ? `${course.nameEn} ${t('copy_course_suffix')}` : '',
             credits: Number(course.credits) || 0,
