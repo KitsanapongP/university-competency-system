@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import {
     BookOpen,
-    Check,
     ChevronFirst,
     ChevronLast,
     ChevronLeft,
@@ -14,6 +13,7 @@ import {
     MoreHorizontal,
     Pencil,
     Plus,
+    Save,
     Trash2,
     X,
 } from 'lucide-react';
@@ -248,21 +248,23 @@ function CurriculumCourseRow({
                     <>
                         <button
                             type="button"
-                            className="icon-course-btn icon-course-btn--edit icon-course-btn--xs"
+                            className="icon-course-btn icon-course-btn--save icon-course-btn--xs"
                             onClick={handleSave}
                             disabled={disabled || !String(form.code || '').trim() || !String(form.nameTh || '').trim()}
-                            title="บันทึก"
+                            title={t('save_course_changes')}
+                            aria-label={t('save_course_changes')}
                         >
-                            <Check size={13} />
+                            <Save size={14} />
                         </button>
                         <button
                             type="button"
-                            className="icon-course-btn icon-course-btn--danger icon-course-btn--xs"
+                            className="icon-course-btn icon-course-btn--cancel icon-course-btn--xs"
                             onClick={handleCancel}
                             disabled={disabled}
-                            title="ยกเลิก"
+                            title={t('cancel_course_edit')}
+                            aria-label={t('cancel_course_edit')}
                         >
-                            <X size={12} />
+                            <X size={14} />
                         </button>
                     </>
                 ) : !rowDisabled && !isNew ? (
@@ -570,7 +572,7 @@ export default function CurriculumCourseEditorPanel({
     };
 
     return (
-        <div className="course-two-panel__content curriculum-course-editor">
+        <div className={`course-two-panel__content curriculum-course-editor ${extraColumnHeaders.length ? 'curriculum-course-editor--has-extra-columns' : ''}`}>
             {showCategoryToolbar && (
             <div className="course-detail-toolbar curriculum-course-editor__toolbar">
                 <div className="course-detail-toolbar__left">
