@@ -207,6 +207,7 @@ export default function TemplateManagementPage() {
     const [deletingTemplate,  setDeletingTemplate]  = useState(null);
     const [deletingCategory,  setDeletingCategory]  = useState(null);
     const [deletingCourse,    setDeletingCourse]    = useState(null);
+    const [deletingCourses,   setDeletingCourses]   = useState(null);
     const [showCompetencyManager, setShowCompetencyManager] = useState(false);
     const [competencyManagerState, setCompetencyManagerState] = useState(null);
     const [competencyManagerLoading, setCompetencyManagerLoading] = useState(false);
@@ -1101,9 +1102,18 @@ export default function TemplateManagementPage() {
 
         updateCurrentCourses(nextCoursesMap);
         setWeightsByTemplate(previous => ({ ...previous, [selectedTemplate.id]: nextWeightsMap }));
+        setDeletingCourses(null);
         triggerAutoSaveToAPI(selectedTemplate.id, currentCategories, nextCoursesMap, nextWeightsMap);
         return true;
     }, [selectedTemplate, currentCategories, currentCoursesByCat, currentWeightsByCourse, triggerAutoSaveToAPI, updateCurrentCourses]);
+
+    const handleRequestBulkDeleteTemplateCourses = useCallback((catId, courses) => {
+        if (!selectedTemplate || selectedTemplate.isActive || !courses?.length) return false;
+        const deletableCourses = courses.filter(course => !course.fromMaster);
+        if (!deletableCourses.length) return false;
+        setDeletingCourses({ catId, courses: deletableCourses });
+        return false;
+    }, [selectedTemplate]);
 
     const validateTemplateCourseBeforeSave = useCallback((candidate) => {
         const candidateCode = String(candidate?.code || '').trim().toLowerCase();
@@ -1364,7 +1374,7 @@ export default function TemplateManagementPage() {
                     onAddCourse={handleAddCourse}
                     onUpdateCourse={handleUpdateCourse}
                     onDeleteCourse={handleRequestDeleteCourse}
-                    onBulkDeleteCourses={handleBulkDeleteTemplateCourses}
+                    onBulkDeleteCourses={handleRequestBulkDeleteTemplateCourses}
                     onMoveCourse={handleTemplateCourseMove}
                     onValidateCourse={validateTemplateCourseBeforeSave}
                     onSetWeight={handleSetWeight}
@@ -1405,7 +1415,7 @@ export default function TemplateManagementPage() {
                     onAddCourse={handleAddCourse}
                     onUpdateCourse={handleUpdateCourse}
                     onDeleteCourse={handleRequestDeleteCourse}
-                    onBulkDeleteCourses={handleBulkDeleteTemplateCourses}
+                    onBulkDeleteCourses={handleRequestBulkDeleteTemplateCourses}
                     onMoveCourse={handleTemplateCourseMove}
                     onValidateCourse={validateTemplateCourseBeforeSave}
                     onSetWeight={handleSetWeight}
@@ -1460,11 +1470,33 @@ export default function TemplateManagementPage() {
                 />
             )}
             {deletingCourse && (
-                <ConfirmDeleteModal
-                    category={{ code: deletingCourse.code, name: deletingCourse.nameTh }}
-                    label="รายวิชา"
+                <ConfirmActionModal
+                    open
+                    title={language === 'th' ? 'ยืนยันการลบรายวิชา' : 'Confirm course deletion'}
+                    message={language === 'th'
+                        ? <>ยืนยันการลบรายวิชา <strong>{deletingCourse.code || deletingCourse.nameTh}</strong> หรือไม่?</>
+                        : <>Confirm deleting course <strong>{deletingCourse.code || deletingCourse.nameTh}</strong>?</>}
+                    hint={language === 'th' ? 'รายวิชาที่ลบแล้วจะไม่สามารถกู้คืนได้' : 'Deleted courses cannot be recovered.'}
+                    confirmLabel={language === 'th' ? 'ยืนยันการลบ' : 'Confirm deletion'}
+                    cancelLabel={language === 'th' ? 'ยกเลิก' : 'Cancel'}
+                    variant="danger"
                     onConfirm={handleConfirmDeleteCourse}
                     onCancel={() => setDeletingCourse(null)}
+                />
+            )}
+            {deletingCourses && (
+                <ConfirmActionModal
+                    open
+                    title={language === 'th' ? 'ยืนยันการลบรายวิชาที่เลือก' : 'Confirm deleting selected courses'}
+                    message={language === 'th'
+                        ? `ยืนยันการลบรายวิชาที่เลือก ${deletingCourses.courses.length} วิชาหรือไม่?`
+                        : `Confirm deleting ${deletingCourses.courses.length} selected courses?`}
+                    hint={language === 'th' ? 'รายวิชาที่ลบแล้วจะไม่สามารถกู้คืนได้' : 'Deleted courses cannot be recovered.'}
+                    confirmLabel={language === 'th' ? 'ยืนยันการลบ' : 'Confirm deletion'}
+                    cancelLabel={language === 'th' ? 'ยกเลิก' : 'Cancel'}
+                    variant="danger"
+                    onConfirm={() => handleBulkDeleteTemplateCourses(deletingCourses.catId, deletingCourses.courses)}
+                    onCancel={() => setDeletingCourses(null)}
                 />
             )}
             <TemplateCompetencyManagerModal

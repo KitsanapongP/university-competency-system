@@ -741,6 +741,8 @@ export default function CurriculumManagementPage() {
     const [showAllCourses, setShowAllCourses] = useState(false);
     const [coursesByCategory, setCoursesByCategory] = useState({});
     const [deletingCategory, setDeletingCategory] = useState(null);
+    const [courseDeleteConfirmation, setCourseDeleteConfirmation] = useState(null);
+    const [courseDeleteImpactConfirmation, setCourseDeleteImpactConfirmation] = useState(null);
     const [courseDuplicateWarning, setCourseDuplicateWarning] = useState(null);
     const [draggedCategoryId, setDraggedCategoryId] = useState(null);
     const [draggedCourseId, setDraggedCourseId] = useState(null);
@@ -790,8 +792,6 @@ export default function CurriculumManagementPage() {
         }
     }, [loadCurriculums]);
 
-    const handleSelectAllCourses = useCallback(() => {
-        setSelectedCategory(null);
     const handleCommitStructureImport = useCallback(async (rows, confirmImpact) => {
         if (!selectedCourse) return null;
         setOperationLoading(true);
@@ -815,6 +815,8 @@ export default function CurriculumManagementPage() {
         }
     }, [language, loadCurriculums, selectedCourse]);
 
+    const handleSelectAllCourses = useCallback(() => {
+        setSelectedCategory(null);
         setShowAllCourses(true);
     }, []);
 
@@ -912,15 +914,67 @@ export default function CurriculumManagementPage() {
         return true;
     }, []);
 
-    const handleRequestDeleteCourseInEditor = useCallback(async (course) => {
-        if (!selectedCourse || !course?.curriculumCourseId) return null;
-        if (!window.confirm(`ยืนยันถอดรายวิชา ${course.code || course.nameTh || ''} ออกจากหลักสูตรหรือไม่?`)) return null;
-        return commitCurriculumMutation((confirmImpact) => deleteCurriculumCoursePlacement(selectedCourse.curriculumId, course.curriculumCourseId, confirmImpact), 'ถอดรายวิชาแล้ว');
-    }, [commitCurriculumMutation, selectedCourse]);
+    const handleRequestDeleteCourseInEditor = useCallback((course) => {
+        if (!selectedCourse || !course?.curriculumCourseId) return false;
+        setCourseDeleteConfirmation({
+            mode: 'single',
+            courses: [course],
+        });
+        return false;
+    }, [selectedCourse]);
 
-    const handleBulkDeleteCoursesInEditor = useCallback(async (selectedCourses) => {
+    const handleRequestBulkDeleteCoursesInEditor = useCallback((selectedCourses) => {
         if (!selectedCourse || !selectedCourses?.length) return false;
-        let confirmImpact = false;
+        setCourseDeleteConfirmation({
+            mode: 'bulk',
+            courses: selectedCourses,
+        });
+        return false;
+    }, [selectedCourse]);
+
+    const handleConfirmDeleteCourseInEditor = useCallback(async (course, confirmImpact = false) => {
+        if (!selectedCourse || !course?.curriculumCourseId) return false;
+        setOperationLoading(true);
+        setError('');
+        setErrorDebug('');
+        setSuccess('');
+
+        try {
+            const detail = await deleteCurriculumCoursePlacement(
+                selectedCourse.curriculumId,
+                course.curriculumCourseId,
+                confirmImpact,
+            );
+            setSelectedCourse(detail);
+            setSuccess('ถอดรายวิชาแล้ว');
+            setCourseDeleteConfirmation(null);
+            setCourseDeleteImpactConfirmation(null);
+            await loadCurriculums();
+            return true;
+        } catch (err) {
+            const needsConfirmation = err?.status === 409 && err?.code === 'CONFIRMATION_REQUIRED' && !confirmImpact;
+            if (needsConfirmation) {
+                setCourseDeleteConfirmation(null);
+                setCourseDeleteImpactConfirmation({
+                    mode: 'single',
+                    courses: [course],
+                    error: err,
+                });
+                return false;
+            }
+
+            const mapped = mapCurriculumError(err);
+            setError(mapped.userMessage);
+            setErrorDebug(mapped.debugMessage);
+            console.debug('Curriculum delete course error:', err);
+            return false;
+        } finally {
+            setOperationLoading(false);
+        }
+    }, [loadCurriculums, selectedCourse]);
+
+    const handleConfirmBulkDeleteCoursesInEditor = useCallback(async (selectedCourses, confirmImpact = false, resumeIndex = 0) => {
+        if (!selectedCourse || !selectedCourses?.length) return false;
         let lastDetail = null;
         setOperationLoading(true);
         setError('');
@@ -928,20 +982,28 @@ export default function CurriculumManagementPage() {
         setSuccess('');
 
         try {
-            for (const course of selectedCourses) {
+            for (let index = resumeIndex; index < selectedCourses.length; index += 1) {
+                const course = selectedCourses[index];
                 if (!course?.curriculumCourseId) continue;
-                for (;;) {
-                    try {
-                        lastDetail = await deleteCurriculumCoursePlacement(selectedCourse.curriculumId, course.curriculumCourseId, confirmImpact);
-                        break;
-                    } catch (err) {
-                        const needsConfirmation = err?.status === 409 && err?.code === 'CONFIRMATION_REQUIRED' && !confirmImpact;
-                        if (needsConfirmation && window.confirm(buildConfirmationMessage(err))) {
-                            confirmImpact = true;
-                            continue;
-                        }
-                        throw err;
+                try {
+                    lastDetail = await deleteCurriculumCoursePlacement(
+                        selectedCourse.curriculumId,
+                        course.curriculumCourseId,
+                        confirmImpact,
+                    );
+                } catch (err) {
+                    const needsConfirmation = err?.status === 409 && err?.code === 'CONFIRMATION_REQUIRED' && !confirmImpact;
+                    if (needsConfirmation) {
+                        setCourseDeleteConfirmation(null);
+                        setCourseDeleteImpactConfirmation({
+                            mode: 'bulk',
+                            courses: selectedCourses,
+                            resumeIndex: index,
+                            error: err,
+                        });
+                        return false;
                     }
+                    throw err;
                 }
             }
 
@@ -949,6 +1011,8 @@ export default function CurriculumManagementPage() {
                 setSelectedCourse(lastDetail);
             }
             setSuccess(`ถอดรายวิชาแล้ว ${selectedCourses.length} วิชา`);
+            setCourseDeleteConfirmation(null);
+            setCourseDeleteImpactConfirmation(null);
             await loadCurriculums();
             return true;
         } catch (err) {
@@ -1409,6 +1473,17 @@ export default function CurriculumManagementPage() {
                                 onAddCategory={() => handleAddCategory()}
                                 onAddChildCategory={handleAddCategory}
                                 onRenameCategory={handleRenameCategory}
+                                allowCategoryCodeEdit
+                                headerActions={(
+                                    <button
+                                        type="button"
+                                        className="course-btn course-btn--ghost course-btn--sm"
+                                        onClick={() => setShowStructureImport(true)}
+                                        disabled={operationLoading}
+                                    >
+                                        <Upload size={12} /> {language === 'en' ? 'Import courses' : 'นำเข้ารายวิชา'}
+                                    </button>
+                                )}
                                 onDeleteCategory={handleRequestDeleteCategory}
                                 onCategoryRootDragOver={handleCategoryRootDragOver}
                                 onCategoryRootDrop={handleCategoryRootDrop}
@@ -1440,7 +1515,7 @@ export default function CurriculumManagementPage() {
                                 onAddCourse={handleAddCourse}
                                 onUpdateCourse={handleUpdateCourse}
                                 onDeleteCourse={handleRequestDeleteCourseInEditor}
-                                onBulkDeleteCourses={handleBulkDeleteCoursesInEditor}
+                                onBulkDeleteCourses={handleRequestBulkDeleteCoursesInEditor}
                                 onMoveCourse={handleMoveCourseInEditor}
                                 onValidateCourse={handleValidateCourseBeforeSave}
                                 onCourseDragStart={handleCourseDragStart}
@@ -1473,21 +1548,23 @@ export default function CurriculumManagementPage() {
             ) : null}
 
             {/* Modals */}
-                                allowCategoryCodeEdit
-                                headerActions={(
-                                    <button
-                                        type="button"
-                                        className="course-btn course-btn--ghost course-btn--sm"
-                                        onClick={() => setShowStructureImport(true)}
-                                        disabled={operationLoading}
-                                    >
-                                        <Upload size={12} /> {language === 'en' ? 'Import courses' : 'นำเข้ารายวิชา'}
-                                    </button>
-                                )}
             <DuplicateCourseWarningModal
                 open={Boolean(courseDuplicateWarning)}
                 issues={courseDuplicateWarning?.issues || []}
                 onClose={() => setCourseDuplicateWarning(null)}
+            />
+
+            <CurriculumStructureImportModal
+                open={showStructureImport}
+                onClose={() => setShowStructureImport(false)}
+                mode="persisted"
+                curriculumId={selectedCourse?.curriculumId}
+                categories={categories}
+                coursesByCategory={coursesByCategory}
+                language={language}
+                disabled={operationLoading}
+                onPreview={previewCurriculumStructureImport}
+                onImport={handleCommitStructureImport}
             />
 
             {duplicatingCourse && (
@@ -1501,6 +1578,56 @@ export default function CurriculumManagementPage() {
                     onSubmit={handleConfirmDuplicateCourse}
                 />
             )}
+
+            <ConfirmActionModal
+                open={Boolean(courseDeleteConfirmation)}
+                title={courseDeleteConfirmation?.mode === 'bulk' ? t('confirm_delete_courses') : t('confirm_delete_course')}
+                message={courseDeleteConfirmation?.mode === 'bulk'
+                    ? language === 'th'
+                        ? `${t('confirm_delete_courses')} (${courseDeleteConfirmation.courses.length} วิชา)?`
+                        : `${t('confirm_delete_courses')} (${courseDeleteConfirmation.courses.length} courses)?`
+                    : `${t('confirm_delete_course')} "${courseDeleteConfirmation?.courses?.[0]?.code || courseDeleteConfirmation?.courses?.[0]?.nameTh || ''}"?`}
+                hint={t('delete_course_irreversible_hint')}
+                confirmLabel={t('confirm_action')}
+                cancelLabel={t('curriculum_cancel')}
+                variant="danger"
+                loading={operationLoading}
+                onConfirm={() => {
+                    const pending = courseDeleteConfirmation;
+                    if (!pending) return;
+                    if (pending.mode === 'bulk') {
+                        handleConfirmBulkDeleteCoursesInEditor(pending.courses);
+                        return;
+                    }
+                    handleConfirmDeleteCourseInEditor(pending.courses[0]);
+                }}
+                onCancel={() => !operationLoading && setCourseDeleteConfirmation(null)}
+            />
+
+            <ConfirmActionModal
+                open={Boolean(courseDeleteImpactConfirmation)}
+                title={t('course_delete_impact_title')}
+                message={courseDeleteImpactConfirmation?.error ? buildConfirmationMessage(courseDeleteImpactConfirmation.error) : ''}
+                hint={t('course_delete_impact_hint')}
+                confirmLabel={t('confirm_action')}
+                cancelLabel={t('curriculum_cancel')}
+                variant="warning"
+                loading={operationLoading}
+                onConfirm={() => {
+                    const pending = courseDeleteImpactConfirmation;
+                    if (!pending) return;
+                    if (pending.mode === 'bulk') {
+                        handleConfirmBulkDeleteCoursesInEditor(
+                            pending.courses,
+                            true,
+                            pending.resumeIndex || 0,
+                        );
+                        return;
+                    }
+                    handleConfirmDeleteCourseInEditor(pending.courses[0], true);
+                }}
+                onCancel={() => !operationLoading && setCourseDeleteImpactConfirmation(null)}
+            />
 
             <ConfirmActionModal
                 open={Boolean(deletingCourse)}
@@ -1554,19 +1681,6 @@ export default function CurriculumManagementPage() {
                 open={Boolean(discardConfirmation)}
                 title="ยกเลิกการแก้ไขข้อมูลหลักสูตร"
                 message="มีข้อมูลที่ยังไม่ได้บันทึก ต้องการละทิ้งการแก้ไขหรือไม่?"
-            <CurriculumStructureImportModal
-                open={showStructureImport}
-                onClose={() => setShowStructureImport(false)}
-                mode="persisted"
-                curriculumId={selectedCourse?.curriculumId}
-                categories={categories}
-                coursesByCategory={coursesByCategory}
-                language={language}
-                disabled={operationLoading}
-                onPreview={previewCurriculumStructureImport}
-                onImport={handleCommitStructureImport}
-            />
-
                 hint="ข้อมูลที่กรอกไว้ในแบบฟอร์มจะไม่ถูกบันทึก"
                 confirmLabel="ละทิ้งการแก้ไข"
                 variant="warning"

@@ -525,8 +525,6 @@ export default function CurriculumCourseEditorPanel({
 
     const handleBulkDelete = async () => {
         if (!selectedCourses.length || isReadOnly) return;
-        const ok = window.confirm(`ยืนยันการลบรายวิชาที่เลือก ${selectedCourses.length} วิชาหรือไม่?`);
-        if (!ok) return;
         const result = await onBulkDeleteCourses?.(selectedCourses);
         if (result !== false) {
             setSelectedCourseIds(new Set());

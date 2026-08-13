@@ -284,7 +284,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
     const categories = form.categories || [];
     const coursesByCategory = form.coursesByCategory || {};
     const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [courseDeleteConfirmation, setCourseDeleteConfirmation] = useState(null);
     const [editingCourseId, setEditingCourseId] = useState(null);
     const [showDeleteCategoryModal, setShowDeleteCategoryModal] = useState(false);
     const [categoryToDelete, setCategoryToDelete] = useState(null);
@@ -739,18 +739,22 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         }));
     };
 
-    const handleDeleteCourse = (course) => {
-        const ownerCategoryId = course.ownerCategoryId || findCourseOwnerId(course.id);
-        if (!ownerCategoryId) return;
-        onClearValidation?.();
+    const handleRequestDeleteCourse = (course) => {
+        if (!(course.ownerCategoryId || findCourseOwnerId(course.id))) return false;
+        setCourseDeleteConfirmation({
+            courses: [course],
+            mode: 'single',
+        });
+        return false;
+    };
 
-        setForm(p => ({
-            ...p,
-            coursesByCategory: {
-                ...p.coursesByCategory,
-                [ownerCategoryId]: (p.coursesByCategory[ownerCategoryId] || []).filter(c => c.id !== course.id),
-            },
-        }));
+    const handleRequestDeleteSelectedCourses = (selectedCourses = []) => {
+        if (!selectedCourses.length) return false;
+        setCourseDeleteConfirmation({
+            courses: selectedCourses,
+            mode: selectedCourses.length === 1 ? 'single' : 'bulk',
+        });
+        return false;
     };
 
     const handleToggleCourseSelection = (courseId) => {
@@ -788,7 +792,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
             ),
         }));
         setSelectedCourseIds(new Set());
-        setShowDeleteModal(false);
+        setCourseDeleteConfirmation(null);
         return true;
     };
 
@@ -1026,10 +1030,6 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                         emptyText={t('structure_empty')}
                         maxDepth={MAX_CATEGORY_DEPTH}
                         showInlineAddChild={false}
-                        clearSelectionDisabled={isCourseEditorEditing}
-                        onRequestClearSelection={() => setSelectedCategory(null)}
-                        draggingCategoryId={draggedCategoryId}
-                        draggedCourseId={draggedCourseId}
                         allowCategoryCodeEdit
                         headerActions={(
                             <button
@@ -1040,6 +1040,10 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                                 <Upload size={12} /> {language === 'en' ? 'Import courses' : 'นำเข้ารายวิชา'}
                             </button>
                         )}
+                        clearSelectionDisabled={isCourseEditorEditing}
+                        onRequestClearSelection={() => setSelectedCategory(null)}
+                        draggingCategoryId={draggedCategoryId}
+                        draggedCourseId={draggedCourseId}
                         dropTargetCategoryId={dropTargetCategoryId}
                         onSelectCategory={setSelectedCategory}
                         onAddCategory={handleAddCategory}
@@ -1081,8 +1085,8 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                     onDeleteCategory={handleDeleteCategory}
                     onAddCourse={handleAddCourse}
                     onUpdateCourse={handleUpdateCourse}
-                    onDeleteCourse={handleDeleteCourse}
-                    onBulkDeleteCourses={handleDeleteSelectedCourses}
+                    onDeleteCourse={handleRequestDeleteCourse}
+                    onBulkDeleteCourses={handleRequestDeleteSelectedCourses}
                     onMoveCourse={handleMoveCourseInEditor}
                     onValidateCourse={validateCourseBeforeSave}
                     onCourseDragStart={handleCourseDragStart}
@@ -1098,10 +1102,6 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                 onClose={() => setCourseDuplicateWarning(null)}
             />
 
-            {/* Delete Confirmation Modal */}
-            <ConfirmActionModal
-                open={showDeleteModal}
-                title="ยืนยันการลบวิชา"
             <CurriculumStructureImportModal
                 open={showStructureImport}
                 onClose={() => setShowStructureImport(false)}
@@ -1111,12 +1111,20 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                 onImport={async (rows) => handleApplyStructureImport(rows)}
             />
 
-                message={`คุณแน่ใจหรือไม่ที่จะลบวิชาที่เลือก (${selectedCourseIds.size} วิชา)?`}
-                hint="การลบวิชาจะไม่สามารถกู้คืนได้"
-                confirmLabel="ยืนยันการลบ"
+            {/* Delete Confirmation Modal */}
+            <ConfirmActionModal
+                open={Boolean(courseDeleteConfirmation)}
+                title={courseDeleteConfirmation?.mode === 'bulk' ? t('confirm_delete_courses') : t('confirm_delete_course')}
+                message={courseDeleteConfirmation?.mode === 'bulk'
+                    ? language === 'th'
+                        ? `${t('confirm_delete_courses')} (${courseDeleteConfirmation.courses.length} วิชา)?`
+                        : `${t('confirm_delete_courses')} (${courseDeleteConfirmation.courses.length} courses)?`
+                    : `${t('confirm_delete_course')} "${courseDeleteConfirmation?.courses?.[0]?.code || courseDeleteConfirmation?.courses?.[0]?.nameTh || ''}"?`}
+                hint={t('delete_course_irreversible_hint')}
+                confirmLabel={t('confirm_action')}
                 variant="danger"
-                onCancel={() => setShowDeleteModal(false)}
-                onConfirm={handleDeleteSelectedCourses}
+                onCancel={() => setCourseDeleteConfirmation(null)}
+                onConfirm={() => handleDeleteSelectedCourses(courseDeleteConfirmation?.courses || [])}
             />
 
             {/* Delete Category Confirmation Modal */}
