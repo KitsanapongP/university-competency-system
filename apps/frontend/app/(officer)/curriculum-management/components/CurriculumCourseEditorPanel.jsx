@@ -8,6 +8,7 @@ import {
     ChevronLast,
     ChevronLeft,
     ChevronRight,
+    Copy,
     GripVertical,
     LockKeyhole,
     MoreHorizontal,
@@ -40,6 +41,8 @@ function CurriculumCourseRow({
     renderExtraCells,
     onToggleSelect,
     onStartEdit,
+    onDuplicate,
+    canDuplicate = false,
     onCancelEdit,
     onSave,
     onDelete,
@@ -131,6 +134,11 @@ function CurriculumCourseRow({
         onDelete?.(course);
     };
 
+    const handleDuplicate = () => {
+        setActionMenuPosition(null);
+        onDuplicate?.(course);
+    };
+
     const toggleActionMenu = (event) => {
         event.stopPropagation();
         if (isActionMenuOpen) {
@@ -139,8 +147,8 @@ function CurriculumCourseRow({
         }
 
         const rect = event.currentTarget.getBoundingClientRect();
-        const menuWidth = 154;
-        const menuHeight = 82;
+        const menuWidth = 176;
+        const menuHeight = canDuplicate ? 118 : 82;
         const preferredTop = rect.bottom + 4;
         const top = preferredTop + menuHeight > window.innerHeight
             ? Math.max(8, rect.top - menuHeight - 4)
@@ -299,6 +307,17 @@ function CurriculumCourseRow({
                                     <Pencil size={15} />
                                     {t('edit_course')}
                                 </button>
+                                {canDuplicate && (
+                                    <button
+                                        type="button"
+                                        className="curriculum-course-row-actions__item"
+                                        onClick={handleDuplicate}
+                                        role="menuitem"
+                                    >
+                                        <Copy size={15} />
+                                        {t('duplicate_course')}
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     className="curriculum-course-row-actions__item curriculum-course-row-actions__item--danger"
@@ -352,9 +371,11 @@ export default function CurriculumCourseEditorPanel({
     extraColumnHeaders = [],
     renderExtraCells,
 }) {
+    const { t } = useLanguage();
     const [editingCategoryName, setEditingCategoryName] = useState(false);
     const [categoryNameValue, setCategoryNameValue] = useState(category?.name || '');
     const [categoryCreditsValue, setCategoryCreditsValue] = useState(category?.requiredCredits || 0);
+    const [draftCourse, setDraftCourse] = useState(null);
     const [editingCourseId, setEditingCourseId] = useState(null);
     const [showAddCourse, setShowAddCourse] = useState(false);
     const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
@@ -372,9 +393,24 @@ export default function CurriculumCourseEditorPanel({
     const startAddingCourse = useCallback(() => {
         if (!canMutateCourses || showAddCourse) return;
         setSelectedCourseIds(new Set());
+        setDraftCourse(null);
         setShowAddCourse(true);
         setEditingCourseId(NEW_COURSE_ID);
     }, [canMutateCourses, showAddCourse]);
+
+    const startDuplicatingCourse = useCallback((course) => {
+        if (!canMutateCourses || showAddCourse || !course) return;
+        setSelectedCourseIds(new Set());
+        setDraftCourse({
+            code: '',
+            nameTh: course.nameTh ? `${course.nameTh} ${t('copy_course_suffix')}` : '',
+            nameEn: course.nameEn ? `${course.nameEn} ${t('copy_course_suffix')}` : '',
+            credits: Number(course.credits) || 0,
+            isCoreCourse: course.isCoreCourse ?? true,
+        });
+        setShowAddCourse(true);
+        setEditingCourseId(NEW_COURSE_ID);
+    }, [canMutateCourses, showAddCourse, t]);
 
     useEffect(() => {
         if (externalAddCourseRequestId === handledExternalAddRequestRef.current) return;
@@ -482,6 +518,7 @@ export default function CurriculumCourseEditorPanel({
         if (result !== false) {
             setShowAddCourse(false);
             setEditingCourseId(null);
+            setDraftCourse(null);
         }
         return result;
     };
@@ -564,11 +601,11 @@ export default function CurriculumCourseEditorPanel({
 
     const newCourse = {
         id: NEW_COURSE_ID,
-        code: '',
-        nameTh: '',
-        nameEn: '',
-        credits: 0,
-        isCoreCourse: true,
+        code: draftCourse?.code || '',
+        nameTh: draftCourse?.nameTh || '',
+        nameEn: draftCourse?.nameEn || '',
+        credits: draftCourse?.credits || 0,
+        isCoreCourse: draftCourse?.isCoreCourse ?? true,
     };
 
     return (
@@ -757,6 +794,7 @@ export default function CurriculumCourseEditorPanel({
                                                 onCancelEdit={() => {
                                                     setShowAddCourse(false);
                                                     setEditingCourseId(null);
+                                                    setDraftCourse(null);
                                                 }}
                                             />
                                         )}
@@ -779,6 +817,8 @@ export default function CurriculumCourseEditorPanel({
                                                     isDropTarget={dropTargetCourseId === courseId}
                                                     onToggleSelect={toggleCourseSelection}
                                                     onStartEdit={() => setEditingCourseId(courseId)}
+                                                    onDuplicate={startDuplicatingCourse}
+                                                    canDuplicate={canMutateCourses}
                                                     onCancelEdit={() => setEditingCourseId(null)}
                                                     onSave={handleSaveCourse}
                                                     onDelete={onDeleteCourse}
