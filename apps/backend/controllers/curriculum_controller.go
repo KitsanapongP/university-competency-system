@@ -216,6 +216,31 @@ func (c *CurriculumController) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (c *CurriculumController) GetGeneratedCode(w http.ResponseWriter, r *http.Request) {
+	claims, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return
+	}
+
+	majorID, ok := requiredUintQuery(w, r, "major_id")
+	if !ok {
+		return
+	}
+	effectiveYearBE, ok := requiredUintQuery(w, r, "effective_year_be")
+	if !ok {
+		return
+	}
+
+	code, err := c.Service.GetGeneratedCurriculumCode(r.Context(), majorID, effectiveYearBE, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.OK(w, models.GeneratedCurriculumCode{CurriculumCode: code})
+}
+
 func (c *CurriculumController) DuplicateCurriculum(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseUintURLParam(w, r, "id", "invalid curriculum id")
 	if !ok {
@@ -291,6 +316,18 @@ func optionalUintQuery(w http.ResponseWriter, r *http.Request, name string) (*ui
 		return nil, false
 	}
 	return &value, true
+}
+
+func requiredUintQuery(w http.ResponseWriter, r *http.Request, name string) (uint64, bool) {
+	value, ok := optionalUintQuery(w, r, name)
+	if !ok {
+		return 0, false
+	}
+	if value == nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", name+" is required")
+		return 0, false
+	}
+	return *value, true
 }
 
 func writeCurriculumError(w http.ResponseWriter, err error) {

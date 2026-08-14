@@ -28,6 +28,10 @@ type Curriculum struct {
 	DeletedAt           *time.Time `json:"deleted_at"`
 }
 
+type GeneratedCurriculumCode struct {
+	CurriculumCode string `json:"curriculum_code"`
+}
+
 type MajorOption struct {
 	MajorID          uint64    `json:"major_id"`
 	DepartmentID     uint64    `json:"department_id"`

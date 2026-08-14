@@ -16,6 +16,9 @@ type CurriculumRepository struct {
 type MajorScope struct {
 	FacultyID   uint64
 	DegreeLevel string
+	FacultyCode string
+	MajorCode   string
+	IsActive    bool
 }
 
 type CreateCurriculumOptions struct {
@@ -870,21 +873,60 @@ func scanCurriculumCourseRow(scanner rowScanner) (*models.CurriculumCourseRow, e
 
 func (r *CurriculumRepository) GetMajorScope(ctx context.Context, majorID uint64) (MajorScope, error) {
 	query := `
-		SELECT d.faculty_id, COALESCE(m.degree_level, 'bachelor')
+		SELECT
+			d.faculty_id,
+			COALESCE(m.degree_level, 'bachelor'),
+			f.code,
+			m.code,
+			m.is_active
 		FROM edu_majors m
 		JOIN org_departments d ON d.department_id = m.department_id
+		JOIN org_faculties f ON f.faculty_id = d.faculty_id
 		WHERE m.major_id = ?
 			AND m.deleted_at IS NULL
 			AND d.deleted_at IS NULL
+			AND f.deleted_at IS NULL
 	`
 
 	var scope MajorScope
-	err := r.DB.QueryRowContext(ctx, query, majorID).Scan(&scope.FacultyID, &scope.DegreeLevel)
+	err := r.DB.QueryRowContext(ctx, query, majorID).Scan(
+		&scope.FacultyID,
+		&scope.DegreeLevel,
+		&scope.FacultyCode,
+		&scope.MajorCode,
+		&scope.IsActive,
+	)
 	if err != nil {
 		return MajorScope{}, err
 	}
 
 	return scope, nil
+}
+
+func (r *CurriculumRepository) GetCurriculumCodesByMajor(ctx context.Context, majorID uint64) ([]string, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT code
+		FROM edu_curricula
+		WHERE major_id = ?
+	`, majorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	codes := make([]string, 0)
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		codes = append(codes, code)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return codes, nil
 }
 
 func (r *CurriculumRepository) FindLiveCurriculumNameDuplicate(ctx context.Context, majorID uint64, effectiveYearBE uint64, nameTH string) (*CurriculumNameDuplicate, error) {

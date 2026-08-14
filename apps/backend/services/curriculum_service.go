@@ -4,8 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/spw32767/university-competency-system-backend/models"
 	"github.com/spw32767/university-competency-system-backend/repositories"
 )
@@ -15,6 +18,8 @@ var (
 	ErrCurriculumNotFound  = errors.New("curriculum not found")
 	ErrMajorNotFound       = errors.New("major not found")
 )
+
+const maxGeneratedCurriculumCodeLength = 128
 
 type CurriculumValidationError struct {
 	Message string
@@ -138,14 +143,11 @@ func (s *CurriculumService) CreateCurriculum(ctx context.Context, payload models
 		return nil, err
 	}
 
-	isAdmin := hasRole(roles, "admin")
-	if !isAdmin {
-		if !hasRole(roles, "officer") || facultyID == nil || *facultyID <= 0 {
-			return nil, ErrCurriculumForbidden
-		}
-		if uint64(*facultyID) != majorScope.FacultyID {
-			return nil, ErrCurriculumForbidden
-		}
+	if err := s.ensureFacultyScope(majorScope.FacultyID, roles, facultyID); err != nil {
+		return nil, err
+	}
+	if err := validateGeneratedCurriculumCodeScope(majorScope); err != nil {
+		return nil, err
 	}
 
 	duplicate, err := s.Repo.FindLiveCurriculumNameDuplicate(ctx, payload.MajorID, payload.EffectiveYearBE, payload.CurriculumNameTH)
@@ -164,13 +166,52 @@ func (s *CurriculumService) CreateCurriculum(ctx context.Context, payload models
 		createdBy = uint64(userID)
 	}
 
-	curriculum, err := s.Repo.CreateCurriculumTx(ctx, payload, repositories.CreateCurriculumOptions{
-		FacultyID:   majorScope.FacultyID,
-		CreatedBy:   createdBy,
-		DegreeLevel: majorScope.DegreeLevel,
-	})
+	for attempt := 0; attempt < 5; attempt++ {
+		code, err := s.nextGeneratedCurriculumCode(ctx, payload.MajorID, payload.EffectiveYearBE, majorScope)
+		if err != nil {
+			return nil, err
+		}
+		payload.CurriculumCode = code
 
-	return curriculum, err
+		curriculum, err := s.Repo.CreateCurriculumTx(ctx, payload, repositories.CreateCurriculumOptions{
+			FacultyID:   majorScope.FacultyID,
+			CreatedBy:   createdBy,
+			DegreeLevel: majorScope.DegreeLevel,
+		})
+		if !isGeneratedCurriculumCodeDuplicate(err) {
+			return curriculum, err
+		}
+	}
+
+	return nil, CurriculumConflictError{
+		Code:    "DUPLICATE",
+		Message: "unable to generate a unique curriculum code",
+	}
+}
+
+func (s *CurriculumService) GetGeneratedCurriculumCode(ctx context.Context, majorID uint64, effectiveYearBE uint64, roles []string, facultyID *int64) (string, error) {
+	if majorID == 0 {
+		return "", CurriculumValidationError{Message: "major_id is required"}
+	}
+	if effectiveYearBE == 0 {
+		return "", CurriculumValidationError{Message: "effective_year_be is required"}
+	}
+
+	majorScope, err := s.Repo.GetMajorScope(ctx, majorID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", CurriculumValidationError{Message: "major_id is invalid"}
+	}
+	if err != nil {
+		return "", err
+	}
+	if err := s.ensureFacultyScope(majorScope.FacultyID, roles, facultyID); err != nil {
+		return "", err
+	}
+	if err := validateGeneratedCurriculumCodeScope(majorScope); err != nil {
+		return "", err
+	}
+
+	return s.nextGeneratedCurriculumCode(ctx, majorID, effectiveYearBE, majorScope)
 }
 
 func (s *CurriculumService) DuplicateCurriculum(ctx context.Context, sourceCurriculumID uint64, payload models.DuplicateCurriculumPayload, userID int64, roles []string, facultyID *int64) (*models.Curriculum, error) {
@@ -181,7 +222,7 @@ func (s *CurriculumService) DuplicateCurriculum(ctx context.Context, sourceCurri
 
 	createPayload := duplicatePayloadToCreatePayload(payload)
 	normalizeCreateCurriculumPayload(&createPayload)
-	if err := validateCreateCurriculumPayload(createPayload); err != nil {
+	if err := validateDuplicateCurriculumPayload(createPayload); err != nil {
 		return nil, err
 	}
 
@@ -343,6 +384,59 @@ func normalizeCreateCurriculumPayload(payload *models.CreateCurriculumPayload) {
 	payload.CurriculumNameEN = trimStringPointer(payload.CurriculumNameEN)
 }
 
+func validateGeneratedCurriculumCodeScope(scope repositories.MajorScope) error {
+	if !scope.IsActive {
+		return CurriculumValidationError{Message: "major_id must be active"}
+	}
+	if strings.TrimSpace(scope.FacultyCode) == "" {
+		return CurriculumValidationError{Message: "faculty code is required to generate curriculum code"}
+	}
+	if strings.TrimSpace(scope.MajorCode) == "" {
+		return CurriculumValidationError{Message: "major code is required to generate curriculum code"}
+	}
+	return nil
+}
+
+func (s *CurriculumService) nextGeneratedCurriculumCode(ctx context.Context, majorID uint64, effectiveYearBE uint64, scope repositories.MajorScope) (string, error) {
+	prefix := fmt.Sprintf("%s-%s-%d", strings.TrimSpace(scope.FacultyCode), strings.TrimSpace(scope.MajorCode), effectiveYearBE)
+	codes, err := s.Repo.GetCurriculumCodesByMajor(ctx, majorID)
+	if err != nil {
+		return "", err
+	}
+
+	nextSequence := nextCurriculumCodeSequence(prefix, codes)
+	code := fmt.Sprintf("%s-%02d", prefix, nextSequence)
+	if len(code) > maxGeneratedCurriculumCodeLength {
+		return "", CurriculumValidationError{Message: "generated curriculum code exceeds the maximum length"}
+	}
+	return code, nil
+}
+
+func nextCurriculumCodeSequence(prefix string, existingCodes []string) int {
+	maxSequence := 0
+	prefixWithSeparator := prefix + "-"
+	for _, code := range existingCodes {
+		if !strings.HasPrefix(code, prefixWithSeparator) {
+			continue
+		}
+		sequence, err := strconv.Atoi(strings.TrimPrefix(code, prefixWithSeparator))
+		if err == nil && sequence > maxSequence {
+			maxSequence = sequence
+		}
+	}
+	return maxSequence + 1
+}
+
+func isGeneratedCurriculumCodeDuplicate(err error) bool {
+	if err == nil {
+		return false
+	}
+	var mysqlErr *mysql.MySQLError
+	return errors.As(err, &mysqlErr) &&
+		mysqlErr.Number == 1062 &&
+		strings.Contains(mysqlErr.Message, "uq_curricula_major_code_live")
+}
+
 func duplicatePayloadToCreatePayload(payload models.DuplicateCurriculumPayload) models.CreateCurriculumPayload {
 	return models.CreateCurriculumPayload{
 		MajorID:          payload.MajorID,
@@ -357,9 +451,6 @@ func validateCreateCurriculumPayload(payload models.CreateCurriculumPayload) err
 	if payload.MajorID == 0 {
 		return CurriculumValidationError{Message: "major_id is required"}
 	}
-	if strings.TrimSpace(payload.CurriculumCode) == "" {
-		return CurriculumValidationError{Message: "curriculum_code is required"}
-	}
 	if strings.TrimSpace(payload.CurriculumNameTH) == "" {
 		return CurriculumValidationError{Message: "curriculum_name_th is required"}
 	}
@@ -369,6 +460,16 @@ func validateCreateCurriculumPayload(payload models.CreateCurriculumPayload) err
 
 	seenCourseCodes := map[string]bool{}
 	return validateCreateCategories(payload.Categories, seenCourseCodes, map[string]bool{})
+}
+
+func validateDuplicateCurriculumPayload(payload models.CreateCurriculumPayload) error {
+	if err := validateCreateCurriculumPayload(payload); err != nil {
+		return err
+	}
+	if strings.TrimSpace(payload.CurriculumCode) == "" {
+		return CurriculumValidationError{Message: "curriculum_code is required"}
+	}
+	return nil
 }
 
 func hasRole(roles []string, role string) bool {
