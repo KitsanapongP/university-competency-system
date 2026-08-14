@@ -21,8 +21,8 @@ function key(value) {
     return normalize(value).toLocaleLowerCase();
 }
 
-function issue(rowNumber, field, message) {
-    return { row_number: rowNumber, field, message };
+function issue(rowNumber, field, message, severity = 'error') {
+    return { row_number: rowNumber, field, message, severity };
 }
 
 function getWorkbookModule(module) {
@@ -101,6 +101,56 @@ export async function parseCurriculumStructureWorkbook(file) {
     return { rows, issues };
 }
 
+export function buildCurriculumStructureImportTree(rows) {
+    const roots = [];
+    const nodesByPath = new Map();
+
+    (rows || []).forEach(row => {
+        let parentPath = '';
+        let siblings = roots;
+        let targetCategory = null;
+
+        (row.categories || []).forEach(category => {
+            const code = normalize(category.code);
+            const nameTh = normalize(category.name_th);
+            if (!code && !nameTh) return;
+
+            const path = `${parentPath}/${code}`;
+            let node = nodesByPath.get(path);
+            if (!node) {
+                node = {
+                    code,
+                    nameTh,
+                    children: [],
+                    courses: [],
+                    rowNumbers: [],
+                };
+                nodesByPath.set(path, node);
+                siblings.push(node);
+            }
+
+            const rowNumber = Number(row.row_number) || 0;
+            if (rowNumber > 0 && !node.rowNumbers.includes(rowNumber)) {
+                node.rowNumbers.push(rowNumber);
+            }
+
+            targetCategory = node;
+            parentPath = path;
+            siblings = node.children;
+        });
+
+        if (!targetCategory) return;
+        targetCategory.courses.push({
+            code: normalize(row.course_code),
+            nameTh: normalize(row.course_name_th),
+            credits: Number(row.credits) || 0,
+            rowNumber: Number(row.row_number) || 0,
+        });
+    });
+
+    return roots;
+}
+
 function categoryMap(categories) {
     const result = new Map();
     const walk = (nodes, parentCode = '') => {
@@ -136,7 +186,9 @@ function analyzeRows(rows, existingCategories, existingCourseCodes) {
     const importedCourseCodes = new Set();
     const categoryHasChild = new Set();
     const categoryUsedByCourse = new Set();
+    const usedCategoryCodes = new Set();
     const courses = [];
+    let skippedCourseCount = 0;
 
     (rows || []).forEach(row => {
         const rowNumber = Number(row.row_number) || 0;
@@ -212,13 +264,15 @@ function analyzeRows(rows, existingCategories, existingCourseCodes) {
             valid = false;
         }
         const courseKey = key(courseCode);
-        if (courseCode && (existingCourseCodes.has(courseKey) || importedCourseCodes.has(courseKey))) {
-            issues.push(issue(rowNumber, 'course_code', 'รหัสวิชานี้มีอยู่แล้วในหลักสูตร'));
-            valid = false;
+        const duplicateCourse = courseCode && (existingCourseCodes.has(courseKey) || importedCourseCodes.has(courseKey));
+        if (duplicateCourse) {
+            issues.push(issue(rowNumber, 'course_code', 'รหัสวิชานี้มีอยู่แล้วในหลักสูตร', 'warning'));
+            skippedCourseCount += 1;
         }
-        if (valid) {
+        if (valid && !duplicateCourse) {
             importedCourseCodes.add(courseKey);
             categoryUsedByCourse.add(key(parentCode));
+            markImportedCategoryPath(importedCategories, parentCode, usedCategoryCodes);
             courses.push({ ...row, categoryCode: parentCode });
         }
     });
@@ -229,19 +283,35 @@ function analyzeRows(rows, existingCategories, existingCourseCodes) {
         }
     });
 
-    const newCategories = [...importedCategories.values()].filter(category => !category.existing);
-    const existingCategoryCount = [...importedCategories.values()].filter(category => category.existing).length;
-    return { issues, newCategories, existingCategoryCount, courses };
+    const usedCategories = [...importedCategories.entries()]
+        .filter(([categoryKey]) => usedCategoryCodes.has(categoryKey))
+        .map(([, category]) => category);
+    const newCategories = usedCategories.filter(category => !category.existing);
+    const existingCategoryCount = usedCategories.filter(category => category.existing).length;
+    return { issues, newCategories, existingCategoryCount, courses, skippedCourseCount };
+}
+
+function markImportedCategoryPath(categoriesByCode, categoryCode, usedCategoryCodes) {
+    let currentCode = normalize(categoryCode);
+    while (currentCode) {
+        const currentKey = key(currentCode);
+        if (usedCategoryCodes.has(currentKey)) return;
+        usedCategoryCodes.add(currentKey);
+        currentCode = categoriesByCode.get(currentKey)?.parentCode || '';
+    }
 }
 
 export function previewDraftCurriculumStructureImport(categories, coursesByCategory, rows, parseIssues = []) {
     const analysis = analyzeRows(rows, categoryMap(categories), courseCodes(coursesByCategory));
     const issues = [...parseIssues, ...analysis.issues];
+    const valid = !issues.some(entry => entry.severity !== 'warning');
     return {
-        valid: issues.length === 0,
+        valid,
+        can_import: valid && analysis.courses.length > 0,
         existing_category_count: analysis.existingCategoryCount,
         new_category_count: analysis.newCategories.length,
         course_count: analysis.courses.length,
+        skipped_course_count: analysis.skippedCourseCount,
         issues,
         analysis,
     };

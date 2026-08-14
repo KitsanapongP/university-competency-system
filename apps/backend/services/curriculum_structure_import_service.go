@@ -44,6 +44,12 @@ func (s *CurriculumService) CommitStructureImport(ctx context.Context, curriculu
 			Data:    preview,
 		}
 	}
+	if !preview.CanImport {
+		return nil, CurriculumValidationDetailsError{
+			Message: "curriculum structure import has no new courses to import",
+			Data:    preview,
+		}
+	}
 
 	majorScope, err := s.Repo.GetMajorScope(ctx, curriculum.MajorID)
 	if err != nil {
@@ -96,6 +102,7 @@ func (s *CurriculumService) analyzeStructureImport(ctx context.Context, curricul
 	importedCourseCodes := map[string]bool{}
 	categoryUsedByCourse := map[string]bool{}
 	categoryHasChild := map[string]bool{}
+	usedCategoryCodes := map[string]bool{}
 
 	for _, row := range payload.Rows {
 		rowNumber := row.RowNumber
@@ -182,12 +189,14 @@ func (s *CurriculumService) analyzeStructureImport(ctx context.Context, curricul
 		}
 		courseKey := strings.ToLower(courseCode)
 		if courseCode != "" && (existingCourseCodes[courseKey] || importedCourseCodes[courseKey]) {
-			preview.Issues = append(preview.Issues, importIssue(rowNumber, "course_code", "course code already exists in this curriculum"))
-			rowValid = false
+			preview.Issues = append(preview.Issues, importWarning(rowNumber, "course_code", "course code already exists in this curriculum"))
+			preview.SkippedCourseCount++
+			continue
 		}
 		if rowValid {
 			importedCourseCodes[courseKey] = true
 			categoryUsedByCourse[strings.ToLower(parentCode)] = true
+			markImportCategoryPath(categoryStates, parentCode, usedCategoryCodes)
 			nameEN := trimStringPointer(row.CourseNameEN)
 			plan.Courses = append(plan.Courses, models.CurriculumStructureImportCoursePlan{
 				CategoryCode: parentCode,
@@ -205,7 +214,10 @@ func (s *CurriculumService) analyzeStructureImport(ctx context.Context, curricul
 		}
 	}
 
-	for _, state := range categoryStates {
+	for key, state := range categoryStates {
+		if !usedCategoryCodes[key] {
+			continue
+		}
 		if state.existing {
 			preview.ExistingCategoryCount++
 			continue
@@ -225,7 +237,8 @@ func (s *CurriculumService) analyzeStructureImport(ctx context.Context, curricul
 
 	preview.NewCategoryCount = len(plan.Categories)
 	preview.CourseCount = len(plan.Courses)
-	preview.Valid = len(preview.Issues) == 0
+	preview.Valid = !hasImportErrors(preview.Issues)
+	preview.CanImport = preview.Valid && preview.CourseCount > 0
 	if !preview.Valid {
 		plan = models.CurriculumStructureImportPlan{}
 	}
@@ -262,5 +275,33 @@ func hasImportCategoryGap(categories []models.CurriculumStructureImportCategory)
 }
 
 func importIssue(rowNumber int, field, message string) models.CurriculumStructureImportIssue {
-	return models.CurriculumStructureImportIssue{RowNumber: rowNumber, Field: field, Message: message}
+	return models.CurriculumStructureImportIssue{RowNumber: rowNumber, Field: field, Message: message, Severity: "error"}
+}
+
+func importWarning(rowNumber int, field, message string) models.CurriculumStructureImportIssue {
+	return models.CurriculumStructureImportIssue{RowNumber: rowNumber, Field: field, Message: message, Severity: "warning"}
+}
+
+func hasImportErrors(issues []models.CurriculumStructureImportIssue) bool {
+	for _, issue := range issues {
+		if issue.Severity != "warning" {
+			return true
+		}
+	}
+	return false
+}
+
+func markImportCategoryPath(states map[string]importedCategoryState, code string, used map[string]bool) {
+	for code != "" {
+		key := strings.ToLower(code)
+		if used[key] {
+			return
+		}
+		used[key] = true
+		state, ok := states[key]
+		if !ok {
+			return
+		}
+		code = state.parentCode
+	}
 }

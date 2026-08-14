@@ -328,13 +328,16 @@ type CurriculumStructureImportIssue struct {
 	RowNumber int    `json:"row_number"`
 	Field     string `json:"field"`
 	Message   string `json:"message"`
+	Severity  string `json:"severity"`
 }
 
 type CurriculumStructureImportPreview struct {
 	Valid                 bool                             `json:"valid"`
+	CanImport             bool                             `json:"can_import"`
 	ExistingCategoryCount int                              `json:"existing_category_count"`
 	NewCategoryCount      int                              `json:"new_category_count"`
 	CourseCount           int                              `json:"course_count"`
+	SkippedCourseCount    int                              `json:"skipped_course_count"`
 	Issues                []CurriculumStructureImportIssue `json:"issues"`
 }
 
