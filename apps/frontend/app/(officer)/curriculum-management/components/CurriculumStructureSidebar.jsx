@@ -363,6 +363,7 @@ function CategoryTreeNode({
                             getCourseBadge={getCourseBadge}
                             showInlineAddChild={showInlineAddChild}
                             allowCategoryCodeEdit={allowCategoryCodeEdit}
+                            showRenameAction={showRenameAction}
                             addChildLabel={addChildLabel}
                             addChildDisabledReason={addChildDisabledReason}
                         />
