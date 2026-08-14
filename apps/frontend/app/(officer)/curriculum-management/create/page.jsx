@@ -3,7 +3,7 @@
 import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { X, Check, CheckCircle2, Circle, Info, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, Upload } from 'lucide-react';
-import { createCurriculumFromForm, fetchCurriculums, fetchFaculties, fetchMajors } from '../../../../lib/curriculum';
+import { createCurriculumFromForm, fetchCurriculums, fetchFaculties, fetchGeneratedCurriculumCode, fetchMajors } from '../../../../lib/curriculum';
 import { useLanguage } from '../../../../providers/LanguageContext';
 import ConfirmActionModal from '../../../../components/ui/ConfirmActionModal';
 import DuplicateCourseWarningModal from '../../../../components/ui/DuplicateCourseWarningModal';
@@ -123,7 +123,20 @@ function buildDuplicateCurriculumNameWarning(form, majors, curriculums, language
     return duplicateCurriculumNameText(year, majorName, language);
 }
 
-function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError, onAddMajor, onClearValidation }) {
+function Step1({
+    form,
+    setForm,
+    faculties,
+    majors,
+    lookupsLoading,
+    lookupsError,
+    generatedCode,
+    generatedCodeLoading,
+    generatedCodeError,
+    language,
+    onAddMajor,
+    onClearValidation,
+}) {
     const filteredMajors = form.facultyId
         ? majors.filter(major => String(major.facultyId) === String(form.facultyId))
         : [];
@@ -159,13 +172,20 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
 
             <div className="course-form-row">
                 <div className="course-form-field">
-                    <label className="course-form-field__label">รหัสหลักสูตร<span className="course-form-field__required">*</span></label>
-                    <input
-                        className="course-form-field__input"
-                        value={form.code}
-                        onChange={e => updateForm(p => ({ ...p, code: e.target.value }))}
-                        placeholder="เช่น cp_2568_curriculum"
-                    />
+                    <label className="course-form-field__label">รหัสหลักสูตร</label>
+                    <div className="course-form-field__generated-code" aria-live="polite">
+                        {generatedCodeLoading
+                            ? (language === 'en' ? 'Generating curriculum code...' : 'กำลังสร้างรหัสหลักสูตร...')
+                            : generatedCode || (language === 'en'
+                                ? 'Select a major and academic year first'
+                                : 'เลือกสาขาและปีการศึกษาก่อน')}
+                    </div>
+                    <div className="course-form-field__hint">
+                        {language === 'en'
+                            ? 'Generated automatically from the faculty, major, academic year, and sequence.'
+                            : 'ระบบสร้างอัตโนมัติจากคณะ สาขา ปีการศึกษา และลำดับ'}
+                    </div>
+                    {generatedCodeError && <div className="course-form-field__error">{generatedCodeError}</div>}
                 </div>
                 <div className="course-form-field">
                     <label className="course-form-field__label">คณะ<span className="course-form-field__required">*</span></label>
@@ -1163,7 +1183,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
     );
 }
 
-function Step3({ form }) {
+function Step3({ form, generatedCode }) {
     const categories = form.categories || [];
     const coursesByCategory = form.coursesByCategory || {};
 
@@ -1248,6 +1268,7 @@ function Step3({ form }) {
                 <div className="course-overview-info__grid">
                     <div><span className="course-overview-info__label">ชื่อหลักสูตร (ไทย):</span> <span className="course-overview-info__value">{form.nameTh || '-'}</span></div>
                     <div><span className="course-overview-info__label">ชื่อหลักสูตร (อังกฤษ):</span> <span className="course-overview-info__value">{form.nameEn || '-'}</span></div>
+                    <div><span className="course-overview-info__label">รหัสหลักสูตร:</span> <span className="course-overview-info__value">{generatedCode || '-'}</span></div>
                     <div><span className="course-overview-info__label">ปีการศึกษา:</span> <span className="course-overview-info__value">{form.year ? `ปีการศึกษา ${form.year}` : '-'}</span></div>
                 </div>
             </div>
@@ -1267,7 +1288,6 @@ function Step3({ form }) {
 }
 
 const EMPTY_FORM = {
-    code: '',
     facultyId: '',
     majorId: '',
     nameTh: '',
@@ -1299,6 +1319,9 @@ function CreateCoursePageContent() {
     const [curriculums, setCurriculums] = useState([]);
     const [lookupsLoading, setLookupsLoading] = useState(true);
     const [lookupsError, setLookupsError] = useState('');
+    const [generatedCode, setGeneratedCode] = useState('');
+    const [generatedCodeLoading, setGeneratedCodeLoading] = useState(false);
+    const [generatedCodeError, setGeneratedCodeError] = useState('');
     const duplicateNameWarning = buildDuplicateCurriculumNameWarning(form, majors, curriculums, language);
 
     useEffect(() => {
@@ -1378,15 +1401,52 @@ function CreateCoursePageContent() {
         };
     }, [createdMajorId]);
 
+    useEffect(() => {
+        const majorId = Number(form.majorId || 0);
+        const effectiveYearBE = Number(form.year || 0);
+        if (!majorId || !effectiveYearBE) {
+            setGeneratedCode('');
+            setGeneratedCodeError('');
+            setGeneratedCodeLoading(false);
+            return undefined;
+        }
+
+        let cancelled = false;
+        setGeneratedCodeLoading(true);
+        setGeneratedCodeError('');
+        setGeneratedCode('');
+
+        fetchGeneratedCurriculumCode(majorId, effectiveYearBE)
+            .then(code => {
+                if (!cancelled) setGeneratedCode(code);
+            })
+            .catch(err => {
+                if (!cancelled) {
+                    setGeneratedCodeError(err?.message || (language === 'en'
+                        ? 'Unable to generate curriculum code.'
+                        : 'ไม่สามารถสร้างรหัสหลักสูตรได้'));
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setGeneratedCodeLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [form.majorId, form.year, language]);
+
     const canNext = () => {
         if (step === 1) {
             return (
                 !lookupsLoading
                 && form.nameTh.trim()
-                && form.code.trim()
                 && form.facultyId
                 && form.majorId
                 && form.year
+                && generatedCode
+                && !generatedCodeLoading
+                && !generatedCodeError
             );
         }
         return true;
@@ -1475,6 +1535,10 @@ function CreateCoursePageContent() {
                             majors={majors}
                             lookupsLoading={lookupsLoading}
                             lookupsError={lookupsError}
+                            generatedCode={generatedCode}
+                            generatedCodeLoading={generatedCodeLoading}
+                            generatedCodeError={generatedCodeError}
+                            language={language}
                             onAddMajor={handleAddMajor}
                             onClearValidation={() => setError('')}
                         />
@@ -1490,7 +1554,7 @@ function CreateCoursePageContent() {
                             t={t}
                         />
                     )}
-                    {step === 3 && <Step3 form={form} />}
+                    {step === 3 && <Step3 form={form} generatedCode={generatedCode} />}
 
                 </div>
 
