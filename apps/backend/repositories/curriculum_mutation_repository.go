@@ -534,7 +534,13 @@ func (r *CurriculumRepository) CommitCurriculumStructureImport(ctx context.Conte
 }
 
 func (r *CurriculumRepository) UpdateCourseForCurriculum(ctx context.Context, curriculumID uint64, courseID uint64, payload models.UpdateCurriculumCourseDetailPayload) error {
-	res, err := r.DB.ExecContext(ctx, `
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx, `
 		UPDATE crs_courses
 		SET code = COALESCE(?, code),
 			name_th = COALESCE(?, name_th),
@@ -554,16 +560,38 @@ func (r *CurriculumRepository) UpdateCourseForCurriculum(ctx context.Context, cu
 		return err
 	}
 	if affected == 0 {
-		exists, err := r.curriculumCourseRecordExists(ctx, curriculumID, courseID)
+		var exists int
+		err := tx.QueryRowContext(ctx, `
+			SELECT 1
+			FROM crs_courses
+			WHERE curriculum_id = ?
+				AND course_id = ?
+				AND deleted_at IS NULL
+			LIMIT 1
+		`, curriculumID, courseID).Scan(&exists)
+		if err == sql.ErrNoRows {
+			return sql.ErrNoRows
+		}
 		if err != nil {
 			return err
 		}
-		if !exists {
-			return sql.ErrNoRows
+	}
+
+	if payload.IsRequired != nil {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE crs_curriculum_courses cc
+			JOIN crs_course_categories cat ON cat.category_id = cc.category_id
+			SET cc.is_required = ?
+			WHERE cc.course_id = ?
+				AND cat.curriculum_id = ?
+				AND cat.deleted_at IS NULL
+				AND cc.deleted_at IS NULL
+		`, *payload.IsRequired, courseID, curriculumID); err != nil {
+			return err
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 func (r *CurriculumRepository) curriculumCourseRecordExists(ctx context.Context, curriculumID uint64, courseID uint64) (bool, error) {

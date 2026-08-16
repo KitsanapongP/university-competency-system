@@ -406,6 +406,9 @@ export async function updateCurriculumCourseDetail(curriculumId, courseId, cours
     if (Object.prototype.hasOwnProperty.call(course, 'description')) {
         payload.description = toNullableString(course.description);
     }
+    if (Object.prototype.hasOwnProperty.call(course, 'isCoreCourse')) {
+        payload.is_required = boolValue(course.isCoreCourse, true);
+    }
 
     const response = await apiFetch(`/api/v1/curricula/${curriculumId}/courses/${courseId}`, {
         method: 'PATCH',

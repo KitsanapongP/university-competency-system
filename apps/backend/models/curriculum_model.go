@@ -283,6 +283,7 @@ type UpdateCurriculumCourseDetailPayload struct {
 	NameEN        *string `json:"name_en"`
 	Credits       *int    `json:"credits"`
 	Description   *string `json:"description"`
+	IsRequired    *bool   `json:"is_required"`
 	ConfirmImpact bool    `json:"confirm_impact"`
 }
 

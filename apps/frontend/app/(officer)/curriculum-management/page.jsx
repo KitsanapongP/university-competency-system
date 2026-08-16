@@ -901,6 +901,7 @@ export default function CurriculumManagementPage() {
             nameEn: updatedCourse.nameEn,
             credits: updatedCourse.credits,
             description: updatedCourse.description,
+            isCoreCourse: updatedCourse.isCoreCourse,
         }, confirmImpact), 'บันทึกรายวิชาสำเร็จ');
     }, [commitCurriculumMutation, selectedCourse]);
 
@@ -1522,6 +1523,7 @@ export default function CurriculumManagementPage() {
                                 onCourseDragStart={handleCourseDragStart}
                                 onCourseDragEnd={handleCourseDragEnd}
                                 onEditingStateChange={setIsCourseEditorEditing}
+                                showCourseTypeColumn
                                 canEdit={Boolean(selectedCategory) && !showAllCourses}
                                 disabled={operationLoading}
                             />
