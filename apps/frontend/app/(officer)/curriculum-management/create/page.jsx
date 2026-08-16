@@ -732,6 +732,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
             nameTh: courseData?.nameTh || '',
             nameEn: courseData?.nameEn || '',
             credits: Number(courseData?.credits) || 0,
+            isCoreCourse: courseData?.isCoreCourse ?? true,
         };
         setForm(p => ({
             ...p,
@@ -1122,6 +1123,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                     onCourseDragStart={handleCourseDragStart}
                     onCourseDragEnd={handleCourseDragEnd}
                     onEditingStateChange={setIsCourseEditorEditing}
+                    showCourseTypeColumn
                 />
             </div>
 
