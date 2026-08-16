@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, Settings, SlidersHorizontal, BarChart3, Files } from 'lucide-react';
+import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, RefreshCw, Settings, Settings2, SlidersHorizontal, BarChart3, Files } from 'lucide-react';
 import { fetchTemplates, deleteTemplate, updateTemplateStatus, updateTemplateName, fetchTemplateItems, fetchTemplateStructure, fetchTemplateCompetencies, updateTemplateCompetencies, createTemplate, saveTemplateItems } from '../../../lib/template';
 import { fetchCompetencies } from '../../../lib/competency';
 import { fetchCurriculumDetail } from '../../../lib/curriculum';
@@ -796,6 +796,18 @@ export default function TemplateManagementPage() {
         });
     }, []);
 
+    const handleReloadEditor = useCallback(async () => {
+        if (!selectedTemplate) return;
+
+        refreshTemplateStructure(selectedTemplate.id);
+        try {
+            await loadCompetencies();
+            showTemplateToast('success', language === 'th' ? 'โหลดข้อมูลแบบแผนการประเมินใหม่แล้ว' : 'Assessment plan data reloaded.');
+        } catch (error) {
+            showTemplateToast('error', language === 'th' ? 'โหลดข้อมูลแบบแผนการประเมินไม่สำเร็จ' : 'Unable to reload assessment plan data.', error?.message);
+        }
+    }, [language, loadCompetencies, refreshTemplateStructure, selectedTemplate, showTemplateToast]);
+
     const applyTemplateCompetencySelection = useCallback(async (competencyIds, confirmRemoval = false) => {
         if (!selectedTemplate) return;
         setCompetencyManagerSaving(true);
@@ -1282,56 +1294,88 @@ export default function TemplateManagementPage() {
         );
     }
 
+    const editorCopy = language === 'en'
+        ? {
+            back: 'All assessment plans',
+            reload: 'Reload',
+            manageCompetencies: 'Manage competencies',
+            fallbackCurriculum: 'Curriculum is not assigned',
+            setup: 'Course setup',
+            weight: 'Competency weights',
+            overview: 'Competency overview',
+        }
+        : {
+            back: 'แบบแผนการประเมินทั้งหมด',
+            reload: 'โหลดใหม่',
+            manageCompetencies: 'จัดการสมรรถนะ',
+            fallbackCurriculum: 'ยังไม่กำหนดหลักสูตร',
+            setup: 'ตั้งค่าวิชา',
+            weight: 'ใส่น้ำหนักสมรรถนะ',
+            overview: 'ภาพรวมสมรรถนะ',
+        };
+
     // ── Editor View ──
     return (
         <div className="tm-page tm-page--editor">
-            {/* Topbar */}
             <div className="editor-topbar">
-                <button className="btn btn--ghost btn--sm editor-topbar__back" onClick={handleBackToList}>
-                    <ArrowLeft size={15}/> Template ทั้งหมด
-                </button>
+                <div className="editor-topbar__main">
+                    <button className="btn btn--ghost btn--sm editor-topbar__back" onClick={handleBackToList}>
+                        <ArrowLeft size={15}/> {editorCopy.back}
+                    </button>
 
-                {editingTitle ? (
-                    <input
-                        className="editor-topbar__title-input"
-                        value={titleVal}
-                        autoFocus
-                        onChange={e => setTitleVal(e.target.value)}
-                        onBlur={handleSaveTitle}
-                        onKeyDown={e => {
-                            if (e.key === 'Enter') handleSaveTitle();
-                            if (e.key === 'Escape') setEditingTitle(false);
-                        }}
-                    />
-                ) : (
-                    <span
-                        className="editor-topbar__title editor-topbar__title--editable"
-                        title="Double-click เพื่อแก้ไขชื่อ"
-                        onDoubleClick={() => {
-                            setTitleVal(selectedTemplate?.name || '');
-                            setEditingTitle(true);
-                        }}
-                    >
-                        {selectedTemplate?.name}
-                    </span>
-                )}
+                    <div className="editor-topbar__identity">
+                        {editingTitle ? (
+                            <input
+                                className="editor-topbar__title-input"
+                                value={titleVal}
+                                autoFocus
+                                onChange={e => setTitleVal(e.target.value)}
+                                onBlur={handleSaveTitle}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') handleSaveTitle();
+                                    if (e.key === 'Escape') setEditingTitle(false);
+                                }}
+                            />
+                        ) : (
+                            <h1
+                                className="editor-topbar__title editor-topbar__title--editable"
+                                title={language === 'th' ? 'ดับเบิลคลิกเพื่อแก้ไขชื่อ' : 'Double-click to edit the name'}
+                                onDoubleClick={() => {
+                                    setTitleVal(selectedTemplate?.name || '');
+                                    setEditingTitle(true);
+                                }}
+                            >
+                                {selectedTemplate?.name}
+                            </h1>
+                        )}
 
-                <span className="editor-topbar__year">
-                    {selectedTemplate?.masterData 
-                        ? `${selectedTemplate.masterData.name || selectedTemplate.masterData.nameTh || selectedTemplate.masterData.curriculum_name_th || ''}`
-                        : 'ยังไม่กำหนดหลักสูตร'}
-                </span>
+                        <span className="editor-topbar__subtitle">
+                            {selectedTemplate?.masterData
+                                ? `${selectedTemplate.masterData.name || selectedTemplate.masterData.nameTh || selectedTemplate.masterData.curriculum_name_th || ''}`
+                                : editorCopy.fallbackCurriculum}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="editor-topbar__actions">
+                    <button className="btn btn--ghost btn--sm" onClick={handleReloadEditor}>
+                        <RefreshCw size={15}/> {editorCopy.reload}
+                    </button>
+                    <button className="btn btn--primary btn--sm" onClick={handleOpenCompetencyManager}>
+                        <Settings2 size={15}/> {editorCopy.manageCompetencies}
+                    </button>
+                </div>
             </div>
 
-            {/* Tab bar */}
             <div className="editor-tabs">
                 {[
-                    { id:'setup',    label:'ตั้งค่าวิชา',    icon: <Settings size={14}/> },
-                    { id:'weight',   label:'ใส่น้ำหนักสมรรถนะ',     icon: <SlidersHorizontal size={14}/> },
-                    { id:'overview', label:'ภาพรวมสมรรถนะ', icon: <BarChart3 size={14}/> },
+                    { id:'setup',    label: editorCopy.setup,    icon: <Settings size={14}/> },
+                    { id:'weight',   label: editorCopy.weight,   icon: <SlidersHorizontal size={14}/> },
+                    { id:'overview', label: editorCopy.overview, icon: <BarChart3 size={14}/> },
                 ].map(tab => (
                     <button key={tab.id}
                         className={`editor-tab ${editorTab === tab.id ? 'editor-tab--active' : ''}`}
+                        aria-current={editorTab === tab.id ? 'page' : undefined}
                         onClick={() => setEditorTab(tab.id)}>
                         {tab.icon}
                         {tab.label}
@@ -1363,7 +1407,6 @@ export default function TemplateManagementPage() {
                     onMoveCourse={handleTemplateCourseMove}
                     onValidateCourse={validateTemplateCourseBeforeSave}
                     onSetWeight={handleSetWeight}
-                    onManageCompetencies={handleOpenCompetencyManager}
                     draggingCategoryId={draggingCategoryId}
                     draggedCourseId={draggedTemplateCourse?.id ?? null}
                     dropTargetCategoryId={dropTargetCategoryId}
@@ -1405,7 +1448,6 @@ export default function TemplateManagementPage() {
                     onMoveCourse={handleTemplateCourseMove}
                     onValidateCourse={validateTemplateCourseBeforeSave}
                     onSetWeight={handleSetWeight}
-                    onManageCompetencies={handleOpenCompetencyManager}
                     draggingCategoryId={draggingCategoryId}
                     draggedCourseId={draggedTemplateCourse?.id ?? null}
                     dropTargetCategoryId={dropTargetCategoryId}

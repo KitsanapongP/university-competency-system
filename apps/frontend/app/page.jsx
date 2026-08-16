@@ -127,6 +127,28 @@ export default function CompetencyPage() {
                 Object.entries(payload.activities || {}).forEach(([key, value]) => {
                     activityMap[Number(key)] = value || [];
                 });
+                // The current Cohort score is the source for the radar chart.
+                // History remains available in the separate activity/course panels.
+                const progress = payload.progress || {};
+                const progressYear = String(new Date().getFullYear() + 543);
+                Object.entries(progress).forEach(([key, value]) => {
+                    activityMap[Number(key)] = [{
+                        id: `accumulated-${key}`,
+                        title: language === 'en' ? 'Accumulated competency score' : 'คะแนนสมรรถนะสะสม',
+                        date: progressYear,
+                        year: progressYear,
+                        month: 0,
+                        score: Number(value.accumulated_score || 0),
+                        max_score: Math.max(Number(value.target_score || 0), Number(value.accumulated_score || 0)),
+                        type: 'accumulated',
+                        status: 'completed',
+                        competency_id: Number(key),
+                        core_score: Number(value.core_score || 0),
+                        course_bonus_score: Number(value.course_bonus_score || 0),
+                        activity_score: Number(value.activity_score || 0),
+                        target_score: Number(value.target_score || 0),
+                    }];
+                });
                 setRadarChartByCompetency(activityMap);
 
                 const years = normalizeYears(payload.available_years || [], activityMap);
@@ -177,7 +199,7 @@ export default function CompetencyPage() {
         };
 
         loadDashboard();
-    }, [user, logout, router, category]);
+    }, [user, logout, router, category, language]);
 
 
     useEffect(() => {

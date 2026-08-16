@@ -347,6 +347,47 @@ ORDER BY s.start_at DESC
 	return items, nil
 }
 
+type LearnerCompetencyProgressRecord struct {
+	CoreScore        float64
+	CourseBonusScore float64
+	ActivityScore    float64
+	AccumulatedScore float64
+	TargetScore      float64
+	Passed           bool
+}
+
+// GetLearnerCompetencyProgress returns the active Cohort's accumulated score
+// components. Course Total, not Activity, is the graduation target check.
+func (r *CompetencyRepository) GetLearnerCompetencyProgress(ctx context.Context, personID int64) (map[int64]LearnerCompetencyProgressRecord, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT requirement.competency_id, COALESCE(result.core_score, 0), COALESCE(result.course_bonus_score, 0),
+			COALESCE(result.activity_score, 0), COALESCE(result.final_score, 0), requirement.target_score,
+			CASE WHEN requirement.is_required = 0 OR COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) >= requirement.target_score THEN 1 ELSE 0 END
+		FROM kku_enrollments enrollment
+		JOIN kku_enrollment_curricula cohortEnrollment ON cohortEnrollment.enrollment_id = enrollment.enrollment_id AND cohortEnrollment.deleted_at IS NULL
+		JOIN edu_student_cohorts cohort ON cohort.cohort_id = cohortEnrollment.cohort_id AND cohort.status = 'active' AND cohort.deleted_at IS NULL
+		JOIN comp_curriculum_requirements requirement ON requirement.cohort_id = cohort.cohort_id AND requirement.deleted_at IS NULL
+		LEFT JOIN score_competency_result result ON result.enrollment_id = enrollment.enrollment_id AND result.competency_id = requirement.competency_id AND result.deleted_at IS NULL
+		WHERE enrollment.person_id = ? AND enrollment.deleted_at IS NULL
+		ORDER BY cohort.entry_year_be DESC, requirement.display_order`, personID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	progress := make(map[int64]LearnerCompetencyProgressRecord)
+	for rows.Next() {
+		var competencyID int64
+		var item LearnerCompetencyProgressRecord
+		if err := rows.Scan(&competencyID, &item.CoreScore, &item.CourseBonusScore, &item.ActivityScore, &item.AccumulatedScore, &item.TargetScore, &item.Passed); err != nil {
+			return nil, err
+		}
+		if _, exists := progress[competencyID]; !exists {
+			progress[competencyID] = item
+		}
+	}
+	return progress, rows.Err()
+}
+
 type competencyScanner interface {
 	Scan(dest ...any) error
 }

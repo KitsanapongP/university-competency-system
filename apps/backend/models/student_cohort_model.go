@@ -44,9 +44,26 @@ type UpsertStudentCohortPayload struct {
 }
 
 type UpdateStudentCohortPayload struct {
-	CurriculumID uint64  `json:"curriculum_id"`
-	EntryYearBE  uint64  `json:"entry_year_be"`
-	Note         *string `json:"note"`
+	CurriculumID            uint64  `json:"curriculum_id"`
+	EntryYearBE             uint64  `json:"entry_year_be"`
+	Note                    *string `json:"note"`
+	ConfirmCurriculumChange bool    `json:"confirm_curriculum_change"`
+}
+
+type StudentCohortCurriculumChangeImpact struct {
+	CohortID                   uint64 `json:"cohort_id"`
+	FromCurriculumID           uint64 `json:"from_curriculum_id"`
+	FromCurriculumCode         string `json:"from_curriculum_code"`
+	ToCurriculumID             uint64 `json:"to_curriculum_id"`
+	ToCurriculumCode           string `json:"to_curriculum_code"`
+	RosterCount                int    `json:"roster_count"`
+	TemplateAssignmentCount    int    `json:"template_assignment_count"`
+	CourseEnrollmentCount      int    `json:"course_enrollment_count"`
+	CourseScoreCount           int    `json:"course_score_count"`
+	CompetencyRequirementCount int    `json:"competency_requirement_count"`
+	CompetencyResultCount      int    `json:"competency_result_count"`
+	ActivityAttendanceCount    int    `json:"activity_attendance_count"`
+	ActivityScoreCount         int    `json:"activity_score_count"`
 }
 
 type UpdateStudentCohortStatusPayload struct {

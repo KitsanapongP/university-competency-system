@@ -286,6 +286,11 @@
     width: 64px;
 }
 
+.curriculum-course-editor__col--course-type {
+    width: 130px;
+    min-width: 130px;
+}
+
 .curriculum-course-editor__col--extra {
     width: 112px;
 }
@@ -407,6 +412,44 @@
 .curriculum-course-editor .ss-cell--num {
     width: 64px;
     min-width: 64px;
+}
+
+.curriculum-course-editor .ss-th--course-type,
+.curriculum-course-editor .ss-cell--course-type {
+    width: 130px;
+    min-width: 130px;
+    text-align: center;
+}
+
+.curriculum-course-editor .ss-cell--course-type .ss-input--select {
+    width: 100%;
+    min-width: 0;
+}
+
+.curriculum-course-type-badge {
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 0.72rem;
+    font-weight: 700;
+    justify-content: center;
+    line-height: 1.2;
+    max-width: 100%;
+    padding: 0.28rem 0.5rem;
+    white-space: nowrap;
+}
+
+.curriculum-course-type-badge--required {
+    background: rgba(59, 130, 246, 0.14);
+    border-color: rgba(59, 130, 246, 0.32);
+    color: #60a5fa;
+}
+
+.curriculum-course-type-badge--elective {
+    background: rgba(245, 158, 11, 0.14);
+    border-color: rgba(245, 158, 11, 0.32);
+    color: #fbbf24;
 }
 
 .curriculum-course-editor .ss-th--actions,

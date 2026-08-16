@@ -35,6 +35,8 @@ function CurriculumCourseRow({
     isDropTarget = false,
     isNew = false,
     isLocked = false,
+    showCourseType = false,
+    showRowActionsColumn = true,
     originBadge = '',
     canDrag = true,
     canSelect = true,
@@ -58,6 +60,7 @@ function CurriculumCourseRow({
         nameTh: course.nameTh || '',
         nameEn: course.nameEn || '',
         credits: course.credits || 0,
+        isCoreCourse: course.isCoreCourse ?? true,
     });
     const [actionMenuPosition, setActionMenuPosition] = useState(null);
     const actionMenuRef = useRef(null);
@@ -70,8 +73,9 @@ function CurriculumCourseRow({
             nameTh: course.nameTh || '',
             nameEn: course.nameEn || '',
             credits: course.credits || 0,
+            isCoreCourse: course.isCoreCourse ?? true,
         });
-    }, [course.code, course.nameTh, course.nameEn, course.credits, isEditing]);
+    }, [course.code, course.nameTh, course.nameEn, course.credits, course.isCoreCourse, isEditing]);
 
     const rowDisabled = disabled || isLocked;
 
@@ -83,6 +87,7 @@ function CurriculumCourseRow({
             nameTh: String(form.nameTh || '').trim(),
             nameEn: String(form.nameEn || '').trim(),
             credits: Number(form.credits) || 0,
+            isCoreCourse: Boolean(form.isCoreCourse),
         });
         if (result !== false) {
             onCancelEdit?.();
@@ -95,6 +100,7 @@ function CurriculumCourseRow({
             nameTh: course.nameTh || '',
             nameEn: course.nameEn || '',
             credits: course.credits || 0,
+            isCoreCourse: course.isCoreCourse ?? true,
         });
         onCancelEdit?.();
     };
@@ -250,7 +256,32 @@ function CurriculumCourseRow({
                     <span>{course.credits || <span className="ss-placeholder">0</span>}</span>
                 )}
             </td>
+            {showCourseType && (
+                <td className="ss-cell ss-cell--course-type">
+                    {isEditing ? (
+                        <select
+                            className="ss-input ss-input--select"
+                            value={form.isCoreCourse ? 'required' : 'elective'}
+                            onChange={event => setForm(current => ({
+                                ...current,
+                                isCoreCourse: event.target.value === 'required',
+                            }))}
+                            onKeyDown={handleKey}
+                            disabled={rowDisabled}
+                            aria-label={t('course_type')}
+                        >
+                            <option value="required">{t('course_type_required')}</option>
+                            <option value="elective">{t('course_type_elective')}</option>
+                        </select>
+                    ) : (
+                        <span className={`curriculum-course-type-badge ${course.isCoreCourse ? 'curriculum-course-type-badge--required' : 'curriculum-course-type-badge--elective'}`}>
+                            {course.isCoreCourse ? t('course_type_required') : t('course_type_elective')}
+                        </span>
+                    )}
+                </td>
+            )}
             {renderExtraCells?.(course)}
+            {showRowActionsColumn && (
             <td className="ss-cell ss-cell--actions">
                 {isEditing ? (
                     <>
@@ -331,6 +362,7 @@ function CurriculumCourseRow({
                     document.body,
                 )}
             </td>
+            )}
         </tr>
     );
 }
@@ -371,6 +403,9 @@ export default function CurriculumCourseEditorPanel({
     externalAddCourseRequestId = 0,
     extraColumnHeaders = [],
     renderExtraCells,
+    showCourseTypeColumn = false,
+    showRowActionsColumn = true,
+    tableVariant = '',
 }) {
     const { t } = useLanguage();
     const [editingCategoryName, setEditingCategoryName] = useState(false);
@@ -633,8 +668,15 @@ export default function CurriculumCourseEditorPanel({
         isCoreCourse: draftCourse?.isCoreCourse ?? true,
     };
 
+    const editorClassName = [
+        'course-two-panel__content',
+        'curriculum-course-editor',
+        extraColumnHeaders.length ? 'curriculum-course-editor--has-extra-columns' : '',
+        tableVariant ? `curriculum-course-editor--${tableVariant}` : '',
+    ].filter(Boolean).join(' ');
+
     return (
-        <div className={`course-two-panel__content curriculum-course-editor ${extraColumnHeaders.length ? 'curriculum-course-editor--has-extra-columns' : ''}`}>
+        <div className={editorClassName}>
             {showCategoryToolbar && (
             <div className="course-detail-toolbar curriculum-course-editor__toolbar">
                 <div className="course-detail-toolbar__left">
@@ -797,14 +839,15 @@ export default function CurriculumCourseEditorPanel({
                                     <colgroup>
                                         <col className="curriculum-course-editor__col--grip" />
                                         <col className="curriculum-course-editor__col--checkbox" />
-                                        <col className="curriculum-course-editor__col--text" />
-                                        <col className="curriculum-course-editor__col--text" />
-                                        <col className="curriculum-course-editor__col--text" />
+                                        <col className="curriculum-course-editor__col--text curriculum-course-editor__col--code" />
+                                        <col className="curriculum-course-editor__col--text curriculum-course-editor__col--name-th" />
+                                        <col className="curriculum-course-editor__col--text curriculum-course-editor__col--name-en" />
                                         <col className="curriculum-course-editor__col--credits" />
+                                        {showCourseTypeColumn && <col className="curriculum-course-editor__col--course-type" />}
                                         {extraColumnHeaders.map((column, index) => (
                                             <col key={column.key || index} className={column.colClassName || 'curriculum-course-editor__col--extra'} />
                                         ))}
-                                        <col className="curriculum-course-editor__col--actions" />
+                                        {showRowActionsColumn && <col className="curriculum-course-editor__col--actions" />}
                                     </colgroup>
                                     <thead>
                                         <tr>
@@ -822,6 +865,9 @@ export default function CurriculumCourseEditorPanel({
                                             <th className="course-spreadsheet-th ss-th ss-th--text">ชื่อวิชา (ไทย)</th>
                                             <th className="course-spreadsheet-th ss-th ss-th--text">ชื่อวิชา (Eng)</th>
                                             <th className="course-spreadsheet-th ss-th course-spreadsheet-th--num ss-th--num">หน่วยกิต</th>
+                                            {showCourseTypeColumn && (
+                                                <th className="course-spreadsheet-th ss-th ss-th--course-type">{t('course_type')}</th>
+                                            )}
                                             {extraColumnHeaders.map((column, index) => (
                                                 <th
                                                     key={column.key || index}
@@ -830,7 +876,7 @@ export default function CurriculumCourseEditorPanel({
                                                     {column.label ?? column}
                                                 </th>
                                             ))}
-                                            <th className="course-spreadsheet-th ss-th course-spreadsheet-th--actions ss-th--actions"></th>
+                                            {showRowActionsColumn && <th className="course-spreadsheet-th ss-th course-spreadsheet-th--actions ss-th--actions"></th>}
                                         </tr>
                                     </thead>
                                     <tbody
@@ -849,6 +895,8 @@ export default function CurriculumCourseEditorPanel({
                                                 isNew
                                                 isEditing
                                                 disabled={disabled}
+                                                showRowActionsColumn={showRowActionsColumn}
+                                                showCourseType={showCourseTypeColumn}
                                                 renderExtraCells={renderExtraCells}
                                                 onSave={handleSaveCourse}
                                                 onCancelEdit={() => {
@@ -864,15 +912,17 @@ export default function CurriculumCourseEditorPanel({
                                             const rowDisabled = disabled || isReadOnly || courseCapabilities.canEdit === false;
                                             return (
                                                 <CurriculumCourseRow
-                                                    key={`${courseId}:${course.code}:${course.nameTh}:${course.nameEn}:${course.credits}`}
+                                                    key={`${courseId}:${course.code}:${course.nameTh}:${course.nameEn}:${course.credits}:${course.isCoreCourse}`}
                                                     course={course}
                                                     disabled={rowDisabled}
                                                     isLocked={Boolean(courseCapabilities.locked)}
+                                                    showCourseType={showCourseTypeColumn}
                                                     originBadge={courseCapabilities.badge || ''}
                                                     canDrag={courseCapabilities.canDrag !== false}
                                                     canSelect={courseCapabilities.canSelect !== false}
                                                     isSelected={courseCapabilities.canSelect !== false && selectedCourseIds.has(courseId)}
                                                     isEditing={editingCourseId === courseId}
+                                                    showRowActionsColumn={showRowActionsColumn}
                                                     isDragging={String(draggedCourseId) === courseId}
                                                     isDropTarget={dropTargetCourseId === courseId}
                                                     onToggleSelect={toggleCourseSelection}

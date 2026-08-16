@@ -28,7 +28,11 @@ type StudentCohortValidationError struct{ Message string }
 
 func (e StudentCohortValidationError) Error() string { return e.Message }
 
-type StudentCohortConflictError struct{ Code, Message string }
+type StudentCohortConflictError struct {
+	Code    string
+	Message string
+	Data    any
+}
 
 func (e StudentCohortConflictError) Error() string { return e.Message }
 
@@ -68,7 +72,7 @@ func (s *StudentCohortService) CreateCohort(ctx context.Context, payload models.
 	return s.Repo.CreateCohort(ctx, payload, userID)
 }
 
-func (s *StudentCohortService) UpdateCohort(ctx context.Context, cohortID uint64, payload models.UpdateStudentCohortPayload, roles []string, facultyID *int64) (*models.StudentCohort, error) {
+func (s *StudentCohortService) UpdateCohort(ctx context.Context, cohortID uint64, payload models.UpdateStudentCohortPayload, userID int64, roles []string, facultyID *int64) (*models.StudentCohort, error) {
 	cohort, err := s.getCohortForWrite(ctx, cohortID, roles, facultyID)
 	if err != nil {
 		return nil, err
@@ -83,11 +87,14 @@ func (s *StudentCohortService) UpdateCohort(ctx context.Context, cohortID uint64
 	if payload.EntryYearBE == 0 {
 		payload.EntryYearBE = cohort.EntryYearBE
 	}
-	identityChanged := payload.CurriculumID != cohort.CurriculumID || payload.EntryYearBE != cohort.EntryYearBE
-	if identityChanged {
-		if cohort.Status != "draft" || cohort.RosterCount > 0 || cohort.TemplateCount > 0 {
+	curriculumChanged := payload.CurriculumID != cohort.CurriculumID
+	entryYearChanged := payload.EntryYearBE != cohort.EntryYearBE
+	if entryYearChanged {
+		if !canEditStudentCohortEntryYear(cohort.Status, cohort.RosterCount, cohort.TemplateCount) {
 			return nil, StudentCohortConflictError{Code: "COHORT_IDENTITY_LOCKED", Message: "curriculum and entry year can only be changed for an empty draft cohort without templates"}
 		}
+	}
+	if curriculumChanged {
 		curriculum, err := s.Repo.GetCurriculumForCohort(ctx, payload.CurriculumID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrStudentCohortNotFound
@@ -104,8 +111,31 @@ func (s *StudentCohortService) UpdateCohort(ctx context.Context, cohortID uint64
 		if payload.EntryYearBE < curriculum.EffectiveYearBE {
 			return nil, StudentCohortValidationError{Message: "entry_year_be cannot be before curriculum effective year"}
 		}
+		identityExists, err := s.Repo.CohortIdentityExists(ctx, payload.CurriculumID, payload.EntryYearBE, cohortID)
+		if err != nil {
+			return nil, err
+		}
+		if identityExists {
+			return nil, StudentCohortConflictError{Code: "DUPLICATE", Message: "a cohort already exists for this curriculum and entry year"}
+		}
+		impact, err := s.Repo.GetCurriculumChangeImpact(ctx, cohortID, payload.CurriculumID)
+		if err != nil {
+			return nil, err
+		}
+		if !payload.ConfirmCurriculumChange {
+			return nil, StudentCohortConflictError{
+				Code:    "CONFIRMATION_REQUIRED",
+				Message: "curriculum change requires confirmation",
+				Data:    impact,
+			}
+		}
+		return s.Repo.ReassignCurriculum(ctx, cohortID, payload, userID, curriculum, impact)
 	}
 	return s.Repo.UpdateCohort(ctx, cohortID, payload)
+}
+
+func canEditStudentCohortEntryYear(status string, rosterCount, templateCount int) bool {
+	return status == "draft" && rosterCount == 0 && templateCount == 0
 }
 
 func (s *StudentCohortService) UpdateCohortStatus(ctx context.Context, cohortID uint64, payload models.UpdateStudentCohortStatusPayload, userID int64, roles []string, facultyID *int64) (*models.StudentCohort, error) {

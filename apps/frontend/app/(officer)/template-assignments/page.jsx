@@ -5,6 +5,7 @@ import { Check, History, Link2, RefreshCw, Replace, Unlink, Users } from 'lucide
 import { useAuth } from '../../../providers/auth-provider';
 import { useLanguage } from '../../../providers/LanguageContext';
 import { fetchFaculties } from '../../../lib/curriculum';
+import { fetchCohortStudents } from '../../../lib/student-management';
 import {
     createTemplateAssignment,
     fetchAvailableAssignmentCohorts,
@@ -47,6 +48,70 @@ function formatDate(value, language) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '-';
     return new Intl.DateTimeFormat(language === 'th' ? 'th-TH' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+}
+
+function studentDisplayName(student, language) {
+    const thaiName = [student?.prefixTh, student?.firstNameTh, student?.lastNameTh].filter(Boolean).join(' ');
+    const englishName = [student?.firstNameEn, student?.lastNameEn].filter(Boolean).join(' ');
+    return language === 'th' || !englishName ? thaiName || '-' : englishName;
+}
+
+function TemplateAssignmentConfirmationImpact({ language, confirmation, onRetryRoster }) {
+    if (confirmation?.type !== 'assign') {
+        return (
+            <div className="template-assignment-impact">
+                <span>{text(language, 'หลักสูตร', 'Curriculum')}</span><strong>{confirmation?.assignment?.curriculumCode}</strong>
+                <span>{text(language, 'จำนวนรายชื่อ', 'Roster')}</span><strong>{confirmation?.assignment?.rosterCount || 0}</strong>
+            </div>
+        );
+    }
+
+    const students = Array.isArray(confirmation.rosterStudents) ? confirmation.rosterStudents : [];
+    const rosterCount = confirmation.cohort?.rosterCount || students.length;
+
+    return (
+        <div className="template-assignment-confirmation-details">
+            <div className="template-assignment-confirmation-field">
+                <span>{text(language, 'ชื่อหลักสูตร', 'Curriculum name')}</span>
+                <strong>{confirmation.template?.curriculumNameTh || '-'}</strong>
+            </div>
+            <div className="template-assignment-confirmation-field">
+                <span>{text(language, 'รหัสหลักสูตร', 'Curriculum code')}</span>
+                <strong>{confirmation.template?.curriculumCode || '-'}</strong>
+            </div>
+            <div className="template-assignment-confirmation-field">
+                <span>{text(language, 'จำนวนรายชื่อ', 'Roster count')}</span>
+                <strong>{rosterCount} {text(language, 'รายชื่อ', 'students')}</strong>
+            </div>
+            <div className="template-assignment-roster-preview">
+                <div className="template-assignment-roster-preview__header">
+                    <strong>{text(language, 'Preview รายชื่อนักศึกษา', 'Student roster preview')}</strong>
+                    {confirmation.rosterLoading && <span>{text(language, 'กำลังโหลด...', 'Loading...')}</span>}
+                </div>
+                {confirmation.rosterError ? (
+                    <div className="template-assignment-roster-preview__error">
+                        <span>{text(language, 'ไม่สามารถโหลดรายชื่อสำหรับ Preview ได้', 'Unable to load the roster preview.')}</span>
+                        <button type="button" className="course-btn course-btn--ghost" onClick={onRetryRoster}>
+                            {text(language, 'ลองใหม่', 'Retry')}
+                        </button>
+                    </div>
+                ) : confirmation.rosterLoading ? (
+                    <div className="template-assignment-roster-preview__empty">{text(language, 'กำลังโหลดรายชื่อนักศึกษา...', 'Loading student names...')}</div>
+                ) : students.length === 0 ? (
+                    <div className="template-assignment-roster-preview__empty">{text(language, 'ยังไม่มีรายชื่อนักศึกษา', 'No students in this cohort.')}</div>
+                ) : (
+                    <ul className="template-assignment-roster-preview__list">
+                        {students.map(student => (
+                            <li key={student.enrollmentId || student.studentCode}>
+                                <span>{student.studentCode || '-'}</span>
+                                <strong>{studentDisplayName(student, language)}</strong>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+        </div>
+    );
 }
 
 function AssignmentActionModal({ language, action, loading, onClose, onContinue }) {
@@ -125,8 +190,8 @@ export default function TemplateAssignmentsPage() {
                 fetchAvailableAssignmentTemplates(filters),
                 fetchTemplateAssignments(filters),
             ]);
-            setAvailableTemplates(templates);
-            setAssignments(currentAssignments);
+            setAvailableTemplates(Array.isArray(templates) ? templates : []);
+            setAssignments(Array.isArray(currentAssignments) ? currentAssignments : []);
         } catch (error) {
             setToast({ success: '', error: errorMessage(error, language) });
         } finally {
@@ -141,7 +206,8 @@ export default function TemplateAssignmentsPage() {
         setAvailableCohorts([]);
         setCohortsLoading(true);
         try {
-            setAvailableCohorts(await fetchAvailableAssignmentCohorts(template.templateId));
+            const cohorts = await fetchAvailableAssignmentCohorts(template.templateId);
+            setAvailableCohorts(Array.isArray(cohorts) ? cohorts : []);
         } catch (error) {
             setToast({ success: '', error: errorMessage(error, language) });
         } finally {
@@ -149,11 +215,40 @@ export default function TemplateAssignmentsPage() {
         }
     };
 
+    const selectCohortForAssignment = async (cohort, templateOverride = assignmentTemplate) => {
+        const template = templateOverride;
+        setAssignmentTemplate(null);
+        setConfirmation({ type: 'assign', template, cohort, assignment: null, reason: '', rosterStudents: [], rosterLoading: true, rosterError: false });
+        try {
+            const students = await fetchCohortStudents(cohort.cohortId);
+            setConfirmation(current => {
+                if (!current || current.type !== 'assign' || current.cohort?.cohortId !== cohort.cohortId) return current;
+                return { ...current, rosterStudents: Array.isArray(students) ? students : [], rosterLoading: false, rosterError: false };
+            });
+        } catch (error) {
+            setConfirmation(current => {
+                if (!current || current.type !== 'assign' || current.cohort?.cohortId !== cohort.cohortId) return current;
+                return { ...current, rosterLoading: false, rosterError: true };
+            });
+            setToast({ success: '', error: errorMessage(error, language) });
+        }
+    };
+
+    const retryCohortRosterPreview = () => {
+        if (confirmation?.type === 'assign' && confirmation.cohort) {
+            selectCohortForAssignment(confirmation.cohort, confirmation.template);
+        }
+    };
+
     const openReplace = async assignment => {
         setOperationLoading(true);
         try {
             const candidates = await fetchAvailableAssignmentTemplates(isAdmin && scopedFacultyId ? { facultyId: scopedFacultyId } : {});
-            setAssignmentTemplate({ ...assignment, replacementCandidates: candidates.filter(item => item.curriculumId === assignment.curriculumId) });
+            setAssignmentTemplate({
+                ...assignment,
+                replacementCandidates: (Array.isArray(candidates) ? candidates : [])
+                    .filter(item => item.curriculumId === assignment.curriculumId),
+            });
         } catch (error) {
             setToast({ success: '', error: errorMessage(error, language) });
         } finally {
@@ -166,7 +261,8 @@ export default function TemplateAssignmentsPage() {
         setHistory([]);
         setHistoryLoading(true);
         try {
-            setHistory(await fetchTemplateAssignmentHistory(assignment.cohortId));
+            const items = await fetchTemplateAssignmentHistory(assignment.cohortId);
+            setHistory(Array.isArray(items) ? items : []);
         } catch (error) {
             setToast({ success: '', error: errorMessage(error, language) });
         } finally {
@@ -274,15 +370,15 @@ export default function TemplateAssignmentsPage() {
             </section>
 
             <BaseModal open={Boolean(assignmentTemplate && !assignmentTemplate.replacementCandidates)} title={text(language, 'เลือกรุ่นนักศึกษา', 'Select student cohort')} size="lg" onClose={() => setAssignmentTemplate(null)} footer={<button type="button" className="course-btn course-btn--ghost" onClick={() => setAssignmentTemplate(null)}>{text(language, 'ยกเลิก', 'Cancel')}</button>}>
-                {assignmentTemplate && <><p className="course-modal-message">{assignmentTemplate.templateName} · {assignmentTemplate.curriculumCode} - {assignmentTemplate.curriculumNameTh}</p>{cohortsLoading ? <div className="template-assignment-empty">{text(language, 'กำลังโหลดรุ่นนักศึกษา...', 'Loading student cohorts...')}</div> : availableCohorts.length === 0 ? <div className="template-assignment-empty">{text(language, 'ไม่มีรุ่นที่พร้อมเชื่อมในหลักสูตรนี้', 'No active unassigned cohort is available for this curriculum.')}</div> : <div className="template-assignment-choice-list">{availableCohorts.map(cohort => <button type="button" key={cohort.cohortId} onClick={() => { setAssignmentTemplate(null); setConfirmation({ type: 'assign', template: assignmentTemplate, cohort, assignment: null, reason: '' }); }}><span><strong>{text(language, 'รุ่น', 'Cohort')} {cohort.entryYearBe}</strong><small>{cohort.rosterCount} {text(language, 'รายชื่อ', 'students')}</small></span><Check size={18} /></button>)}</div>}</>}
+                {assignmentTemplate && !assignmentTemplate.replacementCandidates && <><div className="template-assignment-template-context"><strong>{assignmentTemplate.templateName}</strong><span>{assignmentTemplate.curriculumCode} · {assignmentTemplate.curriculumNameTh}</span></div>{cohortsLoading ? <div className="template-assignment-empty">{text(language, 'กำลังโหลดรุ่นนักศึกษา...', 'Loading student cohorts...')}</div> : availableCohorts.length === 0 ? <div className="template-assignment-empty">{text(language, 'ไม่มีรุ่นที่พร้อมเชื่อมในหลักสูตรนี้', 'No active unassigned cohort is available for this curriculum.')}</div> : <div className="template-assignment-choice-list">{availableCohorts.map(cohort => <button type="button" key={cohort.cohortId} onClick={() => selectCohortForAssignment(cohort)}><span><strong>{text(language, 'รุ่น', 'Cohort')} {cohort.entryYearBe}</strong><small>{cohort.rosterCount} {text(language, 'รายชื่อ', 'students')}</small></span><Check size={18} /></button>)}</div>}</>}
             </BaseModal>
 
             <BaseModal open={Boolean(assignmentTemplate?.replacementCandidates)} title={text(language, 'เลือกแบบแผนการประเมินใหม่', 'Select replacement assessment plan')} size="lg" onClose={() => setAssignmentTemplate(null)} footer={<button type="button" className="course-btn course-btn--ghost" onClick={() => setAssignmentTemplate(null)}>{text(language, 'ยกเลิก', 'Cancel')}</button>}>
-                {assignmentTemplate && <><p className="course-modal-message">{text(language, `เลือกรายการสำหรับรุ่น ${assignmentTemplate.entryYearBe}`, `Choose a replacement for cohort ${assignmentTemplate.entryYearBe}.`)}</p>{assignmentTemplate.replacementCandidates.length === 0 ? <div className="template-assignment-empty">{text(language, 'ไม่มี Template ใหม่ที่พร้อมใช้ในหลักสูตรนี้', 'No unused active template is available in this curriculum.')}</div> : <div className="template-assignment-choice-list">{assignmentTemplate.replacementCandidates.map(template => <button type="button" key={template.templateId} onClick={() => { const assignment = assignments.find(item => item.assignmentId === assignmentTemplate.assignmentId); setAssignmentTemplate(null); setAction({ type: 'replace', assignment, template, cohort: null, reason: '' }); }}><span><strong>{template.templateName}</strong><small>{template.templateCode}</small></span><Replace size={18} /></button>)}</div>}</>}
+                {assignmentTemplate?.replacementCandidates && <><p className="course-modal-message">{text(language, `เลือกรายการสำหรับรุ่น ${assignmentTemplate.entryYearBe}`, `Choose a replacement for cohort ${assignmentTemplate.entryYearBe}.`)}</p>{assignmentTemplate.replacementCandidates.length === 0 ? <div className="template-assignment-empty">{text(language, 'ไม่มี Template ใหม่ที่พร้อมใช้ในหลักสูตรนี้', 'No unused active template is available in this curriculum.')}</div> : <div className="template-assignment-choice-list">{assignmentTemplate.replacementCandidates.map(template => <button type="button" key={template.templateId} onClick={() => { const assignment = assignments.find(item => item.assignmentId === assignmentTemplate.assignmentId); setAssignmentTemplate(null); setAction({ type: 'replace', assignment, template, cohort: null, reason: '' }); }}><span><strong>{template.templateName}</strong><small>{template.templateCode}</small></span><Replace size={18} /></button>)}</div>}</>}
             </BaseModal>
 
             <AssignmentActionModal language={language} action={action} loading={operationLoading} onClose={() => setAction(EMPTY_ACTION)} onContinue={continueAction} />
-            <ConfirmActionModal open={Boolean(confirmation)} title={confirmationTitle} message={confirmation?.type === 'assign' ? text(language, `เชื่อม ${confirmation?.template?.templateName} กับรุ่น ${confirmation?.cohort?.entryYearBe}`, `Assign ${confirmation?.template?.templateName} to cohort ${confirmation?.cohort?.entryYearBe}`) : text(language, 'การดำเนินการนี้จะเก็บประวัติเดิมไว้ และไม่สามารถย้อนกลับด้วย Template เดิมได้', 'This keeps the previous history. The same Template cannot be assigned again.')} impact={confirmation && <div className="template-assignment-impact"><span>{text(language, 'หลักสูตร', 'Curriculum')}</span><strong>{confirmation.type === 'assign' ? confirmation.template.curriculumCode : confirmation.assignment.curriculumCode}</strong><span>{text(language, 'จำนวนรายชื่อ', 'Roster')}</span><strong>{confirmation.type === 'assign' ? confirmation.cohort.rosterCount : confirmation.assignment.rosterCount}</strong></div>} confirmLabel={text(language, 'ยืนยัน', 'Confirm')} cancelLabel={text(language, 'ยกเลิก', 'Cancel')} variant={confirmation?.type === 'assign' ? 'info' : 'danger'} loading={operationLoading} onConfirm={confirmAction} onCancel={() => setConfirmation(null)} />
+            <ConfirmActionModal open={Boolean(confirmation)} title={confirmationTitle} message={confirmation?.type === 'assign' ? text(language, `เชื่อม ${confirmation?.template?.templateName} กับรุ่น ${confirmation?.cohort?.entryYearBe}`, `Assign ${confirmation?.template?.templateName} to cohort ${confirmation?.cohort?.entryYearBe}`) : text(language, 'การดำเนินการนี้จะเก็บประวัติเดิมไว้ และไม่สามารถย้อนกลับด้วย Template เดิมได้', 'This keeps the previous history. The same Template cannot be assigned again.')} impact={confirmation && <TemplateAssignmentConfirmationImpact language={language} confirmation={confirmation} onRetryRoster={retryCohortRosterPreview} />} confirmLabel={text(language, 'ยืนยัน', 'Confirm')} cancelLabel={text(language, 'ยกเลิก', 'Cancel')} variant={confirmation?.type === 'assign' ? 'info' : 'danger'} disabled={Boolean(confirmation?.type === 'assign' && confirmation.rosterLoading)} loading={operationLoading} onConfirm={confirmAction} onCancel={() => setConfirmation(null)} />
 
             <BaseModal open={Boolean(historyAssignment)} title={text(language, 'ประวัติการเชื่อม Template', 'Template assignment history')} size="lg" onClose={() => setHistoryAssignment(null)} footer={<button type="button" className="course-btn course-btn--ghost" onClick={() => setHistoryAssignment(null)}>{text(language, 'ปิด', 'Close')}</button>}>
                 {historyLoading ? <div className="template-assignment-empty">{text(language, 'กำลังโหลดประวัติ...', 'Loading history...')}</div> : <div className="template-assignment-history">{history.map(item => <article key={item.assignmentId}><div><strong>{item.templateName}</strong><span>{item.deletedAt ? text(language, 'สิ้นสุดแล้ว', 'Ended') : text(language, 'กำลังเชื่อมอยู่', 'Current')}</span></div><p>{text(language, 'เริ่มเชื่อม', 'Assigned')}: {formatDate(item.assignedAt, language)}</p>{item.endedAt && <><p>{text(language, 'สิ้นสุด', 'Ended')}: {formatDate(item.endedAt, language)}</p><p>{text(language, 'เหตุผล', 'Reason')}: {item.endReason || '-'}</p></>}</article>)}</div>}

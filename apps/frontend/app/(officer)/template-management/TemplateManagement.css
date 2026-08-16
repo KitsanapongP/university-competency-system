@@ -1898,35 +1898,91 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - var(--admin-navbar-h, 52px));
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
 }
 
-/* Topbar */
 .editor-topbar {
-    display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 1.25rem;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    min-width: 0;
+    padding: 1.25rem 1.5rem 1rem;
     background: var(--tm-editor-topbar-bg);
     border-bottom: 1px solid var(--tm-modal-border);
     flex-shrink: 0;
+}
+
+.editor-topbar__main {
+    align-items: flex-start;
+    display: flex;
+    gap: 1rem;
+    min-width: 0;
 }
 
 .editor-topbar__back {
     color: var(--tm-text-muted);
     gap: 0.35rem;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 .editor-topbar__back:hover { color: var(--tm-title); }
 
+.editor-topbar__identity {
+    min-width: 0;
+}
+
 .editor-topbar__title {
-    font-size: 0.9rem;
-    font-weight: 600;
     color: var(--tm-text);
-    white-space: nowrap;
+    font-size: 1.45rem;
+    font-weight: 750;
+    line-height: 1.2;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 400px;
+    white-space: nowrap;
+    margin: 0;
+}
+
+.editor-topbar__title--editable {
+    cursor: text;
+}
+
+.editor-topbar__title-input {
+    background: var(--tm-input-bg);
+    border: 1px solid var(--tm-accent);
+    border-radius: 6px;
+    color: var(--tm-text);
+    font: inherit;
+    font-size: 1.45rem;
+    font-weight: 750;
+    line-height: 1.2;
+    max-width: min(620px, 55vw);
+    outline: none;
+    padding: 0.2rem 0.45rem;
+    width: min(620px, 55vw);
+}
+
+.editor-topbar__subtitle {
+    color: var(--tm-text-muted);
+    display: block;
+    font-size: 0.8rem;
+    margin-top: 0.35rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.editor-topbar__actions {
+    align-items: center;
+    display: flex;
+    flex-shrink: 0;
+    gap: 0.6rem;
+}
+
+.editor-topbar__actions .btn {
+    white-space: nowrap;
 }
 
 .editor-topbar__year {
@@ -3038,31 +3094,33 @@
    Editor Tab Bar
    ============================================================ */
 .editor-tabs {
-    display: flex;
     align-items: center;
-    gap: 0;
+    display: flex;
+    gap: 1.25rem;
     background: var(--tm-editor-topbar-bg);
     border-bottom: 1px solid var(--tm-modal-border);
-    padding: 0 1rem;
     flex-shrink: 0;
+    padding: 0 1.5rem;
 }
 
 .editor-tab {
-    display: flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.6rem 1rem;
-    border: none;
-    border-bottom: 2px solid transparent;
     background: transparent;
+    border-bottom: 2px solid transparent;
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
     color: var(--tm-text-muted);
-    font-size: 0.8rem;
-    font-weight: 500;
-    font-family: inherit;
     cursor: pointer;
+    display: flex;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    gap: 0.4rem;
+    margin-bottom: -1px;
+    padding: 0.85rem 0.25rem;
     transition: color 0.15s, border-color 0.15s;
     white-space: nowrap;
-    margin-bottom: -1px;
 }
 
 .editor-tab:hover { color: var(--tm-text-muted); }
@@ -3070,6 +3128,17 @@
 .editor-tab--active {
     color: var(--tm-title);
     border-bottom-color: #3b82f6;
+}
+
+.tm-page--editor > .template-structure-workspace {
+    flex: 1;
+    min-height: 0;
+    padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.tm-page--editor > .ov-page {
+    flex: 1;
+    min-height: 0;
 }
 
 /* ============================================================
@@ -4235,16 +4304,26 @@
     flex: 1;
     flex-direction: column;
     min-width: 0;
+    max-width: 100%;
     overflow: hidden;
+    width: 100%;
 }
 
 .template-weight-editor__toolbar {
     align-items: center;
     border-bottom: 1px solid var(--tm-card-border);
     display: flex;
+    min-width: 0;
+    max-width: 100%;
     gap: 0.75rem;
     justify-content: space-between;
     padding: 0.75rem 1rem;
+}
+
+.template-weight-editor__heading {
+    flex: 0 1 34%;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .template-weight-editor__category {
@@ -4264,18 +4343,35 @@
 .template-weight-editor__actions {
     align-items: center;
     display: flex;
-    flex-shrink: 0;
+    flex: 1 1 66%;
     gap: 0.5rem;
     justify-content: flex-end;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .template-weight-editor__course-summary {
     align-items: center;
     color: var(--tm-text-muted);
     display: flex;
+    flex: 0 0 auto;
     font-size: 0.75rem;
     gap: 0.6rem;
     white-space: nowrap;
+}
+
+.template-weight-editor__actions > .global-comp-summary {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+}
+
+.template-weight-editor__actions > .global-comp-summary::-webkit-scrollbar {
+    height: 6px;
 }
 
 .template-weight-editor__course-summary > span {
@@ -4297,12 +4393,46 @@
 .template-weight-editor__body {
     flex: 1;
     min-height: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    width: 100%;
 }
+
+.template-course-type-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.template-course-type-badge--required { background: rgba(34, 197, 94, .14); color: #22c55e; }
+.template-course-type-badge--elective { background: rgba(245, 158, 11, .14); color: #fbbf24; }
 
 .template-weight-editor__body .curriculum-course-editor {
     border: 0;
     border-radius: 0;
     height: 100%;
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
+}
+
+.template-weight-editor__body .curriculum-course-editor__body,
+.template-weight-editor__body .curriculum-course-editor .ss-wrapper,
+.template-weight-editor__body .curriculum-course-editor .ss-scroll {
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
+}
+
+.template-weight-editor__body .curriculum-course-editor .ss-scroll {
+    overflow-x: auto;
+    overflow-y: auto;
 }
 
 .template-competency-manager {
@@ -4473,6 +4603,34 @@
 }
 
 @media (max-width: 900px) {
+    .editor-topbar {
+        align-items: stretch;
+        flex-direction: column;
+        padding: 1rem;
+    }
+
+    .editor-topbar__main {
+        align-items: flex-start;
+    }
+
+    .editor-topbar__actions {
+        justify-content: flex-end;
+    }
+
+    .editor-topbar__title,
+    .editor-topbar__title-input {
+        font-size: 1.2rem;
+    }
+
+    .editor-topbar__title-input {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .tm-page--editor > .template-structure-workspace {
+        padding: 1rem;
+    }
+
     .template-structure-workspace__panels {
         grid-template-columns: 1fr;
     }
@@ -4487,6 +4645,12 @@
     .template-weight-editor__toolbar {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .template-weight-editor__heading,
+    .template-weight-editor__actions {
+        flex: 0 1 auto;
+        width: 100%;
     }
 
     .template-weight-editor__actions {
@@ -4775,4 +4939,136 @@
     color: #f59e0b;
     background: rgba(245, 158, 11, 0.08);
     border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+@media (max-width: 700px) {
+    .editor-topbar__main {
+        flex-direction: column;
+        gap: 0.65rem;
+    }
+
+    .editor-topbar__actions {
+        justify-content: stretch;
+        width: 100%;
+    }
+
+    .editor-topbar__actions .btn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .editor-tabs {
+        gap: 0.75rem;
+        overflow-x: auto;
+        padding-inline: 1rem;
+    }
+
+    .tm-page--editor > .template-structure-workspace {
+        padding: 0.75rem;
+    }
+}
+
+/* ============================================================
+   Template Weight Editor — prototype-aligned table surface
+   ============================================================ */
+.template-weight-editor__summary-strip {
+    border-top: 1px solid var(--tm-card-border);
+    min-width: 0;
+    overflow: hidden;
+    padding: 0.7rem 1rem 0.65rem;
+}
+
+.template-weight-editor__summary-strip .global-comp-summary {
+    gap: 0.5rem;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0;
+    scrollbar-width: thin;
+}
+
+.template-weight-editor__summary-strip .global-comp-summary::-webkit-scrollbar {
+    height: 6px;
+}
+
+.template-weight-editor__summary-strip .global-comp-summary__label {
+    color: var(--tm-text-muted);
+    font-size: 0.7rem;
+}
+
+.template-weight-editor__summary-strip .global-comp-chip {
+    padding: 0.4rem 0.65rem 0.4rem 0.5rem;
+}
+
+.template-weight-editor__summary-strip .global-comp-chip__name {
+    max-width: 12rem;
+}
+
+.template-weight-editor__body .curriculum-course-editor--template-weight .ss-table {
+    min-width: 1280px;
+    table-layout: fixed;
+    width: 100%;
+}
+
+.template-weight-editor__body .curriculum-course-editor--template-weight .ss-table thead th {
+    background: var(--tm-card-bg);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.template-weight-editor__body .curriculum-course-editor--template-weight .curriculum-course-editor__col--grip {
+    min-width: 36px;
+    width: 36px;
+}
+
+.template-weight-editor__body .curriculum-course-editor--template-weight .curriculum-course-editor__col--checkbox {
+    min-width: 42px;
+    width: 42px;
+}
+
+.template-weight-editor__body .curriculum-course-editor--template-weight .curriculum-course-editor__col--code {
+    min-width: 112px;
+    width: 112px;
+}
+
+.template-weight-editor__body .curriculum-course-editor--template-weight .curriculum-course-editor__col--name-th {
+    min-width: 250px;
+    width: 250px;
+}
+
+.template-weight-editor__body .curriculum-course-editor--template-weight .curriculum-course-editor__col--name-en {
+    min-width: 260px;
+    width: 260px;
+}
+
+.template-weight-editor__body .curriculum-course-editor--template-weight .curriculum-course-editor__col--credits {
+    min-width: 82px;
+    width: 82px;
+}
+
+.template-weight-editor__body .curriculum-course-editor--template-weight .curriculum-course-editor__col--course-type {
+    min-width: 118px;
+    width: 118px;
+}
+
+.template-weight-editor__body .curriculum-course-editor--template-weight .curriculum-course-editor__col--extra {
+    min-width: 150px;
+    width: 150px;
+}
+
+.template-weight-editor__body .curriculum-course-editor--template-weight .ss-scroll {
+    overflow: auto;
+}
+
+@media (max-width: 700px) {
+    .template-weight-editor__toolbar,
+    .template-weight-editor__summary-strip {
+        padding-inline: 0.75rem;
+    }
+
+    .template-weight-editor__course-summary {
+        flex-wrap: wrap;
+        white-space: normal;
+    }
 }

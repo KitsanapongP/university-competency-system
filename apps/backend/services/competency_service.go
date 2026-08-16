@@ -62,10 +62,21 @@ type Activity struct {
 }
 
 type DashboardData struct {
-	Competencies  []Competency         `json:"competencies"`
-	Requirements  map[int64]float64    `json:"requirements"`
-	Activities    map[int64][]Activity `json:"activities"`
-	AvailableYear []string             `json:"available_years"`
+	Competencies  []Competency                        `json:"competencies"`
+	Requirements  map[int64]float64                   `json:"requirements"`
+	Activities    map[int64][]Activity                `json:"activities"`
+	AvailableYear []string                            `json:"available_years"`
+	Progress      map[int64]LearnerCompetencyProgress `json:"progress"`
+}
+
+type LearnerCompetencyProgress struct {
+	CoreScore        float64 `json:"core_score"`
+	CourseBonusScore float64 `json:"course_bonus_score"`
+	CourseTotalScore float64 `json:"course_total_score"`
+	ActivityScore    float64 `json:"activity_score"`
+	AccumulatedScore float64 `json:"accumulated_score"`
+	TargetScore      float64 `json:"target_score"`
+	Passed           bool    `json:"passed"`
 }
 
 // GetAllCompetencies ดึง competencies ทั้งหมดในระบบ
@@ -198,6 +209,21 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 		Requirements:  make(map[int64]float64),
 		Activities:    make(map[int64][]Activity),
 		AvailableYear: []string{},
+		Progress:      make(map[int64]LearnerCompetencyProgress),
+	}
+
+	progressRows, err := s.Repo.GetLearnerCompetencyProgress(ctx, personID)
+	if err != nil {
+		return nil, err
+	}
+	for competencyID, progress := range progressRows {
+		data.Progress[competencyID] = LearnerCompetencyProgress{
+			CoreScore: progress.CoreScore, CourseBonusScore: progress.CourseBonusScore,
+			CourseTotalScore: progress.CoreScore + progress.CourseBonusScore,
+			ActivityScore:    progress.ActivityScore, AccumulatedScore: progress.AccumulatedScore,
+			TargetScore: progress.TargetScore, Passed: progress.Passed,
+		}
+		data.Requirements[competencyID] = progress.TargetScore
 	}
 
 	// เติม competencies data
@@ -229,17 +255,19 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 			data.AvailableYear = append(data.AvailableYear, year)
 		}
 
-		// Requirements ตามหลักสูตรปัจจุบัน
-		curriculumID, err := s.Repo.GetCurrentCurriculumID(ctx, personID)
-		if err != nil {
-			return nil, err
-		}
-		if curriculumID != 0 {
-			requirements, err := s.Repo.GetRequirementsByCurriculum(ctx, curriculumID)
+		// Cohort targets supersede legacy Curriculum-level requirements.
+		if len(data.Progress) == 0 {
+			curriculumID, err := s.Repo.GetCurrentCurriculumID(ctx, personID)
 			if err != nil {
 				return nil, err
 			}
-			data.Requirements = requirements
+			if curriculumID != 0 {
+				requirements, err := s.Repo.GetRequirementsByCurriculum(ctx, curriculumID)
+				if err != nil {
+					return nil, err
+				}
+				data.Requirements = requirements
+			}
 		}
 
 	} else if category == "course" {
@@ -260,17 +288,19 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 			data.AvailableYear = append(data.AvailableYear, year)
 		}
 
-		// Requirements ตามหลักสูตรของนิสิต
-		curriculumID, err := s.Repo.GetCurrentCurriculumID(ctx, personID)
-		if err != nil {
-			return nil, err
-		}
-		if curriculumID != 0 {
-			requirements, err := s.Repo.GetRequirementsByCurriculum(ctx, curriculumID)
+		// Cohort targets supersede legacy Curriculum-level requirements.
+		if len(data.Progress) == 0 {
+			curriculumID, err := s.Repo.GetCurrentCurriculumID(ctx, personID)
 			if err != nil {
 				return nil, err
 			}
-			data.Requirements = requirements
+			if curriculumID != 0 {
+				requirements, err := s.Repo.GetRequirementsByCurriculum(ctx, curriculumID)
+				if err != nil {
+					return nil, err
+				}
+				data.Requirements = requirements
+			}
 		}
 	}
 

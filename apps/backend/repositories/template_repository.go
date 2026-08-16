@@ -313,6 +313,36 @@ func (r *TemplateRepository) GetTemplateItems(ctx context.Context, templateID ui
 	return items, rows.Err()
 }
 
+// GetTemplateCoreWeightSums derives core weights from required curriculum
+// placements. Template Additional Courses deliberately never contribute here.
+func (r *TemplateRepository) GetTemplateCoreWeightSums(ctx context.Context, templateID uint64) (map[uint64]float64, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT item.competency_id, COALESCE(SUM(item.weight), 0)
+		FROM comp_template_items item
+		JOIN comp_templates template ON template.template_id = item.template_id
+		JOIN crs_curriculum_courses placement ON placement.course_id = item.course_id
+		JOIN crs_course_categories category ON category.category_id = placement.category_id
+		WHERE item.template_id = ? AND item.course_id IS NOT NULL AND item.is_custom_course = 0
+			AND item.deleted_at IS NULL AND item.is_active = 1
+			AND placement.deleted_at IS NULL AND placement.is_active = 1 AND placement.is_required = 1
+			AND category.deleted_at IS NULL AND category.curriculum_id = template.curriculum_id
+		GROUP BY item.competency_id`, templateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	sums := make(map[uint64]float64)
+	for rows.Next() {
+		var competencyID uint64
+		var sum float64
+		if err := rows.Scan(&competencyID, &sum); err != nil {
+			return nil, err
+		}
+		sums[competencyID] = sum
+	}
+	return sums, rows.Err()
+}
+
 func (r *TemplateRepository) GetTemplateCategories(ctx context.Context, templateID uint64) ([]models.TemplateCategory, error) {
 	query := `
 		SELECT template_category_id, template_id, curriculum_parent_id, parent_id, code, name, display_order, is_active

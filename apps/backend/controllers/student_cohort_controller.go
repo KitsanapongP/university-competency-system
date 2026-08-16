@@ -16,7 +16,8 @@ import (
 )
 
 type StudentCohortController struct {
-	Service *services.StudentCohortService
+	Service        *services.StudentCohortService
+	ScoringService *services.CourseCompetencyScoringService
 }
 
 func (c *StudentCohortController) GetAll(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +84,7 @@ func (c *StudentCohortController) Update(w http.ResponseWriter, r *http.Request)
 	if !decodeStudentCohortPayload(w, r, &payload) {
 		return
 	}
-	item, err := c.Service.UpdateCohort(r.Context(), cohortID, payload, claims.Roles, claims.FacultyID)
+	item, err := c.Service.UpdateCohort(r.Context(), cohortID, payload, claims.UserID, claims.Roles, claims.FacultyID)
 	if err != nil {
 		writeStudentCohortError(w, err)
 		return
@@ -254,6 +255,78 @@ func (c *StudentCohortController) CommitImport(w http.ResponseWriter, r *http.Re
 	utils.OK(w, preview)
 }
 
+func (c *StudentCohortController) GetCompetencyRequirements(w http.ResponseWriter, r *http.Request) {
+	cohortID, ok := parseStudentCohortID(w, r, "cohort_id")
+	if !ok {
+		return
+	}
+	claims, ok := studentCohortClaims(w, r)
+	if !ok {
+		return
+	}
+	items, err := c.ScoringService.GetRequirements(r.Context(), cohortID, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeStudentCohortError(w, err)
+		return
+	}
+	utils.OK(w, items)
+}
+
+func (c *StudentCohortController) ReplaceCompetencyRequirements(w http.ResponseWriter, r *http.Request) {
+	cohortID, ok := parseStudentCohortID(w, r, "cohort_id")
+	if !ok {
+		return
+	}
+	claims, ok := studentCohortClaims(w, r)
+	if !ok {
+		return
+	}
+	var payload models.ReplaceCohortCompetencyRequirementsRequest
+	if !decodeStudentCohortPayload(w, r, &payload) {
+		return
+	}
+	items, err := c.ScoringService.ReplaceRequirements(r.Context(), cohortID, payload, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeStudentCohortError(w, err)
+		return
+	}
+	utils.OK(w, items)
+}
+
+func (c *StudentCohortController) RecalculateCourseCompetencyScores(w http.ResponseWriter, r *http.Request) {
+	cohortID, ok := parseStudentCohortID(w, r, "cohort_id")
+	if !ok {
+		return
+	}
+	claims, ok := studentCohortClaims(w, r)
+	if !ok {
+		return
+	}
+	result, err := c.ScoringService.Recalculate(r.Context(), cohortID, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeStudentCohortError(w, err)
+		return
+	}
+	utils.OK(w, result)
+}
+
+func (c *StudentCohortController) GetCourseCompetencyScoreSummary(w http.ResponseWriter, r *http.Request) {
+	cohortID, ok := parseStudentCohortID(w, r, "cohort_id")
+	if !ok {
+		return
+	}
+	claims, ok := studentCohortClaims(w, r)
+	if !ok {
+		return
+	}
+	items, err := c.ScoringService.GetSummary(r.Context(), cohortID, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeStudentCohortError(w, err)
+		return
+	}
+	utils.OK(w, items)
+}
+
 func studentCohortFiltersFromQuery(w http.ResponseWriter, r *http.Request) (models.StudentCohortFilters, bool) {
 	filters := models.StudentCohortFilters{Status: strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status"))), Search: strings.TrimSpace(r.URL.Query().Get("search"))}
 	var ok bool
@@ -323,6 +396,17 @@ func writeStudentCohortError(w http.ResponseWriter, err error) {
 	}
 	var conflict services.StudentCohortConflictError
 	if errors.As(err, &conflict) {
+		if conflict.Data != nil {
+			utils.JSON(w, http.StatusConflict, utils.Envelope{
+				"success": false,
+				"error": utils.Envelope{
+					"code":    conflict.Code,
+					"message": conflict.Message,
+				},
+				"data": conflict.Data,
+			})
+			return
+		}
 		utils.Error(w, http.StatusConflict, conflict.Code, conflict.Message)
 		return
 	}
