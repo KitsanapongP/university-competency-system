@@ -122,13 +122,13 @@ function TemplateWeightEditor({
         getCoursesForCategory,
     );
     const selectedIsLeaf = isLeafCategory(selectedCategory);
-    const scoreTypeColumn = {
-        key: '__score_type__',
-        label: language === 'en' ? 'Score type' : 'ประเภทคะแนน',
+    const courseTypeColumn = {
+        key: '__course_type__',
+        label: language === 'en' ? 'Course type' : 'ประเภทวิชา',
         className: 'ss-th--weight',
         colClassName: 'curriculum-course-editor__col--extra',
     };
-    const weightColumnHeaders = [scoreTypeColumn, ...competencies.map((competency) => {
+    const weightColumnHeaders = [courseTypeColumn, ...competencies.map((competency) => {
         const name = language === 'en'
             ? competency.nameEn || competency.nameTh || competency.name || competency.code
             : competency.nameTh || competency.name || competency.nameEn || competency.code;
@@ -142,11 +142,11 @@ function TemplateWeightEditor({
     })];
 
     const renderWeightCells = (course) => [
-        <td key="score-type" className="ss-cell ss-cell--weight">
-            <span className={`template-score-type-badge ${course.isCoreCourse ? 'template-score-type-badge--core' : 'template-score-type-badge--bonus'}`}>
+        <td key="course-type" className="ss-cell ss-cell--weight">
+            <span className={`template-course-type-badge ${course.isCoreCourse ? 'template-course-type-badge--required' : 'template-course-type-badge--elective'}`}>
                 {course.isCoreCourse
-                    ? (language === 'en' ? 'Core' : 'คะแนนหลัก')
-                    : (language === 'en' ? 'Bonus' : 'คะแนนเสริม')}
+                    ? (language === 'en' ? 'Required' : 'วิชาบังคับ')
+                    : (language === 'en' ? 'Elective' : 'วิชาเลือก')}
             </span>
         </td>,
         ...competencies.map(competency => {
