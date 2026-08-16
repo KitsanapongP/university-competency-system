@@ -243,7 +243,7 @@ function collectLeafSections(cats, coursesByCategoryId, parentPath = '') {
 // ============================================================
 // GlobalCompSummary — แถบสรุป competency รวมทุกวิชาทั้งหลักสูตร
 // ============================================================
-function GlobalCompSummary({ categories, coursesByCategoryId, weightsByCourseId, competencies }) {
+function GlobalCompSummary({ categories, coursesByCategoryId, weightsByCourseId, competencies, language = 'th' }) {
     const totals = competencies.map(comp => {
         let core = 0;
         let bonus = 0;
@@ -257,26 +257,34 @@ function GlobalCompSummary({ categories, coursesByCategoryId, weightsByCourseId,
         return { comp, core, bonus };
     });
 
-    const hasAny = totals.some(t => t.core > 0 || t.bonus > 0);
-    if (!hasAny) return null;
+    if (totals.length === 0) return null;
+
+    const isEnglish = language === 'en';
+    const copy = isEnglish
+        ? { overview: 'Weight overview', core: 'Core', bonus: 'Bonus', over: 'Over' }
+        : { overview: 'ภาพรวมน้ำหนัก', core: 'หลัก', bonus: 'เสริม', over: 'เกิน' };
 
     return (
         <div className="global-comp-summary">
-            <span className="global-comp-summary__label">ภาพรวม</span>
+            <span className="global-comp-summary__label">{copy.overview}</span>
             {totals.map(({ comp, core, bonus }) => {
                 const isOver = core > 100;
+                const displayName = isEnglish
+                    ? comp.nameEn || comp.nameTh || comp.name || comp.code
+                    : comp.nameTh || comp.name || comp.nameEn || comp.code;
+                const color = comp.color || '#3b82f6';
                 return (
                     <div key={comp.id}
                         className={`global-comp-chip ${isOver ? 'global-comp-chip--over' : ''}`}
-                        style={{ '--cc': isOver ? '#f87171' : comp.color }}
-                        title={`${comp.name}: คะแนนหลัก ${core}% | คะแนนเสริม ${bonus}%`}>
+                        style={{ '--cc': isOver ? '#f87171' : color }}
+                        title={`${displayName}: ${copy.core} ${core}% | ${copy.bonus} ${bonus}%`}>
                         {isOver
                             ? <AlertCircle size={11} style={{ color:'#f87171', flexShrink:0 }}/>
-                            : <span className="global-comp-chip__dot" style={{ background: comp.color }}/>
+                            : <span className="global-comp-chip__dot" style={{ background: color }}/>
                         }
-                        <span className="global-comp-chip__name">{comp.name}</span>
-                        <span className="global-comp-chip__val">{core > 0 ? `หลัก ${core}` : 'หลัก —'} / เสริม {bonus || '—'}</span>
-                        {isOver && <span className="global-comp-chip__warn">เกิน</span>}
+                        <span className="global-comp-chip__name">{displayName}</span>
+                        <span className="global-comp-chip__val">{copy.core} {core}% / {copy.bonus} {bonus}%</span>
+                        {isOver && <span className="global-comp-chip__warn">{copy.over}</span>}
                     </div>
                 );
             })}
