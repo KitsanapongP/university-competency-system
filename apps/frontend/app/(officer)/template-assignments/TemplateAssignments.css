@@ -58,6 +58,103 @@
 .template-assignment-state--locked { color: #b45309; background: color-mix(in srgb, #f59e0b 18%, transparent); }
 
 .template-assignment-choice-list { display: grid; gap: .55rem; }
+.template-assignment-template-context {
+    display: grid;
+    gap: .3rem;
+    margin: 0 0 1rem;
+    padding: 0 0 1rem;
+    border-bottom: 1px solid var(--border-color, #334155);
+}
+.template-assignment-template-context strong {
+    color: var(--text-primary, #e2e8f0);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+.template-assignment-template-context span {
+    color: var(--text-muted, #94a3b8);
+    font-size: .86rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+.template-assignment-confirmation-details {
+    display: grid;
+    gap: .75rem;
+}
+.template-assignment-confirmation-field {
+    display: grid;
+    gap: .2rem;
+}
+.template-assignment-confirmation-field span,
+.template-assignment-roster-preview__header span {
+    color: var(--text-muted, #94a3b8);
+    font-size: .78rem;
+}
+.template-assignment-confirmation-field strong {
+    color: var(--text-primary, #e2e8f0);
+    font-size: .92rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+.template-assignment-roster-preview {
+    display: grid;
+    gap: .55rem;
+    margin-top: .25rem;
+    padding-top: .8rem;
+    border-top: 1px solid var(--border-color, #334155);
+}
+.template-assignment-roster-preview__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .75rem;
+}
+.template-assignment-roster-preview__header strong {
+    color: var(--text-primary, #e2e8f0);
+    font-size: .88rem;
+}
+.template-assignment-roster-preview__list {
+    display: grid;
+    gap: .35rem;
+    max-height: 10rem;
+    margin: 0;
+    padding: .15rem .25rem .15rem 0;
+    overflow-y: auto;
+    list-style: none;
+}
+.template-assignment-roster-preview__list li {
+    display: grid;
+    grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
+    gap: .65rem;
+    padding: .45rem .55rem;
+    border: 1px solid var(--border-color, #334155);
+    border-radius: 6px;
+    color: var(--text-muted, #94a3b8);
+    font-size: .8rem;
+}
+.template-assignment-roster-preview__list li strong {
+    color: var(--text-primary, #e2e8f0);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+.template-assignment-roster-preview__empty,
+.template-assignment-roster-preview__error {
+    color: var(--text-muted, #94a3b8);
+    font-size: .8rem;
+}
+.template-assignment-roster-preview__error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    color: #fca5a5;
+}
+.template-assignment-roster-preview__error .course-btn {
+    flex-shrink: 0;
+    padding: .35rem .65rem;
+    font-size: .78rem;
+}
 .template-assignment-choice-list button { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; text-align: left; color: var(--text-primary, #e2e8f0); background: transparent; border: 1px solid var(--border-color, #334155); border-radius: 6px; padding: .8rem .9rem; cursor: pointer; }
 .template-assignment-choice-list button:hover { border-color: var(--primary, #3b82f6); background: color-mix(in srgb, var(--primary, #3b82f6) 10%, transparent); }
 .template-assignment-choice-list span { display: grid; gap: .2rem; }
@@ -78,6 +175,8 @@
     .template-assignment-filter { align-items: stretch; flex-direction: column; }
     .template-assignment-filter p { margin: 0; }
     .template-assignment-section__header { align-items: center; }
+    .template-assignment-roster-preview__list li { grid-template-columns: 1fr; gap: .15rem; }
+    .template-assignment-roster-preview__error { align-items: flex-start; flex-direction: column; }
 }
 
 @media (min-width: 721px) and (max-width: 1280px) {
