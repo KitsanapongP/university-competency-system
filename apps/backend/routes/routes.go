@@ -179,6 +179,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			pr.Route("/curricula", func(cr chi.Router) {
 				cr.Use(middleware.RequireRoles("admin", "officer"))
 				cr.Get("/", curriculumHandler.GetAll)
+				cr.Get("/generated-code", curriculumHandler.GetGeneratedCode)
 				cr.Post("/", curriculumHandler.Create)
 				cr.Delete("/{id}", curriculumHandler.DeleteCurriculum)
 				cr.Route("/{id}", func(cir chi.Router) {
@@ -186,6 +187,8 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 					cir.Patch("/", curriculumHandler.UpdateMetadata)
 					cir.Post("/duplicate", curriculumHandler.DuplicateCurriculum)
 					cir.Patch("/status", curriculumHandler.UpdateStatus)
+					cir.Post("/structure-imports/preview", curriculumHandler.PreviewStructureImport)
+					cir.Post("/structure-imports/commit", curriculumHandler.CommitStructureImport)
 
 					cir.Post("/categories", curriculumHandler.CreateCategory)
 					cir.Get("/categories/{category_id}/delete-preview", curriculumHandler.GetDeleteCategoryPreview)

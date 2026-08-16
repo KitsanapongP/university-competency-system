@@ -28,6 +28,10 @@ type Curriculum struct {
 	DeletedAt           *time.Time `json:"deleted_at"`
 }
 
+type GeneratedCurriculumCode struct {
+	CurriculumCode string `json:"curriculum_code"`
+}
+
 type MajorOption struct {
 	MajorID          uint64    `json:"major_id"`
 	DepartmentID     uint64    `json:"department_id"`
@@ -299,6 +303,61 @@ type UpdateCurriculumCoursePlacementPayload struct {
 	IsLocked      *bool   `json:"is_locked"`
 	DisplayOrder  *int    `json:"display_order"`
 	ConfirmImpact bool    `json:"confirm_impact"`
+}
+
+type CurriculumStructureImportCategory struct {
+	Code   string `json:"code"`
+	NameTH string `json:"name_th"`
+}
+
+type CurriculumStructureImportRow struct {
+	RowNumber    int                                 `json:"row_number"`
+	Categories   []CurriculumStructureImportCategory `json:"categories"`
+	CourseCode   string                              `json:"course_code"`
+	CourseNameTH string                              `json:"course_name_th"`
+	CourseNameEN *string                             `json:"course_name_en"`
+	Credits      int                                 `json:"credits"`
+}
+
+type CurriculumStructureImportPayload struct {
+	Rows          []CurriculumStructureImportRow `json:"rows"`
+	ConfirmImpact bool                           `json:"confirm_impact"`
+}
+
+type CurriculumStructureImportIssue struct {
+	RowNumber int    `json:"row_number"`
+	Field     string `json:"field"`
+	Message   string `json:"message"`
+	Severity  string `json:"severity"`
+}
+
+type CurriculumStructureImportPreview struct {
+	Valid                 bool                             `json:"valid"`
+	CanImport             bool                             `json:"can_import"`
+	ExistingCategoryCount int                              `json:"existing_category_count"`
+	NewCategoryCount      int                              `json:"new_category_count"`
+	CourseCount           int                              `json:"course_count"`
+	SkippedCourseCount    int                              `json:"skipped_course_count"`
+	Issues                []CurriculumStructureImportIssue `json:"issues"`
+}
+
+type CurriculumStructureImportCategoryPlan struct {
+	Code       string
+	NameTH     string
+	ParentCode string
+}
+
+type CurriculumStructureImportCoursePlan struct {
+	CategoryCode string
+	Code         string
+	NameTH       string
+	NameEN       *string
+	Credits      int
+}
+
+type CurriculumStructureImportPlan struct {
+	Categories []CurriculumStructureImportCategoryPlan
+	Courses    []CurriculumStructureImportCoursePlan
 }
 
 type AffectedTemplate struct {

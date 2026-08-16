@@ -133,7 +133,17 @@ const translations = {
         structure_empty: 'Add a main category to begin.',
         course_actions: 'Course actions',
         edit_course: 'Edit course',
+        duplicate_course: 'Duplicate course',
+        copy_course_suffix: '(Copy)',
         delete_course: 'Delete course',
+        confirm_delete_course: 'Confirm course deletion',
+        confirm_delete_courses: 'Confirm deleting selected courses',
+        delete_course_irreversible_hint: 'Deleted courses cannot be recovered.',
+        confirm_action: 'Confirm',
+        course_delete_impact_title: 'Confirm course removal impact',
+        course_delete_impact_hint: 'Review the affected data before continuing.',
+        save_course_changes: 'Save changes',
+        cancel_course_edit: 'Cancel editing',
         template_create_title: 'Create Template',
         template_step_curriculum: 'Curriculum details',
         template_step_competency: 'Select competency',
@@ -320,7 +330,17 @@ const translations = {
         structure_empty: 'เพิ่มหมวดหลักเพื่อเริ่มต้น',
         course_actions: 'จัดการรายวิชา',
         edit_course: 'แก้ไขรายวิชา',
+        duplicate_course: 'ทำสำเนารายวิชา',
+        copy_course_suffix: '(สำเนา)',
         delete_course: 'ลบรายวิชา',
+        confirm_delete_course: 'ยืนยันการลบรายวิชา',
+        confirm_delete_courses: 'ยืนยันการลบรายวิชาที่เลือก',
+        delete_course_irreversible_hint: 'รายวิชาที่ลบแล้วจะไม่สามารถกู้คืนได้',
+        confirm_action: 'ยืนยันการดำเนินการ',
+        course_delete_impact_title: 'ยืนยันผลกระทบจากการถอดรายวิชา',
+        course_delete_impact_hint: 'โปรดตรวจสอบผลกระทบก่อนดำเนินการต่อ',
+        save_course_changes: 'บันทึกการแก้ไข',
+        cancel_course_edit: 'ยกเลิกการแก้ไข',
         template_create_title: 'สร้าง Template ใหม่',
         template_step_curriculum: 'ข้อมูลหลักสูตร',
         template_step_competency: 'เลือก Competency',
@@ -383,7 +403,6 @@ translations.en.student_management = 'Student Management';
 translations.th.student_management = 'จัดการข้อมูลนักศึกษา';
 translations.en.menu_management = 'Management';
 translations.th.menu_management = 'เมนูการจัดการ';
-
 export function LanguageProvider({ children }) {
     // Always start with 'th' to match server render and avoid hydration mismatch
     const [language, setLanguage] = useState('th');

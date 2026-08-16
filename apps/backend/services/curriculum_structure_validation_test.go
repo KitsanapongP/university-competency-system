@@ -7,16 +7,29 @@ import (
 )
 
 func categoryWithDepth(levels int, courseAtRoot bool) models.CreateCategoryPayload {
-	category := models.CreateCategoryPayload{NameTH: "Category"}
+	rootCode := "1"
+	category := models.CreateCategoryPayload{NameTH: "Category", Code: &rootCode}
 	if courseAtRoot {
 		category.Courses = []models.CreateCourseInCatPayload{{Code: "CS101", NameTH: "Course"}}
 	}
 	current := &category
 	for level := 1; level < levels; level += 1 {
-		current.Children = []models.CreateCategoryPayload{{NameTH: "Category"}}
+		code := currentCode(current.Code) + ".1"
+		current.Children = []models.CreateCategoryPayload{{NameTH: "Category", Code: &code}}
 		current = &current.Children[0]
 	}
 	return category
+}
+
+func currentCode(code *string) string {
+	if code == nil {
+		return ""
+	}
+	return *code
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 func TestValidateCreateCategories(t *testing.T) {
@@ -37,6 +50,7 @@ func TestValidateCreateCategories(t *testing.T) {
 		{
 			name: "allows a course in a leaf category",
 			categories: []models.CreateCategoryPayload{{
+				Code:    stringPointer("1"),
 				NameTH:  "Leaf",
 				Courses: []models.CreateCourseInCatPayload{{Code: "CS101", NameTH: "Course"}},
 			}},
@@ -50,7 +64,7 @@ func TestValidateCreateCategories(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateCreateCategories(tt.categories, map[string]bool{})
+			err := validateCreateCategories(tt.categories, map[string]bool{}, map[string]bool{})
 			if tt.wantErr == "" && err != nil {
 				t.Fatalf("validateCreateCategories() error = %v, want nil", err)
 			}

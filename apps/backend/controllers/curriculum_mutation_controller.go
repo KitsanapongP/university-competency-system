@@ -254,6 +254,56 @@ func (c *CurriculumController) DeleteCurriculumCoursePlacement(w http.ResponseWr
 	utils.OK(w, curriculum)
 }
 
+func (c *CurriculumController) PreviewStructureImport(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUintURLParam(w, r, "id", "invalid curriculum id")
+	if !ok {
+		return
+	}
+	claims, ok := curriculumClaims(w, r)
+	if !ok {
+		return
+	}
+
+	var payload models.CurriculumStructureImportPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+
+	preview, err := c.Service.PreviewStructureImport(r.Context(), id, payload, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.OK(w, preview)
+}
+
+func (c *CurriculumController) CommitStructureImport(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUintURLParam(w, r, "id", "invalid curriculum id")
+	if !ok {
+		return
+	}
+	claims, ok := curriculumClaims(w, r)
+	if !ok {
+		return
+	}
+
+	var payload models.CurriculumStructureImportPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+
+	curriculum, err := c.Service.CommitStructureImport(r.Context(), id, payload, claims.UserID, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeCurriculumError(w, err)
+		return
+	}
+
+	utils.OK(w, curriculum)
+}
+
 func (c *CurriculumController) DeleteCurriculum(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseUintURLParam(w, r, "id", "invalid curriculum id")
 	if !ok {

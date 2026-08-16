@@ -181,32 +181,34 @@ func (s *CurriculumService) CreateCategory(ctx context.Context, curriculumID uin
 	if err := s.ensureStructureEditable(ctx, curriculum, payload.ConfirmImpact); err != nil {
 		return nil, err
 	}
+	payload.NameTH = strings.TrimSpace(payload.NameTH)
+	if payload.Code != nil {
+		value := strings.TrimSpace(*payload.Code)
+		payload.Code = &value
+	}
 	if err := validateCreateCategoryMutation(payload); err != nil {
+		return nil, err
+	}
+	categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	if payload.Code == nil {
+		return nil, CurriculumValidationError{Message: "category code is required"}
+	}
+	if err := validateCategoryCodeForCreate(categories, *payload.Code); err != nil {
 		return nil, err
 	}
 	if payload.ParentID != nil {
 		if *payload.ParentID == 0 {
 			return nil, CurriculumValidationError{Message: "parent_id is invalid"}
 		}
-		categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
-		if err != nil {
-			return nil, err
-		}
 		if err := validateChildCategoryPlacement(categories, *payload.ParentID); err != nil {
 			return nil, err
 		}
 	}
 
-	payload.NameTH = strings.TrimSpace(payload.NameTH)
-	if payload.Code != nil {
-		value := strings.TrimSpace(*payload.Code)
-		payload.Code = &value
-	}
-
 	if err := s.Repo.CreateCategory(ctx, curriculumID, payload); err != nil {
-		return nil, err
-	}
-	if err := s.Repo.RenumberCategoryCodes(ctx, curriculumID); err != nil {
 		return nil, err
 	}
 
@@ -221,21 +223,29 @@ func (s *CurriculumService) UpdateCategory(ctx context.Context, curriculumID uin
 	if err := s.ensureStructureEditable(ctx, curriculum, payload.ConfirmImpact); err != nil {
 		return nil, err
 	}
+	normalizeUpdateCategoryPayload(&payload)
 	if err := validateUpdateCategoryMutation(payload); err != nil {
 		return nil, err
 	}
 	if err := s.validateCategoryMove(ctx, curriculumID, categoryID, payload.ParentID); err != nil {
 		return nil, err
 	}
-	normalizeUpdateCategoryPayload(&payload)
+	categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	codeUpdates := map[uint64]string{}
+	if payload.Code != nil {
+		codeUpdates, err = validateCategoryCodeUpdates(categories, categoryID, *payload.Code)
+		if err != nil {
+			return nil, err
+		}
+	}
 
-	if err := s.Repo.UpdateCategory(ctx, curriculumID, categoryID, payload); err != nil {
+	if err := s.Repo.UpdateCategoryWithCodeCascade(ctx, curriculumID, categoryID, payload, codeUpdates); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCurriculumNotFound
 		}
-		return nil, err
-	}
-	if err := s.Repo.RenumberCategoryCodes(ctx, curriculumID); err != nil {
 		return nil, err
 	}
 
@@ -284,10 +294,6 @@ func (s *CurriculumService) DeleteCategory(ctx context.Context, curriculumID uin
 	if err := s.Repo.DeleteCategoryTx(ctx, preview); err != nil {
 		return nil, err
 	}
-	if err := s.Repo.RenumberCategoryCodes(ctx, curriculumID); err != nil {
-		return nil, err
-	}
-
 	return s.GetCurriculumByID(ctx, curriculumID, roles, facultyID)
 }
 
@@ -650,6 +656,12 @@ func (s *CurriculumService) validateCategoryMove(ctx context.Context, curriculum
 }
 
 func validateCreateCategoryMutation(payload models.CreateCurriculumCategoryPayload) error {
+	if payload.Code == nil || strings.TrimSpace(*payload.Code) == "" {
+		return CurriculumValidationError{Message: "category code is required"}
+	}
+	if err := validateCurriculumCategoryCode(strings.TrimSpace(*payload.Code)); err != nil {
+		return err
+	}
 	if strings.TrimSpace(payload.NameTH) == "" {
 		return CurriculumValidationError{Message: "category name_th is required"}
 	}
@@ -663,6 +675,11 @@ func validateCreateCategoryMutation(payload models.CreateCurriculumCategoryPaylo
 }
 
 func validateUpdateCategoryMutation(payload models.UpdateCurriculumCategoryPayload) error {
+	if payload.Code != nil {
+		if err := validateCurriculumCategoryCode(strings.TrimSpace(*payload.Code)); err != nil {
+			return err
+		}
+	}
 	if payload.NameTH != nil && strings.TrimSpace(*payload.NameTH) == "" {
 		return CurriculumValidationError{Message: "category name_th cannot be empty"}
 	}

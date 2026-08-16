@@ -4,16 +4,17 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import {
     BookOpen,
-    Check,
     ChevronFirst,
     ChevronLast,
     ChevronLeft,
     ChevronRight,
+    Copy,
     GripVertical,
     LockKeyhole,
     MoreHorizontal,
     Pencil,
     Plus,
+    Save,
     Trash2,
     X,
 } from 'lucide-react';
@@ -40,6 +41,8 @@ function CurriculumCourseRow({
     renderExtraCells,
     onToggleSelect,
     onStartEdit,
+    onDuplicate,
+    canDuplicate = false,
     onCancelEdit,
     onSave,
     onDelete,
@@ -131,6 +134,11 @@ function CurriculumCourseRow({
         onDelete?.(course);
     };
 
+    const handleDuplicate = () => {
+        setActionMenuPosition(null);
+        onDuplicate?.(course);
+    };
+
     const toggleActionMenu = (event) => {
         event.stopPropagation();
         if (isActionMenuOpen) {
@@ -139,8 +147,8 @@ function CurriculumCourseRow({
         }
 
         const rect = event.currentTarget.getBoundingClientRect();
-        const menuWidth = 154;
-        const menuHeight = 82;
+        const menuWidth = 176;
+        const menuHeight = canDuplicate ? 118 : 82;
         const preferredTop = rect.bottom + 4;
         const top = preferredTop + menuHeight > window.innerHeight
             ? Math.max(8, rect.top - menuHeight - 4)
@@ -248,21 +256,23 @@ function CurriculumCourseRow({
                     <>
                         <button
                             type="button"
-                            className="icon-course-btn icon-course-btn--edit icon-course-btn--xs"
+                            className="icon-course-btn icon-course-btn--save icon-course-btn--xs"
                             onClick={handleSave}
                             disabled={disabled || !String(form.code || '').trim() || !String(form.nameTh || '').trim()}
-                            title="บันทึก"
+                            title={t('save_course_changes')}
+                            aria-label={t('save_course_changes')}
                         >
-                            <Check size={13} />
+                            <Save size={14} />
                         </button>
                         <button
                             type="button"
-                            className="icon-course-btn icon-course-btn--danger icon-course-btn--xs"
+                            className="icon-course-btn icon-course-btn--cancel icon-course-btn--xs"
                             onClick={handleCancel}
                             disabled={disabled}
-                            title="ยกเลิก"
+                            title={t('cancel_course_edit')}
+                            aria-label={t('cancel_course_edit')}
                         >
-                            <X size={12} />
+                            <X size={14} />
                         </button>
                     </>
                 ) : !rowDisabled && !isNew ? (
@@ -297,6 +307,17 @@ function CurriculumCourseRow({
                                     <Pencil size={15} />
                                     {t('edit_course')}
                                 </button>
+                                {canDuplicate && (
+                                    <button
+                                        type="button"
+                                        className="curriculum-course-row-actions__item"
+                                        onClick={handleDuplicate}
+                                        role="menuitem"
+                                    >
+                                        <Copy size={15} />
+                                        {t('duplicate_course')}
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     className="curriculum-course-row-actions__item curriculum-course-row-actions__item--danger"
@@ -338,6 +359,7 @@ export default function CurriculumCourseEditorPanel({
     onCourseDragEnd,
     onEditingStateChange,
     canEditCategoryMetadata = canEdit,
+    allowCategoryCodeEdit = false,
     canManageCourses = canEdit,
     getCourseCapabilities,
     allowExtraEditing = false,
@@ -350,9 +372,12 @@ export default function CurriculumCourseEditorPanel({
     extraColumnHeaders = [],
     renderExtraCells,
 }) {
+    const { t } = useLanguage();
     const [editingCategoryName, setEditingCategoryName] = useState(false);
     const [categoryNameValue, setCategoryNameValue] = useState(category?.name || '');
+    const [categoryCodeValue, setCategoryCodeValue] = useState(category?.code || '');
     const [categoryCreditsValue, setCategoryCreditsValue] = useState(category?.requiredCredits || 0);
+    const [draftCourse, setDraftCourse] = useState(null);
     const [editingCourseId, setEditingCourseId] = useState(null);
     const [showAddCourse, setShowAddCourse] = useState(false);
     const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
@@ -370,9 +395,24 @@ export default function CurriculumCourseEditorPanel({
     const startAddingCourse = useCallback(() => {
         if (!canMutateCourses || showAddCourse) return;
         setSelectedCourseIds(new Set());
+        setDraftCourse(null);
         setShowAddCourse(true);
         setEditingCourseId(NEW_COURSE_ID);
     }, [canMutateCourses, showAddCourse]);
+
+    const startDuplicatingCourse = useCallback((course) => {
+        if (!canMutateCourses || showAddCourse || !course) return;
+        setSelectedCourseIds(new Set());
+        setDraftCourse({
+            code: course.code || '',
+            nameTh: course.nameTh ? `${course.nameTh} ${t('copy_course_suffix')}` : '',
+            nameEn: course.nameEn ? `${course.nameEn} ${t('copy_course_suffix')}` : '',
+            credits: Number(course.credits) || 0,
+            isCoreCourse: course.isCoreCourse ?? true,
+        });
+        setShowAddCourse(true);
+        setEditingCourseId(NEW_COURSE_ID);
+    }, [canMutateCourses, showAddCourse, t]);
 
     useEffect(() => {
         if (externalAddCourseRequestId === handledExternalAddRequestRef.current) return;
@@ -383,6 +423,7 @@ export default function CurriculumCourseEditorPanel({
     useEffect(() => {
         setEditingCategoryName(false);
         setCategoryNameValue(category?.name || '');
+        setCategoryCodeValue(category?.code || '');
         setCategoryCreditsValue(category?.requiredCredits || 0);
         setEditingCourseId(null);
         setShowAddCourse(false);
@@ -390,7 +431,7 @@ export default function CurriculumCourseEditorPanel({
         setCurrentPage(1);
         setDropTargetCourseId(null);
         setIsDropZoneActive(false);
-    }, [categoryId, category?.name, category?.requiredCredits]);
+    }, [categoryId, category?.code, category?.name, category?.requiredCredits]);
 
     const resolveCourseCapabilities = (course) => getCourseCapabilities?.(course) || {};
     const canSelectCourse = (course) => !isReadOnly && allowSelection && resolveCourseCapabilities(course).canSelect !== false;
@@ -424,12 +465,36 @@ export default function CurriculumCourseEditorPanel({
     const saveCategoryName = () => {
         if (!canEditCategory || !category?.id) return;
         const nextName = categoryNameValue.trim() || 'หมวดวิชาใหม่';
-        if (nextName === category.name) {
+        const nextCode = categoryCodeValue.trim();
+        const codeChanged = allowCategoryCodeEdit && nextCode !== (category.code || '');
+        if (nextName === category.name && !codeChanged) {
             setEditingCategoryName(false);
             return;
         }
-        onRenameCategory?.(category.id, { nameTh: nextName });
+        onRenameCategory?.(category.id, {
+            nameTh: nextName,
+            ...(allowCategoryCodeEdit ? { code: nextCode } : {}),
+        });
         setEditingCategoryName(false);
+    };
+
+    const cancelCategoryNameEdit = () => {
+        setCategoryNameValue(category?.name || '');
+        setCategoryCodeValue(category?.code || '');
+        setEditingCategoryName(false);
+    };
+
+    const handleCategoryEditKeyDown = (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            saveCategoryName();
+            return;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            cancelCategoryNameEdit();
+        }
     };
 
     const saveCategoryCredits = () => {
@@ -480,14 +545,13 @@ export default function CurriculumCourseEditorPanel({
         if (result !== false) {
             setShowAddCourse(false);
             setEditingCourseId(null);
+            setDraftCourse(null);
         }
         return result;
     };
 
     const handleBulkDelete = async () => {
         if (!selectedCourses.length || isReadOnly) return;
-        const ok = window.confirm(`ยืนยันการลบรายวิชาที่เลือก ${selectedCourses.length} วิชาหรือไม่?`);
-        if (!ok) return;
         const result = await onBulkDeleteCourses?.(selectedCourses);
         if (result !== false) {
             setSelectedCourseIds(new Set());
@@ -562,15 +626,15 @@ export default function CurriculumCourseEditorPanel({
 
     const newCourse = {
         id: NEW_COURSE_ID,
-        code: '',
-        nameTh: '',
-        nameEn: '',
-        credits: 0,
-        isCoreCourse: true,
+        code: draftCourse?.code || '',
+        nameTh: draftCourse?.nameTh || '',
+        nameEn: draftCourse?.nameEn || '',
+        credits: draftCourse?.credits || 0,
+        isCoreCourse: draftCourse?.isCoreCourse ?? true,
     };
 
     return (
-        <div className="course-two-panel__content curriculum-course-editor">
+        <div className={`course-two-panel__content curriculum-course-editor ${extraColumnHeaders.length ? 'curriculum-course-editor--has-extra-columns' : ''}`}>
             {showCategoryToolbar && (
             <div className="course-detail-toolbar curriculum-course-editor__toolbar">
                 <div className="course-detail-toolbar__left">
@@ -578,21 +642,55 @@ export default function CurriculumCourseEditorPanel({
                     {category ? (
                         <div className="course-detail-toolbar__name">
                             {editingCategoryName ? (
-                                <input
-                                    autoFocus
-                                    className="course-detail-toolbar__name-input"
-                                    value={categoryNameValue}
-                                    onChange={event => setCategoryNameValue(event.target.value)}
-                                    onBlur={saveCategoryName}
-                                    onKeyDown={event => {
-                                        if (event.key === 'Enter') saveCategoryName();
-                                        if (event.key === 'Escape') {
-                                            setCategoryNameValue(category?.name || '');
-                                            setEditingCategoryName(false);
-                                        }
+                                <form
+                                    className="course-detail-toolbar__edit-fields"
+                                    onSubmit={event => {
+                                        event.preventDefault();
+                                        saveCategoryName();
                                     }}
-                                    disabled={isReadOnly}
-                                />
+                                >
+                                    {allowCategoryCodeEdit && (
+                                        <input
+                                            autoFocus
+                                            className="course-detail-toolbar__code-input"
+                                            value={categoryCodeValue}
+                                            onChange={event => setCategoryCodeValue(event.target.value)}
+                        onKeyDown={handleCategoryEditKeyDown}
+                                            aria-label="Category code"
+                                            placeholder="1.1"
+                                            disabled={isReadOnly}
+                                        />
+                                    )}
+                                    <input
+                                        autoFocus={!allowCategoryCodeEdit}
+                                        className="course-detail-toolbar__name-input"
+                                        value={categoryNameValue}
+                                        onChange={event => setCategoryNameValue(event.target.value)}
+                    onKeyDown={handleCategoryEditKeyDown}
+                    disabled={isReadOnly}
+                />
+                <div className="course-detail-toolbar__edit-actions">
+                    <button
+                        type="submit"
+                        className="course-detail-toolbar__save-btn"
+                        title="บันทึกการแก้ไข"
+                        aria-label="บันทึกการแก้ไข"
+                        disabled={isReadOnly}
+                    >
+                        <Save size={15} />
+                    </button>
+                    <button
+                        type="button"
+                        className="course-detail-toolbar__cancel-btn"
+                        onClick={cancelCategoryNameEdit}
+                        title="ยกเลิกการแก้ไข"
+                        aria-label="ยกเลิกการแก้ไข"
+                        disabled={isReadOnly}
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+            </form>
                             ) : (
                                 <>
                                     <span className="course-detail-toolbar__name-text">
@@ -604,9 +702,10 @@ export default function CurriculumCourseEditorPanel({
                                             className="course-detail-toolbar__edit-btn"
                                             onClick={() => {
                                                 setCategoryNameValue(category.name || '');
+                                                setCategoryCodeValue(category.code || '');
                                                 setEditingCategoryName(true);
                                             }}
-                                            title="แก้ไขชื่อหมวดวิชา"
+                                            title="แก้ไขข้อมูลหมวดวิชา"
                                         >
                                             <Pencil size={14} />
                                         </button>
@@ -755,6 +854,7 @@ export default function CurriculumCourseEditorPanel({
                                                 onCancelEdit={() => {
                                                     setShowAddCourse(false);
                                                     setEditingCourseId(null);
+                                                    setDraftCourse(null);
                                                 }}
                                             />
                                         )}
@@ -777,6 +877,8 @@ export default function CurriculumCourseEditorPanel({
                                                     isDropTarget={dropTargetCourseId === courseId}
                                                     onToggleSelect={toggleCourseSelection}
                                                     onStartEdit={() => setEditingCourseId(courseId)}
+                                                    onDuplicate={startDuplicatingCourse}
+                                                    canDuplicate={canMutateCourses}
                                                     onCancelEdit={() => setEditingCourseId(null)}
                                                     onSave={handleSaveCourse}
                                                     onDelete={onDeleteCourse}

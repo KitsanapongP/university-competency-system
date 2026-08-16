@@ -91,3 +91,6 @@ apps/backend/db/backup_migration
 apps/backend/tmp_build
 apps/frontend/next-dev.stdout.log
 apps/frontend/next-dev.stderr.log
+
+docs
+mockup
