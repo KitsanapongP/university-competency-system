@@ -1365,6 +1365,7 @@ export default function TemplateManagementPage() {
                     coursesByCategoryId={currentCoursesByCat}
                     weightsByCourseId={currentWeightsByCourse}
                     competencies={currentCompetencies}
+                    language={language}
                     onSelectCategory={handleSelectCategory}
                     onDeselectCategory={handleDeselectCategory}
                     onSelectAllCourses={handleSelectAllCourses}
@@ -1406,6 +1407,7 @@ export default function TemplateManagementPage() {
                     coursesByCategoryId={currentCoursesByCat}
                     weightsByCourseId={currentWeightsByCourse}
                     competencies={currentCompetencies}
+                    language={language}
                     onSelectCategory={handleSelectCategory}
                     onDeselectCategory={handleDeselectCategory}
                     onSelectAllCourses={handleSelectAllCourses}

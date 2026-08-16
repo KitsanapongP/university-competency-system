@@ -107,6 +107,7 @@ function TemplateWeightEditor({
     weightsByCourseId,
     competencies,
     allCourses,
+    language,
     onSetWeight,
     onManageCompetencies,
 }) {
@@ -121,12 +122,18 @@ function TemplateWeightEditor({
         getCoursesForCategory,
     );
     const selectedIsLeaf = isLeafCategory(selectedCategory);
-    const weightColumnHeaders = competencies.map(competency => ({
-        key: competency.id,
-        label: `${competency.code || competency.name} 100%`,
-        className: 'ss-th--weight',
-        colClassName: 'curriculum-course-editor__col--extra',
-    }));
+    const weightColumnHeaders = competencies.map((competency) => {
+        const name = language === 'en'
+            ? competency.nameEn || competency.nameTh || competency.name || competency.code
+            : competency.nameTh || competency.name || competency.nameEn || competency.code;
+
+        return {
+            key: competency.id,
+            label: `${name} 100%`,
+            className: 'ss-th--weight',
+            colClassName: 'curriculum-course-editor__col--extra',
+        };
+    });
 
     const renderWeightCells = (course) => competencies.map(competency => {
         const stored = weightsByCourseId?.[course.id]?.[competency.id] ?? 0;
@@ -268,6 +275,7 @@ export default function TemplateStructureWorkspace({
     coursesByCategoryId = {},
     weightsByCourseId = {},
     competencies = [],
+    language = 'th',
     mode = 'setup',
     draggingCategoryId = null,
     draggedCourseId = null,
@@ -514,9 +522,10 @@ export default function TemplateStructureWorkspace({
                             showAllCourses={showAllCourses}
                             coursesByCategoryId={coursesByCategoryId}
                             weightsByCourseId={weightsByCourseId}
-                            competencies={competencies}
-                            allCourses={allCourses}
-                            onSetWeight={onSetWeight}
+                        competencies={competencies}
+                        allCourses={allCourses}
+                        language={language}
+                        onSetWeight={onSetWeight}
                             onManageCompetencies={onManageCompetencies}
                         />
                     )}
