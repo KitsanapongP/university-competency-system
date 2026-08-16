@@ -10,6 +10,7 @@ import (
 type Curriculum struct {
 	CurriculumID        uint64     `json:"curriculum_id"`
 	MajorID             uint64     `json:"major_id"`
+	FacultyID           uint64     `json:"faculty_id"`
 	MajorNameTH         string     `json:"major_name_th"`
 	MajorNameEN         *string    `json:"major_name_en"`
 	CurriculumNameTH    string     `json:"curriculum_name_th"`

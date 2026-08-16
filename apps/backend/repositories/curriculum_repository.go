@@ -111,6 +111,7 @@ func scanCurriculum(scanner rowScanner) (*models.Curriculum, error) {
 	if err := scanner.Scan(
 		&c.CurriculumID,
 		&c.MajorID,
+		&c.FacultyID,
 		&c.MajorNameTH,
 		&majorNameEn,
 		&c.CurriculumNameTH,
@@ -146,7 +147,7 @@ func scanCurriculum(scanner rowScanner) (*models.Curriculum, error) {
 
 func (r *CurriculumRepository) GetCurriculums(ctx context.Context) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, d.faculty_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -156,8 +157,10 @@ func (r *CurriculumRepository) GetCurriculums(ctx context.Context) ([]*models.Cu
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
 		JOIN edu_majors m ON m.major_id = c.major_id
+		JOIN org_departments d ON d.department_id = m.department_id
 		WHERE c.deleted_at IS NULL
 			AND m.deleted_at IS NULL
+			AND d.deleted_at IS NULL
 		ORDER BY c.effective_year_be DESC, c.curriculum_id DESC
 	`
 
@@ -184,7 +187,7 @@ func (r *CurriculumRepository) GetCurriculums(ctx context.Context) ([]*models.Cu
 
 func (r *CurriculumRepository) GetCurriculumsByFaculty(ctx context.Context, facultyID uint64) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, d.faculty_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -610,7 +613,7 @@ func scanDepartmentOption(scanner rowScanner) (*models.DepartmentOption, error) 
 
 func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uint64) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, d.faculty_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -620,8 +623,10 @@ func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uin
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
 		JOIN edu_majors m ON m.major_id = c.major_id
+		JOIN org_departments d ON d.department_id = m.department_id
 		WHERE c.effective_year_be = ? AND c.status = 'active' AND c.deleted_at IS NULL
 			AND m.deleted_at IS NULL
+			AND d.deleted_at IS NULL
 		ORDER BY c.curriculum_id DESC
 	`
 
@@ -648,7 +653,7 @@ func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uin
 
 func (r *CurriculumRepository) GetCurriculumByID(ctx context.Context, id uint64) (*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, d.faculty_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -658,8 +663,10 @@ func (r *CurriculumRepository) GetCurriculumByID(ctx context.Context, id uint64)
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
 		JOIN edu_majors m ON m.major_id = c.major_id
+		JOIN org_departments d ON d.department_id = m.department_id
 		WHERE c.curriculum_id = ? AND c.deleted_at IS NULL
 			AND m.deleted_at IS NULL
+			AND d.deleted_at IS NULL
 	`
 
 	return scanCurriculum(r.DB.QueryRowContext(ctx, query, id))
