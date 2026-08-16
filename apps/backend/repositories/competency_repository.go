@@ -376,7 +376,7 @@ func scanCompetencyOption(scanner competencyScanner) (*models.CompetencyOption, 
 		item.Description = &description.String
 	}
 	item.IsActive = isActive
-	item.CanEdit = item.TemplateUsageCount == 0
+	item.CanEdit = true
 	item.CanDelete = item.TemplateUsageCount == 0
 	return &item, nil
 }

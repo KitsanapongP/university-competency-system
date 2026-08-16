@@ -1535,7 +1535,7 @@ export default function CurriculumManagementPage() {
                             faculties={faculties}
                             isAdmin={isAdmin}
                             disabled={operationLoading}
-                            locked={selectedCourse.status === 'active' && selectedCourse.activeTemplateCount > 0}
+                            locked={false}
                             activeTemplateCount={selectedCourse.activeTemplateCount}
                             fieldErrors={metadataFieldErrors}
                             resetVersion={metadataResetVersion}

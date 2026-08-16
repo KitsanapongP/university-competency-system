@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Edit3, Lock, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2 } from 'lucide-react';
+import { Edit3, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2 } from 'lucide-react';
 import {
     createCompetency,
     deleteCompetency,
@@ -192,10 +192,6 @@ export default function CompetencyManagementPage() {
     };
 
     const openEditModal = (competency) => {
-        if (!competency?.canEdit) {
-            setFeedback({ type: 'error', message: 'ไม่สามารถแก้ไขสมรรถนะนี้ได้ เพราะมี Template ใช้อยู่' });
-            return;
-        }
         setFeedback({ type: '', message: '' });
         setEditingCompetency(competency);
         setForm({
@@ -340,8 +336,8 @@ export default function CompetencyManagementPage() {
                                         </td>
                                         <td>
                                             {competency.templateUsageCount > 0 ? (
-                                                <span className="competency-management__badge competency-management__badge--locked">
-                                                    <Lock size={13} />
+                                                <span className="competency-management__badge">
+                                                    <ShieldCheck size={13} />
                                                     ใช้ใน Template {competency.templateUsageCount} รายการ
                                                 </span>
                                             ) : (
@@ -357,8 +353,8 @@ export default function CompetencyManagementPage() {
                                                     type="button"
                                                     className="icon-course-btn icon-course-btn--edit"
                                                     onClick={() => openEditModal(competency)}
-                                                    disabled={!competency.canEdit || submitting}
-                                                    title={competency.canEdit ? 'แก้ไข' : 'มี Template ใช้อยู่'}
+                                                    disabled={submitting}
+                                                    title="แก้ไข"
                                                 >
                                                     <Edit3 size={15} />
                                                 </button>

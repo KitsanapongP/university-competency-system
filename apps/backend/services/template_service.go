@@ -140,11 +140,6 @@ func (s *TemplateService) SaveTemplateItems(ctx context.Context, templateID uint
 		return errors.New("ไม่พบข้อมูล Template")
 	}
 
-	// Business Rule: ห้ามแก้ไขค่าน้ำหนักหรือวิชาขณะที่ Template เป็น Active
-	if t.IsActive {
-		return errors.New("ไม่สามารถบันทึกค่าน้ำหนักได้ในขณะที่ Template มีสถานะพร้อมใช้งาน (Active) กรุณาเปลี่ยนสถานะเป็นปิดใช้งานก่อนแก้ไข")
-	}
-
 	// Business Rule: ตรวจสอบรหัสวิชาเพิ่มเติมไม่ให้ซ้ำกันเอง
 	codeMap := make(map[string]bool)
 	for _, c := range req.CustomCourses {
@@ -199,8 +194,7 @@ func uniqueCompetencyIDs(ids []uint64) []uint64 {
 }
 
 func (s *TemplateService) GetTemplateCompetencies(ctx context.Context, templateID, facultyID uint64, isAdmin bool) (*models.TemplateCompetencyManagementResponse, error) {
-	template, err := s.getTemplateForCompetencyManager(ctx, templateID, facultyID, isAdmin)
-	if err != nil {
+	if _, err := s.getTemplateForCompetencyManager(ctx, templateID, facultyID, isAdmin); err != nil {
 		return nil, err
 	}
 
@@ -214,36 +208,18 @@ func (s *TemplateService) GetTemplateCompetencies(ctx context.Context, templateI
 	}
 
 	response := &models.TemplateCompetencyManagementResponse{
-		TemplateID:             template.TemplateID,
+		TemplateID:             templateID,
 		Competencies:           competencies,
-		CanManage:              !template.IsActive && !hasScores,
+		CanManage:              true,
 		HasLearnerCourseScores: hasScores,
-	}
-	if template.IsActive {
-		response.LockReason = "template_active"
-	} else if hasScores {
-		response.LockReason = "learner_course_scores"
 	}
 	return response, nil
 }
 
 func (s *TemplateService) UpdateTemplateCompetencies(ctx context.Context, templateID, facultyID uint64, isAdmin bool, req models.UpdateTemplateCompetenciesRequest) (*models.TemplateCompetencyManagementResponse, error) {
-	template, err := s.getTemplateForCompetencyManager(ctx, templateID, facultyID, isAdmin)
-	if err != nil {
+	if _, err := s.getTemplateForCompetencyManager(ctx, templateID, facultyID, isAdmin); err != nil {
 		return nil, err
 	}
-	if template.IsActive {
-		return nil, &TemplateCompetencyError{Code: "TEMPLATE_ACTIVE", Message: "template is active; deactivate it before managing competencies"}
-	}
-
-	hasScores, err := s.Repo.HasLearnerCourseScores(ctx, templateID)
-	if err != nil {
-		return nil, err
-	}
-	if hasScores {
-		return nil, &TemplateCompetencyError{Code: "TEMPLATE_COMPETENCIES_LOCKED_BY_SCORES", Message: "template competencies cannot be changed because learner course scores exist"}
-	}
-
 	selectedIDs := uniqueCompetencyIDs(req.CompetencyIDs)
 	if err := s.Repo.ValidateActiveCompetencyIDs(ctx, selectedIDs); err != nil {
 		return nil, &TemplateCompetencyError{Code: "BAD_REQUEST", Message: "one or more selected competencies are unavailable"}

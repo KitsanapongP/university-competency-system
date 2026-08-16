@@ -103,9 +103,6 @@ func (s *TemplateAssignmentService) ReplaceAssignment(ctx context.Context, assig
 	if err != nil {
 		return nil, err
 	}
-	if current.ScoreLocked {
-		return nil, assignmentError("ASSIGNMENT_LOCKED_BY_SCORES", "template assignment cannot be changed because the cohort has learner scores")
-	}
 	if current.TemplateID == req.TemplateID {
 		return nil, assignmentError("BAD_REQUEST", "replacement template must be different from the current template")
 	}
@@ -130,12 +127,8 @@ func (s *TemplateAssignmentService) RemoveAssignment(ctx context.Context, assign
 	if !req.Confirm {
 		return nil, assignmentError("CONFIRMATION_REQUIRED", "unassignment confirmation is required")
 	}
-	current, err := s.assignmentForAccess(ctx, assignmentID, facultyID, isAdmin)
-	if err != nil {
+	if _, err := s.assignmentForAccess(ctx, assignmentID, facultyID, isAdmin); err != nil {
 		return nil, err
-	}
-	if current.ScoreLocked {
-		return nil, assignmentError("ASSIGNMENT_LOCKED_BY_SCORES", "template assignment cannot be removed because the cohort has learner scores")
 	}
 	return s.Assignments.RemoveAssignment(ctx, assignmentID, userID, strings.TrimSpace(req.Reason))
 }

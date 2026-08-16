@@ -131,7 +131,7 @@ function TemplateWeightEditor({
     const renderWeightCells = (course) => competencies.map(competency => {
         const stored = weightsByCourseId?.[course.id]?.[competency.id] ?? 0;
         const isMapped = Number(stored) > 0;
-        const isLocked = Boolean(template?.isActive) || !course.code || !course.nameTh;
+        const isLocked = !course.code || !course.nameTh;
 
         return (
             <td key={competency.id} className="ss-cell ss-cell--weight" style={{ '--wc': competency.color }}>
@@ -188,7 +188,7 @@ function TemplateWeightEditor({
                         allCourses={allCourses}
                         categoryTotalCredits={allCourseCredits(allCourses)}
                         canEdit={false}
-                        disabled={Boolean(template?.isActive)}
+                        disabled={false}
                         isLeafCategory={false}
                         isAllCoursesView
                         showCategoryToolbar={false}
@@ -242,9 +242,9 @@ function TemplateWeightEditor({
                     canEdit={false}
                     canEditCategoryMetadata={false}
                     canManageCourses={false}
-                    allowExtraEditing={!template?.isActive}
+                    allowExtraEditing={false}
                     allowSelection={false}
-                    disabled={Boolean(template?.isActive)}
+                    disabled={false}
                     isLeafCategory={selectedIsLeaf}
                     getCourseCapabilities={() => ({
                         canEdit: false,
@@ -409,10 +409,10 @@ export default function TemplateStructureWorkspace({
 
     return (
         <div className="tm-panel template-structure-workspace">
-            {template.isActive && (
+            {isSetupMode && template.isActive && (
                 <div className="template-structure-workspace__active-warning">
                     <TriangleAlert size={18} />
-                    <span><strong>Template พร้อมใช้งานแล้ว</strong> จึงแก้ไขโครงสร้างและน้ำหนักไม่ได้</span>
+                    <span><strong>Template พร้อมใช้งานแล้ว</strong> จึงแก้ไขโครงสร้าง Template เพิ่มเติมไม่ได้</span>
                 </div>
             )}
 
@@ -427,7 +427,7 @@ export default function TemplateStructureWorkspace({
                         title="โครงสร้างหลักสูตร"
                         addLabel="เพิ่มหมวด"
                         emptyText="กด “เพิ่มหมวด” เพื่อเริ่มจัดโครงสร้าง Template"
-                        disabled={Boolean(template.isActive)}
+                        disabled={false}
                         canEdit={isSetupMode}
                         maxDepth={3}
                         draggingCategoryId={draggingCategoryId}

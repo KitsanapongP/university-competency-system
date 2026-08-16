@@ -668,11 +668,6 @@ export default function TemplateManagementPage() {
     // ============================================================
     const triggerAutoSaveToAPI = useCallback((tplId, nextCats, nextCoursesMap, nextWeightsMap) => {
         if (!tplId) return;
-        const targetTpl = selectedTemplate?.id === tplId ? selectedTemplate : null;
-        if (targetTpl && targetTpl.isActive) {
-            console.warn('Skipping auto-save because template is Active.');
-            return;
-        }
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
         const executeSave = () => {
@@ -885,7 +880,7 @@ export default function TemplateManagementPage() {
     }, [selectedCategory, currentCategories, currentCoursesByCat, currentWeightsByCourse, updateCurrentCategories, selectedTemplate, triggerAutoSaveToAPI]);
 
     const handleRenameCategory = useCallback((id, name) => {
-        if (!selectedTemplate || selectedTemplate.isActive) return;
+        if (!selectedTemplate) return;
         const nextCats = renameCategory(currentCategories, id, name || 'หมวดใหม่');
         updateCurrentCategories(nextCats);
         triggerAutoSaveToAPI(selectedTemplate.id, nextCats, currentCoursesByCat, currentWeightsByCourse);
@@ -1137,7 +1132,7 @@ export default function TemplateManagementPage() {
     // Competency / Weight handlers
     // ============================================================
     const handleSetWeight = useCallback((courseId, compId, weight) => {
-        if (!selectedTemplate || selectedTemplate.isActive) return;
+        if (!selectedTemplate) return;
         const course = { ...(currentWeightsByCourse[courseId] || {}), [compId]: weight };
         const nextWeightsMap = { ...currentWeightsByCourse, [courseId]: course };
         setWeightsByTemplate(p => ({ ...p, [selectedTemplate.id]: nextWeightsMap }));

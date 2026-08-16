@@ -497,70 +497,18 @@ func (s *CurriculumService) ensureCurriculumScope(ctx context.Context, curriculu
 	return nil
 }
 
-func (s *CurriculumService) ensureStructureEditable(ctx context.Context, curriculum *models.Curriculum, confirmImpact bool) error {
+func (s *CurriculumService) ensureStructureEditable(_ context.Context, curriculum *models.Curriculum, _ bool) error {
 	switch normalizeCurriculumStatus(curriculum.Status) {
-	case "draft":
-		return nil
-	case "active":
-		activeTemplateCount, err := s.Repo.CountActiveTemplatesForCurriculum(ctx, curriculum.CurriculumID)
-		if err != nil {
-			return err
-		}
-		if activeTemplateCount > 0 {
-			return CurriculumConflictError{
-				Code:    "CURRICULUM_STRUCTURE_LOCKED",
-				Message: "curriculum structure is locked while active templates are connected",
-			}
-		}
-		return nil
-	case "inactive":
-		affectedTemplates, err := s.Repo.GetAffectedTemplatesForCurriculum(ctx, curriculum.CurriculumID)
-		if err != nil {
-			return err
-		}
-		if len(affectedTemplates) > 0 && !confirmImpact {
-			return CurriculumConfirmationRequiredError{
-				Message: "inactive curriculum edit requires confirmation because templates are connected",
-				Data: models.CurriculumImpact{
-					AffectedTemplates: affectedTemplates,
-				},
-			}
-		}
+	case "draft", "active", "inactive":
 		return nil
 	default:
 		return CurriculumValidationError{Message: fmt.Sprintf("curriculum status %q is invalid", curriculum.Status)}
 	}
 }
 
-func (s *CurriculumService) ensureMetadataEditable(ctx context.Context, curriculum *models.Curriculum, confirmImpact bool) error {
+func (s *CurriculumService) ensureMetadataEditable(_ context.Context, curriculum *models.Curriculum, _ bool) error {
 	switch normalizeCurriculumStatus(curriculum.Status) {
-	case "draft":
-		return nil
-	case "active":
-		activeTemplateCount, err := s.Repo.CountActiveTemplatesForCurriculum(ctx, curriculum.CurriculumID)
-		if err != nil {
-			return err
-		}
-		if activeTemplateCount > 0 {
-			return CurriculumConflictError{
-				Code:    "CURRICULUM_METADATA_LOCKED",
-				Message: "curriculum metadata is locked while active templates are connected",
-			}
-		}
-		return nil
-	case "inactive":
-		affectedTemplates, err := s.Repo.GetAffectedTemplatesForCurriculum(ctx, curriculum.CurriculumID)
-		if err != nil {
-			return err
-		}
-		if len(affectedTemplates) > 0 && !confirmImpact {
-			return CurriculumConfirmationRequiredError{
-				Message: "inactive curriculum metadata edit requires confirmation because templates are connected",
-				Data: models.CurriculumImpact{
-					AffectedTemplates: affectedTemplates,
-				},
-			}
-		}
+	case "draft", "active", "inactive":
 		return nil
 	default:
 		return CurriculumValidationError{Message: fmt.Sprintf("curriculum status %q is invalid", curriculum.Status)}
