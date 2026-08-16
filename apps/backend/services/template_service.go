@@ -99,31 +99,31 @@ func (s *TemplateService) UpdateTemplateStatus(ctx context.Context, templateID u
 			return errors.New("ไม่สามารถเปิดใช้งานได้เนื่องจากยังไม่มีสมรรถนะใน Template")
 		}
 
-		// คำนวณน้ำหนักรวมของแต่ละสมรรถนะที่ผูกกับรายวิชา
-		weightSums := make(map[uint64]float64)
+		// Core is derived from required Curriculum courses. Electives and Template
+		// Additional Courses are bonus and are intentionally excluded from 100%.
+		coreWeightSums, err := s.Repo.GetTemplateCoreWeightSums(ctx, templateID)
+		if err != nil {
+			return err
+		}
 		compNames := make(map[uint64]string)
-		hasCourseMapping := false
 
 		for _, item := range items {
 			compNames[item.CompetencyID] = item.CompetencyName
-			if item.CourseID != nil && item.Weight != nil {
-				hasCourseMapping = true
-				weightSums[item.CompetencyID] += *item.Weight
-			}
 		}
 
-		if !hasCourseMapping {
-			return errors.New("ไม่สามารถเปิดใช้งานได้: ยังไม่มีการกำหนดค่าน้ำหนักรายวิชา")
+		if len(coreWeightSums) == 0 {
+			return errors.New("ไม่สามารถเปิดใช้งานได้: ยังไม่มีการกำหนดน้ำหนักคะแนนหลักจากวิชาบังคับ")
 		}
 
-		// ตรวจสอบว่าสมรรถนะแต่ละตัวมีน้ำหนักรวมครบ 100% พอดี
-		for compID, sum := range weightSums {
+		// Every selected competency must have 100% from core courses. Bonus
+		// weights never participate in this readiness validation.
+		for compID, name := range compNames {
+			sum := coreWeightSums[compID]
 			if math.Abs(sum-100.0) > 0.05 {
-				name := compNames[compID]
 				if name == "" {
 					name = fmt.Sprintf("รหัส %d", compID)
 				}
-				return fmt.Errorf("ไม่สามารถเปิดใช้งานได้: สมรรถนะ '%s' มีผลรวมน้ำหนัก %.2f%% (ต้องครบ 100%% พอดี)", name, sum)
+				return fmt.Errorf("ไม่สามารถเปิดใช้งานได้: สมรรถนะ '%s' มีผลรวมน้ำหนักคะแนนหลัก %.2f%% (ต้องครบ 100%% พอดี)", name, sum)
 			}
 		}
 	}

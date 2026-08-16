@@ -122,7 +122,13 @@ function TemplateWeightEditor({
         getCoursesForCategory,
     );
     const selectedIsLeaf = isLeafCategory(selectedCategory);
-    const weightColumnHeaders = competencies.map((competency) => {
+    const scoreTypeColumn = {
+        key: '__score_type__',
+        label: language === 'en' ? 'Score type' : 'ประเภทคะแนน',
+        className: 'ss-th--weight',
+        colClassName: 'curriculum-course-editor__col--extra',
+    };
+    const weightColumnHeaders = [scoreTypeColumn, ...competencies.map((competency) => {
         const name = language === 'en'
             ? competency.nameEn || competency.nameTh || competency.name || competency.code
             : competency.nameTh || competency.name || competency.nameEn || competency.code;
@@ -133,9 +139,17 @@ function TemplateWeightEditor({
             className: 'ss-th--weight',
             colClassName: 'curriculum-course-editor__col--extra',
         };
-    });
+    })];
 
-    const renderWeightCells = (course) => competencies.map(competency => {
+    const renderWeightCells = (course) => [
+        <td key="score-type" className="ss-cell ss-cell--weight">
+            <span className={`template-score-type-badge ${course.isCoreCourse ? 'template-score-type-badge--core' : 'template-score-type-badge--bonus'}`}>
+                {course.isCoreCourse
+                    ? (language === 'en' ? 'Core' : 'คะแนนหลัก')
+                    : (language === 'en' ? 'Bonus' : 'คะแนนเสริม')}
+            </span>
+        </td>,
+        ...competencies.map(competency => {
         const stored = weightsByCourseId?.[course.id]?.[competency.id] ?? 0;
         const isMapped = Number(stored) > 0;
         const isLocked = !course.code || !course.nameTh;
@@ -162,7 +176,8 @@ function TemplateWeightEditor({
                 </div>
             </td>
         );
-    });
+        }),
+    ];
 
     if (showAllCourses) {
         return (

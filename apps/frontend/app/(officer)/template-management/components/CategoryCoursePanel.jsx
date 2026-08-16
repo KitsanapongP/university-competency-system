@@ -245,34 +245,37 @@ function collectLeafSections(cats, coursesByCategoryId, parentPath = '') {
 // ============================================================
 function GlobalCompSummary({ categories, coursesByCategoryId, weightsByCourseId, competencies }) {
     const totals = competencies.map(comp => {
-        let total = 0;
+        let core = 0;
+        let bonus = 0;
         Object.values(coursesByCategoryId).forEach(courses => {
             courses.forEach(course => {
-                total += Number(weightsByCourseId[course.id]?.[comp.id]) || 0;
+                const weight = Number(weightsByCourseId[course.id]?.[comp.id]) || 0;
+                if (course.isCoreCourse) core += weight;
+                else bonus += weight;
             });
         });
-        return { comp, total };
+        return { comp, core, bonus };
     });
 
-    const hasAny = totals.some(t => t.total > 0);
+    const hasAny = totals.some(t => t.core > 0 || t.bonus > 0);
     if (!hasAny) return null;
 
     return (
         <div className="global-comp-summary">
             <span className="global-comp-summary__label">ภาพรวม</span>
-            {totals.map(({ comp, total }) => {
-                const isOver = total > 100;
+            {totals.map(({ comp, core, bonus }) => {
+                const isOver = core > 100;
                 return (
                     <div key={comp.id}
                         className={`global-comp-chip ${isOver ? 'global-comp-chip--over' : ''}`}
                         style={{ '--cc': isOver ? '#f87171' : comp.color }}
-                        title={isOver ? `${comp.name}: ${total} — เกิน 100%!` : `${comp.name}: ${total}`}>
+                        title={`${comp.name}: คะแนนหลัก ${core}% | คะแนนเสริม ${bonus}%`}>
                         {isOver
                             ? <AlertCircle size={11} style={{ color:'#f87171', flexShrink:0 }}/>
                             : <span className="global-comp-chip__dot" style={{ background: comp.color }}/>
                         }
                         <span className="global-comp-chip__name">{comp.name}</span>
-                        <span className="global-comp-chip__val">{total > 0 ? total : '—'}</span>
+                        <span className="global-comp-chip__val">{core > 0 ? `หลัก ${core}` : 'หลัก —'} / เสริม {bonus || '—'}</span>
                         {isOver && <span className="global-comp-chip__warn">เกิน</span>}
                     </div>
                 );
