@@ -10,6 +10,7 @@ import {
     createStudentCohort,
     deleteStudentCohort,
     fetchStudentCohorts,
+    mapCurriculumChangeImpact,
     updateStudentCohort,
     updateStudentCohortStatus,
 } from '../../../lib/student-management';
@@ -44,6 +45,9 @@ function mapStudentManagementError(error, language) {
         'cohort cannot be archived while active templates are connected': ['ยังปิดรุ่นไม่ได้ เพราะมี Template ที่ใช้งานอยู่เชื่อมไว้', 'The cohort has active templates connected.'],
         'only draft cohort can be deleted': ['ลบได้เฉพาะรุ่นสถานะร่าง', 'Only a draft cohort can be deleted.'],
         'cohort cannot be deleted while students are connected': ['ลบไม่ได้ เพราะยังมีรายชื่อนักศึกษาอยู่', 'The cohort still has student records.'],
+        'archived cohort is read-only': ['รุ่นที่เก็บถาวรเป็นแบบอ่านอย่างเดียว', 'Archived cohorts are read-only.'],
+        'curriculum and entry year can only be changed for an empty draft cohort without templates': ['ปีที่เข้าเรียนเปลี่ยนได้เฉพาะรุ่นร่างที่ยังไม่มีรายชื่อและ Template', 'Entry year can only change for an empty draft cohort without templates.'],
+        'curriculum reassignment is no longer needed': ['ข้อมูลหลักสูตรถูกเปลี่ยนไปแล้ว กรุณาโหลดข้อมูลใหม่', 'The curriculum was already changed. Please refresh and try again.'],
         'student cohort not found': ['ไม่พบรุ่นนักศึกษา', 'Student cohort not found.'],
         'insufficient student cohort scope': ['คุณไม่มีสิทธิ์จัดการรุ่นนี้', 'You do not have permission to manage this cohort.'],
         'student cohort operation failed': ['ไม่สามารถดำเนินการกับรุ่นนักศึกษาได้', 'Unable to complete the cohort operation.'],
@@ -52,7 +56,7 @@ function mapStudentManagementError(error, language) {
     return translated ? label(language, ...translated) : message || label(language, 'ไม่สามารถดำเนินการได้', 'Unable to complete the operation.');
 }
 
-function CohortFormModal({ language, form, setForm, curricula, submitting, mode, identityEditable, onClose, onSubmit }) {
+function CohortFormModal({ language, form, setForm, curricula, submitting, mode, curriculumEditable, entryYearEditable, onClose, onSubmit }) {
     const selectedCurriculum = curricula.find(item => String(item.curriculumId) === String(form.curriculumId));
     const canSubmit = mode === 'edit'
         ? !submitting
@@ -60,7 +64,7 @@ function CohortFormModal({ language, form, setForm, curricula, submitting, mode,
     return (
         <BaseModal
             open
-            title={mode === 'edit' ? label(language, 'แก้ไขหมายเหตุรุ่น', 'Edit cohort note') : label(language, 'สร้างรุ่นนักศึกษา', 'Create student cohort')}
+            title={mode === 'edit' ? label(language, 'แก้ไขข้อมูลรุ่น', 'Edit cohort') : label(language, 'สร้างรุ่นนักศึกษา', 'Create student cohort')}
             size="md"
             onClose={onClose}
             closeDisabled={submitting}
@@ -69,7 +73,7 @@ function CohortFormModal({ language, form, setForm, curricula, submitting, mode,
                 <button className="course-btn course-btn--primary" onClick={onSubmit} disabled={!canSubmit}>{label(language, 'บันทึก', 'Save')}</button>
             </>}
         >
-            {(mode === 'create' || identityEditable) && <>
+            {(mode === 'create' || curriculumEditable) && <>
                 <label className="course-field">
                     <span className="course-label">{label(language, 'หลักสูตร', 'Curriculum')}<span className="course-required">*</span></span>
                     <select className="course-input" value={form.curriculumId} onChange={event => setForm(prev => ({ ...prev, curriculumId: event.target.value }))}>
@@ -81,14 +85,19 @@ function CohortFormModal({ language, form, setForm, curricula, submitting, mode,
                 </label>
                 <label className="course-field">
                     <span className="course-label">{label(language, 'ปีที่เข้าเรียน', 'Entry year')}<span className="course-required">*</span></span>
-                    <input className="course-input" type="number" min={selectedCurriculum?.year || 0} value={form.entryYearBe} onChange={event => setForm(prev => ({ ...prev, entryYearBe: event.target.value }))} placeholder="เช่น 2566" />
+                    <input className="course-input" type="number" min={selectedCurriculum?.year || 0} value={form.entryYearBe} onChange={event => setForm(prev => ({ ...prev, entryYearBe: event.target.value }))} placeholder="เช่น 2566" disabled={mode === 'edit' && !entryYearEditable} />
                     {selectedCurriculum && <span className="student-form-hint">{label(language, `หลักสูตรเริ่มใช้ปี ${selectedCurriculum.year}`, `Curriculum effective year: ${selectedCurriculum.year}`)}</span>}
                 </label>
             </>}
-            {mode === 'edit' && !identityEditable && <div className="student-identity-readonly">
-                <span>{label(language, 'หลักสูตรและปีที่เข้าเรียนถูกล็อก', 'Curriculum and entry year are locked')}</span>
-                <strong>{selectedCurriculum ? `${selectedCurriculum.code} · ${selectedCurriculum.nameTh} · ${form.entryYearBe}` : '-'}</strong>
-                <small>{label(language, 'เปลี่ยนได้เฉพาะรุ่นร่างที่ยังไม่มีรายชื่อและ Template', 'They can change only for an empty draft cohort without templates.')}</small>
+            {mode === 'edit' && !curriculumEditable && <div className="student-identity-readonly">
+                <span>{label(language, 'หลักสูตรถูกล็อก', 'Curriculum is locked')}</span>
+                <strong>{selectedCurriculum ? `${selectedCurriculum.code} · ${selectedCurriculum.nameTh}` : '-'}</strong>
+                <small>{label(language, 'รุ่นที่เก็บถาวรเป็นแบบอ่านอย่างเดียว', 'Archived cohorts are read-only.')}</small>
+            </div>}
+            {mode === 'edit' && !entryYearEditable && <div className="student-identity-readonly">
+                <span>{label(language, 'ปีที่เข้าเรียนถูกล็อก', 'Entry year is locked')}</span>
+                <strong>{form.entryYearBe || '-'}</strong>
+                <small>{label(language, 'เปลี่ยนปีที่เข้าเรียนได้เฉพาะรุ่นร่างที่ยังไม่มีรายชื่อและ Template', 'Entry year can change only for an empty draft cohort without templates.')}</small>
             </div>}
             <label className="course-field">
                 <span className="course-label">{label(language, 'หมายเหตุ', 'Note')}</span>
@@ -119,6 +128,31 @@ function ReactivateModal({ language, cohort, submitting, onClose, onConfirm }) {
                 <textarea className="course-input student-textarea" value={reason} onChange={event => setReason(event.target.value)} />
             </label>
         </BaseModal>
+    );
+}
+
+function CurriculumChangeImpact({ language, impact }) {
+    if (!impact) return null;
+
+    const rows = [
+        [label(language, 'รายชื่อนักศึกษาที่จะย้าย', 'Roster records to move'), impact.rosterCount],
+        [label(language, 'Template ที่จะถูกถอด', 'Template assignments to end'), impact.templateAssignmentCount],
+        [label(language, 'ผลการเรียนรายวิชาที่จะรีเซ็ต', 'Course grades to reset'), impact.courseEnrollmentCount],
+        [label(language, 'คะแนนรายวิชาที่จะรีเซ็ต', 'Course competency scores to reset'), impact.courseScoreCount],
+        [label(language, 'เป้าหมายสมรรถนะที่จะรีเซ็ต', 'Competency targets to reset'), impact.competencyRequirementCount],
+        [label(language, 'ผลรวมสมรรถนะที่จะรีเซ็ต', 'Competency results to reset'), impact.competencyResultCount],
+    ];
+
+    return (
+        <div className="student-curriculum-impact">
+            <strong>{impact.fromCurriculumCode || '-'} → {impact.toCurriculumCode || '-'}</strong>
+            <ul className="student-curriculum-impact__list">
+                {rows.map(([text, count]) => <li key={text}><span>{text}</span><b>{count}</b></li>)}
+            </ul>
+            <p className="student-curriculum-impact__preserved">
+                {label(language, `ข้อมูลกิจกรรมจะคงไว้ (การเข้าร่วม ${impact.activityAttendanceCount} รายการ, คะแนนกิจกรรม ${impact.activityScoreCount} รายการ)`, `Activity data will be preserved (${impact.activityAttendanceCount} attendance records, ${impact.activityScoreCount} activity scores).`)}
+            </p>
+        </div>
     );
 }
 
@@ -190,6 +224,10 @@ export default function StudentManagementPage() {
         (!filters.facultyId || String(item.facultyId) === String(filters.facultyId))
         && (!filters.majorId || String(item.majorId) === String(filters.majorId))
     )), [curricula, filters.facultyId, filters.majorId]);
+    const formCurricula = useMemo(() => curricula.filter(item => (
+        (item.status === 'active' || String(item.curriculumId) === String(form.curriculumId))
+        && (isAdmin || !filters.facultyId || String(item.facultyId) === String(filters.facultyId))
+    )), [curricula, form.curriculumId, filters.facultyId, isAdmin]);
     const facultyLocked = !isAdmin || faculties.length <= 1;
 
     const openCreate = () => { setEditingCohort(null); setForm(EMPTY_COHORT_FORM); setFormMode('create'); };
@@ -197,14 +235,27 @@ export default function StudentManagementPage() {
     const closeForm = () => { if (!submitting) setFormMode(''); };
 
     const submitForm = async () => {
+        const curriculumChanged = formMode === 'edit'
+            && String(form.curriculumId) !== String(editingCohort?.curriculumId);
         setSubmitting(true); setFeedback({ type: '', message: '' });
         try {
             if (formMode === 'create') await createStudentCohort(form);
             else await updateStudentCohort(editingCohort.cohortId, form);
             setFormMode('');
-            setFeedback({ type: 'success', message: formMode === 'create' ? label(language, 'สร้างรุ่นนักศึกษาสำเร็จ', 'Student cohort created.') : label(language, 'บันทึกหมายเหตุรุ่นแล้ว', 'Cohort note saved.') });
+            setFeedback({ type: 'success', message: formMode === 'create' ? label(language, 'สร้างรุ่นนักศึกษาสำเร็จ', 'Student cohort created.') : label(language, 'บันทึกข้อมูลรุ่นแล้ว', 'Cohort information saved.') });
             await loadCohorts();
-        } catch (error) { setFeedback({ type: 'error', message: mapStudentManagementError(error, language) }); }
+        } catch (error) {
+            if (curriculumChanged && error.code === 'CONFIRMATION_REQUIRED' && error.payload?.data) {
+                setConfirmAction({
+                    type: 'curriculum-change',
+                    cohort: editingCohort,
+                    form: { ...form },
+                    impact: mapCurriculumChangeImpact(error.payload.data),
+                });
+            } else {
+                setFeedback({ type: 'error', message: mapStudentManagementError(error, language) });
+            }
+        }
         finally { setSubmitting(false); }
     };
 
@@ -212,7 +263,12 @@ export default function StudentManagementPage() {
         if (!confirmAction) return;
         setSubmitting(true); setFeedback({ type: '', message: '' });
         try {
-            if (confirmAction.type === 'delete') {
+            if (confirmAction.type === 'curriculum-change') {
+                await updateStudentCohort(confirmAction.cohort.cohortId, confirmAction.form, { confirmCurriculumChange: true });
+                setFormMode('');
+                setEditingCohort(null);
+                setFeedback({ type: 'success', message: label(language, 'เปลี่ยนหลักสูตรและรีเซ็ตข้อมูลที่เกี่ยวข้องแล้ว', 'Curriculum changed and related academic data was reset.') });
+            } else if (confirmAction.type === 'delete') {
                 await deleteStudentCohort(confirmAction.cohort.cohortId);
                 setFeedback({ type: 'success', message: label(language, 'ลบรุ่นนักศึกษาแล้ว', 'Student cohort deleted.') });
             } else {
@@ -270,9 +326,21 @@ export default function StudentManagementPage() {
                 </tbody></table></div>
             </section>
 
-            {formMode && <CohortFormModal language={language} form={form} setForm={setForm} curricula={visibleCurricula} submitting={submitting} mode={formMode} identityEditable={editingCohort?.status === 'draft' && editingCohort?.rosterCount === 0 && editingCohort?.templateCount === 0} onClose={closeForm} onSubmit={submitForm} />}
+            {formMode && <CohortFormModal language={language} form={form} setForm={setForm} curricula={formCurricula} submitting={submitting} mode={formMode} curriculumEditable={formMode === 'create' || editingCohort?.status === 'draft' || editingCohort?.status === 'active'} entryYearEditable={formMode === 'create' || (editingCohort?.status === 'draft' && editingCohort?.rosterCount === 0 && editingCohort?.templateCount === 0)} onClose={closeForm} onSubmit={submitForm} />}
             {reactivatingCohort && <ReactivateModal language={language} cohort={reactivatingCohort} submitting={submitting} onClose={() => !submitting && setReactivatingCohort(null)} onConfirm={reactivate} />}
-            <ConfirmActionModal open={Boolean(confirmAction)} title={confirmAction?.type === 'delete' ? label(language, 'ลบรุ่นนักศึกษา', 'Delete student cohort') : confirmAction?.nextStatus === 'archived' ? label(language, 'เก็บรุ่นเข้าคลัง', 'Archive cohort') : label(language, 'เปิดใช้งานรุ่น', 'Activate cohort')} message={confirmAction?.type === 'delete' ? label(language, 'การลบเป็นแบบ Soft Delete และจะลบได้เฉพาะรุ่นร่างที่ไม่มีรายชื่อ', 'This is a soft delete. Only an empty draft cohort can be deleted.') : confirmAction?.nextStatus === 'archived' ? label(language, 'รุ่นที่เก็บเข้าคลังจะเป็นแบบอ่านอย่างเดียว', 'An archived cohort becomes read-only.') : label(language, 'หลังเปิดใช้งานสามารถเพิ่มและจัดการรายชื่อนักศึกษาได้', 'An active cohort can receive and manage student records.')} confirmLabel={confirmAction?.type === 'delete' ? label(language, 'ลบรุ่น', 'Delete cohort') : label(language, 'ยืนยัน', 'Confirm')} variant={confirmAction?.type === 'delete' ? 'danger' : 'warning'} loading={submitting} onCancel={() => !submitting && setConfirmAction(null)} onConfirm={performConfirmAction} />
+            <ConfirmActionModal
+                open={Boolean(confirmAction)}
+                size={confirmAction?.type === 'curriculum-change' ? 'md' : 'sm'}
+                title={confirmAction?.type === 'curriculum-change' ? label(language, 'ยืนยันการเปลี่ยนหลักสูตร', 'Confirm curriculum change') : confirmAction?.type === 'delete' ? label(language, 'ลบรุ่นนักศึกษา', 'Delete student cohort') : confirmAction?.nextStatus === 'archived' ? label(language, 'เก็บรุ่นเข้าคลัง', 'Archive cohort') : label(language, 'เปิดใช้งานรุ่น', 'Activate cohort')}
+                message={confirmAction?.type === 'curriculum-change' ? label(language, 'การเปลี่ยนหลักสูตรจะถอด Template เดิมและรีเซ็ตข้อมูลวิชา/คะแนนที่เกี่ยวข้อง คุณต้องการดำเนินการต่อหรือไม่', 'Changing the curriculum will end the current Template assignment and reset related course and score data. Continue?') : confirmAction?.type === 'delete' ? label(language, 'การลบเป็นแบบ Soft Delete และจะลบได้เฉพาะรุ่นร่างที่ไม่มีรายชื่อ', 'This is a soft delete. Only an empty draft cohort can be deleted.') : confirmAction?.nextStatus === 'archived' ? label(language, 'รุ่นที่เก็บเข้าคลังจะเป็นแบบอ่านอย่างเดียว', 'An archived cohort becomes read-only.') : label(language, 'หลังเปิดใช้งานสามารถเพิ่มและจัดการรายชื่อนักศึกษาได้', 'An active cohort can receive and manage student records.')}
+                impact={confirmAction?.type === 'curriculum-change' ? <CurriculumChangeImpact language={language} impact={confirmAction.impact} /> : null}
+                hint={confirmAction?.type === 'curriculum-change' ? label(language, 'ข้อมูลการเข้าร่วมกิจกรรมและคะแนนกิจกรรมต้นทางจะคงไว้ แต่ต้องเชื่อม Template และตั้งเป้าหมายใหม่ก่อนคำนวณอีกครั้ง', 'Raw activity attendance and activity scores will be preserved, but a new Template and targets are required before recalculation.') : null}
+                confirmLabel={confirmAction?.type === 'curriculum-change' ? label(language, 'ยืนยันการเปลี่ยนหลักสูตร', 'Confirm curriculum change') : confirmAction?.type === 'delete' ? label(language, 'ลบรุ่น', 'Delete cohort') : label(language, 'ยืนยัน', 'Confirm')}
+                variant={confirmAction?.type === 'curriculum-change' || confirmAction?.type === 'delete' ? 'danger' : 'warning'}
+                loading={submitting}
+                onCancel={() => !submitting && setConfirmAction(null)}
+                onConfirm={performConfirmAction}
+            />
         </div>
     );
 }

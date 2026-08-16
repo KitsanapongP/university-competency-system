@@ -143,6 +143,12 @@
 .student-form-hint { margin-top: 0.35rem; }
 .student-identity-readonly { display: grid; gap: 0.3rem; margin-bottom: 1rem; padding: 0.875rem; border: 1px solid var(--course-border); border-radius: 8px; background: var(--course-ss-header-bg); }
 .student-identity-readonly span, .student-identity-readonly small { color: var(--course-text-muted); font-size: 0.8125rem; }
+.student-curriculum-impact { display: grid; gap: 0.65rem; }
+.student-curriculum-impact > strong { color: var(--course-text); }
+.student-curriculum-impact__list { display: grid; gap: 0.35rem; margin: 0; padding: 0; list-style: none; }
+.student-curriculum-impact__list li { display: flex; justify-content: space-between; gap: 1rem; color: var(--course-text-muted); }
+.student-curriculum-impact__list b { color: var(--course-text); font-variant-numeric: tabular-nums; }
+.student-curriculum-impact__preserved { margin: 0; color: var(--course-text-muted); font-size: 0.8125rem; }
 .student-spin { animation: student-spin 0.9s linear infinite; }
 @keyframes student-spin { to { transform: rotate(360deg); } }
 
