@@ -188,7 +188,7 @@ export default function CompetencyOverview({
                 <div className="ov-header">
                     <div className="ov-header__top">
                         <h1 className="ov-title">ภาพรวมของโครงสร้างหลักสูตร</h1>
-                        <p className="ov-sub">รายละเอียดเกี่ยวกับวิชาใน Template</p>
+                        <p className="ov-sub">รายละเอียดเกี่ยวกับวิชาในแบบแผนการประเมิน</p>
                     </div>
                     <div className="ov-stats-grid">
                         <div className="ov-card">
@@ -343,7 +343,7 @@ export default function CompetencyOverview({
                     <div className="ov-danger-zone__header">
                         <h1 className="ov-danger-zone__title">โซนอันตราย</h1>
                         <span className="ov-danger-zone__desc">
-                            โซนลบ Template - เมื่อลบแล้วจะไม่สามารถกู้คืนได้ และข้อมูลทั้งหมดใน Template นี้จะหายไป
+                            โซนลบแบบแผนการประเมิน - เมื่อลบแล้วจะไม่สามารถกู้คืนได้ และข้อมูลทั้งหมดในแบบแผนนี้จะหายไป
                         </span>
                     </div>
                     <div className="ov-danger-zone__content">
@@ -352,7 +352,7 @@ export default function CompetencyOverview({
                             onClick={onDeleteTemplate}
                         >
                             <Trash2 size={14} />
-                            <span>ลบ Template นี้</span>
+                            <span>ลบแบบแผนนี้</span>
                         </button>
                     </div>
                 </div>

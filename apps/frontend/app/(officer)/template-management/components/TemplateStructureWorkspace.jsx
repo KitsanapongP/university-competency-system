@@ -332,7 +332,7 @@ export default function TemplateStructureWorkspace({
             ? `${selectedCategory.code ? `${selectedCategory.code} ` : ''}${selectedCategory.name}`
             : 'เลือกหมวดวิชา';
     const setupPanelHint = template?.isActive
-        ? 'Template พร้อมใช้งานแล้ว จึงดูข้อมูลได้อย่างเดียว'
+        ? 'แบบแผนพร้อมใช้งานแล้ว จึงดูข้อมูลได้อย่างเดียว'
         : showAllCourses
             ? 'แสดงรายวิชาทั้งหมดใน Template ข้อมูลในมุมมองนี้แก้ไขไม่ได้'
             : !selectedCategory
@@ -341,7 +341,7 @@ export default function TemplateStructureWorkspace({
                     ? 'เพิ่มและจัดการรายวิชาเพิ่มเติมเฉพาะ Template ได้ในหมวดนี้'
                     : 'หมวดนี้ใช้ดูรายวิชารวมจากหมวดย่อย เพิ่มรายวิชาได้เฉพาะหมวดย่อยที่สุด';
     const setupActionTitle = template?.isActive
-        ? 'Template พร้อมใช้งานแล้ว จึงไม่สามารถแก้ไขรายวิชาได้'
+        ? 'แบบแผนพร้อมใช้งานแล้ว จึงไม่สามารถแก้ไขรายวิชาได้'
         : canRequestCourse
             ? 'เพิ่มรายวิชา'
             : showAllCourses
@@ -412,7 +412,7 @@ export default function TemplateStructureWorkspace({
             {isSetupMode && template.isActive && (
                 <div className="template-structure-workspace__active-warning">
                     <TriangleAlert size={18} />
-                    <span><strong>Template พร้อมใช้งานแล้ว</strong> จึงแก้ไขโครงสร้าง Template เพิ่มเติมไม่ได้</span>
+                    <span><strong>แบบแผนพร้อมใช้งานแล้ว</strong> จึงแก้ไขโครงสร้างแบบแผนเพิ่มเติมไม่ได้</span>
                 </div>
             )}
 
@@ -426,7 +426,7 @@ export default function TemplateStructureWorkspace({
                         showAllOption
                         title="โครงสร้างหลักสูตร"
                         addLabel="เพิ่มหมวด"
-                        emptyText="กด “เพิ่มหมวด” เพื่อเริ่มจัดโครงสร้าง Template"
+                        emptyText="กด “เพิ่มหมวด” เพื่อเริ่มจัดโครงสร้างแบบแผนการประเมิน"
                         disabled={false}
                         canEdit={isSetupMode}
                         maxDepth={3}
