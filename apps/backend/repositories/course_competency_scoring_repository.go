@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spw32767/university-competency-system-backend/models"
@@ -208,8 +209,9 @@ func (r *CourseCompetencyScoringRepository) Recalculate(ctx context.Context, coh
 	students := make(map[uint64]struct{})
 	for _, grade := range grades {
 		students[grade.EnrollmentID] = struct{}{}
-		score, known := gradeScores[grade.Grade]
-		if grade.Grade == "" || grade.Grade == "S" || grade.Grade == "U" || grade.Grade == "W" || grade.Grade == "I" || grade.Grade == "F" {
+		normalizedGrade := strings.ToUpper(strings.TrimSpace(grade.Grade))
+		score, known := gradeScores[normalizedGrade]
+		if normalizedGrade == "" || normalizedGrade == "S" || normalizedGrade == "U" || normalizedGrade == "W" || normalizedGrade == "I" || normalizedGrade == "F" {
 			continue
 		}
 		if !known {
@@ -230,7 +232,7 @@ func (r *CourseCompetencyScoringRepository) Recalculate(ctx context.Context, coh
 				INSERT INTO score_course_competency_scores (course_student_id, competency_id, template_id, template_item_id, raw_score, weighted_score, weight_snapshot, grade_snapshot, score_type_snapshot, calculated_at, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
 				ON DUPLICATE KEY UPDATE template_id=VALUES(template_id), template_item_id=VALUES(template_item_id), raw_score=VALUES(raw_score), weighted_score=VALUES(weighted_score), weight_snapshot=VALUES(weight_snapshot), grade_snapshot=VALUES(grade_snapshot), score_type_snapshot=VALUES(score_type_snapshot), calculated_at=NOW(), deleted_at=NULL, updated_at=NOW()`,
-				grade.CourseStudentID, mapping.CompetencyID, templateID, mapping.TemplateItemID, score, weighted, mapping.Weight, grade.Grade, scoreType); err != nil {
+				grade.CourseStudentID, mapping.CompetencyID, templateID, mapping.TemplateItemID, score, weighted, mapping.Weight, normalizedGrade, scoreType); err != nil {
 				return nil, err
 			}
 			result.CourseScores++
