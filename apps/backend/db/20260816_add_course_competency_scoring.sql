@@ -22,8 +22,22 @@ HAVING COUNT(cohort.cohort_id) <> 1;
 -- MySQL implicitly commits around ALTER TABLE. Review the preflight result
 -- before executing this script; the application never executes it itself.
 
-ALTER TABLE comp_curriculum_requirements
-  ADD COLUMN cohort_id BIGINT UNSIGNED NULL AFTER curriculum_id;
+-- MySQL does not support ADD COLUMN IF NOT EXISTS on all supported server
+-- versions. Make this step safe after a partially applied migration.
+SET @add_cohort_id_sql = (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE comp_curriculum_requirements ADD COLUMN cohort_id BIGINT UNSIGNED NULL AFTER curriculum_id',
+    'SELECT 1'
+  )
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'comp_curriculum_requirements'
+    AND column_name = 'cohort_id'
+);
+PREPARE add_cohort_id_stmt FROM @add_cohort_id_sql;
+EXECUTE add_cohort_id_stmt;
+DEALLOCATE PREPARE add_cohort_id_stmt;
 
 UPDATE comp_curriculum_requirements requirement
 JOIN edu_student_cohorts cohort
@@ -32,6 +46,11 @@ JOIN edu_student_cohorts cohort
   AND cohort.deleted_at IS NULL
 SET requirement.cohort_id = cohort.cohort_id
 WHERE requirement.deleted_at IS NULL;
+
+-- The legacy unique key starts with curriculum_id and is currently used by
+-- fk_ccr_curriculum. Add a replacement supporting index before dropping it.
+ALTER TABLE comp_curriculum_requirements
+  ADD KEY idx_comp_req_curriculum (curriculum_id);
 
 ALTER TABLE comp_curriculum_requirements
   DROP INDEX uq_comp_req_curri_cohort_comp,
