@@ -439,21 +439,23 @@ func (r *ActivitySessionWorkspaceRepository) FinalizeScores(ctx context.Context,
 			`, personID, competency.CompetencyID).Scan(&sessionTotal); err != nil {
 				return err
 			}
-			var courseTotal float64
+			var coreScore, courseBonusScore float64
 			if err := tx.QueryRowContext(ctx, `
-				SELECT COALESCE(SUM(sccs.weighted_score), 0)
+				SELECT
+					COALESCE(SUM(CASE WHEN sccs.score_type_snapshot = 'core' THEN sccs.weighted_score ELSE 0 END), 0),
+					COALESCE(SUM(CASE WHEN sccs.score_type_snapshot = 'bonus' THEN sccs.weighted_score ELSE 0 END), 0)
 				FROM score_course_competency_scores sccs
 				JOIN crs_course_enrollment cce ON cce.course_student_id = sccs.course_student_id
 				WHERE cce.enrollment_id = ? AND sccs.competency_id = ?
 					AND cce.deleted_at IS NULL AND sccs.deleted_at IS NULL
-			`, enrollmentID, competency.CompetencyID).Scan(&courseTotal); err != nil {
+			`, enrollmentID, competency.CompetencyID).Scan(&coreScore, &courseBonusScore); err != nil {
 				return err
 			}
 			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO score_competency_result (enrollment_id, competency_id, final_score)
-				VALUES (?, ?, ?)
-				ON DUPLICATE KEY UPDATE final_score = VALUES(final_score), deleted_at = NULL, updated_at = NOW()
-			`, enrollmentID, competency.CompetencyID, courseTotal+sessionTotal); err != nil {
+				INSERT INTO score_competency_result (enrollment_id, competency_id, core_score, course_bonus_score, activity_score, final_score)
+				VALUES (?, ?, ?, ?, ?, ?)
+				ON DUPLICATE KEY UPDATE core_score = VALUES(core_score), course_bonus_score = VALUES(course_bonus_score), activity_score = VALUES(activity_score), final_score = VALUES(final_score), deleted_at = NULL, updated_at = NOW()
+			`, enrollmentID, competency.CompetencyID, coreScore, courseBonusScore, sessionTotal, coreScore+courseBonusScore+sessionTotal); err != nil {
 				return err
 			}
 		}

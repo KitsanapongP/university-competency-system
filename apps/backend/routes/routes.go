@@ -78,8 +78,11 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	}
 	studentCohortRepo := repositories.NewStudentCohortRepository(db)
 	studentCohortSvc := services.NewStudentCohortService(studentCohortRepo)
+	courseCompetencyScoringRepo := repositories.NewCourseCompetencyScoringRepository(db)
+	courseCompetencyScoringSvc := services.NewCourseCompetencyScoringService(studentCohortSvc, courseCompetencyScoringRepo)
 	studentCohortHandler := &controllers.StudentCohortController{
-		Service: studentCohortSvc,
+		Service:        studentCohortSvc,
+		ScoringService: courseCompetencyScoringSvc,
 	}
 	templateAssignmentRepo := repositories.NewTemplateAssignmentRepository(db)
 	templateAssignmentSvc := services.NewTemplateAssignmentService(templateRepo, studentCohortRepo, templateAssignmentRepo)
@@ -172,6 +175,10 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 					cor.Delete("/students/{enrollment_id}", studentCohortHandler.RemoveStudent)
 					cor.Post("/imports/preview", studentCohortHandler.PreviewImport)
 					cor.Post("/imports/commit", studentCohortHandler.CommitImport)
+					cor.Get("/competency-requirements", studentCohortHandler.GetCompetencyRequirements)
+					cor.Put("/competency-requirements", studentCohortHandler.ReplaceCompetencyRequirements)
+					cor.Post("/course-competency-scores/recalculate", studentCohortHandler.RecalculateCourseCompetencyScores)
+					cor.Get("/course-competency-scores/summary", studentCohortHandler.GetCourseCompetencyScoreSummary)
 				})
 			})
 

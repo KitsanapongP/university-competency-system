@@ -16,7 +16,8 @@ import (
 )
 
 type StudentCohortController struct {
-	Service *services.StudentCohortService
+	Service        *services.StudentCohortService
+	ScoringService *services.CourseCompetencyScoringService
 }
 
 func (c *StudentCohortController) GetAll(w http.ResponseWriter, r *http.Request) {
@@ -252,6 +253,78 @@ func (c *StudentCohortController) CommitImport(w http.ResponseWriter, r *http.Re
 		return
 	}
 	utils.OK(w, preview)
+}
+
+func (c *StudentCohortController) GetCompetencyRequirements(w http.ResponseWriter, r *http.Request) {
+	cohortID, ok := parseStudentCohortID(w, r, "cohort_id")
+	if !ok {
+		return
+	}
+	claims, ok := studentCohortClaims(w, r)
+	if !ok {
+		return
+	}
+	items, err := c.ScoringService.GetRequirements(r.Context(), cohortID, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeStudentCohortError(w, err)
+		return
+	}
+	utils.OK(w, items)
+}
+
+func (c *StudentCohortController) ReplaceCompetencyRequirements(w http.ResponseWriter, r *http.Request) {
+	cohortID, ok := parseStudentCohortID(w, r, "cohort_id")
+	if !ok {
+		return
+	}
+	claims, ok := studentCohortClaims(w, r)
+	if !ok {
+		return
+	}
+	var payload models.ReplaceCohortCompetencyRequirementsRequest
+	if !decodeStudentCohortPayload(w, r, &payload) {
+		return
+	}
+	items, err := c.ScoringService.ReplaceRequirements(r.Context(), cohortID, payload, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeStudentCohortError(w, err)
+		return
+	}
+	utils.OK(w, items)
+}
+
+func (c *StudentCohortController) RecalculateCourseCompetencyScores(w http.ResponseWriter, r *http.Request) {
+	cohortID, ok := parseStudentCohortID(w, r, "cohort_id")
+	if !ok {
+		return
+	}
+	claims, ok := studentCohortClaims(w, r)
+	if !ok {
+		return
+	}
+	result, err := c.ScoringService.Recalculate(r.Context(), cohortID, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeStudentCohortError(w, err)
+		return
+	}
+	utils.OK(w, result)
+}
+
+func (c *StudentCohortController) GetCourseCompetencyScoreSummary(w http.ResponseWriter, r *http.Request) {
+	cohortID, ok := parseStudentCohortID(w, r, "cohort_id")
+	if !ok {
+		return
+	}
+	claims, ok := studentCohortClaims(w, r)
+	if !ok {
+		return
+	}
+	items, err := c.ScoringService.GetSummary(r.Context(), cohortID, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeStudentCohortError(w, err)
+		return
+	}
+	utils.OK(w, items)
 }
 
 func studentCohortFiltersFromQuery(w http.ResponseWriter, r *http.Request) (models.StudentCohortFilters, bool) {
