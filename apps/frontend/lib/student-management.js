@@ -68,11 +68,30 @@ export function mapCohortStudent(item) {
     };
 }
 
-function cohortPayload(form) {
+function cohortPayload(form, options = {}) {
     return {
         curriculum_id: Number(form.curriculumId) || 0,
         entry_year_be: Number(form.entryYearBe) || 0,
         note: nullable(form.note),
+        confirm_curriculum_change: Boolean(options.confirmCurriculumChange),
+    };
+}
+
+export function mapCurriculumChangeImpact(item) {
+    return {
+        cohortId: item?.cohort_id || 0,
+        fromCurriculumId: item?.from_curriculum_id || 0,
+        fromCurriculumCode: item?.from_curriculum_code || '',
+        toCurriculumId: item?.to_curriculum_id || 0,
+        toCurriculumCode: item?.to_curriculum_code || '',
+        rosterCount: item?.roster_count || 0,
+        templateAssignmentCount: item?.template_assignment_count || 0,
+        courseEnrollmentCount: item?.course_enrollment_count || 0,
+        courseScoreCount: item?.course_score_count || 0,
+        competencyRequirementCount: item?.competency_requirement_count || 0,
+        competencyResultCount: item?.competency_result_count || 0,
+        activityAttendanceCount: item?.activity_attendance_count || 0,
+        activityScoreCount: item?.activity_score_count || 0,
     };
 }
 
@@ -123,10 +142,10 @@ export async function createStudentCohort(form) {
     return mapStudentCohort(unwrapData(response, null));
 }
 
-export async function updateStudentCohort(cohortId, form) {
+export async function updateStudentCohort(cohortId, form, options = {}) {
     const response = await apiFetch(`/api/v1/student-cohorts/${cohortId}`, {
         method: 'PATCH',
-        body: JSON.stringify(cohortPayload(form)),
+        body: JSON.stringify(cohortPayload(form, options)),
     });
     return mapStudentCohort(unwrapData(response, null));
 }
