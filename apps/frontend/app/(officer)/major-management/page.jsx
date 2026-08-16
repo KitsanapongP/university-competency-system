@@ -2,7 +2,7 @@
 
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Building2, Edit3, GraduationCap, Plus, Power, RefreshCw, Save, Search, X } from 'lucide-react';
+import { ArrowLeft, Building2, Edit3, GraduationCap, Plus, Power, RefreshCw, Save, Search } from 'lucide-react';
 import { useAuth } from '../../../providers/auth-provider';
 import {
     createMajor,
@@ -13,6 +13,7 @@ import {
     updateMajorStatus,
 } from '../../../lib/major';
 import ToastNotifications from '../../../components/ui/ToastNotifications';
+import BaseModal from '../../../components/ui/BaseModal';
 import '../curriculum-management/CourseLayout.css';
 import '../curriculum-management/CourseList.css';
 import './MajorManagement.css';
@@ -68,16 +69,24 @@ function MajorFormModal({
     const facultyLocked = !isAdmin || faculties.length <= 1;
 
     return (
-        <div className="course-modal-overlay" onClick={onClose}>
-            <div className="course-modal-box course-modal-box--md" onClick={event => event.stopPropagation()}>
-                <div className="course-modal-header">
-                    <h3>{mode === 'edit' ? 'แก้ไขสาขา' : 'เพิ่มสาขาใหม่'}</h3>
-                    <button className="course-modal-close" onClick={onClose} aria-label="ปิด">
-                        <X size={18} />
+        <BaseModal
+            open
+            title={mode === 'edit' ? 'แก้ไขสาขา' : 'เพิ่มสาขาใหม่'}
+            size="md"
+            onClose={onClose}
+            closeDisabled={submitting}
+            footer={(
+                <>
+                    <button className="course-btn course-btn--ghost" onClick={onClose} disabled={submitting}>
+                        ยกเลิก
                     </button>
-                </div>
-
-                <div className="course-modal-body">
+                    <button className="course-btn course-btn--primary" onClick={onSubmit} disabled={submitting}>
+                        <Save size={16} />
+                        {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
+                    </button>
+                </>
+            )}
+        >
                     <div className="course-row">
                         <label className="course-field">
                             <span className="course-label">คณะ<span className="course-required">*</span></span>
@@ -174,19 +183,7 @@ function MajorFormModal({
                         />
                         <span>เปิดใช้งานสาขานี้</span>
                     </label>
-                </div>
-
-                <div className="course-modal-footer">
-                    <button className="course-btn course-btn--ghost" onClick={onClose} disabled={submitting}>
-                        ยกเลิก
-                    </button>
-                    <button className="course-btn course-btn--primary" onClick={onSubmit} disabled={submitting}>
-                        <Save size={16} />
-                        {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
-                    </button>
-                </div>
-            </div>
-        </div>
+        </BaseModal>
     );
 }
 

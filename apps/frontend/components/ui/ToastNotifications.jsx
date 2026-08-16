@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, X } from 'lucide-react';
+import './ToastNotifications.css';
 
 export default function ToastNotifications({
     success,

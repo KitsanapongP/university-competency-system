@@ -98,6 +98,81 @@ func (s *CurriculumService) UpdateCurriculumStatus(ctx context.Context, id uint6
 	return s.GetCurriculumByID(ctx, id, roles, facultyID)
 }
 
+func (s *CurriculumService) UpdateCurriculumMetadata(ctx context.Context, id uint64, payload models.UpdateCurriculumMetadataPayload, roles []string, facultyID *int64) (*models.CurriculumDetail, error) {
+	curriculum, err := s.getCurriculumForWrite(ctx, id, roles, facultyID)
+	if err != nil {
+		return nil, err
+	}
+
+	normalizeUpdateCurriculumMetadataPayload(&payload)
+	if err := validateUpdateCurriculumMetadataPayload(payload); err != nil {
+		return nil, err
+	}
+
+	targetMajor, err := s.Repo.GetMajorByID(ctx, payload.MajorID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, CurriculumValidationError{Message: "major_id is invalid"}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureFacultyScope(targetMajor.FacultyID, roles, facultyID); err != nil {
+		return nil, err
+	}
+
+	majorChanged := curriculum.MajorID != payload.MajorID
+	if majorChanged && normalizeCurriculumStatus(curriculum.Status) != "draft" {
+		return nil, CurriculumValidationError{Message: "curriculum major can only be changed while draft"}
+	}
+	if majorChanged && !targetMajor.IsActive {
+		return nil, CurriculumValidationError{Message: "major_id must be active when changing curriculum major"}
+	}
+	if curriculumMetadataMatches(curriculum, payload) {
+		return s.GetCurriculumByID(ctx, id, roles, facultyID)
+	}
+	if err := s.ensureMetadataEditable(ctx, curriculum, payload.ConfirmImpact); err != nil {
+		return nil, err
+	}
+
+	duplicateName, err := s.Repo.FindLiveCurriculumNameDuplicateExcept(ctx, payload.MajorID, payload.EffectiveYearBE, payload.CurriculumNameTH, id)
+	if err != nil {
+		return nil, err
+	}
+	if duplicateName != nil {
+		return nil, CurriculumConflictError{
+			Code:    "DUPLICATE",
+			Message: "curriculum name already exists in this major and effective year",
+		}
+	}
+
+	duplicateCodeCount, err := s.Repo.CountLiveCurriculumCodeDuplicateExcept(ctx, payload.MajorID, payload.CurriculumCode, id)
+	if err != nil {
+		return nil, err
+	}
+	if duplicateCodeCount > 0 {
+		return nil, CurriculumConflictError{
+			Code:    "DUPLICATE",
+			Message: "curriculum code already exists in this major",
+		}
+	}
+
+	targetScope, err := s.Repo.GetMajorScope(ctx, payload.MajorID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, CurriculumValidationError{Message: "major_id is invalid"}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Repo.UpdateCurriculumMetadataTx(ctx, id, payload, targetScope, majorChanged); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrCurriculumNotFound
+		}
+		return nil, err
+	}
+
+	return s.GetCurriculumByID(ctx, id, roles, facultyID)
+}
+
 func (s *CurriculumService) CreateCategory(ctx context.Context, curriculumID uint64, payload models.CreateCurriculumCategoryPayload, roles []string, facultyID *int64) (*models.CurriculumDetail, error) {
 	curriculum, err := s.getCurriculumForWrite(ctx, curriculumID, roles, facultyID)
 	if err != nil {
@@ -106,31 +181,34 @@ func (s *CurriculumService) CreateCategory(ctx context.Context, curriculumID uin
 	if err := s.ensureStructureEditable(ctx, curriculum, payload.ConfirmImpact); err != nil {
 		return nil, err
 	}
+	payload.NameTH = strings.TrimSpace(payload.NameTH)
+	if payload.Code != nil {
+		value := strings.TrimSpace(*payload.Code)
+		payload.Code = &value
+	}
 	if err := validateCreateCategoryMutation(payload); err != nil {
+		return nil, err
+	}
+	categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	if payload.Code == nil {
+		return nil, CurriculumValidationError{Message: "category code is required"}
+	}
+	if err := validateCategoryCodeForCreate(categories, *payload.Code); err != nil {
 		return nil, err
 	}
 	if payload.ParentID != nil {
 		if *payload.ParentID == 0 {
 			return nil, CurriculumValidationError{Message: "parent_id is invalid"}
 		}
-		if _, err := s.Repo.GetCategoryForCurriculum(ctx, curriculumID, *payload.ParentID); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, CurriculumValidationError{Message: "parent_id is invalid"}
-			}
+		if err := validateChildCategoryPlacement(categories, *payload.ParentID); err != nil {
 			return nil, err
 		}
 	}
 
-	payload.NameTH = strings.TrimSpace(payload.NameTH)
-	if payload.Code != nil {
-		value := strings.TrimSpace(*payload.Code)
-		payload.Code = &value
-	}
-
 	if err := s.Repo.CreateCategory(ctx, curriculumID, payload); err != nil {
-		return nil, err
-	}
-	if err := s.Repo.RenumberCategoryCodes(ctx, curriculumID); err != nil {
 		return nil, err
 	}
 
@@ -145,27 +223,29 @@ func (s *CurriculumService) UpdateCategory(ctx context.Context, curriculumID uin
 	if err := s.ensureStructureEditable(ctx, curriculum, payload.ConfirmImpact); err != nil {
 		return nil, err
 	}
-	if _, err := s.Repo.GetCategoryForCurriculum(ctx, curriculumID, categoryID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrCurriculumNotFound
-		}
-		return nil, err
-	}
+	normalizeUpdateCategoryPayload(&payload)
 	if err := validateUpdateCategoryMutation(payload); err != nil {
 		return nil, err
 	}
 	if err := s.validateCategoryMove(ctx, curriculumID, categoryID, payload.ParentID); err != nil {
 		return nil, err
 	}
-	normalizeUpdateCategoryPayload(&payload)
+	categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	codeUpdates := map[uint64]string{}
+	if payload.Code != nil {
+		codeUpdates, err = validateCategoryCodeUpdates(categories, categoryID, *payload.Code)
+		if err != nil {
+			return nil, err
+		}
+	}
 
-	if err := s.Repo.UpdateCategory(ctx, curriculumID, categoryID, payload); err != nil {
+	if err := s.Repo.UpdateCategoryWithCodeCascade(ctx, curriculumID, categoryID, payload, codeUpdates); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCurriculumNotFound
 		}
-		return nil, err
-	}
-	if err := s.Repo.RenumberCategoryCodes(ctx, curriculumID); err != nil {
 		return nil, err
 	}
 
@@ -214,10 +294,6 @@ func (s *CurriculumService) DeleteCategory(ctx context.Context, curriculumID uin
 	if err := s.Repo.DeleteCategoryTx(ctx, preview); err != nil {
 		return nil, err
 	}
-	if err := s.Repo.RenumberCategoryCodes(ctx, curriculumID); err != nil {
-		return nil, err
-	}
-
 	return s.GetCurriculumByID(ctx, curriculumID, roles, facultyID)
 }
 
@@ -232,10 +308,11 @@ func (s *CurriculumService) CreateCourse(ctx context.Context, curriculumID uint6
 	if err := validateCreateCourseMutation(payload); err != nil {
 		return nil, err
 	}
-	if _, err := s.Repo.GetCategoryForCurriculum(ctx, curriculumID, categoryID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, CurriculumValidationError{Message: "category_id is invalid"}
-		}
+	categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateCourseCategoryPlacement(categories, categoryID); err != nil {
 		return nil, err
 	}
 
@@ -299,10 +376,11 @@ func (s *CurriculumService) UpdateCurriculumCoursePlacement(ctx context.Context,
 		if *payload.CategoryID == 0 {
 			return nil, CurriculumValidationError{Message: "category_id is invalid"}
 		}
-		if _, err := s.Repo.GetCategoryForCurriculum(ctx, curriculumID, *payload.CategoryID); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, CurriculumValidationError{Message: "category_id is invalid"}
-			}
+		categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
+		if err != nil {
+			return nil, err
+		}
+		if err := validateCourseCategoryPlacement(categories, *payload.CategoryID); err != nil {
 			return nil, err
 		}
 	}
@@ -419,39 +497,63 @@ func (s *CurriculumService) ensureCurriculumScope(ctx context.Context, curriculu
 	return nil
 }
 
-func (s *CurriculumService) ensureStructureEditable(ctx context.Context, curriculum *models.Curriculum, confirmImpact bool) error {
+func (s *CurriculumService) ensureStructureEditable(_ context.Context, curriculum *models.Curriculum, _ bool) error {
 	switch normalizeCurriculumStatus(curriculum.Status) {
-	case "draft":
-		return nil
-	case "active":
-		activeTemplateCount, err := s.Repo.CountActiveTemplatesForCurriculum(ctx, curriculum.CurriculumID)
-		if err != nil {
-			return err
-		}
-		if activeTemplateCount > 0 {
-			return CurriculumConflictError{
-				Code:    "CURRICULUM_STRUCTURE_LOCKED",
-				Message: "curriculum structure is locked while active templates are connected",
-			}
-		}
-		return nil
-	case "inactive":
-		affectedTemplates, err := s.Repo.GetAffectedTemplatesForCurriculum(ctx, curriculum.CurriculumID)
-		if err != nil {
-			return err
-		}
-		if len(affectedTemplates) > 0 && !confirmImpact {
-			return CurriculumConfirmationRequiredError{
-				Message: "inactive curriculum edit requires confirmation because templates are connected",
-				Data: models.CurriculumImpact{
-					AffectedTemplates: affectedTemplates,
-				},
-			}
-		}
+	case "draft", "active", "inactive":
 		return nil
 	default:
 		return CurriculumValidationError{Message: fmt.Sprintf("curriculum status %q is invalid", curriculum.Status)}
 	}
+}
+
+func (s *CurriculumService) ensureMetadataEditable(_ context.Context, curriculum *models.Curriculum, _ bool) error {
+	switch normalizeCurriculumStatus(curriculum.Status) {
+	case "draft", "active", "inactive":
+		return nil
+	default:
+		return CurriculumValidationError{Message: fmt.Sprintf("curriculum status %q is invalid", curriculum.Status)}
+	}
+}
+
+func normalizeUpdateCurriculumMetadataPayload(payload *models.UpdateCurriculumMetadataPayload) {
+	payload.CurriculumCode = strings.TrimSpace(payload.CurriculumCode)
+	payload.CurriculumNameTH = strings.TrimSpace(payload.CurriculumNameTH)
+	payload.CurriculumNameEN = trimStringPointer(payload.CurriculumNameEN)
+}
+
+func validateUpdateCurriculumMetadataPayload(payload models.UpdateCurriculumMetadataPayload) error {
+	if payload.MajorID == 0 {
+		return CurriculumValidationError{Message: "major_id is required"}
+	}
+	if payload.CurriculumCode == "" {
+		return CurriculumValidationError{Message: "curriculum_code is required"}
+	}
+	if payload.CurriculumNameTH == "" {
+		return CurriculumValidationError{Message: "curriculum_name_th is required"}
+	}
+	if payload.EffectiveYearBE == 0 {
+		return CurriculumValidationError{Message: "effective_year_be is required"}
+	}
+	return nil
+}
+
+func curriculumMetadataMatches(curriculum *models.Curriculum, payload models.UpdateCurriculumMetadataPayload) bool {
+	if curriculum.MajorID != payload.MajorID ||
+		curriculum.CurriculumCode != payload.CurriculumCode ||
+		curriculum.CurriculumNameTH != payload.CurriculumNameTH ||
+		curriculum.EffectiveYearBE != payload.EffectiveYearBE {
+		return false
+	}
+
+	currentNameEN := ""
+	if curriculum.CurriculumNameEN != nil {
+		currentNameEN = *curriculum.CurriculumNameEN
+	}
+	payloadNameEN := ""
+	if payload.CurriculumNameEN != nil {
+		payloadNameEN = *payload.CurriculumNameEN
+	}
+	return currentNameEN == payloadNameEN
 }
 
 func (s *CurriculumService) ensureCurriculumActivatable(ctx context.Context, curriculumID uint64) error {
@@ -480,13 +582,6 @@ func (s *CurriculumService) validateCategoryMove(ctx context.Context, curriculum
 	if parentID.Value == 0 || parentID.Value == categoryID {
 		return CurriculumValidationError{Message: "parent_id is invalid"}
 	}
-	if _, err := s.Repo.GetCategoryForCurriculum(ctx, curriculumID, parentID.Value); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return CurriculumValidationError{Message: "parent_id is invalid"}
-		}
-		return err
-	}
-
 	subtreeIDs, err := s.Repo.GetCategorySubtreeIDs(ctx, curriculumID, categoryID)
 	if err != nil {
 		return err
@@ -497,10 +592,24 @@ func (s *CurriculumService) validateCategoryMove(ctx context.Context, curriculum
 		}
 	}
 
+	categories, err := s.Repo.GetCurriculumCategoryTree(ctx, curriculumID)
+	if err != nil {
+		return err
+	}
+	if err := validateCategoryMovePlacement(categories, categoryID, parentID.Value); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func validateCreateCategoryMutation(payload models.CreateCurriculumCategoryPayload) error {
+	if payload.Code == nil || strings.TrimSpace(*payload.Code) == "" {
+		return CurriculumValidationError{Message: "category code is required"}
+	}
+	if err := validateCurriculumCategoryCode(strings.TrimSpace(*payload.Code)); err != nil {
+		return err
+	}
 	if strings.TrimSpace(payload.NameTH) == "" {
 		return CurriculumValidationError{Message: "category name_th is required"}
 	}
@@ -514,6 +623,11 @@ func validateCreateCategoryMutation(payload models.CreateCurriculumCategoryPaylo
 }
 
 func validateUpdateCategoryMutation(payload models.UpdateCurriculumCategoryPayload) error {
+	if payload.Code != nil {
+		if err := validateCurriculumCategoryCode(strings.TrimSpace(*payload.Code)); err != nil {
+			return err
+		}
+	}
 	if payload.NameTH != nil && strings.TrimSpace(*payload.NameTH) == "" {
 		return CurriculumValidationError{Message: "category name_th cannot be empty"}
 	}

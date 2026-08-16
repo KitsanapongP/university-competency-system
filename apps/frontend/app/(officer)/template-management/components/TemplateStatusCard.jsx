@@ -32,16 +32,16 @@ function ConfirmStatusModal({ isEnabling, onConfirm, onCancel }) {
                 <div className="alert-modal__message">
                     <p className="alert-modal__line">
                         {isEnabling
-                            ? 'คุณต้องการเปิดใช้งาน Template นี้ใช่หรือไม่?'
-                            : 'คุณต้องการปิดใช้งาน Template นี้ใช่หรือไม่?'}
+                            ? 'คุณต้องการเปิดใช้งานแบบแผนนี้ใช่หรือไม่?'
+                            : 'คุณต้องการปิดใช้งานแบบแผนนี้ใช่หรือไม่?'}
                     </p>
                 </div>
 
                 {/* Warning box */}
                 <div className={`confirm-status__warn-box ${isEnabling ? 'confirm-status__warn-box--enabled' : 'confirm-status__warn-box--disabled'}`}>
                     {isEnabling
-                        ? 'Template นี้จะพร้อมใช้งานสำหรับการกำหนดกับนักศึกษา'
-                        : 'Template นี้จะไม่สามารถใช้กับนักศึกษาได้อีกต่อไป'}
+                        ? 'แบบแผนนี้จะพร้อมใช้งานสำหรับการกำหนดกับนักศึกษา'
+                        : 'แบบแผนนี้จะไม่สามารถใช้กับนักศึกษาได้อีกต่อไป'}
                 </div>
 
                 {/* Footer */}
@@ -97,7 +97,7 @@ export function TemplateStatusCard({
             <div className="ov-template-status-card">
                 <div className="ov-status-section">
                     <div className="ov-status-header">
-                        <span className="ov-status-label">สถานะ Template</span>
+                        <span className="ov-status-label">สถานะแบบแผนการประเมิน</span>
                     </div>
                     <div className="ov-status-toggle-wrap">
                         <button

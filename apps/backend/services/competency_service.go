@@ -70,20 +70,20 @@ type DashboardData struct {
 
 // GetAllCompetencies ดึง competencies ทั้งหมดในระบบ
 func (s *CompetencyService) GetAllCompetencies(ctx context.Context) ([]Competency, error) {
-    records, err := s.Repo.GetCompetencies(ctx)
-    if err != nil {
-        return nil, err
-    }
-    result := make([]Competency, 0, len(records))
-    for _, rec := range records {
-        result = append(result, Competency{
-            ID:     rec.ID,
-            Code:   rec.Code,
-            NameTH: rec.NameTH,
-            NameEN: rec.NameEN,
-        })
-    }
-    return result, nil
+	records, err := s.Repo.GetCompetencies(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Competency, 0, len(records))
+	for _, rec := range records {
+		result = append(result, Competency{
+			ID:     rec.ID,
+			Code:   rec.Code,
+			NameTH: rec.NameTH,
+			NameEN: rec.NameEN,
+		})
+	}
+	return result, nil
 }
 
 // BuildDashboard สร้าง dashboard data แบ่งตาม category
@@ -106,10 +106,6 @@ func (s *CompetencyService) UpdateCompetency(ctx context.Context, competencyID u
 		}
 		return nil, err
 	}
-	if err := s.ensureCompetencyEditable(ctx, competencyID); err != nil {
-		return nil, err
-	}
-
 	normalized := normalizeCompetencyPayload(payload)
 	if err := validateCompetencyPayload(normalized); err != nil {
 		return nil, err

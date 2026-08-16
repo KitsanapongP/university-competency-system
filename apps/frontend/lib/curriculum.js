@@ -72,6 +72,7 @@ export function mapApiCurriculum(curriculum) {
     return {
         id: curriculum.curriculum_id,
         curriculumId: curriculum.curriculum_id,
+        facultyId: curriculum.faculty_id,
         majorId: curriculum.major_id,
         code: curriculum.curriculum_code || '',
         nameTh: curriculum.curriculum_name_th || '',
@@ -82,6 +83,7 @@ export function mapApiCurriculum(curriculum) {
         status: curriculum.status || 'draft',
         isActive: curriculum.is_active ?? curriculum.status === 'active',
         templateCount: curriculum.template_count || 0,
+        activeTemplateCount: curriculum.active_template_count || 0,
         categories,
         coursesByCategory: buildCoursesByCategory(categories),
         stats: {
@@ -103,6 +105,15 @@ function countCategories(categories) {
 export async function fetchCurriculums() {
     const response = await apiFetch('/api/v1/curricula/');
     return unwrapData(response, []).map(mapApiCurriculum);
+}
+
+export async function fetchGeneratedCurriculumCode(majorId, effectiveYearBE) {
+    const query = new URLSearchParams({
+        major_id: String(toNumber(majorId, 0)),
+        effective_year_be: String(toNumber(effectiveYearBE, 0)),
+    });
+    const response = await apiFetch(`/api/v1/curricula/generated-code?${query.toString()}`);
+    return String(unwrapData(response, {})?.curriculum_code || '');
 }
 
 function mapFacultyOption(faculty) {
@@ -132,11 +143,17 @@ function mapMajorOption(major) {
         departmentNameEn: major.department_name_en || '',
         facultyNameTh: major.faculty_name_th || '',
         facultyNameEn: major.faculty_name_en || '',
+        isActive: major.is_active ?? true,
     };
 }
 
-export async function fetchMajors() {
-    const response = await apiFetch('/api/v1/majors');
+export async function fetchMajors(filters = {}) {
+    const query = new URLSearchParams();
+    if (filters.includeInactive) query.set('include_inactive', 'true');
+    if (filters.facultyId) query.set('faculty_id', String(filters.facultyId));
+    if (filters.departmentId) query.set('department_id', String(filters.departmentId));
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    const response = await apiFetch(`/api/v1/majors${suffix}`);
     return unwrapData(response, []).map(mapMajorOption);
 }
 
@@ -186,15 +203,11 @@ function categoryPayload(category, coursesByCategory, index = 0) {
 
 export function mapCurriculumFormToPayload(form) {
     const majorId = toNumber(form.majorId, 0);
-    const curriculumCode = toNullableString(form.code);
     const curriculumNameTh = toNullableString(form.nameTh);
     const effectiveYearBE = toNumber(form.year, 0);
 
     if (!majorId) {
         throw new Error('กรุณาเลือกสาขาของหลักสูตร');
-    }
-    if (!curriculumCode) {
-        throw new Error('กรุณากรอกรหัสหลักสูตร');
     }
     if (!curriculumNameTh) {
         throw new Error('กรุณากรอกชื่อหลักสูตรภาษาไทย');
@@ -207,7 +220,6 @@ export function mapCurriculumFormToPayload(form) {
 
     return {
         major_id: majorId,
-        curriculum_code: curriculumCode,
         curriculum_name_th: curriculumNameTh,
         curriculum_name_en: toNullableString(form.nameEn),
         effective_year_be: effectiveYearBE,
@@ -258,6 +270,22 @@ export async function updateCurriculumStatus(curriculumId, status, confirmImpact
         method: 'PATCH',
         body: JSON.stringify({
             status,
+            confirm_impact: confirmImpact,
+        }),
+    });
+
+    return toMutationResult(response);
+}
+
+export async function updateCurriculumMetadata(curriculumId, form, confirmImpact = false) {
+    const response = await apiFetch(`/api/v1/curricula/${curriculumId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+            major_id: toNumber(form.majorId, 0),
+            curriculum_code: toNullableString(form.code),
+            curriculum_name_th: toNullableString(form.nameTh),
+            curriculum_name_en: toNullableString(form.nameEn),
+            effective_year_be: toNumber(form.year, 0),
             confirm_impact: confirmImpact,
         }),
     });
@@ -420,4 +448,20 @@ export async function deleteCurriculumCoursePlacement(curriculumId, curriculumCo
     });
 
     return toMutationResult(response);
+}
+
+export async function previewCurriculumStructureImport(curriculumId, rows) {
+    const response = await apiFetch(`/api/v1/curricula/${curriculumId}/structure-imports/preview`, {
+        method: 'POST',
+        body: JSON.stringify({ rows }),
+    });
+    return unwrapData(response, null);
+}
+
+export async function commitCurriculumStructureImport(curriculumId, rows, confirmImpact = false) {
+    const response = await apiFetch(`/api/v1/curricula/${curriculumId}/structure-imports/commit`, {
+        method: 'POST',
+        body: JSON.stringify({ rows, confirm_impact: confirmImpact }),
+    });
+    return mapApiCurriculum(unwrapData(response, null));
 }

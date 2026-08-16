@@ -9,26 +9,21 @@ function toNullableString(value) {
     return normalized ? normalized : null;
 }
 
-export function mapCompetencyOption(competency) {
-    if (!competency) return null;
+export function mapCompetency(item) {
     return {
-        competencyId: competency.competency_id,
-        code: competency.code || '',
-        nameTh: competency.name_th || '',
-        nameEn: competency.name_en || '',
-        description: competency.description || '',
-        isActive: competency.is_active ?? true,
-        templateUsageCount: competency.template_usage_count || 0,
-        canEdit: competency.can_edit ?? (competency.template_usage_count === 0),
-        canDelete: competency.can_delete ?? (competency.template_usage_count === 0),
-        createdAt: competency.created_at,
-        updatedAt: competency.updated_at,
+        competencyId: item.competency_id,
+        id: item.competency_id,
+        code: item.code || '',
+        nameTh: item.name_th || '',
+        nameEn: item.name_en || '',
+        description: item.description || '',
+        isActive: item.is_active ?? true,
+        templateUsageCount: item.template_usage_count || 0,
+        canEdit: item.can_edit ?? (item.template_usage_count || 0) === 0,
+        canDelete: item.can_delete ?? (item.template_usage_count || 0) === 0,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at,
     };
-}
-
-export async function fetchCompetenciesForManagement() {
-    const response = await apiFetch('/api/v1/competencies');
-    return unwrapData(response, []).map(mapCompetencyOption);
 }
 
 function competencyPayload(form) {
@@ -40,13 +35,18 @@ function competencyPayload(form) {
     };
 }
 
+export async function fetchCompetenciesForManagement() {
+    const response = await apiFetch('/api/v1/competencies');
+    return unwrapData(response, []).map(mapCompetency);
+}
+
 export async function createCompetency(form) {
     const response = await apiFetch('/api/v1/competencies', {
         method: 'POST',
         body: JSON.stringify(competencyPayload(form)),
     });
 
-    return mapCompetencyOption(unwrapData(response, null));
+    return mapCompetency(unwrapData(response, null));
 }
 
 export async function updateCompetency(competencyId, form) {
@@ -55,7 +55,7 @@ export async function updateCompetency(competencyId, form) {
         body: JSON.stringify(competencyPayload(form)),
     });
 
-    return mapCompetencyOption(unwrapData(response, null));
+    return mapCompetency(unwrapData(response, null));
 }
 
 export async function deleteCompetency(competencyId) {
@@ -63,5 +63,5 @@ export async function deleteCompetency(competencyId) {
         method: 'DELETE',
     });
 
-    return response;
+    return unwrapData(response, null);
 }

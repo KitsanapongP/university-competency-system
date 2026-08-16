@@ -9,6 +9,50 @@ import (
 	"github.com/spw32767/university-competency-system-backend/models"
 )
 
+func (r *CurriculumRepository) UpdateCurriculumMetadataTx(ctx context.Context, curriculumID uint64, payload models.UpdateCurriculumMetadataPayload, targetMajor MajorScope, updateCourseContext bool) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE edu_curricula
+		SET major_id = ?,
+			code = ?,
+			name_th = ?,
+			name_en = ?,
+			effective_year_be = ?,
+			updated_at = NOW()
+		WHERE curriculum_id = ?
+			AND deleted_at IS NULL
+	`, payload.MajorID, payload.CurriculumCode, payload.CurriculumNameTH, payload.CurriculumNameEN, payload.EffectiveYearBE, curriculumID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+
+	if updateCourseContext {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE crs_courses
+			SET faculty_id = ?,
+				degree_level = ?,
+				updated_at = NOW()
+			WHERE curriculum_id = ?
+		`, targetMajor.FacultyID, targetMajor.DegreeLevel, curriculumID); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 func (r *CurriculumRepository) GetCategoryForCurriculum(ctx context.Context, curriculumID uint64, categoryID uint64) (*models.CourseCategoryNode, error) {
 	query := `
 		SELECT category_id, curriculum_id, parent_id, code, name_th, name_en, required_credits, display_order, is_active, created_at, updated_at, deleted_at
@@ -56,11 +100,8 @@ func (r *CurriculumRepository) GetCurriculumCourseForCurriculum(ctx context.Cont
 func (r *CurriculumRepository) CountActiveTemplatesForCurriculum(ctx context.Context, curriculumID uint64) (int, error) {
 	query := `
 		SELECT COUNT(*)
-		FROM curri_curriculum_templates cct
-		JOIN comp_templates tpl ON tpl.template_id = cct.template_id
-		WHERE cct.curriculum_id = ?
-			AND cct.deleted_at IS NULL
-			AND cct.is_active = 1
+		FROM comp_templates tpl
+		WHERE tpl.curriculum_id = ?
 			AND tpl.deleted_at IS NULL
 			AND tpl.is_active = 1
 	`
@@ -76,19 +117,19 @@ func (r *CurriculumRepository) CountActiveTemplatesForCurriculum(ctx context.Con
 func (r *CurriculumRepository) GetAffectedTemplatesForCurriculum(ctx context.Context, curriculumID uint64) ([]models.AffectedTemplate, error) {
 	query := `
 		SELECT
-			cct.curriculum_template_id,
-			cct.template_id,
+			tpl.template_id,
+			tpl.template_id,
 			tpl.code,
 			tpl.name,
-			cct.cohort_year_be,
-			cct.is_active,
+			COALESCE(sc.entry_year_be, 0),
+			1,
 			tpl.is_active
-		FROM curri_curriculum_templates cct
-		JOIN comp_templates tpl ON tpl.template_id = cct.template_id
-		WHERE cct.curriculum_id = ?
-			AND cct.deleted_at IS NULL
+		FROM comp_templates tpl
+		LEFT JOIN curri_template_assignments ta ON ta.template_id = tpl.template_id AND ta.deleted_at IS NULL
+		LEFT JOIN edu_student_cohorts sc ON sc.cohort_id = ta.cohort_id AND sc.deleted_at IS NULL
+		WHERE tpl.curriculum_id = ?
 			AND tpl.deleted_at IS NULL
-		ORDER BY cct.cohort_year_be DESC, cct.curriculum_template_id DESC
+		ORDER BY sc.entry_year_be DESC, tpl.template_id DESC
 	`
 
 	rows, err := r.DB.QueryContext(ctx, query, curriculumID)
@@ -299,20 +340,12 @@ func (r *CurriculumRepository) UpdateCategory(ctx context.Context, curriculumID 
 	return nil
 }
 
-func (r *CurriculumRepository) RenumberCategoryCodes(ctx context.Context, curriculumID uint64) error {
-	categories, err := r.getCurriculumCategories(ctx, curriculumID)
-	if err != nil {
-		return err
-	}
-
-	childrenByParent := make(map[uint64][]*models.CourseCategoryNode)
-	roots := make([]*models.CourseCategoryNode, 0)
-	for _, category := range categories {
-		if category.ParentID == nil {
-			roots = append(roots, category)
-			continue
-		}
-		childrenByParent[*category.ParentID] = append(childrenByParent[*category.ParentID], category)
+// UpdateCategoryWithCodeCascade persists a category edit and the code changes
+// inherited by descendants as one unit. display_order remains independent from code.
+func (r *CurriculumRepository) UpdateCategoryWithCodeCascade(ctx context.Context, curriculumID uint64, categoryID uint64, payload models.UpdateCurriculumCategoryPayload, codeUpdates map[uint64]string) error {
+	var parentID any
+	if payload.ParentID.Set && payload.ParentID.Valid {
+		parentID = payload.ParentID.Value
 	}
 
 	tx, err := r.DB.BeginTx(ctx, nil)
@@ -321,39 +354,42 @@ func (r *CurriculumRepository) RenumberCategoryCodes(ctx context.Context, curric
 	}
 	defer tx.Rollback()
 
-	var updateCodes func(nodes []*models.CourseCategoryNode, parentCode string) error
-	updateCodes = func(nodes []*models.CourseCategoryNode, parentCode string) error {
-		for index, category := range nodes {
-			code := fmt.Sprintf("%d", index+1)
-			if parentCode != "" {
-				code = fmt.Sprintf("%s.%d", parentCode, index+1)
-			}
-
-			currentCode := ""
-			if category.Code != nil {
-				currentCode = *category.Code
-			}
-			if currentCode != code {
-				if _, err := tx.ExecContext(ctx, `
-					UPDATE crs_course_categories
-					SET code = ?, updated_at = NOW()
-					WHERE curriculum_id = ?
-						AND category_id = ?
-						AND deleted_at IS NULL
-				`, code, curriculumID, category.CategoryID); err != nil {
-					return err
-				}
-			}
-
-			if err := updateCodes(childrenByParent[category.CategoryID], code); err != nil {
-				return err
-			}
-		}
-		return nil
+	res, err := tx.ExecContext(ctx, `
+		UPDATE crs_course_categories
+		SET parent_id = CASE WHEN ? THEN ? ELSE parent_id END,
+			code = COALESCE(?, code),
+			name_th = COALESCE(?, name_th),
+			name_en = COALESCE(?, name_en),
+			required_credits = COALESCE(?, required_credits),
+			display_order = COALESCE(?, display_order)
+		WHERE curriculum_id = ?
+			AND category_id = ?
+			AND deleted_at IS NULL
+	`, payload.ParentID.Set, parentID, payload.Code, payload.NameTH, payload.NameEN, payload.RequiredCredits, payload.DisplayOrder, curriculumID, categoryID)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
 	}
 
-	if err := updateCodes(roots, ""); err != nil {
-		return err
+	for descendantID, code := range codeUpdates {
+		if descendantID == categoryID {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE crs_course_categories
+			SET code = ?, updated_at = NOW()
+			WHERE curriculum_id = ?
+				AND category_id = ?
+				AND deleted_at IS NULL
+		`, code, curriculumID, descendantID); err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit()
@@ -384,6 +420,114 @@ func (r *CurriculumRepository) CreateCourseInCategoryTx(ctx context.Context, cur
 	`, categoryID, courseID, payload.IsRequired, payload.DisplayOrder)
 	if err != nil {
 		return fmt.Errorf("link course %q to category %d: %w", payload.Code, categoryID, err)
+	}
+
+	return tx.Commit()
+}
+
+func (r *CurriculumRepository) CommitCurriculumStructureImport(ctx context.Context, curriculumID uint64, plan models.CurriculumStructureImportPlan, opts CreateCurriculumOptions) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.QueryContext(ctx, `
+		SELECT category_id, code
+		FROM crs_course_categories
+		WHERE curriculum_id = ?
+			AND deleted_at IS NULL
+	`, curriculumID)
+	if err != nil {
+		return err
+	}
+	categoryIDs := map[string]uint64{}
+	for rows.Next() {
+		var categoryID uint64
+		var code sql.NullString
+		if err := rows.Scan(&categoryID, &code); err != nil {
+			rows.Close()
+			return err
+		}
+		if code.Valid && strings.TrimSpace(code.String) != "" {
+			categoryIDs[strings.ToLower(strings.TrimSpace(code.String))] = categoryID
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+
+	nextCategoryOrder := map[uint64]int{}
+	for _, category := range plan.Categories {
+		var parentID any
+		var parentKey uint64
+		if category.ParentCode != "" {
+			resolvedParentID, ok := categoryIDs[strings.ToLower(category.ParentCode)]
+			if !ok {
+				return fmt.Errorf("import parent category %q was not found", category.ParentCode)
+			}
+			parentID = resolvedParentID
+			parentKey = resolvedParentID
+		}
+		if _, loaded := nextCategoryOrder[parentKey]; !loaded {
+			var displayOrder int
+			if err := tx.QueryRowContext(ctx, `
+				SELECT COALESCE(MAX(display_order), 0)
+				FROM crs_course_categories
+				WHERE curriculum_id = ?
+					AND parent_id <=> ?
+					AND deleted_at IS NULL
+			`, curriculumID, parentID).Scan(&displayOrder); err != nil {
+				return err
+			}
+			nextCategoryOrder[parentKey] = displayOrder
+		}
+		nextCategoryOrder[parentKey]++
+		res, err := tx.ExecContext(ctx, `
+			INSERT INTO crs_course_categories (curriculum_id, parent_id, code, name_th, required_credits, display_order, is_active)
+			VALUES (?, ?, ?, ?, 0, ?, 1)
+		`, curriculumID, parentID, category.Code, category.NameTH, nextCategoryOrder[parentKey])
+		if err != nil {
+			return err
+		}
+		categoryID, err := res.LastInsertId()
+		if err != nil {
+			return err
+		}
+		categoryIDs[strings.ToLower(category.Code)] = uint64(categoryID)
+	}
+
+	nextCourseOrder := map[uint64]int{}
+	for _, course := range plan.Courses {
+		categoryID, ok := categoryIDs[strings.ToLower(course.CategoryCode)]
+		if !ok {
+			return fmt.Errorf("import category %q was not found", course.CategoryCode)
+		}
+		if _, loaded := nextCourseOrder[categoryID]; !loaded {
+			var displayOrder int
+			if err := tx.QueryRowContext(ctx, `
+				SELECT COALESCE(MAX(display_order), 0)
+				FROM crs_curriculum_courses
+				WHERE category_id = ?
+					AND deleted_at IS NULL
+			`, categoryID).Scan(&displayOrder); err != nil {
+				return err
+			}
+			nextCourseOrder[categoryID] = displayOrder
+		}
+		nextCourseOrder[categoryID]++
+		courseID, err := r.createCourse(ctx, tx, curriculumID, models.CreateCourseInCatPayload{
+			Code: course.Code, NameTH: course.NameTH, NameEN: course.NameEN, Credits: course.Credits,
+		}, opts)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO crs_curriculum_courses (category_id, course_id, is_required, display_order, is_active)
+			VALUES (?, ?, 1, ?, 1)
+		`, categoryID, courseID, nextCourseOrder[categoryID]); err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit()
@@ -743,10 +887,8 @@ func (r *CurriculumRepository) CountConnectedTemplatesForCurriculum(ctx context.
 	var count int
 	err := r.DB.QueryRowContext(ctx, `
 		SELECT COUNT(*)
-		FROM curri_curriculum_templates cct
-		JOIN comp_templates tpl ON tpl.template_id = cct.template_id
-		WHERE cct.curriculum_id = ?
-			AND cct.deleted_at IS NULL
+		FROM comp_templates tpl
+		WHERE tpl.curriculum_id = ?
 			AND tpl.deleted_at IS NULL
 	`, curriculumID).Scan(&count)
 	return count, err

@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search, ExternalLink, RefreshCw } from 'lucide-react';
 import { fetchCurriculums, fetchCurriculumDetail } from '../../../../lib/curriculum';
-import { fetchCompetencies } from '../../../../lib/competency';
+import { useLanguage } from '../../../../providers/LanguageContext';
 
 // ============================================================
 // Step indicator
 // ============================================================
-function StepIndicator({ step }) {
-    const steps = ['ข้อมูลหลักสูตร', 'เลือก Competency'];
+function StepIndicator({ step, labels }) {
+    const steps = labels;
     return (
         <div className="tfm-steps">
             {steps.map((label, i) => {
@@ -84,39 +84,6 @@ function CourseMasterTree({ categories, depth = 0 }) {
 }
 
 // ============================================================
-// AcademicYearSelector — เลือก 1 ปีการศึกษา
-// ============================================================
-function AcademicYearSelector({ year, onChange }) {
-    const currentYear = new Date().getFullYear() + 543;
-
-    return (
-        <div className="tfm-year-selector">
-            <label className="cfm-label">ปีการศึกษา <span className="cfm-required">*</span></label>
-            <input
-                type="number"
-                className="cfm-input"
-                min={currentYear}
-                value={year || ''}
-                placeholder={`ระบุปี พ.ศ. (ตั้งแต่ ${currentYear} เป็นต้นไป)`}
-                onChange={e => {
-                    const val = e.target.value ? parseInt(e.target.value, 10) : '';
-                    onChange(val);
-                }}
-                onBlur={e => {
-                    const val = parseInt(e.target.value, 10);
-                    if (isNaN(val) || val < currentYear) {
-                        onChange(currentYear);
-                    }
-                }}
-            />
-            <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
-                * กรอกเป็นตัวเลขปี พ.ศ. ตั้งแต่ปีปัจจุบัน ({currentYear}) เป็นต้นไป (ห้ามกรอกปีย้อนหลัง)
-            </span>
-        </div>
-    );
-}
-
-// ============================================================
 // Step 1 — ข้อมูลหลักสูตร + เลือก Curriculum Master
 // ============================================================
 function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false }) {
@@ -147,14 +114,9 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
         } else if (master && !master.name) {
             master.name = master.nameTh || master.name;
         }
-        const currentYear = new Date().getFullYear() + 543;
-        const targetYear = master && master.year && Number(master.year) >= currentYear 
-            ? Number(master.year) 
-            : currentYear;
         setForm(p => ({ 
             ...p, 
-            masterId,
-            academicYear: targetYear
+            masterId
         }));
         setPreviewId(masterId);
     };
@@ -163,7 +125,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
         <div className="tfm-step1">
             {/* ชื่อ */}
             <div className="cfm-field">
-                <label className="cfm-label">ชื่อ Template <span className="cfm-required">*</span></label>
+                <label className="cfm-label">ชื่อแบบแผนการประเมิน <span className="cfm-required">*</span></label>
                 <input className="cfm-input" autoFocus
                     value={form.name}
                     onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
@@ -174,7 +136,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
             {/* เลือก Curriculum Master */}
             <div className="cfm-field" style={{ marginTop: '1.25rem' }}>
                 <label className="cfm-label">หลักสูตร <span className="cfm-required">*</span></label>
-                <p className="tfm-hint">เลือกหลักสูตรต้นแบบ ปีการศึกษาจะถูกกำหนดอัตโนมัติตามหลักสูตรที่เลือก</p>
+                <p className="tfm-hint">แบบแผนการประเมินจะเป็นของหลักสูตรที่เลือก และกำหนดให้รุ่นนักศึกษาในภายหลัง</p>
             </div>
 
             {/* Search */}
@@ -186,12 +148,13 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
             </div>
 
             <div className="tfm-master-layout">
-                {/* รายการ master */}
-                <div className="tfm-master-list">
+                <div className="tfm-master-picker">
                     {/* ตัวเลือก: ไม่เลือก master */}
                     <div
                         className={`tfm-master-card ${form.masterId === null ? 'tfm-master-card--selected' : ''}`}
                         onClick={() => handleMasterSelect(null)}
+                        style={{ display: 'none' }}
+                        aria-hidden="true"
                     >
                         <div className={`tfm-master-card__icon ${form.masterId === null ? 'tfm-master-card__icon--blue' : ''}`}>
                             <PenLine size={20}/>
@@ -200,7 +163,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                             <div className={`tfm-master-card__name ${form.masterId === null ? 'tfm-master-card__name--selected' : ''}`}>
                                 สร้างใหม่ทั้งหมด
                             </div>
-                            <div 
+                            <div
                                 className={`tfm-master-card__meta ${form.masterId === null ? 'tfm-master-card__meta--selected' : ''}`}>
                                 กรอกหมวดวิชาและรายวิชาเอง
                             </div>
@@ -208,12 +171,13 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                         {form.masterId === null && <Check size={16} className="tfm-master-card__check"/>}
                     </div>
 
-                    {loadingMasters && (
+                    <div className="tfm-master-list" aria-label="รายการหลักสูตร">
+                        {loadingMasters && (
                         <div style={{ padding: '1.5rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
                             กำลังโหลดรายชื่อหลักสูตรจากระบบ...
                         </div>
-                    )}
-                    {!loadingMasters && filtered.map(m => (
+                        )}
+                        {!loadingMasters && filtered.map(m => (
                         <div key={m.id}
                             className={`tfm-master-card ${form.masterId === m.id ? 'tfm-master-card--selected' : ''}`}
                             onClick={() => handleMasterSelect(m.id)}
@@ -231,7 +195,13 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                             </div>
                             {form.masterId === m.id && <Check size={16} className="tfm-master-card__check"/>}
                         </div>
-                    ))}
+                        ))}
+                        {!loadingMasters && filtered.length === 0 && (
+                            <div className="tfm-master-list__empty">
+                                ไม่พบหลักสูตรที่ตรงกับการค้นหา
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Preview */}
@@ -252,131 +222,193 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                 )}
             </div>
 
-            {/* แสดงปีการศึกษาที่เลือก */}
-            <div className="tfm-selected-year">
-                <AcademicYearSelector
-                    year={form.academicYear}
-                    onChange={(year) => setForm(p => ({ ...p, academicYear: year }))}
-                />
-            </div>
         </div>
     );
 }
 
 // ============================================================
-// สีสำหรับสุ่ม
-// ============================================================
-const PRESET_COLORS = [
-    '#ec4899','#3b82f6','#06b6d4','#f59e0b',
-    '#10b981','#8b5cf6','#ef4444','#f97316',
-    '#14b8a6','#a855f7','#84cc16','#0ea5e9',
-];
-
-function randomColor(excludeColors = []) {
-    const pool = PRESET_COLORS.filter(c => !excludeColors.includes(c));
-    return pool[Math.floor(Math.random() * pool.length)] || PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
-}
-
-// ============================================================
 // Step 2 — เลือก Competency
 // ============================================================
-function Step2({ form, setForm, allCompetencies, onAddCompetency }) {
-    const [newName,  setNewName]  = useState('');
-    const [newColor, setNewColor] = useState(() => randomColor(allCompetencies.map(c => c.color)));
-    const [adding,   setAdding]   = useState(false);
+function Step2({ form, setForm, allCompetencies, onRefreshCompetencies }) {
+    const { t } = useLanguage();
+    const [search, setSearch] = useState('');
+    const [refreshing, setRefreshing] = useState(false);
+    const [refreshError, setRefreshError] = useState('');
+    const refreshInFlightRef = useRef(false);
 
     const toggle = (id) => {
-        setForm(p => {
-            const set = new Set(p.competencyIds);
-            if (set.has(id)) set.delete(id);
-            else set.add(id);
-            return { ...p, competencyIds: set };
+        setForm(previous => {
+            const competencyIds = new Set(previous.competencyIds);
+            if (competencyIds.has(id)) competencyIds.delete(id);
+            else competencyIds.add(id);
+            return { ...previous, competencyIds };
         });
     };
 
-    const handleAdd = () => {
-        if (!newName.trim()) return;
-        const added = onAddCompetency(newName.trim(), newColor);
-        setForm(p => {
-            const set = new Set(p.competencyIds);
-            set.add(added.id);
-            return { ...p, competencyIds: set };
-        });
-        setNewName('');
-        setNewColor(randomColor(allCompetencies.map(c => c.color)));
-        setAdding(false);
+    const sortedCompetencies = useMemo(() => [...allCompetencies].sort((left, right) => {
+        const nameComparison = String(left.nameTh || left.name || '').localeCompare(
+            String(right.nameTh || right.name || ''),
+            'th',
+        );
+        return nameComparison || String(left.code || '').localeCompare(String(right.code || ''), 'en');
+    }), [allCompetencies]);
+
+    const filteredCompetencies = useMemo(() => {
+        const keyword = search.trim().toLowerCase();
+        if (!keyword) return sortedCompetencies;
+
+        return sortedCompetencies.filter(comp => [
+            comp.code,
+            comp.nameTh || comp.name,
+            comp.nameEn,
+        ].some(value => String(value || '').toLowerCase().includes(keyword)));
+    }, [search, sortedCompetencies]);
+
+    const selectedCompetencies = useMemo(() => sortedCompetencies.filter(comp => (
+        form.competencyIds.has(comp.id)
+    )), [form.competencyIds, sortedCompetencies]);
+
+    const refreshCompetencies = useCallback(async () => {
+        if (refreshInFlightRef.current || !onRefreshCompetencies) return;
+
+        refreshInFlightRef.current = true;
+        setRefreshing(true);
+        setRefreshError('');
+        try {
+            await onRefreshCompetencies();
+        } catch (error) {
+            console.error('Failed to refresh competencies:', error);
+            setRefreshError(t('template_competencies_load_failed'));
+        } finally {
+            refreshInFlightRef.current = false;
+            setRefreshing(false);
+        }
+    }, [onRefreshCompetencies, t]);
+
+    useEffect(() => {
+        refreshCompetencies();
+    }, [refreshCompetencies]);
+
+    useEffect(() => {
+        const handleFocus = () => refreshCompetencies();
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }, [refreshCompetencies]);
+
+    const openCompetencyManagement = () => {
+        window.open('/competency-management', '_blank', 'noopener,noreferrer');
     };
 
     return (
         <div className="tfm-step2">
             <div className="tfm-step2-header">
-                <p className="tfm-hint" style={{margin:0}}>เลือก Competency ที่ต้องการผูกกับรายวิชาในหลักสูตรนี้ (เลือกได้หลายตัว)</p>
+                <p className="tfm-hint" style={{ margin: 0 }}>{t('template_competency_picker_hint')}</p>
             </div>
 
-            {/* Inline form เพิ่ม Competency ใหม่ */}
-            {adding && (
-                <div className="tfm-add-comp-form">
-                    {/* Color picker + swatch */}
-                    <div className="tfm-color-section">
-                        <div className="tfm-color-preview" style={{ background: newColor }}/>
-                        <div className="tfm-preset-colors">
-                            {PRESET_COLORS.map(c => (
-                                <button key={c}
-                                    className={`tfm-preset-dot ${newColor === c ? 'tfm-preset-dot--active' : ''}`}
-                                    style={{ background: c }}
-                                    onClick={() => setNewColor(c)}
-                                    title={c}
-                                />
-                            ))}
-                        </div>
-                        <label className="tfm-custom-color" title="เลือกสีเอง">
-                            <input type="color" value={newColor}
-                                onChange={e => setNewColor(e.target.value)}
-                                style={{ opacity:0, position:'absolute', width:1, height:1 }}/>
-                            <span className="tfm-custom-color__icon">🎨</span>
-                        </label>
-                    </div>
+            <div className="tfm-competency-toolbar">
+                <div className="tfm-competency-search-wrap">
+                    <Search size={15} className="tfm-search-icon" />
+                    <input
+                        className="tfm-search"
+                        value={search}
+                        onChange={event => setSearch(event.target.value)}
+                        placeholder={t('template_competency_search')}
+                    />
+                </div>
+                <button
+                    type="button"
+                    className="btn btn--ghost btn--sm tfm-competency-toolbar__button"
+                    onClick={refreshCompetencies}
+                    disabled={refreshing}
+                    title={t('template_reload_competencies')}
+                >
+                    <RefreshCw size={14} className={refreshing ? 'tfm-competency-toolbar__refreshing' : ''} />
+                    <span>{t('template_reload_competencies')}</span>
+                </button>
+                <button
+                    type="button"
+                    className="btn btn--ghost btn--sm tfm-competency-toolbar__button"
+                    onClick={openCompetencyManagement}
+                >
+                    <ExternalLink size={14} />
+                    <span>{t('template_manage_competencies')}</span>
+                </button>
+            </div>
 
-                    {/* ชื่อ + ปุ่ม */}
-                    <div className="tfm-add-comp-row">
-                        <input
-                            className="cfm-input tfm-comp-name-input"
-                            value={newName}
-                            onChange={e => setNewName(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setAdding(false); }}
-                            placeholder="ชื่อ Competency..."
-                            autoFocus
-                        />
-                        <button className="btn btn--primary btn--sm" onClick={handleAdd} disabled={!newName.trim()}>
-                            <Check size={13}/> เพิ่ม
-                        </button>
-                        <button className="btn btn--ghost btn--sm" onClick={() => setAdding(false)}>
-                            ยกเลิก
-                        </button>
+            <div className="tfm-selected-competencies" aria-live="polite">
+                <span className="tfm-selected-competencies__count">
+                    {t('template_selected_competencies')} {selectedCompetencies.length}
+                </span>
+                {selectedCompetencies.length > 0 && (
+                    <div className="tfm-selected-competencies__chips">
+                        {selectedCompetencies.map(comp => (
+                            <button
+                                key={comp.id}
+                                type="button"
+                                className="tfm-selected-competencies__chip"
+                                onClick={() => toggle(comp.id)}
+                                title={t('template_remove_selected_competency')}
+                            >
+                                <span className="tfm-comp-dot" style={{ background: comp.color }} />
+                                <span>{comp.nameTh || comp.name}</span>
+                                <X size={13} />
+                            </button>
+                        ))}
                     </div>
+                )}
+            </div>
+
+            {refreshError && (
+                <div className="tfm-competency-feedback" role="alert">
+                    <span>{refreshError}</span>
+                    <button type="button" className="tfm-competency-feedback__retry" onClick={refreshCompetencies}>
+                        {t('template_retry')}
+                    </button>
                 </div>
             )}
 
-            {/* Grid การ์ด */}
-            <div className="tfm-comp-grid">
-                {allCompetencies.map(comp => {
+            <div className="tfm-competency-list" aria-busy={refreshing}>
+                {refreshing && filteredCompetencies.length === 0 && (
+                    <div className="tfm-competency-empty">{t('loading')}</div>
+                )}
+                {filteredCompetencies.map(comp => {
                     const selected = form.competencyIds.has(comp.id);
                     return (
-                        <div key={comp.id}
-                            className={`tfm-comp-card ${selected ? 'tfm-comp-card--selected' : ''}`}
+                        <label key={comp.id}
+                            className={`tfm-competency-option ${selected ? 'tfm-competency-option--selected' : ''}`}
                             style={{ '--cc': comp.color }}
-                            onClick={() => toggle(comp.id)}
                         >
-                            <div className="tfm-comp-card__dot" style={{ background: comp.color }}/>
-                            <span className="tfm-comp-card__name">{comp.name}</span>
-                            {selected && <Check size={14} className="tfm-comp-card__check"/>}
-                        </div>
+                            <input
+                                type="checkbox"
+                                className="tfm-competency-option__checkbox"
+                                checked={selected}
+                                onChange={() => toggle(comp.id)}
+                            />
+                            <span className="tfm-competency-option__indicator">
+                                {selected && <Check size={13} />}
+                            </span>
+                            <span className="tfm-comp-dot" style={{ background: comp.color }} />
+                            <span className="tfm-competency-option__content">
+                                <span className="tfm-competency-option__name">{comp.nameTh || comp.name}</span>
+                                <span className="tfm-competency-option__meta">{comp.code}{comp.nameEn ? ` • ${comp.nameEn}` : ''}</span>
+                            </span>
+                        </label>
                     );
                 })}
+
+                {!refreshing && filteredCompetencies.length === 0 && (
+                    <div className="tfm-competency-empty">
+                        <p>{t('template_competency_empty')}</p>
+                        <button type="button" className="btn btn--ghost btn--sm" onClick={openCompetencyManagement}>
+                            <ExternalLink size={14} />
+                            {t('template_manage_competencies')}
+                        </button>
+                    </div>
+                )}
             </div>
 
             {form.competencyIds.size === 0 && (
-                <p className="tfm-warn">⚠ กรุณาเลือก Competency อย่างน้อย 1 ตัว</p>
+                <p className="tfm-warn">{t('template_competency_required')}</p>
             )}
         </div>
     );
@@ -385,17 +417,14 @@ function Step2({ form, setForm, allCompetencies, onAddCompetency }) {
 // ============================================================
 // TemplateFormModal — main export
 // ============================================================
-export default function TemplateFormModal({ onClose, onSave, allCompetencies = [] }) {
+export default function TemplateFormModal({ onClose, onSave, allCompetencies = [], onRefreshCompetencies }) {
+    const { t } = useLanguage();
     const [step, setStep] = useState(1);
     const [form, setForm] = useState({
         name:          '',
-        academicYear:  new Date().getFullYear() + 543,
         masterId:      null,
         competencyIds: new Set(),
     });
-    const [localComps, setLocalComps] = useState(allCompetencies);
-    const localCompIdRef = useRef(9900);
-
     const [masters, setMasters] = useState([]);
     const [loadingMasters, setLoadingMasters] = useState(true);
 
@@ -408,30 +437,7 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
             })
             .finally(() => setLoadingMasters(false));
 
-        if (allCompetencies.length === 0) {
-            fetchCompetencies()
-                .then(comps => {
-                    if (Array.isArray(comps) && comps.length > 0) {
-                        const mapped = comps.map((c, idx) => ({
-                            id: c.id || c.competency_id,
-                            code: c.code || `comp_${idx}`,
-                            name: c.name_th || c.name || '',
-                            color: PRESET_COLORS[idx % PRESET_COLORS.length],
-                        }));
-                        setLocalComps(mapped);
-                    }
-                })
-                .catch(err => console.error('Failed to load competencies:', err));
-        } else {
-            setLocalComps(allCompetencies);
-        }
-    }, [allCompetencies]);
-
-    const handleAddCompetency = (name, color) => {
-        const newComp = { id: ++localCompIdRef.current, code: `new_${localCompIdRef.current}`, name, color };
-        setLocalComps(p => [...p, newComp]);
-        return newComp;
-    };
+    }, []);
 
     const canNext = step === 1
         ? form.name.trim().length > 0 && form.masterId !== null
@@ -442,11 +448,9 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
         const master = masters.find(m => m.id === form.masterId) ?? null;
         onSave({
             name:              form.name.trim(),
-            academicYear:      form.academicYear,
             masterId:          form.masterId,
             masterData:        master,
             competencyIds:     [...form.competencyIds],
-            newCompetencies:   localComps.filter(c => !allCompetencies.find(a => a.id === c.id)),
         });
     };
 
@@ -454,11 +458,11 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-box modal-box--tfm" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <h3>สร้าง Template ใหม่</h3>
+                    <h3>{t('template_create_title')}</h3>
                     <button className="modal-close" onClick={onClose}><X size={18}/></button>
                 </div>
                 <div style={{ padding: '0.75rem 1.5rem 0' }}>
-                    <StepIndicator step={step}/>
+                    <StepIndicator step={step} labels={[t('template_step_curriculum'), t('template_step_competency')]}/>
                 </div>
                 <div className="modal-body tfm-body">
                     {step === 1 && <Step1 form={form} setForm={setForm} masters={masters} setMasters={setMasters} loadingMasters={loadingMasters}/>}
@@ -466,19 +470,19 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
                         <Step2
                             form={form}
                             setForm={setForm}
-                            allCompetencies={localComps}
-                            onAddCompetency={handleAddCompetency}
+                            allCompetencies={allCompetencies}
+                            onRefreshCompetencies={onRefreshCompetencies}
                         />
                     )}
                 </div>
                 <div className="modal-footer">
                     {step === 1
-                        ? <button className="btn btn--ghost" onClick={onClose}>ยกเลิก</button>
-                        : <button className="btn btn--ghost" onClick={() => setStep(1)}>← ย้อนกลับ</button>
+                        ? <button className="btn btn--ghost" onClick={onClose}>{t('template_cancel')}</button>
+                        : <button className="btn btn--ghost" onClick={() => setStep(1)}>← {t('template_back')}</button>
                     }
                     {step === 1
-                        ? <button className="btn btn--primary" disabled={!canNext} onClick={() => setStep(2)}>ถัดไป →</button>
-                        : <button className="btn btn--primary" disabled={!canNext} onClick={handleSave}><Check size={15}/> สร้าง Template</button>
+                        ? <button className="btn btn--primary" disabled={!canNext} onClick={() => setStep(2)}>{t('template_next')} →</button>
+                        : <button className="btn btn--primary" disabled={!canNext} onClick={handleSave}><Check size={15}/> {t('template_create_action')}</button>
                     }
                 </div>
             </div>

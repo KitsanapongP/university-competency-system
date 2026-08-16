@@ -2,17 +2,20 @@
 
 import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { X, Check, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, AlertTriangle } from 'lucide-react';
-import { createCurriculumFromForm, fetchCurriculums, fetchFaculties, fetchMajors } from '../../../../lib/curriculum';
+import { X, Check, CheckCircle2, Circle, Info, Plus, Trash2, ArrowLeft, ArrowRight, Layers, BookOpen, Award, Upload } from 'lucide-react';
+import { createCurriculumFromForm, fetchCurriculums, fetchFaculties, fetchGeneratedCurriculumCode, fetchMajors } from '../../../../lib/curriculum';
 import { useLanguage } from '../../../../providers/LanguageContext';
+import ConfirmActionModal from '../../../../components/ui/ConfirmActionModal';
+import DuplicateCourseWarningModal from '../../../../components/ui/DuplicateCourseWarningModal';
 import CurriculumCourseEditorPanel from '../components/CurriculumCourseEditorPanel';
 import CurriculumStructureSidebar from '../components/CurriculumStructureSidebar';
+import CurriculumStructureImportModal from '../components/CurriculumStructureImportModal';
+import { applyDraftCurriculumStructureImport, previewDraftCurriculumStructureImport } from '../../../../lib/curriculum-structure-import';
 import '../../../../app/Competency.css';
 import '../CourseLayout.css';
 import '../CourseCreate.css';
 import '../CurriculumCourseEditorPanel.css';
 import '../CurriculumStructureSidebar.css';
-import '../../template-management/TemplateManagement.css';
 
 function StepIndicator({ step }) {
     const steps = ['ข้อมูลหลักสูตร', 'โครงสร้างหลักสูตร', 'ภาพรวม'];
@@ -77,6 +80,20 @@ function formatCreateCurriculumError(err, form, majors, language = 'th') {
         }
     }
 
+    if (message.includes('category nesting cannot exceed 4 levels')) {
+        return language === 'en'
+            ? 'Categories can be nested up to 4 levels.'
+            : 'สร้างหมวดวิชาได้สูงสุด 4 ระดับ';
+    }
+    if (
+        message.includes('courses can only be placed in leaf categories')
+        || message.includes('categories with courses cannot have child categories')
+    ) {
+        return language === 'en'
+            ? 'Courses can be placed only in leaf categories.'
+            : 'เพิ่มรายวิชาได้เฉพาะหมวดปลายทาง';
+    }
+
     return message;
 }
 
@@ -106,7 +123,20 @@ function buildDuplicateCurriculumNameWarning(form, majors, curriculums, language
     return duplicateCurriculumNameText(year, majorName, language);
 }
 
-function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError, onAddMajor, onClearValidation }) {
+function Step1({
+    form,
+    setForm,
+    faculties,
+    majors,
+    lookupsLoading,
+    lookupsError,
+    generatedCode,
+    generatedCodeLoading,
+    generatedCodeError,
+    language,
+    onAddMajor,
+    onClearValidation,
+}) {
     const filteredMajors = form.facultyId
         ? majors.filter(major => String(major.facultyId) === String(form.facultyId))
         : [];
@@ -131,7 +161,7 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
             </div>
 
             <div className="course-form-field">
-                <label className="course-form-field__label">ชื่อหลักสูตร (ภาษาอังกฤษ)<span className="course-form-field__required">*</span></label>
+                <label className="course-form-field__label">ชื่อหลักสูตร (ภาษาอังกฤษ)</label>
                 <input
                     className="course-form-field__input"
                     value={form.nameEn}
@@ -142,13 +172,20 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
 
             <div className="course-form-row">
                 <div className="course-form-field">
-                    <label className="course-form-field__label">รหัสหลักสูตร<span className="course-form-field__required">*</span></label>
-                    <input
-                        className="course-form-field__input"
-                        value={form.code}
-                        onChange={e => updateForm(p => ({ ...p, code: e.target.value }))}
-                        placeholder="เช่น cp_2568_curriculum"
-                    />
+                    <label className="course-form-field__label">รหัสหลักสูตร</label>
+                    <div className="course-form-field__generated-code" aria-live="polite">
+                        {generatedCodeLoading
+                            ? (language === 'en' ? 'Generating curriculum code...' : 'กำลังสร้างรหัสหลักสูตร...')
+                            : generatedCode || (language === 'en'
+                                ? 'Select a major and academic year first'
+                                : 'เลือกสาขาและปีการศึกษาก่อน')}
+                    </div>
+                    <div className="course-form-field__hint">
+                        {language === 'en'
+                            ? 'Generated automatically from the faculty, major, academic year, and sequence.'
+                            : 'ระบบสร้างอัตโนมัติจากคณะ สาขา ปีการศึกษา และลำดับ'}
+                    </div>
+                    {generatedCodeError && <div className="course-form-field__error">{generatedCodeError}</div>}
                 </div>
                 <div className="course-form-field">
                     <label className="course-form-field__label">คณะ<span className="course-form-field__required">*</span></label>
@@ -215,11 +252,59 @@ function Step1({ form, setForm, faculties, majors, lookupsLoading, lookupsError,
     );
 }
 
-function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearValidation, language = 'th' }) {
+function StructureGuide({ totalCategories, totalCourses, selectedCategory, isLeafCategory, t }) {
+    const steps = [
+        {
+            label: t('structure_guide_add_root'),
+            hint: t('structure_guide_add_root_hint'),
+            complete: totalCategories > 0,
+        },
+        {
+            label: t('structure_guide_add_course'),
+            hint: t('structure_guide_add_course_hint'),
+            complete: totalCourses > 0,
+        },
+    ];
+
+    return (
+        <section className="structure-guide" aria-labelledby="structure-guide-title" aria-live="polite">
+            <div className="structure-guide__header">
+                <Info size={18} aria-hidden="true" />
+                <div>
+                    <h3 id="structure-guide-title">{t('structure_guide_title')}</h3>
+                    <p>{t('structure_guide_description')}</p>
+                </div>
+            </div>
+            <ol className="structure-guide__steps">
+                {steps.map((item, index) => (
+                    <li
+                        key={item.label}
+                        className={`structure-guide__step ${item.complete ? 'structure-guide__step--complete' : ''}`}
+                    >
+                        <span className="structure-guide__step-icon" aria-hidden="true">
+                            {item.complete ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                        </span>
+                        <span className="structure-guide__step-copy">
+                            <span className="structure-guide__step-label">{index + 1}. {item.label}</span>
+                            <span className="structure-guide__step-hint">{item.hint}</span>
+                        </span>
+                    </li>
+                ))}
+            </ol>
+            <div className="structure-guide__constraints">
+                <strong>{t('structure_guide_constraints')}</strong>
+                <span>{t('structure_guide_max_depth')}</span>
+                <span>{t('structure_guide_leaf_only')}</span>
+            </div>
+        </section>
+    );
+}
+
+function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearValidation, language = 'th', t }) {
     const categories = form.categories || [];
     const coursesByCategory = form.coursesByCategory || {};
     const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [courseDeleteConfirmation, setCourseDeleteConfirmation] = useState(null);
     const [editingCourseId, setEditingCourseId] = useState(null);
     const [showDeleteCategoryModal, setShowDeleteCategoryModal] = useState(false);
     const [categoryToDelete, setCategoryToDelete] = useState(null);
@@ -229,8 +314,11 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
     const [draggedCourseId, setDraggedCourseId] = useState(null);
     const [dropTargetCategoryId, setDropTargetCategoryId] = useState(null);
     const [courseDuplicateWarning, setCourseDuplicateWarning] = useState(null);
+    const [isCourseEditorEditing, setIsCourseEditorEditing] = useState(false);
+    const [showStructureImport, setShowStructureImport] = useState(false);
 
-    const MAX_CATEGORY_DEPTH = 3;
+    const MAX_CATEGORY_LEVELS = 4;
+    const MAX_CATEGORY_DEPTH = MAX_CATEGORY_LEVELS - 1;
 
     const stripCourseMeta = (course) => {
         const { ownerCategoryId, ...cleanCourse } = course;
@@ -292,15 +380,6 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         return null;
     };
 
-    const renumberCategoryCodes = (cats, parentCode = '') => cats.map((cat, index) => {
-        const code = parentCode ? `${parentCode}.${index + 1}` : `${index + 1}`;
-        return {
-            ...cat,
-            code,
-            children: renumberCategoryCodes(cat.children || [], code),
-        };
-    });
-
     const removeCategoryFromTree = (cats, id) => {
         let removed = null;
         const nextCategories = cats.flatMap(cat => {
@@ -321,6 +400,28 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         }
         return { ...cat, children: insertCategoryUnder(cat.children || [], targetId, movedCategory) };
     });
+
+    const updateCategoryCodePrefix = (category, previousCode, nextCode) => {
+        const normalizedPreviousCode = String(previousCode || '').trim();
+        const normalizedNextCode = String(nextCode || '').trim();
+        const updateChildren = (children) => (children || []).map(child => {
+            const currentChildCode = String(child.code || '').trim();
+            const childCode = normalizedPreviousCode && currentChildCode.startsWith(`${normalizedPreviousCode}.`)
+                ? `${normalizedNextCode}${currentChildCode.slice(normalizedPreviousCode.length)}`
+                : currentChildCode;
+            return {
+                ...child,
+                code: childCode,
+                children: updateChildren(child.children),
+            };
+        });
+
+        return {
+            ...category,
+            code: normalizedNextCode,
+            children: updateChildren(category.children),
+        };
+    };
 
     const categoryContains = (cat, targetId) => (cat.children || []).some(child => (
         child.id === targetId || categoryContains(child, targetId)
@@ -497,7 +598,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         const parentCategoryDepth = getCategoryDepth(parent, categories);
 
         if (parentCategoryDepth >= MAX_CATEGORY_DEPTH) {
-            alert('ไม่สามารถสร้างหมวดวิชาลูกได้เกิน 4 ระดับ');
+            alert(t('structure_add_child_disabled'));
             return;
         }
 
@@ -536,16 +637,36 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         setSelectedCategory(newCat);
     };
 
-    const handleRenameCategory = (id, name) => {
+    const handleRenameCategory = (id, updates) => {
         onClearValidation?.();
-        const uniqueName = getUniqueCategoryName(name, id);
+        const nextName = typeof updates === 'string' ? updates : updates?.nameTh;
+        const nextCode = typeof updates === 'string' ? undefined : updates?.code;
+        const uniqueName = getUniqueCategoryName(nextName, id);
         const update = (cats) => cats.map(c => {
-            if (c.id === id) return { ...c, name: uniqueName, isNew: false };
+            if (c.id === id) {
+                const currentCode = c.code || '';
+                const normalizedCode = String(nextCode ?? currentCode).trim();
+                return updateCategoryCodePrefix(
+                    { ...c, name: uniqueName, isNew: false },
+                    currentCode,
+                    normalizedCode,
+                );
+            }
             if (c.children?.length) return { ...c, children: update(c.children) };
             return c;
         });
         setForm(p => ({ ...p, categories: update(p.categories) }));
-        setSelectedCategory(p => p?.id === id ? { ...p, name: uniqueName } : p);
+        setSelectedCategory(p => p?.id === id
+            ? { ...p, name: uniqueName, code: String(nextCode ?? p.code ?? '').trim() }
+            : p);
+    };
+
+    const handleApplyStructureImport = (rows) => {
+        const preview = previewDraftCurriculumStructureImport(categories, coursesByCategory, rows);
+        const imported = applyDraftCurriculumStructureImport(categories, coursesByCategory, preview);
+        setForm(previous => ({ ...previous, ...imported }));
+        setSelectedCategory(null);
+        onClearValidation?.();
     };
 
     const handleDeleteCategory = (cat) => {
@@ -572,7 +693,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
             ];
         }
 
-        const nextCategories = renumberCategoryCodes(result.categories);
+        const nextCategories = result.categories;
         const nextSelectedCategory = preview?.moveTarget
             ? findCategoryInfo(nextCategories, preview.moveTarget.id)?.category || preview.moveTarget
             : null;
@@ -638,18 +759,22 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         }));
     };
 
-    const handleDeleteCourse = (course) => {
-        const ownerCategoryId = course.ownerCategoryId || findCourseOwnerId(course.id);
-        if (!ownerCategoryId) return;
-        onClearValidation?.();
+    const handleRequestDeleteCourse = (course) => {
+        if (!(course.ownerCategoryId || findCourseOwnerId(course.id))) return false;
+        setCourseDeleteConfirmation({
+            courses: [course],
+            mode: 'single',
+        });
+        return false;
+    };
 
-        setForm(p => ({
-            ...p,
-            coursesByCategory: {
-                ...p.coursesByCategory,
-                [ownerCategoryId]: (p.coursesByCategory[ownerCategoryId] || []).filter(c => c.id !== course.id),
-            },
-        }));
+    const handleRequestDeleteSelectedCourses = (selectedCourses = []) => {
+        if (!selectedCourses.length) return false;
+        setCourseDeleteConfirmation({
+            courses: selectedCourses,
+            mode: selectedCourses.length === 1 ? 'single' : 'bulk',
+        });
+        return false;
     };
 
     const handleToggleCourseSelection = (courseId) => {
@@ -687,7 +812,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
             ),
         }));
         setSelectedCourseIds(new Set());
-        setShowDeleteModal(false);
+        setCourseDeleteConfirmation(null);
         return true;
     };
 
@@ -739,7 +864,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         const result = removeCategoryFromTree(categories, draggedCategoryId);
         if (!result.removed) return;
 
-        const nextCategories = renumberCategoryCodes(insertCategoryUnder(result.categories, targetCat.id, result.removed));
+        const nextCategories = insertCategoryUnder(result.categories, targetCat.id, result.removed);
         const nextSelectedCategory = findCategoryInfo(nextCategories, result.removed.id)?.category || result.removed;
         setForm(p => ({ ...p, categories: nextCategories }));
         setSelectedCategory(nextSelectedCategory);
@@ -764,7 +889,7 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
         const result = removeCategoryFromTree(categories, draggedCategoryId);
         if (!result.removed) return;
 
-        const nextCategories = renumberCategoryCodes([...result.categories, result.removed]);
+        const nextCategories = [...result.categories, result.removed];
         const nextSelectedCategory = findCategoryInfo(nextCategories, result.removed.id)?.category || result.removed;
         setForm(p => ({ ...p, categories: nextCategories }));
         setSelectedCategory(nextSelectedCategory);
@@ -887,6 +1012,14 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
 
     return (
         <div className="course-structure-panel">
+            <StructureGuide
+                totalCategories={totalCategories}
+                totalCourses={totalCourses}
+                selectedCategory={selectedCategory}
+                isLeafCategory={isLeafCategory}
+                t={t}
+            />
+
             {/* Stats Bar */}
             <div className="course-stats-bar">
                 <div className="course-stats-bar__item">
@@ -911,11 +1044,24 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                         categories={categories}
                         coursesByCategory={coursesByCategory}
                         selectedCategoryId={selectedCategory?.id}
-                        title="โครงสร้างหมวดวิชา"
-                        addLabel="หมวดวิชา"
-                        emptyText={'กด "+ หมวดวิชา" เพื่อเริ่ม'}
+                        title={language === 'en' ? 'Category structure' : 'โครงสร้างหมวดวิชา'}
+                        addLabel={t('structure_add_root')}
+                        addChildDisabledReason={t('structure_add_child_disabled')}
+                        emptyText={t('structure_empty')}
                         maxDepth={MAX_CATEGORY_DEPTH}
-                        addDisabled={selectedCategory ? getCategoryDepth(selectedCategory, categories) >= MAX_CATEGORY_DEPTH : false}
+                        showInlineAddChild={false}
+                        showRenameAction={false}
+                        headerActions={(
+                            <button
+                                type="button"
+                                className="course-btn course-btn--ghost course-btn--sm"
+                                onClick={() => setShowStructureImport(true)}
+                            >
+                                <Upload size={12} /> {language === 'en' ? 'Import courses' : 'นำเข้ารายวิชา'}
+                            </button>
+                        )}
+                        clearSelectionDisabled={isCourseEditorEditing}
+                        onRequestClearSelection={() => setSelectedCategory(null)}
                         draggingCategoryId={draggedCategoryId}
                         draggedCourseId={draggedCourseId}
                         dropTargetCategoryId={dropTargetCategoryId}
@@ -944,134 +1090,100 @@ function Step2({ form, setForm, selectedCategory, setSelectedCategory, onClearVa
                     allCourses={getAllCurrentCourses()}
                     categoryTotalCredits={selectedCategory ? getCategoryTotalCredits(selectedCategory) : 0}
                     canEdit
+                    allowCategoryCodeEdit
                     disabled={false}
                     isLeafCategory={Boolean(isLeafCategory)}
+                    coursePlacementHint={t('structure_add_course_disabled')}
                     draggedCourseId={draggedCourseId}
-                    onRenameCategory={(id, updates) => handleUpdateCategory(id, {
-                        ...(Object.prototype.hasOwnProperty.call(updates, 'nameTh') || Object.prototype.hasOwnProperty.call(updates, 'name')
-                            ? { name: updates.nameTh ?? updates.name }
-                            : {}),
-                        ...(Object.prototype.hasOwnProperty.call(updates, 'requiredCredits')
-                            ? { requiredCredits: updates.requiredCredits }
-                            : {}),
-                    })}
+                    onRenameCategory={(id, updates) => {
+                        const changesIdentity = Object.prototype.hasOwnProperty.call(updates, 'nameTh')
+                            || Object.prototype.hasOwnProperty.call(updates, 'name')
+                            || Object.prototype.hasOwnProperty.call(updates, 'code');
+
+                        if (changesIdentity) {
+                            handleRenameCategory(id, {
+                                nameTh: updates.nameTh ?? updates.name,
+                                code: updates.code,
+                            });
+                            return;
+                        }
+
+                        if (Object.prototype.hasOwnProperty.call(updates, 'requiredCredits')) {
+                            handleUpdateCategory(id, { requiredCredits: updates.requiredCredits });
+                        }
+                    }}
                     onDeleteCategory={handleDeleteCategory}
                     onAddCourse={handleAddCourse}
                     onUpdateCourse={handleUpdateCourse}
-                    onDeleteCourse={handleDeleteCourse}
-                    onBulkDeleteCourses={handleDeleteSelectedCourses}
+                    onDeleteCourse={handleRequestDeleteCourse}
+                    onBulkDeleteCourses={handleRequestDeleteSelectedCourses}
                     onMoveCourse={handleMoveCourseInEditor}
                     onValidateCourse={validateCourseBeforeSave}
                     onCourseDragStart={handleCourseDragStart}
                     onCourseDragEnd={handleCourseDragEnd}
+                    onEditingStateChange={setIsCourseEditorEditing}
                 />
             </div>
 
-            {courseDuplicateWarning && (
-                <div className="modal-overlay" onClick={() => setCourseDuplicateWarning(null)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <AlertTriangle size={24} className="modal-icon--warning" />
-                            <h3>{language === 'en' ? 'Duplicate Course Information' : 'ข้อมูลรายวิชาซ้ำ'}</h3>
-                        </div>
-                        <div className="modal-body">
-                            <p>
-                                {language === 'en'
-                                    ? 'This course has duplicate information. Please edit the duplicated fields before saving.'
-                                    : 'รายวิชานี้มีข้อมูลซ้ำ กรุณาแก้ไขข้อมูลที่ซ้ำก่อนบันทึก'}
-                            </p>
-                            <div className="modal-body__hint">
-                                {language === 'en' ? 'Duplicated fields: ' : 'ข้อมูลที่ซ้ำ: '}
-                                {courseDuplicateWarning.issues.join(', ')}
-                            </div>
-                        </div>
-                        <div className="modal-footer">
-                            <button
-                                className='course-form-nav__btn course-form-nav__btn--primary'
-                                onClick={() => setCourseDuplicateWarning(null)}
-                            >
-                                {language === 'en' ? 'OK' : 'รับทราบ'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <DuplicateCourseWarningModal
+                open={Boolean(courseDuplicateWarning)}
+                issues={courseDuplicateWarning?.issues || []}
+                language={language}
+                onClose={() => setCourseDuplicateWarning(null)}
+            />
+
+            <CurriculumStructureImportModal
+                open={showStructureImport}
+                onClose={() => setShowStructureImport(false)}
+                categories={categories}
+                coursesByCategory={coursesByCategory}
+                language={language}
+                onImport={async (rows) => handleApplyStructureImport(rows)}
+            />
 
             {/* Delete Confirmation Modal */}
-            {showDeleteModal && (
-                <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <AlertTriangle size={24} className="modal-icon--warning" />
-                            <h3>ยืนยันการลบวิชา</h3>
-                        </div>
-                        <div className="modal-body">
-                            <p>คุณแน่ใจหรือไม่ที่จะลบวิชาที่เลือก ({selectedCourseIds.size} วิชา)?</p>
-                            <p className="modal-body__hint">การลบวิชาจะไม่สามารถกู้คืนได้</p>
-                        </div>
-                        <div className="modal-footer">
-                            <button
-                                className='course-form-nav__btn course-form-nav__btn--secondary'
-                                onClick={() => setShowDeleteModal(false)}
-                            >
-                                ยกเลิก
-                            </button>
-                            <button
-                                className='course-form-nav__btn course-form-nav__btn--danger'
-                                onClick={handleDeleteSelectedCourses}
-                            >
-                                <Trash2 size={15} /> ยืนยันการลบ
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmActionModal
+                open={Boolean(courseDeleteConfirmation)}
+                title={courseDeleteConfirmation?.mode === 'bulk' ? t('confirm_delete_courses') : t('confirm_delete_course')}
+                message={courseDeleteConfirmation?.mode === 'bulk'
+                    ? language === 'th'
+                        ? `${t('confirm_delete_courses')} (${courseDeleteConfirmation.courses.length} วิชา)?`
+                        : `${t('confirm_delete_courses')} (${courseDeleteConfirmation.courses.length} courses)?`
+                    : `${t('confirm_delete_course')} "${courseDeleteConfirmation?.courses?.[0]?.code || courseDeleteConfirmation?.courses?.[0]?.nameTh || ''}"?`}
+                hint={t('delete_course_irreversible_hint')}
+                confirmLabel={t('confirm_action')}
+                variant="danger"
+                onCancel={() => setCourseDeleteConfirmation(null)}
+                onConfirm={() => handleDeleteSelectedCourses(courseDeleteConfirmation?.courses || [])}
+            />
 
             {/* Delete Category Confirmation Modal */}
-            {showDeleteCategoryModal && categoryToDelete && (
-                <div className="modal-overlay" onClick={() => setShowDeleteCategoryModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <AlertTriangle size={24} className="modal-icon--warning" />
-                            <h3>ยืนยันการลบหมวดวิชา</h3>
-                        </div>
-                        <div className="modal-body">
-                            <p>คุณแน่ใจหรือไม่ที่จะลบหมวดวิชา "{categoryToDelete.code} {categoryToDelete.name || 'ยังไม่ตั้งชื่อ'}"?</p>
-                            {deleteCategoryPreview && (
-                                <div className="modal-body__impact">
-                                    <div>หมวดย่อยที่ได้รับผลกระทบ: {deleteCategoryPreview.affectedCategories.length} หมวด</div>
-                                    <div>รายวิชาที่ได้รับผลกระทบ: {deleteCategoryPreview.affectedCourses.length} วิชา</div>
-                                    {deleteCategoryPreview.moveTarget ? (
-                                        <div>รายวิชาจะถูกย้ายไปที่ "{deleteCategoryPreview.moveTarget.code} {deleteCategoryPreview.moveTarget.name || 'ยังไม่ตั้งชื่อ'}"</div>
-                                    ) : (
-                                        <div>ไม่มีหมวดปลายทาง รายวิชาจะถูกถอดออกจากโครงสร้างปัจจุบัน</div>
-                                    )}
-                                </div>
-                            )}
-                            <p className="modal-body__hint">หมวดนี้และหมวดย่อยทั้งหมดจะถูกลบ ส่วนรายวิชาจะถูกย้ายไปยังหมวดที่ใกล้ที่สุดโดยอัตโนมัติ หากไม่มีหมวดรองรับ รายวิชาจะไม่แสดงในโครงสร้างหลักสูตรนี้</p>
-                        </div>
-                        <div className="modal-footer">
-                            <button
-                                className='course-form-nav__btn course-form-nav__btn--secondary'
-                                onClick={() => setShowDeleteCategoryModal(false)}
-                            >
-                                ยกเลิก
-                            </button>
-                            <button
-                                className='course-form-nav__btn course-form-nav__btn--danger'
-                                onClick={confirmDeleteCategory}
-                            >
-                                <Trash2 size={15} /> ยืนยันการลบ
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmActionModal
+                open={showDeleteCategoryModal && Boolean(categoryToDelete)}
+                title="ยืนยันการลบหมวดวิชา"
+                message={categoryToDelete ? `คุณแน่ใจหรือไม่ที่จะลบหมวดวิชา "${categoryToDelete.code} ${categoryToDelete.name || 'ยังไม่ตั้งชื่อ'}"?` : ''}
+                impact={deleteCategoryPreview && (
+                    <>
+                        <div>หมวดย่อยที่ได้รับผลกระทบ: {deleteCategoryPreview.affectedCategories.length} หมวด</div>
+                        <div>รายวิชาที่ได้รับผลกระทบ: {deleteCategoryPreview.affectedCourses.length} วิชา</div>
+                        {deleteCategoryPreview.moveTarget ? (
+                            <div>รายวิชาจะถูกย้ายไปที่ "{deleteCategoryPreview.moveTarget.code} {deleteCategoryPreview.moveTarget.name || 'ยังไม่ตั้งชื่อ'}"</div>
+                        ) : (
+                            <div>ไม่มีหมวดปลายทาง รายวิชาจะถูกถอดออกจากโครงสร้างปัจจุบัน</div>
+                        )}
+                    </>
+                )}
+                hint="หมวดนี้และหมวดย่อยทั้งหมดจะถูกลบ ส่วนรายวิชาจะถูกย้ายไปยังหมวดที่ใกล้ที่สุดโดยอัตโนมัติ หากไม่มีหมวดรองรับ รายวิชาจะไม่แสดงในโครงสร้างหลักสูตรนี้"
+                confirmLabel="ยืนยันการลบ"
+                variant="danger"
+                onCancel={() => setShowDeleteCategoryModal(false)}
+                onConfirm={confirmDeleteCategory}
+            />
         </div>
     );
 }
 
-function Step3({ form }) {
+function Step3({ form, generatedCode }) {
     const categories = form.categories || [];
     const coursesByCategory = form.coursesByCategory || {};
 
@@ -1156,6 +1268,7 @@ function Step3({ form }) {
                 <div className="course-overview-info__grid">
                     <div><span className="course-overview-info__label">ชื่อหลักสูตร (ไทย):</span> <span className="course-overview-info__value">{form.nameTh || '-'}</span></div>
                     <div><span className="course-overview-info__label">ชื่อหลักสูตร (อังกฤษ):</span> <span className="course-overview-info__value">{form.nameEn || '-'}</span></div>
+                    <div><span className="course-overview-info__label">รหัสหลักสูตร:</span> <span className="course-overview-info__value">{generatedCode || '-'}</span></div>
                     <div><span className="course-overview-info__label">ปีการศึกษา:</span> <span className="course-overview-info__value">{form.year ? `ปีการศึกษา ${form.year}` : '-'}</span></div>
                 </div>
             </div>
@@ -1175,7 +1288,6 @@ function Step3({ form }) {
 }
 
 const EMPTY_FORM = {
-    code: '',
     facultyId: '',
     majorId: '',
     nameTh: '',
@@ -1194,7 +1306,7 @@ const EMPTY_FORM = {
 function CreateCoursePageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { language } = useLanguage();
+    const { language, t } = useLanguage();
     const createdMajorId = Number(searchParams.get('created_major_id') || 0);
     const [step, setStep] = useState(1);
     const [form, setForm] = useState(EMPTY_FORM);
@@ -1202,12 +1314,14 @@ function CreateCoursePageContent() {
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
     const [faculties, setFaculties] = useState([]);
     const [majors, setMajors] = useState([]);
     const [curriculums, setCurriculums] = useState([]);
     const [lookupsLoading, setLookupsLoading] = useState(true);
     const [lookupsError, setLookupsError] = useState('');
+    const [generatedCode, setGeneratedCode] = useState('');
+    const [generatedCodeLoading, setGeneratedCodeLoading] = useState(false);
+    const [generatedCodeError, setGeneratedCodeError] = useState('');
     const duplicateNameWarning = buildDuplicateCurriculumNameWarning(form, majors, curriculums, language);
 
     useEffect(() => {
@@ -1287,16 +1401,52 @@ function CreateCoursePageContent() {
         };
     }, [createdMajorId]);
 
+    useEffect(() => {
+        const majorId = Number(form.majorId || 0);
+        const effectiveYearBE = Number(form.year || 0);
+        if (!majorId || !effectiveYearBE) {
+            setGeneratedCode('');
+            setGeneratedCodeError('');
+            setGeneratedCodeLoading(false);
+            return undefined;
+        }
+
+        let cancelled = false;
+        setGeneratedCodeLoading(true);
+        setGeneratedCodeError('');
+        setGeneratedCode('');
+
+        fetchGeneratedCurriculumCode(majorId, effectiveYearBE)
+            .then(code => {
+                if (!cancelled) setGeneratedCode(code);
+            })
+            .catch(err => {
+                if (!cancelled) {
+                    setGeneratedCodeError(err?.message || (language === 'en'
+                        ? 'Unable to generate curriculum code.'
+                        : 'ไม่สามารถสร้างรหัสหลักสูตรได้'));
+                }
+            })
+            .finally(() => {
+                if (!cancelled) setGeneratedCodeLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [form.majorId, form.year, language]);
+
     const canNext = () => {
         if (step === 1) {
             return (
                 !lookupsLoading
                 && form.nameTh.trim()
-                && form.nameEn.trim()
-                && form.code.trim()
                 && form.facultyId
                 && form.majorId
                 && form.year
+                && generatedCode
+                && !generatedCodeLoading
+                && !generatedCodeError
             );
         }
         return true;
@@ -1316,7 +1466,6 @@ function CreateCoursePageContent() {
     );
 
     const handleStep1Next = () => {
-        setSuccess('');
         if (!canNext()) return;
         if (duplicateNameWarning) {
             setError(duplicateNameWarning);
@@ -1327,7 +1476,6 @@ function CreateCoursePageContent() {
     };
 
     const handleStep2Next = () => {
-        setSuccess('');
         if (!canProceedFromStep2()) return;
         setError('');
         setStep(3);
@@ -1335,16 +1483,12 @@ function CreateCoursePageContent() {
 
     const handleSave = async () => {
         setError('');
-        setSuccess('');
         setSubmitting(true);
 
         try {
             await createCurriculumFromForm(form);
             sessionStorage.removeItem(CURRICULUM_CREATE_DRAFT_KEY);
-            setSuccess('สร้างหลักสูตรสำเร็จ');
-            setTimeout(() => {
-                router.push('/curriculum-management?created=1');
-            }, 600);
+            router.push('/curriculum-management?created=1');
         } catch (err) {
             setError(formatCreateCurriculumError(err, form, majors, language));
         } finally {
@@ -1391,6 +1535,10 @@ function CreateCoursePageContent() {
                             majors={majors}
                             lookupsLoading={lookupsLoading}
                             lookupsError={lookupsError}
+                            generatedCode={generatedCode}
+                            generatedCodeLoading={generatedCodeLoading}
+                            generatedCodeError={generatedCodeError}
+                            language={language}
                             onAddMajor={handleAddMajor}
                             onClearValidation={() => setError('')}
                         />
@@ -1403,15 +1551,16 @@ function CreateCoursePageContent() {
                             setSelectedCategory={setSelectedCategory}
                             onClearValidation={() => setError('')}
                             language={language}
+                            t={t}
                         />
                     )}
-                    {step === 3 && <Step3 form={form} />}
+                    {step === 3 && <Step3 form={form} generatedCode={generatedCode} />}
 
                 </div>
 
-                {step !== 2 && (error || success) && (
-                    <div className={`course-create-feedback ${error ? 'course-create-feedback--error' : 'course-create-feedback--success'}`}>
-                        {error || success}
+                {step !== 2 && error && (
+                    <div className="course-create-feedback course-create-feedback--error">
+                        {error}
                     </div>
                 )}
 
@@ -1451,7 +1600,7 @@ function CreateCoursePageContent() {
                                 onClick={handleStep2Next}
                                 disabled={!canProceedFromStep2() || submitting}
                             >
-                                ถัดไป <ArrowRight size={15} />
+                                    ถัดไป <ArrowRight size={15} />
                             </button>
                         )}
                         {step === 3 && (
@@ -1467,37 +1616,19 @@ function CreateCoursePageContent() {
                 </div>
 
                 {/* Cancel Confirmation Modal */}
-                {showCancelModal && (
-                    <div className="modal-overlay" onClick={() => setShowCancelModal(false)}>
-                        <div className="modal-content" onClick={e => e.stopPropagation()}>
-                            <div className="modal-header">
-                                <AlertTriangle size={24} className="modal-icon--warning" />
-                                <h3>ยืนยันการยกเลิก</h3>
-                            </div>
-                            <div className="modal-body">
-                                <p>คุณแน่ใจหรือไม่ที่จะยกเลิกการสร้างหลักสูตร?</p>
-                                <p className="modal-body__hint">ข้อมูลที่กรอกไว้ทั้งหมดจะหายไป</p>
-                            </div>
-                            <div className="modal-footer">
-                                <button
-                                    className='course-form-nav__btn course-form-nav__btn--secondary'
-                                    onClick={() => setShowCancelModal(false)}
-                                >
-                                    ยกเลิก
-                                </button>
-                                <button
-                                    className='course-form-nav__btn course-form-nav__btn--danger'
-                                    onClick={() => {
-                                        setShowCancelModal(false);
-                                        router.push('/curriculum-management');
-                                    }}
-                                >
-                                    ยืนยัน
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <ConfirmActionModal
+                    open={showCancelModal}
+                    title="ยืนยันการยกเลิก"
+                    message="คุณแน่ใจหรือไม่ที่จะยกเลิกการสร้างหลักสูตร?"
+                    hint="ข้อมูลที่กรอกไว้ทั้งหมดจะหายไป"
+                    confirmLabel="ยืนยัน"
+                    variant="danger"
+                    onCancel={() => setShowCancelModal(false)}
+                    onConfirm={() => {
+                        setShowCancelModal(false);
+                        router.push('/curriculum-management');
+                    }}
+                />
             </div>
         </div>
     );

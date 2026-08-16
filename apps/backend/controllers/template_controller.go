@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +15,60 @@ import (
 
 type TemplateController struct {
 	Service *services.TemplateService
+}
+
+func isTemplateAdmin(claims *utils.Claims) bool {
+	for _, role := range claims.Roles {
+		if role == "admin" {
+			return true
+		}
+	}
+	return false
+}
+
+func templateCompetencyActor(w http.ResponseWriter, r *http.Request) (uint64, bool, bool) {
+	claims, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return 0, false, false
+	}
+
+	isAdmin := isTemplateAdmin(claims)
+	if isAdmin {
+		return 0, true, true
+	}
+	if claims.FacultyID == nil || *claims.FacultyID <= 0 {
+		utils.Error(w, http.StatusForbidden, "FORBIDDEN", "faculty scope is required")
+		return 0, false, false
+	}
+	return uint64(*claims.FacultyID), false, true
+}
+
+func writeTemplateCompetencyError(w http.ResponseWriter, err error) {
+	var domainErr *services.TemplateCompetencyError
+	if !errors.As(err, &domainErr) {
+		utils.Error(w, http.StatusInternalServerError, "SERVER_ERROR", err.Error())
+		return
+	}
+
+	status := http.StatusConflict
+	switch domainErr.Code {
+	case "BAD_REQUEST":
+		status = http.StatusBadRequest
+	case "FORBIDDEN":
+		status = http.StatusForbidden
+	case "NOT_FOUND":
+		status = http.StatusNotFound
+	}
+
+	errorData := utils.Envelope{
+		"code":    domainErr.Code,
+		"message": domainErr.Message,
+	}
+	if domainErr.Data != nil {
+		errorData["data"] = domainErr.Data
+	}
+	utils.JSON(w, status, utils.Envelope{"success": false, "error": errorData})
 }
 
 func resolveFacultyID(r *http.Request, claims *utils.Claims) uint64 {
@@ -77,7 +132,14 @@ func (c *TemplateController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	facultyID := resolveFacultyID(r, claims)
+	facultyID := uint64(0)
+	if !isTemplateAdmin(claims) {
+		if claims.FacultyID == nil || *claims.FacultyID <= 0 {
+			utils.Error(w, http.StatusForbidden, "FORBIDDEN", "faculty scope is required")
+			return
+		}
+		facultyID = uint64(*claims.FacultyID)
+	}
 	created, err := c.Service.CreateTemplate(r.Context(), facultyID, uint64(claims.UserID), req)
 	if err != nil {
 		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
@@ -165,6 +227,50 @@ func (c *TemplateController) GetStructure(w http.ResponseWriter, r *http.Request
 	}
 
 	utils.OK(w, structure)
+}
+
+func (c *TemplateController) GetCompetencies(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid template id")
+		return
+	}
+	facultyID, isAdmin, ok := templateCompetencyActor(w, r)
+	if !ok {
+		return
+	}
+
+	response, err := c.Service.GetTemplateCompetencies(r.Context(), id, facultyID, isAdmin)
+	if err != nil {
+		writeTemplateCompetencyError(w, err)
+		return
+	}
+	utils.OK(w, response)
+}
+
+func (c *TemplateController) UpdateCompetencies(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid template id")
+		return
+	}
+	facultyID, isAdmin, ok := templateCompetencyActor(w, r)
+	if !ok {
+		return
+	}
+
+	var req models.UpdateTemplateCompetenciesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json body")
+		return
+	}
+
+	response, err := c.Service.UpdateTemplateCompetencies(r.Context(), id, facultyID, isAdmin, req)
+	if err != nil {
+		writeTemplateCompetencyError(w, err)
+		return
+	}
+	utils.OK(w, response)
 }
 
 func (c *TemplateController) SaveItems(w http.ResponseWriter, r *http.Request) {

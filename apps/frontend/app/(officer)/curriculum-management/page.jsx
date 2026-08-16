@@ -1,29 +1,39 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, BookOpen, Pencil, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronRight, Layers, Award, AlertTriangle } from 'lucide-react';
+import { Plus, Search, BookOpen, Trash2, Copy, Upload, ArrowLeft, Check, X, ChevronRight, Layers, Award } from 'lucide-react';
+import { useAuth } from '../../../providers/auth-provider';
+import { useLanguage } from '../../../providers/LanguageContext';
 import {
     createCurriculumCategory,
     createCurriculumCourse,
+    commitCurriculumStructureImport,
     deleteCurriculum,
     deleteCurriculumCategory,
     deleteCurriculumCoursePlacement,
     duplicateCurriculum,
     fetchCurriculumDetail,
     fetchCurriculums,
+	fetchFaculties,
     fetchMajors,
     getDeleteCurriculumCategoryPreview,
+    previewCurriculumStructureImport,
     updateCurriculumCategory,
     updateCurriculumCoursePlacement,
     updateCurriculumCourseDetail,
+	updateCurriculumMetadata,
     updateCurriculumStatus,
 } from '../../../lib/curriculum';
-import CourseFormModal from './components/CourseFormModal';
+import { getDisplayCourses } from '../../../lib/curriculum-structure';
 import CurriculumCourseEditorPanel from './components/CurriculumCourseEditorPanel';
+import CurriculumMetadataPanel from './components/CurriculumMetadataPanel';
 import CurriculumStructureSidebar from './components/CurriculumStructureSidebar';
-import ConfirmDeleteModal from '../template-management/components/ConfirmDeleteModal';
+import CurriculumStructureImportModal from './components/CurriculumStructureImportModal';
 import ToastNotifications from '../../../components/ui/ToastNotifications';
+import BaseModal from '../../../components/ui/BaseModal';
+import ConfirmActionModal from '../../../components/ui/ConfirmActionModal';
+import DuplicateCourseWarningModal from '../../../components/ui/DuplicateCourseWarningModal';
 import './CourseLayout.css';
 import './CourseList.css';
 import './CourseEditor.css';
@@ -43,7 +53,11 @@ function findById(cats, id) {
 }
 
 function getNextCode(parentCode, siblings) {
-    return parentCode ? `${parentCode}.${siblings.length + 1}` : `${siblings.length + 1}`;
+    const nextSegment = (siblings || []).reduce((max, sibling) => {
+        const segments = String(sibling.code || '').split('.');
+        return Math.max(max, Number(segments.at(-1)) || 0);
+    }, 0) + 1;
+    return parentCode ? `${parentCode}.${nextSegment}` : `${nextSegment}`;
 }
 
 function findCategoryInfo(cats, id, parent = null, siblings = cats, depth = 0) {
@@ -77,19 +91,6 @@ function findCourseOwnerId(courseId, coursesByCategory) {
         return (courses || []).some(course => String(course.id) === String(courseId));
     });
     return entry?.[0] || null;
-}
-
-function collectCoursesFromCategories(categories) {
-    const result = [];
-    for (const category of categories || []) {
-        if (category.courses?.length) {
-            result.push(...category.courses);
-        }
-        if (category.children?.length) {
-            result.push(...collectCoursesFromCategories(category.children));
-        }
-    }
-    return result;
 }
 
 function getCourseIdentity(course) {
@@ -170,7 +171,11 @@ const BACKEND_MESSAGE_TH = {
     'curriculum cannot be deleted while templates are connected': 'ไม่สามารถลบหลักสูตรนี้ได้ เพราะมี Template เชื่อมอยู่',
     'curriculum cannot be deleted because it has real usage': 'ไม่สามารถลบหลักสูตรนี้ได้ เพราะมีข้อมูลการใช้งานจริงแล้ว ให้เปลี่ยนสถานะเป็นปิดใช้งานแทน',
     'curriculum structure is locked while active templates are connected': 'โครงสร้างหลักสูตรถูกล็อกอยู่ เพราะมี Active Template เชื่อมอยู่',
+	'curriculum metadata is locked while active templates are connected': 'ข้อมูลหลักสูตรถูกล็อกอยู่ เพราะมี Active Template เชื่อมอยู่',
     'inactive curriculum edit requires confirmation because templates are connected': 'หลักสูตรนี้มี Template เชื่อมอยู่ กรุณายืนยันก่อนแก้ไข',
+	'inactive curriculum metadata edit requires confirmation because templates are connected': 'หลักสูตรนี้มี Template เชื่อมอยู่ กรุณายืนยันก่อนแก้ไขข้อมูล',
+	'curriculum major can only be changed while draft': 'เปลี่ยนสาขาได้เฉพาะหลักสูตรที่อยู่ในสถานะ Draft',
+	'major_id must be active when changing curriculum major': 'สาขาปลายทางต้องเปิดใช้งานอยู่',
     'category delete requires confirmation': 'การลบหมวดวิชาต้องได้รับการยืนยันก่อน',
     'parent_id is invalid': 'หมวดวิชาหลักไม่ถูกต้อง',
     'category_id is invalid': 'หมวดวิชาไม่ถูกต้อง',
@@ -234,6 +239,12 @@ function mapCurriculumError(error) {
             debugMessage: englishMessage,
         };
     }
+	if (error?.code === 'CURRICULUM_METADATA_LOCKED') {
+		return {
+			userMessage: 'ข้อมูลหลักสูตรถูกล็อกอยู่ เพราะมี Active Template เชื่อมอยู่',
+			debugMessage: englishMessage,
+		};
+	}
     if (error?.code === 'CURRICULUM_HAS_ACTIVE_TEMPLATE') {
         return {
             userMessage: 'ยังปิดใช้งานหลักสูตรไม่ได้ เพราะมี Active Template เชื่อมอยู่',
@@ -259,64 +270,10 @@ function mapCurriculumError(error) {
     };
 }
 
-function getDisplayCourses(categories, selectedCategory, showAll) {
-    if (showAll) {
-        const collectAll = (cats) => {
-            const result = [];
-            for (const cat of cats) {
-                if (cat.courses?.length) result.push(...cat.courses);
-                if (cat.children?.length) result.push(...collectAll(cat.children));
-            }
-            return result;
-        };
-        return collectAll(categories);
-    }
-
-    if (!selectedCategory) return [];
-
-    // หา category และ depth จริงใน tree
-    const findCategory = (cats, targetId, depth = 0) => {
-        for (const cat of cats) {
-            if (cat.id === targetId) {
-                return { category: cat, depth };
-            }
-            if (cat.children?.length) {
-                const found = findCategory(cat.children, targetId, depth + 1);
-                if (found) return found;
-            }
-        }
-        return null;
-    };
-
-    const found = findCategory(categories, selectedCategory.id);
-    if (!found) return [];
-
-    const { category, depth } = found;
-
-    // ถ้า depth >= 2 แสดงเฉพาะ courses ของ category นั้น
-    if (depth >= 2) {
-        return category.courses || [];
-    }
-
-    // ถ้า depth < 2 แสดง courses ของ category + children
-    const result = [...(category.courses || [])];
-    if (category.children?.length) {
-        for (const child of category.children) {
-            result.push(...(child.courses || []));
-            if (child.children?.length) {
-                for (const grandchild of child.children) {
-                    result.push(...(grandchild.courses || []));
-                }
-            }
-        }
-    }
-    return result;
-}
-
 // ============================================================
 // CourseCard — แสดงใน list view 
 // ============================================================
-function CourseCard({ course, onEdit, onDuplicate, onDelete, onOpen }) {
+function CourseCard({ course, onDuplicate, onDelete, onOpen }) {
     return (
         <div className="course-card" onClick={() => onOpen(course)}>
             <div className="course-card__header">
@@ -324,9 +281,6 @@ function CourseCard({ course, onEdit, onDuplicate, onDelete, onOpen }) {
                     <BookOpen size={24} />
                 </div>
                 <div className="course-card__actions">
-                    <button className="icon-course-btn" title="แก้ไข" onClick={e => { e.stopPropagation(); onEdit(course); }}>
-                        <Pencil size={14} />
-                    </button>
                     <button className="icon-course-btn" title="ทำสำเนา" onClick={e => { e.stopPropagation(); onDuplicate(course); }}>
                         <Copy size={14} />
                     </button>
@@ -425,16 +379,24 @@ function DuplicateCurriculumModal({
         ];
 
     return (
-        <div className="course-modal-overlay" onClick={onClose}>
-            <div className="course-modal-box course-modal-box--md" onClick={e => e.stopPropagation()}>
-                <div className="course-modal-header">
-                    <h3>ทำสำเนาหลักสูตร</h3>
-                    <button className="course-modal-close" onClick={onClose} disabled={loading}>
-                        <X size={18} />
+        <BaseModal
+            open
+            title="ทำสำเนาหลักสูตร"
+            size="md"
+            onClose={onClose}
+            closeDisabled={loading}
+            footer={(
+                <>
+                    <button type="button" className="course-btn course-btn--ghost" onClick={onClose} disabled={loading}>
+                        ยกเลิก
                     </button>
-                </div>
-                <form onSubmit={onSubmit}>
-                    <div className="course-modal-body">
+                    <button type="submit" form="duplicate-curriculum-form" className="course-btn course-btn--primary" disabled={!canSubmit}>
+                        <Copy size={15} /> ทำสำเนา
+                    </button>
+                </>
+            )}
+        >
+                <form id="duplicate-curriculum-form" onSubmit={onSubmit}>
                         <div className="course-field">
                             <label className="course-label">หลักสูตรต้นฉบับ</label>
                             <input className="course-input" value={source.nameTh || ''} disabled />
@@ -492,18 +454,8 @@ function DuplicateCurriculumModal({
                                 disabled={loading}
                             />
                         </div>
-                    </div>
-                    <div className="course-modal-footer">
-                        <button type="button" className="course-btn course-btn--ghost" onClick={onClose} disabled={loading}>
-                            ยกเลิก
-                        </button>
-                        <button type="submit" className="course-btn course-btn--primary" disabled={!canSubmit}>
-                            <Copy size={15} /> ทำสำเนา
-                        </button>
-                    </div>
                 </form>
-            </div>
-        </div>
+        </BaseModal>
     );
 }
 
@@ -512,12 +464,13 @@ function DuplicateCurriculumModal({
 // ============================================================
 export default function CurriculumManagementPage() {
     const router = useRouter();
+    const { user } = useAuth();
+    const { language, t } = useLanguage();
+    const isAdmin = user?.roles?.includes('admin');
     const [view, setView] = useState('list'); // 'list' | 'editor'
     const [courses, setCourses] = useState([]);
     const [search, setSearch] = useState('');
     const [selectedCourse, setSelectedCourse] = useState(null);
-    const [showForm, setShowForm] = useState(false);
-    const [editingCourse, setEditingCourse] = useState(null);
     const [deletingCourse, setDeletingCourse] = useState(null);
     const [duplicatingCourse, setDuplicatingCourse] = useState(null);
     const [duplicateForm, setDuplicateForm] = useState({
@@ -528,6 +481,13 @@ export default function CurriculumManagementPage() {
         year: '',
     });
     const [majorOptions, setMajorOptions] = useState([]);
+    const [faculties, setFaculties] = useState([]);
+    const [detailTab, setDetailTab] = useState('structure');
+    const [metadataFieldErrors, setMetadataFieldErrors] = useState({});
+    const [metadataEditState, setMetadataEditState] = useState({ editing: false, dirty: false });
+    const [metadataResetVersion, setMetadataResetVersion] = useState(0);
+    const [metadataImpactConfirmation, setMetadataImpactConfirmation] = useState(null);
+    const [discardConfirmation, setDiscardConfirmation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [detailLoadingId, setDetailLoadingId] = useState(null);
     const [operationLoading, setOperationLoading] = useState(false);
@@ -535,8 +495,7 @@ export default function CurriculumManagementPage() {
     const [errorDebug, setErrorDebug] = useState('');
     const [success, setSuccess] = useState('');
     const [toast, setToast] = useState({ success: '', error: '', errorDebug: '' });
-
-    const courseIdRef = useRef(9000);
+    const [showStructureImport, setShowStructureImport] = useState(false);
 
     const loadCurriculums = useCallback(async () => {
         setLoading(true);
@@ -564,7 +523,7 @@ export default function CurriculumManagementPage() {
 
         async function loadMajors() {
             try {
-                const majors = await fetchMajors();
+                const majors = await fetchMajors({ includeInactive: true });
                 if (!cancelled) {
                     setMajorOptions(majors);
                 }
@@ -574,6 +533,26 @@ export default function CurriculumManagementPage() {
         }
 
         loadMajors();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadFaculties() {
+            try {
+                const data = await fetchFaculties();
+                if (!cancelled) {
+                    setFaculties(data);
+                }
+            } catch (err) {
+                console.debug('Faculty options load error:', err);
+            }
+        }
+
+        loadFaculties();
         return () => {
             cancelled = true;
         };
@@ -634,6 +613,11 @@ export default function CurriculumManagementPage() {
         try {
             const detail = await fetchCurriculumDetail(course.curriculumId || course.id);
             setSelectedCourse(detail);
+            setSelectedCategory(null);
+            setShowAllCourses(true);
+            setDetailTab('structure');
+            setMetadataFieldErrors({});
+            setMetadataEditState({ editing: false, dirty: false });
             setView('editor');
         } catch (err) {
             const mapped = mapCurriculumError(err);
@@ -645,21 +629,27 @@ export default function CurriculumManagementPage() {
         }
     }, []);
 
-    const handleBackToList = useCallback(() => {
+    const returnToList = useCallback(() => {
         setView('list');
         setSelectedCourse(null);
         setSelectedCategory(null);
         setShowAllCourses(false);
+        setDetailTab('structure');
+        setMetadataFieldErrors({});
+        setMetadataEditState({ editing: false, dirty: false });
     }, []);
+
+    const handleBackToList = useCallback(() => {
+        if (metadataEditState.dirty) {
+            setDiscardConfirmation({ action: 'list' });
+            return;
+        }
+        returnToList();
+    }, [metadataEditState.dirty, returnToList]);
 
     const handleCreateCourse = useCallback(() => {
         router.push('/curriculum-management/create');
     }, [router]);
-
-    const handleEditCourse = useCallback((course) => {
-        setEditingCourse(course);
-        setShowForm(true);
-    }, []);
 
     const handleDuplicateCourse = useCallback((course) => {
         setError('');
@@ -743,17 +733,6 @@ export default function CurriculumManagementPage() {
         }
     }, [deletingCourse, loadCurriculums, operationLoading, selectedCourse]);
 
-    const handleSaveCourse = useCallback((courseData) => {
-        if (editingCourse) {
-            setCourses(p => p.map(c => c.id === editingCourse.id ? { ...courseData, id: editingCourse.id, templateCount: editingCourse.templateCount } : c));
-        } else {
-            const id = ++courseIdRef.current;
-            setCourses(p => [...p, { ...courseData, id, templateCount: 0 }]);
-        }
-        setShowForm(false);
-        setEditingCourse(null);
-    }, [editingCourse]);
-
     // ============================================================
     // Editor View (Category/Curriculum Management)
     // ============================================================
@@ -762,10 +741,13 @@ export default function CurriculumManagementPage() {
     const [showAllCourses, setShowAllCourses] = useState(false);
     const [coursesByCategory, setCoursesByCategory] = useState({});
     const [deletingCategory, setDeletingCategory] = useState(null);
+    const [courseDeleteConfirmation, setCourseDeleteConfirmation] = useState(null);
+    const [courseDeleteImpactConfirmation, setCourseDeleteImpactConfirmation] = useState(null);
     const [courseDuplicateWarning, setCourseDuplicateWarning] = useState(null);
     const [draggedCategoryId, setDraggedCategoryId] = useState(null);
     const [draggedCourseId, setDraggedCourseId] = useState(null);
     const [dropTargetCategoryId, setDropTargetCategoryId] = useState(null);
+    const [isCourseEditorEditing, setIsCourseEditorEditing] = useState(false);
 
     useEffect(() => {
         const nextCategories = selectedCourse?.categories || [];
@@ -810,6 +792,29 @@ export default function CurriculumManagementPage() {
         }
     }, [loadCurriculums]);
 
+    const handleCommitStructureImport = useCallback(async (rows, confirmImpact) => {
+        if (!selectedCourse) return null;
+        setOperationLoading(true);
+        setError('');
+        setErrorDebug('');
+        try {
+            const detail = await commitCurriculumStructureImport(selectedCourse.curriculumId, rows, confirmImpact);
+            setSelectedCourse(detail);
+            setSelectedCategory(null);
+            setShowAllCourses(true);
+            setSuccess(language === 'en' ? 'Courses imported successfully.' : 'นำเข้ารายวิชาสำเร็จ');
+            await loadCurriculums();
+            return detail;
+        } catch (err) {
+            const mapped = mapCurriculumError(err);
+            setError(mapped.userMessage);
+            setErrorDebug(mapped.debugMessage);
+            throw err;
+        } finally {
+            setOperationLoading(false);
+        }
+    }, [language, loadCurriculums, selectedCourse]);
+
     const handleSelectAllCourses = useCallback(() => {
         setSelectedCategory(null);
         setShowAllCourses(true);
@@ -817,6 +822,11 @@ export default function CurriculumManagementPage() {
 
     const handleSelectCategory = useCallback((cat) => {
         setSelectedCategory(cat);
+        setShowAllCourses(false);
+    }, []);
+
+    const handleClearCurriculumSelection = useCallback(() => {
+        setSelectedCategory(null);
         setShowAllCourses(false);
     }, []);
 
@@ -904,15 +914,67 @@ export default function CurriculumManagementPage() {
         return true;
     }, []);
 
-    const handleRequestDeleteCourseInEditor = useCallback(async (course) => {
-        if (!selectedCourse || !course?.curriculumCourseId) return null;
-        if (!window.confirm(`ยืนยันถอดรายวิชา ${course.code || course.nameTh || ''} ออกจากหลักสูตรหรือไม่?`)) return null;
-        return commitCurriculumMutation((confirmImpact) => deleteCurriculumCoursePlacement(selectedCourse.curriculumId, course.curriculumCourseId, confirmImpact), 'ถอดรายวิชาแล้ว');
-    }, [commitCurriculumMutation, selectedCourse]);
+    const handleRequestDeleteCourseInEditor = useCallback((course) => {
+        if (!selectedCourse || !course?.curriculumCourseId) return false;
+        setCourseDeleteConfirmation({
+            mode: 'single',
+            courses: [course],
+        });
+        return false;
+    }, [selectedCourse]);
 
-    const handleBulkDeleteCoursesInEditor = useCallback(async (selectedCourses) => {
+    const handleRequestBulkDeleteCoursesInEditor = useCallback((selectedCourses) => {
         if (!selectedCourse || !selectedCourses?.length) return false;
-        let confirmImpact = false;
+        setCourseDeleteConfirmation({
+            mode: 'bulk',
+            courses: selectedCourses,
+        });
+        return false;
+    }, [selectedCourse]);
+
+    const handleConfirmDeleteCourseInEditor = useCallback(async (course, confirmImpact = false) => {
+        if (!selectedCourse || !course?.curriculumCourseId) return false;
+        setOperationLoading(true);
+        setError('');
+        setErrorDebug('');
+        setSuccess('');
+
+        try {
+            const detail = await deleteCurriculumCoursePlacement(
+                selectedCourse.curriculumId,
+                course.curriculumCourseId,
+                confirmImpact,
+            );
+            setSelectedCourse(detail);
+            setSuccess('ถอดรายวิชาแล้ว');
+            setCourseDeleteConfirmation(null);
+            setCourseDeleteImpactConfirmation(null);
+            await loadCurriculums();
+            return true;
+        } catch (err) {
+            const needsConfirmation = err?.status === 409 && err?.code === 'CONFIRMATION_REQUIRED' && !confirmImpact;
+            if (needsConfirmation) {
+                setCourseDeleteConfirmation(null);
+                setCourseDeleteImpactConfirmation({
+                    mode: 'single',
+                    courses: [course],
+                    error: err,
+                });
+                return false;
+            }
+
+            const mapped = mapCurriculumError(err);
+            setError(mapped.userMessage);
+            setErrorDebug(mapped.debugMessage);
+            console.debug('Curriculum delete course error:', err);
+            return false;
+        } finally {
+            setOperationLoading(false);
+        }
+    }, [loadCurriculums, selectedCourse]);
+
+    const handleConfirmBulkDeleteCoursesInEditor = useCallback(async (selectedCourses, confirmImpact = false, resumeIndex = 0) => {
+        if (!selectedCourse || !selectedCourses?.length) return false;
         let lastDetail = null;
         setOperationLoading(true);
         setError('');
@@ -920,20 +982,28 @@ export default function CurriculumManagementPage() {
         setSuccess('');
 
         try {
-            for (const course of selectedCourses) {
+            for (let index = resumeIndex; index < selectedCourses.length; index += 1) {
+                const course = selectedCourses[index];
                 if (!course?.curriculumCourseId) continue;
-                for (;;) {
-                    try {
-                        lastDetail = await deleteCurriculumCoursePlacement(selectedCourse.curriculumId, course.curriculumCourseId, confirmImpact);
-                        break;
-                    } catch (err) {
-                        const needsConfirmation = err?.status === 409 && err?.code === 'CONFIRMATION_REQUIRED' && !confirmImpact;
-                        if (needsConfirmation && window.confirm(buildConfirmationMessage(err))) {
-                            confirmImpact = true;
-                            continue;
-                        }
-                        throw err;
+                try {
+                    lastDetail = await deleteCurriculumCoursePlacement(
+                        selectedCourse.curriculumId,
+                        course.curriculumCourseId,
+                        confirmImpact,
+                    );
+                } catch (err) {
+                    const needsConfirmation = err?.status === 409 && err?.code === 'CONFIRMATION_REQUIRED' && !confirmImpact;
+                    if (needsConfirmation) {
+                        setCourseDeleteConfirmation(null);
+                        setCourseDeleteImpactConfirmation({
+                            mode: 'bulk',
+                            courses: selectedCourses,
+                            resumeIndex: index,
+                            error: err,
+                        });
+                        return false;
                     }
+                    throw err;
                 }
             }
 
@@ -941,6 +1011,8 @@ export default function CurriculumManagementPage() {
                 setSelectedCourse(lastDetail);
             }
             setSuccess(`ถอดรายวิชาแล้ว ${selectedCourses.length} วิชา`);
+            setCourseDeleteConfirmation(null);
+            setCourseDeleteImpactConfirmation(null);
             await loadCurriculums();
             return true;
         } catch (err) {
@@ -1122,6 +1194,97 @@ export default function CurriculumManagementPage() {
         return commitCurriculumMutation((confirmImpact) => updateCurriculumStatus(selectedCourse.curriculumId, nextStatus, confirmImpact), 'อัปเดตสถานะหลักสูตรแล้ว');
     }, [commitCurriculumMutation, selectedCourse]);
 
+    const handleSaveMetadata = useCallback(async (form, confirmImpact = false) => {
+        if (!selectedCourse || operationLoading) return false;
+
+        setOperationLoading(true);
+        setError('');
+        setErrorDebug('');
+        setSuccess('');
+        setMetadataFieldErrors({});
+
+        try {
+            const detail = await updateCurriculumMetadata(selectedCourse.curriculumId, form, confirmImpact);
+            setSelectedCourse(detail);
+            setMetadataImpactConfirmation(null);
+			setMetadataResetVersion(current => current + 1);
+            setSuccess('บันทึกข้อมูลหลักสูตรแล้ว');
+            await loadCurriculums();
+            return true;
+        } catch (err) {
+            const needsConfirmation = err?.status === 409 && err?.code === 'CONFIRMATION_REQUIRED' && !confirmImpact;
+            if (needsConfirmation) {
+                setMetadataImpactConfirmation({
+                    form,
+                    affectedTemplates: err?.payload?.data?.affected_templates || [],
+                });
+                return false;
+            }
+
+            const message = err?.message || err?.payload?.error?.message || '';
+            if (err?.code === 'DUPLICATE' && message === 'curriculum code already exists in this major') {
+                setMetadataFieldErrors({ code: 'รหัสหลักสูตรนี้มีอยู่แล้วในสาขานี้' });
+                return false;
+            }
+            if (err?.code === 'DUPLICATE' && message === 'curriculum name already exists in this major and effective year') {
+                setMetadataFieldErrors({ nameTh: 'มีชื่อหลักสูตรนี้อยู่แล้วในสาขาและปีการศึกษาที่เลือก' });
+                return false;
+            }
+
+            const mapped = mapCurriculumError(err);
+            setError(mapped.userMessage || 'ไม่สามารถบันทึกข้อมูลหลักสูตรได้');
+            setErrorDebug(mapped.debugMessage);
+            console.debug('Curriculum metadata update error:', err);
+            return false;
+        } finally {
+            setOperationLoading(false);
+        }
+    }, [loadCurriculums, operationLoading, selectedCourse]);
+
+    const handleMetadataFieldChange = useCallback((field) => {
+        setMetadataFieldErrors(current => {
+            if (!current[field]) return current;
+            const next = { ...current };
+            delete next[field];
+            return next;
+        });
+    }, []);
+
+    const handleDetailTabChange = useCallback((nextTab) => {
+        if (nextTab === detailTab) return;
+        if (metadataEditState.dirty) {
+            setDiscardConfirmation({ action: 'tab', nextTab });
+            return;
+        }
+        setDetailTab(nextTab);
+    }, [detailTab, metadataEditState.dirty]);
+
+    const handleRequestChangeStatus = useCallback((nextStatus) => {
+        if (metadataEditState.dirty) {
+            setDiscardConfirmation({ action: 'status', nextStatus });
+            return;
+        }
+        handleChangeStatus(nextStatus);
+    }, [handleChangeStatus, metadataEditState.dirty]);
+
+    const handleConfirmDiscard = useCallback(() => {
+        const pending = discardConfirmation;
+        setDiscardConfirmation(null);
+        setMetadataResetVersion(current => current + 1);
+        if (!pending) return;
+        if (pending.action === 'list') {
+            returnToList();
+            return;
+        }
+        if (pending.action === 'tab') {
+            setDetailTab(pending.nextTab);
+            return;
+        }
+        if (pending.action === 'status') {
+            handleChangeStatus(pending.nextStatus);
+        }
+    }, [discardConfirmation, handleChangeStatus, returnToList]);
+
     const statusAction = selectedCourse ? getStatusAction(selectedCourse.status) : null;
 
     // ============================================================
@@ -1222,7 +1385,6 @@ export default function CurriculumManagementPage() {
                                     key={course.id}
                                     course={course}
                                     onOpen={handleOpenCourse}
-                                    onEdit={handleEditCourse}
                                     onDuplicate={handleDuplicateCourse}
                                     onDelete={handleDeleteCourse}
                                 />
@@ -1243,7 +1405,7 @@ export default function CurriculumManagementPage() {
                             </button>
                             <div className='course-editor-header__title'>
                                 <h1>{selectedCourse.nameTh}</h1>
-                                <p className="course-editor-header__subtitle">{selectedCourse.nameEn} · ปี {selectedCourse.year}</p>
+                                <p className="course-editor-header__subtitle">{selectedCourse.nameEn ? `${selectedCourse.nameEn} · ` : ''}ปี {selectedCourse.year}</p>
                             </div>
                         </div>
                         <div className="course-editor-header__actions">
@@ -1253,7 +1415,7 @@ export default function CurriculumManagementPage() {
                             {statusAction && (
                                 <button
                                     className={`course-btn ${selectedCourse.status === 'active' ? 'course-btn--danger' : 'course-btn--primary'}`}
-                                    onClick={() => handleChangeStatus(statusAction.nextStatus)}
+                                    onClick={() => handleRequestChangeStatus(statusAction.nextStatus)}
                                     disabled={operationLoading}
                                 >
                                     {statusAction.label}
@@ -1262,37 +1424,29 @@ export default function CurriculumManagementPage() {
                         </div>
                     </div>
 
-                    {/* Stats Row */}
-                    <div className="course-stats-row">
-                        <div className="course-stat-card">
-                            <div className="course-stat-card__icon">
-                                <BookOpen size={20} />
-                            </div>
-                            <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{selectedCourse.stats?.totalCourses ?? Object.values(coursesByCategory).flat().length}</span>
-                                <span className="course-stat-card__label">วิชา</span>
-                            </div>
-                        </div>
-                        <div className="course-stat-card">
-                            <div className="course-stat-card__icon">
-                                <Layers size={20} />
-                            </div>
-                            <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{selectedCourse.stats?.totalCategories ?? categories.length}</span>
-                                <span className="course-stat-card__label">หมวดวิชา</span>
-                            </div>
-                        </div>
-                        <div className="course-stat-card">
-                            <div className="course-stat-card__icon">
-                                <Award size={20} />
-                            </div>
-                            <div className="course-stat-card__content">
-                                <span className="course-stat-card__value">{selectedCourse.stats?.totalCredits ?? 0}</span>
-                                <span className="course-stat-card__label">หน่วยกิตรวม</span>
-                            </div>
-                        </div>
+                    <div className="curriculum-detail-tabs" role="tablist" aria-label="รายละเอียดหลักสูตร">
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={detailTab === 'structure'}
+                            className={`curriculum-detail-tabs__tab ${detailTab === 'structure' ? 'curriculum-detail-tabs__tab--active' : ''}`}
+                            onClick={() => handleDetailTabChange('structure')}
+                        >
+                            {t('curriculum_detail_tab_structure')}
+                        </button>
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={detailTab === 'metadata'}
+                            className={`curriculum-detail-tabs__tab ${detailTab === 'metadata' ? 'curriculum-detail-tabs__tab--active' : ''}`}
+                            onClick={() => handleDetailTabChange('metadata')}
+                        >
+                            {t('curriculum_detail_tab_metadata')}
+                        </button>
                     </div>
 
+                    {detailTab === 'structure' ? (
+                        <>
                     {/* Category Tree and Detail Panel - Side by Side */}
                     <div className="course-editor-panels">
                         <div className="course-editor-panels__sidebar">
@@ -1309,6 +1463,8 @@ export default function CurriculumManagementPage() {
                                 canEdit
                                 maxDepth={3}
                                 addDisabled={selectedCategory ? getCategoryDepth(selectedCategory, categories) >= 3 : false}
+                                clearSelectionDisabled={operationLoading || isCourseEditorEditing}
+                                onRequestClearSelection={handleClearCurriculumSelection}
                                 draggingCategoryId={draggedCategoryId}
                                 draggedCourseId={draggedCourseId}
                                 dropTargetCategoryId={dropTargetCategoryId}
@@ -1317,6 +1473,17 @@ export default function CurriculumManagementPage() {
                                 onAddCategory={() => handleAddCategory()}
                                 onAddChildCategory={handleAddCategory}
                                 onRenameCategory={handleRenameCategory}
+                                showRenameAction={false}
+                                headerActions={(
+                                    <button
+                                        type="button"
+                                        className="course-btn course-btn--ghost course-btn--sm"
+                                        onClick={() => setShowStructureImport(true)}
+                                        disabled={operationLoading}
+                                    >
+                                        <Upload size={12} /> {language === 'en' ? 'Import courses' : 'นำเข้ารายวิชา'}
+                                    </button>
+                                )}
                                 onDeleteCategory={handleRequestDeleteCategory}
                                 onCategoryRootDragOver={handleCategoryRootDragOver}
                                 onCategoryRootDrop={handleCategoryRootDrop}
@@ -1338,63 +1505,68 @@ export default function CurriculumManagementPage() {
                                 key={`${showAllCourses ? 'all' : selectedCategory?.id || 'none'}:${selectedCategory?.name || ''}:${selectedCategory?.requiredCredits ?? 0}`}
                                 category={showAllCourses ? { id: 'all', code: '', name: 'วิชาทั้งหมดในหลักสูตร' } : selectedCategory}
                                 courses={getDisplayCourses(categories, selectedCategory, showAllCourses)}
-                                allCourses={collectCoursesFromCategories(categories)}
+                                allCourses={getDisplayCourses(categories, null, true)}
                                 categoryTotalCredits={showAllCourses ? selectedCourse.stats?.totalCredits ?? 0 : getDisplayCourses(categories, selectedCategory, false).reduce((sum, course) => sum + (Number(course.credits) || 0), 0)}
                                 isLeafCategory={Boolean(selectedCategory && !selectedCategory.children?.length)}
                                 isAllCoursesView={showAllCourses}
                                 draggedCourseId={draggedCourseId}
                                 onRenameCategory={selectedCategory ? handleRenameCategory : () => { }}
+                                allowCategoryCodeEdit
                                 onDeleteCategory={selectedCategory ? handleRequestDeleteCategory : () => { }}
                                 onAddCourse={handleAddCourse}
                                 onUpdateCourse={handleUpdateCourse}
                                 onDeleteCourse={handleRequestDeleteCourseInEditor}
-                                onBulkDeleteCourses={handleBulkDeleteCoursesInEditor}
+                                onBulkDeleteCourses={handleRequestBulkDeleteCoursesInEditor}
                                 onMoveCourse={handleMoveCourseInEditor}
                                 onValidateCourse={handleValidateCourseBeforeSave}
                                 onCourseDragStart={handleCourseDragStart}
                                 onCourseDragEnd={handleCourseDragEnd}
+                                onEditingStateChange={setIsCourseEditorEditing}
                                 canEdit={Boolean(selectedCategory) && !showAllCourses}
                                 disabled={operationLoading}
                             />
                         </div>
                     </div>
+                        </>
+                    ) : (
+                        <CurriculumMetadataPanel
+                            curriculum={selectedCourse}
+                            majors={majorOptions}
+                            faculties={faculties}
+                            isAdmin={isAdmin}
+                            disabled={operationLoading}
+                            locked={false}
+                            activeTemplateCount={selectedCourse.activeTemplateCount}
+                            fieldErrors={metadataFieldErrors}
+                            resetVersion={metadataResetVersion}
+                            onSave={handleSaveMetadata}
+                            onFieldChange={handleMetadataFieldChange}
+                            onEditingStateChange={setMetadataEditState}
+                            onManageStructure={() => handleDetailTabChange('structure')}
+                        />
+                    )}
                 </div>
             ) : null}
 
             {/* Modals */}
-            {courseDuplicateWarning && (
-                <div className="modal-overlay" onClick={() => setCourseDuplicateWarning(null)}>
-                    <div className="modal-content" onClick={event => event.stopPropagation()}>
-                        <div className="modal-header">
-                            <AlertTriangle size={24} className="modal-icon--warning" />
-                            <h3>ข้อมูลรายวิชาซ้ำ</h3>
-                        </div>
-                        <div className="modal-body">
-                            <p>รายวิชานี้มีข้อมูลซ้ำ กรุณาแก้ไขข้อมูลที่ซ้ำก่อนบันทึก</p>
-                            <div className="modal-body__hint">
-                                ข้อมูลที่ซ้ำ: {courseDuplicateWarning.issues.join(', ')}
-                            </div>
-                        </div>
-                        <div className="modal-footer">
-                            <button
-                                type="button"
-                                className="course-form-nav__btn course-form-nav__btn--primary"
-                                onClick={() => setCourseDuplicateWarning(null)}
-                            >
-                                รับทราบ
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <DuplicateCourseWarningModal
+                open={Boolean(courseDuplicateWarning)}
+                issues={courseDuplicateWarning?.issues || []}
+                onClose={() => setCourseDuplicateWarning(null)}
+            />
 
-            {showForm && (
-                <CourseFormModal
-                    course={editingCourse}
-                    onClose={() => { setShowForm(false); setEditingCourse(null); }}
-                    onSave={handleSaveCourse}
-                />
-            )}
+            <CurriculumStructureImportModal
+                open={showStructureImport}
+                onClose={() => setShowStructureImport(false)}
+                mode="persisted"
+                curriculumId={selectedCourse?.curriculumId}
+                categories={categories}
+                coursesByCategory={coursesByCategory}
+                language={language}
+                disabled={operationLoading}
+                onPreview={previewCurriculumStructureImport}
+                onImport={handleCommitStructureImport}
+            />
 
             {duplicatingCourse && (
                 <DuplicateCurriculumModal
@@ -1408,23 +1580,114 @@ export default function CurriculumManagementPage() {
                 />
             )}
 
-            {deletingCourse && (
-                <ConfirmDeleteModal
-                    category={{ code: '', name: deletingCourse.nameTh }}
-                    label="หลักสูตร"
-                    onConfirm={handleConfirmDeleteCourse}
-                    onCancel={() => setDeletingCourse(null)}
-                />
-            )}
+            <ConfirmActionModal
+                open={Boolean(courseDeleteConfirmation)}
+                title={courseDeleteConfirmation?.mode === 'bulk' ? t('confirm_delete_courses') : t('confirm_delete_course')}
+                message={courseDeleteConfirmation?.mode === 'bulk'
+                    ? language === 'th'
+                        ? `${t('confirm_delete_courses')} (${courseDeleteConfirmation.courses.length} วิชา)?`
+                        : `${t('confirm_delete_courses')} (${courseDeleteConfirmation.courses.length} courses)?`
+                    : `${t('confirm_delete_course')} "${courseDeleteConfirmation?.courses?.[0]?.code || courseDeleteConfirmation?.courses?.[0]?.nameTh || ''}"?`}
+                hint={t('delete_course_irreversible_hint')}
+                confirmLabel={t('confirm_action')}
+                cancelLabel={t('curriculum_cancel')}
+                variant="danger"
+                loading={operationLoading}
+                onConfirm={() => {
+                    const pending = courseDeleteConfirmation;
+                    if (!pending) return;
+                    if (pending.mode === 'bulk') {
+                        handleConfirmBulkDeleteCoursesInEditor(pending.courses);
+                        return;
+                    }
+                    handleConfirmDeleteCourseInEditor(pending.courses[0]);
+                }}
+                onCancel={() => !operationLoading && setCourseDeleteConfirmation(null)}
+            />
 
-            {deletingCategory && (
-                <ConfirmDeleteModal
-                    category={{ code: deletingCategory.code, name: deletingCategory.name }}
-                    label="หมวดวิชา"
-                    onConfirm={handleConfirmDeleteCategory}
-                    onCancel={() => setDeletingCategory(null)}
-                />
-            )}
+            <ConfirmActionModal
+                open={Boolean(courseDeleteImpactConfirmation)}
+                title={t('course_delete_impact_title')}
+                message={courseDeleteImpactConfirmation?.error ? buildConfirmationMessage(courseDeleteImpactConfirmation.error) : ''}
+                hint={t('course_delete_impact_hint')}
+                confirmLabel={t('confirm_action')}
+                cancelLabel={t('curriculum_cancel')}
+                variant="warning"
+                loading={operationLoading}
+                onConfirm={() => {
+                    const pending = courseDeleteImpactConfirmation;
+                    if (!pending) return;
+                    if (pending.mode === 'bulk') {
+                        handleConfirmBulkDeleteCoursesInEditor(
+                            pending.courses,
+                            true,
+                            pending.resumeIndex || 0,
+                        );
+                        return;
+                    }
+                    handleConfirmDeleteCourseInEditor(pending.courses[0], true);
+                }}
+                onCancel={() => !operationLoading && setCourseDeleteImpactConfirmation(null)}
+            />
+
+            <ConfirmActionModal
+                open={Boolean(deletingCourse)}
+                title="ลบหลักสูตร"
+                message={<>ยืนยันการลบหลักสูตร <strong>{deletingCourse?.nameTh}</strong> หรือไม่?</>}
+                hint="ระบบจะลบแบบ Soft delete และซ่อนออกจากรายการใช้งานปกติ"
+                confirmLabel={operationLoading ? 'กำลังลบ...' : 'ลบหลักสูตร'}
+                variant="danger"
+                loading={operationLoading}
+                onConfirm={handleConfirmDeleteCourse}
+                onCancel={() => !operationLoading && setDeletingCourse(null)}
+            />
+
+            <ConfirmActionModal
+                open={Boolean(deletingCategory)}
+                title="ลบหมวดวิชา"
+                message={<>ยืนยันการลบหมวดวิชา <strong>{deletingCategory ? `${deletingCategory.code} ${deletingCategory.name || ''}` : ''}</strong> หรือไม่?</>}
+                hint="รายวิชาในหมวดนี้จะถูกย้ายตามกฎของระบบก่อนลบหมวด"
+                confirmLabel={operationLoading ? 'กำลังลบ...' : 'ลบหมวดวิชา'}
+                variant="danger"
+                loading={operationLoading}
+                onConfirm={handleConfirmDeleteCategory}
+                onCancel={() => !operationLoading && setDeletingCategory(null)}
+            />
+
+            <ConfirmActionModal
+                open={Boolean(metadataImpactConfirmation)}
+                title="ยืนยันการแก้ไขข้อมูลหลักสูตร"
+                message="หลักสูตรที่ปิดใช้งานนี้มี Template เชื่อมอยู่ การแก้ไขข้อมูลอาจทำให้ต้องตรวจทาน Template ที่ได้รับผลกระทบ"
+                hint="ระบบจะบันทึกข้อมูลเมื่อคุณยืนยันเท่านั้น"
+                impact={(
+                    <ul className="curriculum-metadata-impact-list">
+                        {(metadataImpactConfirmation?.affectedTemplates || []).map(template => (
+                            <li key={template.curriculum_template_id || template.template_id} className={`curriculum-metadata-impact-list__item curriculum-metadata-impact-list__item--${template.severity || 'warning'}`}>
+                                <strong>{template.name || template.code || 'Template'}</strong>
+                                {template.cohort_year_be ? <span>รุ่น {template.cohort_year_be}</span> : null}
+                                <span>{template.severity === 'critical' ? 'กำลังใช้งาน' : 'ต้องตรวจทาน'}</span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                confirmLabel="ยืนยันและบันทึก"
+                variant="warning"
+                size="md"
+                loading={operationLoading}
+                onConfirm={() => metadataImpactConfirmation && handleSaveMetadata(metadataImpactConfirmation.form, true)}
+                onCancel={() => !operationLoading && setMetadataImpactConfirmation(null)}
+            />
+
+            <ConfirmActionModal
+                open={Boolean(discardConfirmation)}
+                title="ยกเลิกการแก้ไขข้อมูลหลักสูตร"
+                message="มีข้อมูลที่ยังไม่ได้บันทึก ต้องการละทิ้งการแก้ไขหรือไม่?"
+                hint="ข้อมูลที่กรอกไว้ในแบบฟอร์มจะไม่ถูกบันทึก"
+                confirmLabel="ละทิ้งการแก้ไข"
+                variant="warning"
+                onConfirm={handleConfirmDiscard}
+                onCancel={() => setDiscardConfirmation(null)}
+            />
         </>
     );
 }

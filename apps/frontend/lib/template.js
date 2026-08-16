@@ -16,9 +16,12 @@ export async function fetchTemplateById(id) {
 }
 
 export async function createTemplate(payload) {
+    const body = { ...(payload || {}) };
+    delete body.cohort_year_be;
+    delete body.academic_year;
     const res = await apiFetch('/api/v1/templates', {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
     });
     return unwrapData(res, res);
 }
@@ -54,6 +57,19 @@ export async function fetchTemplateItems(id) {
 export async function fetchTemplateStructure(id) {
     const res = await apiFetch(`/api/v1/templates/${id}/structure`);
     return unwrapData(res, { items: [], custom_categories: [], custom_courses: [] });
+}
+
+export async function fetchTemplateCompetencies(id) {
+    const res = await apiFetch(`/api/v1/templates/${id}/competencies`);
+    return unwrapData(res, null);
+}
+
+export async function updateTemplateCompetencies(id, payload) {
+    const res = await apiFetch(`/api/v1/templates/${id}/competencies`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+    });
+    return unwrapData(res, null);
 }
 
 export async function saveTemplateItems(id, payload) {
