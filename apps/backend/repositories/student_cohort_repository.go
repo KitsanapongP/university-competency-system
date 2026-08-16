@@ -15,6 +15,7 @@ type StudentCohortRepository struct {
 
 type CohortCurriculum struct {
 	CurriculumID    uint64
+	MajorID         uint64
 	FacultyID       uint64
 	EffectiveYearBE uint64
 	Status          string
@@ -52,16 +53,108 @@ func (r *StudentCohortRepository) GetCohortByID(ctx context.Context, cohortID ui
 func (r *StudentCohortRepository) GetCurriculumForCohort(ctx context.Context, curriculumID uint64) (*CohortCurriculum, error) {
 	item := &CohortCurriculum{}
 	err := r.DB.QueryRowContext(ctx, `
-		SELECT c.curriculum_id, d.faculty_id, c.effective_year_be, c.status
+		SELECT c.curriculum_id, c.major_id, d.faculty_id, c.effective_year_be, c.status
 		FROM edu_curricula c
 		JOIN edu_majors m ON m.major_id = c.major_id AND m.deleted_at IS NULL
 		JOIN org_departments d ON d.department_id = m.department_id AND d.deleted_at IS NULL
 		WHERE c.curriculum_id = ? AND c.deleted_at IS NULL
-	`, curriculumID).Scan(&item.CurriculumID, &item.FacultyID, &item.EffectiveYearBE, &item.Status)
+	`, curriculumID).Scan(&item.CurriculumID, &item.MajorID, &item.FacultyID, &item.EffectiveYearBE, &item.Status)
 	if err != nil {
 		return nil, err
 	}
 	return item, nil
+}
+
+func (r *StudentCohortRepository) CohortIdentityExists(ctx context.Context, curriculumID, entryYearBE, excludingCohortID uint64) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM edu_student_cohorts
+			WHERE curriculum_id = ? AND entry_year_be = ?
+				AND cohort_id <> ? AND deleted_at IS NULL
+		)
+	`, curriculumID, entryYearBE, excludingCohortID).Scan(&exists)
+	return exists, err
+}
+
+func (r *StudentCohortRepository) GetCurriculumChangeImpact(ctx context.Context, cohortID, targetCurriculumID uint64) (*models.StudentCohortCurriculumChangeImpact, error) {
+	impact := &models.StudentCohortCurriculumChangeImpact{}
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT
+			sc.cohort_id,
+			sc.curriculum_id,
+			old_curriculum.code,
+			target_curriculum.curriculum_id,
+			target_curriculum.code,
+			(
+				SELECT COUNT(*) FROM kku_enrollment_curricula ec
+				WHERE ec.cohort_id = sc.cohort_id AND ec.deleted_at IS NULL
+			),
+			(
+				SELECT COUNT(*) FROM curri_template_assignments ta
+				WHERE ta.cohort_id = sc.cohort_id AND ta.deleted_at IS NULL
+			),
+			(
+				SELECT COUNT(*)
+				FROM crs_course_enrollment cce
+				JOIN kku_enrollment_curricula ec ON ec.enrollment_curriculum_id = cce.student_curricula_id
+				WHERE ec.cohort_id = sc.cohort_id AND ec.deleted_at IS NULL AND cce.deleted_at IS NULL
+			),
+			(
+				SELECT COUNT(*)
+				FROM score_course_competency_scores score
+				JOIN crs_course_enrollment cce ON cce.course_student_id = score.course_student_id AND cce.deleted_at IS NULL
+				JOIN kku_enrollment_curricula ec ON ec.enrollment_curriculum_id = cce.student_curricula_id
+				WHERE ec.cohort_id = sc.cohort_id AND ec.deleted_at IS NULL AND score.deleted_at IS NULL
+			),
+			(
+				SELECT COUNT(*) FROM comp_curriculum_requirements requirement
+				WHERE requirement.cohort_id = sc.cohort_id AND requirement.deleted_at IS NULL
+			),
+			(
+				SELECT COUNT(*)
+				FROM score_competency_result result
+				JOIN kku_enrollment_curricula ec ON ec.enrollment_id = result.enrollment_id
+				WHERE ec.cohort_id = sc.cohort_id AND ec.deleted_at IS NULL AND result.deleted_at IS NULL
+			),
+			(
+				SELECT COUNT(*)
+				FROM att_session_attendances attendance
+				JOIN kku_enrollments enrollment ON enrollment.person_id = attendance.person_id AND enrollment.deleted_at IS NULL
+				JOIN kku_enrollment_curricula ec ON ec.enrollment_id = enrollment.enrollment_id
+				WHERE ec.cohort_id = sc.cohort_id AND ec.deleted_at IS NULL AND attendance.deleted_at IS NULL
+			),
+			(
+				SELECT COUNT(*)
+				FROM score_session_competency_scores score
+				JOIN kku_enrollments enrollment ON enrollment.person_id = score.person_id AND enrollment.deleted_at IS NULL
+				JOIN kku_enrollment_curricula ec ON ec.enrollment_id = enrollment.enrollment_id
+				WHERE ec.cohort_id = sc.cohort_id AND ec.deleted_at IS NULL AND score.deleted_at IS NULL
+			)
+		FROM edu_student_cohorts sc
+		JOIN edu_curricula old_curriculum ON old_curriculum.curriculum_id = sc.curriculum_id AND old_curriculum.deleted_at IS NULL
+		JOIN edu_curricula target_curriculum ON target_curriculum.curriculum_id = ? AND target_curriculum.deleted_at IS NULL
+		WHERE sc.cohort_id = ? AND sc.deleted_at IS NULL
+	`, targetCurriculumID, cohortID).Scan(
+		&impact.CohortID,
+		&impact.FromCurriculumID,
+		&impact.FromCurriculumCode,
+		&impact.ToCurriculumID,
+		&impact.ToCurriculumCode,
+		&impact.RosterCount,
+		&impact.TemplateAssignmentCount,
+		&impact.CourseEnrollmentCount,
+		&impact.CourseScoreCount,
+		&impact.CompetencyRequirementCount,
+		&impact.CompetencyResultCount,
+		&impact.ActivityAttendanceCount,
+		&impact.ActivityScoreCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return impact, nil
 }
 
 func (r *StudentCohortRepository) CreateCohort(ctx context.Context, payload models.UpsertStudentCohortPayload, userID int64) (*models.StudentCohort, error) {
@@ -89,6 +182,124 @@ func (r *StudentCohortRepository) UpdateCohort(ctx context.Context, cohortID uin
 		return nil, err
 	}
 	if err := ensureAffected(result); err != nil {
+		return nil, err
+	}
+	return r.GetCohortByID(ctx, cohortID)
+}
+
+func (r *StudentCohortRepository) ReassignCurriculum(ctx context.Context, cohortID uint64, payload models.UpdateStudentCohortPayload, userID int64, target *CohortCurriculum, impact *models.StudentCohortCurriculumChangeImpact) (*models.StudentCohort, error) {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var currentCurriculumID uint64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT curriculum_id
+		FROM edu_student_cohorts
+		WHERE cohort_id = ? AND deleted_at IS NULL
+		FOR UPDATE
+	`, cohortID).Scan(&currentCurriculumID); err != nil {
+		return nil, err
+	}
+	if currentCurriculumID == target.CurriculumID {
+		return nil, errors.New("curriculum reassignment is no longer needed")
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE score_course_competency_scores score
+		JOIN crs_course_enrollment courseEnrollment ON courseEnrollment.course_student_id = score.course_student_id
+		JOIN kku_enrollment_curricula enrollmentCurriculum ON enrollmentCurriculum.enrollment_curriculum_id = courseEnrollment.student_curricula_id
+		SET score.deleted_at = NOW(), score.updated_at = NOW()
+		WHERE enrollmentCurriculum.cohort_id = ?
+			AND enrollmentCurriculum.deleted_at IS NULL
+			AND courseEnrollment.deleted_at IS NULL
+			AND score.deleted_at IS NULL
+	`, cohortID); err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE crs_course_enrollment courseEnrollment
+		JOIN kku_enrollment_curricula enrollmentCurriculum ON enrollmentCurriculum.enrollment_curriculum_id = courseEnrollment.student_curricula_id
+		SET courseEnrollment.deleted_at = NOW(), courseEnrollment.updated_at = NOW()
+		WHERE enrollmentCurriculum.cohort_id = ?
+			AND enrollmentCurriculum.deleted_at IS NULL
+			AND courseEnrollment.deleted_at IS NULL
+	`, cohortID); err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE comp_curriculum_requirements
+		SET deleted_at = NOW(), updated_at = NOW()
+		WHERE cohort_id = ? AND deleted_at IS NULL
+	`, cohortID); err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE score_competency_result result
+		JOIN kku_enrollment_curricula enrollmentCurriculum ON enrollmentCurriculum.enrollment_id = result.enrollment_id
+		SET result.deleted_at = NOW(), result.updated_at = NOW()
+		WHERE enrollmentCurriculum.cohort_id = ?
+			AND enrollmentCurriculum.deleted_at IS NULL
+			AND result.deleted_at IS NULL
+	`, cohortID); err != nil {
+		return nil, err
+	}
+
+	var templateID uint64
+	templateErr := tx.QueryRowContext(ctx, `
+		SELECT template_id
+		FROM curri_template_assignments
+		WHERE cohort_id = ? AND deleted_at IS NULL
+		ORDER BY template_assignment_id DESC
+		LIMIT 1
+		FOR UPDATE
+	`, cohortID).Scan(&templateID)
+	if templateErr != nil && !errors.Is(templateErr, sql.ErrNoRows) {
+		return nil, templateErr
+	}
+	if templateErr == nil {
+		endReason := "Curriculum changed from " + impact.FromCurriculumCode + " to " + impact.ToCurriculumCode
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE curri_template_assignments
+			SET ended_by = ?, ended_at = NOW(), end_reason = ?, deleted_at = NOW(), updated_at = NOW()
+			WHERE cohort_id = ? AND deleted_at IS NULL
+		`, userID, endReason, cohortID); err != nil {
+			return nil, err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE comp_templates
+			SET is_active = 0, updated_at = NOW()
+			WHERE template_id = ? AND deleted_at IS NULL
+		`, templateID); err != nil {
+			return nil, err
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE kku_enrollments enrollment
+		JOIN kku_enrollment_curricula enrollmentCurriculum ON enrollmentCurriculum.enrollment_id = enrollment.enrollment_id
+		SET enrollment.faculty_id = ?, enrollment.major_id = ?, enrollment.entry_year_be = ?, enrollment.updated_at = NOW()
+		WHERE enrollmentCurriculum.cohort_id = ? AND enrollmentCurriculum.deleted_at IS NULL AND enrollment.deleted_at IS NULL
+	`, target.FacultyID, target.MajorID, payload.EntryYearBE, cohortID); err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE kku_enrollment_curricula
+		SET curriculum_id = ?, start_academic_year_be = ?, change_reason = 'curriculum_change', updated_at = NOW()
+		WHERE cohort_id = ? AND deleted_at IS NULL
+	`, target.CurriculumID, payload.EntryYearBE, cohortID); err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE edu_student_cohorts
+		SET curriculum_id = ?, entry_year_be = ?, note = ?, updated_at = NOW()
+		WHERE cohort_id = ? AND deleted_at IS NULL
+	`, target.CurriculumID, payload.EntryYearBE, payload.Note, cohortID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return r.GetCohortByID(ctx, cohortID)

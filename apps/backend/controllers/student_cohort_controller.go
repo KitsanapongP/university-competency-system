@@ -84,7 +84,7 @@ func (c *StudentCohortController) Update(w http.ResponseWriter, r *http.Request)
 	if !decodeStudentCohortPayload(w, r, &payload) {
 		return
 	}
-	item, err := c.Service.UpdateCohort(r.Context(), cohortID, payload, claims.Roles, claims.FacultyID)
+	item, err := c.Service.UpdateCohort(r.Context(), cohortID, payload, claims.UserID, claims.Roles, claims.FacultyID)
 	if err != nil {
 		writeStudentCohortError(w, err)
 		return
@@ -396,6 +396,17 @@ func writeStudentCohortError(w http.ResponseWriter, err error) {
 	}
 	var conflict services.StudentCohortConflictError
 	if errors.As(err, &conflict) {
+		if conflict.Data != nil {
+			utils.JSON(w, http.StatusConflict, utils.Envelope{
+				"success": false,
+				"error": utils.Envelope{
+					"code":    conflict.Code,
+					"message": conflict.Message,
+				},
+				"data": conflict.Data,
+			})
+			return
+		}
 		utils.Error(w, http.StatusConflict, conflict.Code, conflict.Message)
 		return
 	}
