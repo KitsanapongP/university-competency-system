@@ -546,7 +546,7 @@ export default function TemplateManagementPage() {
                 setTemplates(p => p.map(t => t.id === selectedTemplate.id ? { ...t, name: trimmed } : t));
                 setSelectedTemplate(p => ({ ...p, name: trimmed }));
             } catch (err) {
-                showAlert('ไม่สามารถเปลี่ยนชื่อ Template ได้: ' + (err.message || 'เกิดข้อผิดพลาด'), { type: 'error', title: 'เกิดข้อผิดพลาด' });
+                showAlert('ไม่สามารถเปลี่ยนชื่อแบบแผนการประเมินได้: ' + (err.message || 'เกิดข้อผิดพลาด'), { type: 'error', title: 'เกิดข้อผิดพลาด' });
             }
         }
         setEditingTitle(false);
@@ -564,7 +564,7 @@ export default function TemplateManagementPage() {
             if (selectedTemplate?.id === id) handleBackToList();
             setDeletingTemplate(null);
         } catch (err) {
-            showAlert(err.message || 'ไม่สามารถลบ Template ได้', { type: 'error', title: 'ไม่สามารถลบได้' });
+            showAlert(err.message || 'ไม่สามารถลบแบบแผนการประเมินได้', { type: 'error', title: 'ไม่สามารถลบได้' });
             setDeletingTemplate(null);
         }
     }, [deletingTemplate, selectedTemplate, handleBackToList]);
@@ -584,7 +584,7 @@ export default function TemplateManagementPage() {
             if (!createdId) throw new Error('template creation returned no template id');
         } catch (err) {
             console.error('Create template API failed:', err);
-            showAlert(err.message || 'Unable to create template.', { type: 'error', title: 'Template was not created' });
+            showAlert(err.message || 'Unable to create assessment plan.', { type: 'error', title: 'Assessment plan was not created' });
             return;
         }
 
@@ -814,7 +814,7 @@ export default function TemplateManagementPage() {
             refreshTemplateStructure(selectedTemplate.id);
             setCompetencyRemovalConfirmation(null);
             setShowCompetencyManager(false);
-            showTemplateToast('success', language === 'th' ? 'บันทึกสมรรถนะของ Template แล้ว' : 'Template competencies saved.');
+            showTemplateToast('success', language === 'th' ? 'บันทึกสมรรถนะของแบบแผนการประเมินแล้ว' : 'Assessment plan competencies saved.');
         } catch (error) {
             if (error?.code === 'CONFIRMATION_REQUIRED') {
                 setCompetencyRemovalConfirmation({
@@ -1213,12 +1213,12 @@ export default function TemplateManagementPage() {
                     {/* Header */}
                     <div className="tm-header">
                         <div>
-                            <h1 className="tm-header__title">จัดการ Template หลักสูตร</h1>
-                            <p className="tpl-list-view__sub">เลือก Template ที่ต้องการแก้ไข หรือสร้าง Template ใหม่</p>
+                            <h1 className="tm-header__title">จัดการแบบแผนการประเมิน</h1>
+                            <p className="tpl-list-view__sub">เลือกแบบแผนการประเมินที่ต้องการแก้ไข หรือสร้างแบบแผนใหม่</p>
                         </div>
                         <div style={{ display: 'flex', gap: '0.75rem' }}>
                             <button className="btn btn--primary" onClick={() => setShowTemplateModal(true)}>
-                                <Plus size={15}/> สร้าง Template ใหม่
+                                <Plus size={15}/> สร้างแบบแผนใหม่
                             </button>
                         </div>
                     </div>
@@ -1227,9 +1227,9 @@ export default function TemplateManagementPage() {
                     {templates.length === 0 ? (
                         <div className="tpl-list-view__empty">
                             <BookOpenCheck size={48} opacity={0.2}/>
-                            <p>ยังไม่มี Template — กดปุ่ม &quot;สร้าง Template ใหม่&quot; เพื่อเริ่ม</p>
+                            <p>ยังไม่มีแบบแผนการประเมิน — กดปุ่ม &quot;สร้างแบบแผนใหม่&quot; เพื่อเริ่ม</p>
                             <button className="btn btn--primary" onClick={() => setShowTemplateModal(true)}>
-                                <Plus size={15}/> สร้าง Template ใหม่
+                                <Plus size={15}/> สร้างแบบแผนใหม่
                             </button>
                         </div>
                     ) : (
@@ -1246,7 +1246,7 @@ export default function TemplateManagementPage() {
                             {/* + Create card */}
                             <div className="tpl-card tpl-card--create" onClick={() => setShowTemplateModal(true)}>
                                 <Plus size={28} opacity={0.4}/>
-                                <span>สร้าง Template ใหม่</span>
+                                <span>สร้างแบบแผนใหม่</span>
                             </div>
                         </div>
                     )}

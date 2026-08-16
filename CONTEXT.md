@@ -135,7 +135,7 @@
 *   **Activity Lifecycle Status:** Activity เริ่มเป็น Draft, เปลี่ยนเป็น Published เมื่อพร้อมใช้งาน, และเปลี่ยนเป็น Closed เมื่อกิจกรรมนั้นจบวงจรแล้ว Closed หรือ Cancelled Activity เป็นประวัติและไม่ถูกแก้ไขในงานจัดการกิจกรรมรอบปกติ
 *   **Activity Open Duplicate Rule:** ภายใน Faculty เดียวกัน ห้ามมี Activity ที่ยัง Draft หรือ Published อยู่โดยใช้รหัสกิจกรรมและชื่อภาษาไทยซ้ำกัน Closed หรือ Cancelled Activity ไม่ block การสร้างกิจกรรมรหัส/ชื่อเดิมสำหรับครั้งถัดไป
 *   **Activity Deletion:** การลบ Activity เป็น soft deletion และทำได้เฉพาะ Activity ที่ยังเป็น Draft และยังไม่มี Activity Session เชื่อมอยู่ เพื่อรักษาประวัติการเข้าร่วมและการประเมิน
-*   **Template:** ชุดการตั้งค่าน้ำหนักคะแนนสมรรถนะของกิจกรรม/รายวิชา สำหรับนำไปผูกใช้งานกับนักศึกษาแต่ละ Cohort
+*   **Template (แบบแผนการประเมิน):** ชุดการตั้งค่าน้ำหนักคะแนนสมรรถนะของกิจกรรม/รายวิชา สำหรับนำไปกำหนดให้กับนักศึกษาแต่ละ Cohort
 
 *   **Template Lifecycle Status:** A Template can be Draft, Active, or Inactive. Draft Templates are still being configured. Active Templates are ready for use and lock the connected Curriculum structure even before they are assigned to a Cohort. Inactive Templates are temporarily disabled and can be made Active again if their connected Curriculum is Active.
 *   **Template Status Transitions:** Template status can transition from Draft to Active, Active to Inactive, and Inactive to Active. Active or Inactive Templates do not return to Draft, and Draft Templates do not become Inactive.

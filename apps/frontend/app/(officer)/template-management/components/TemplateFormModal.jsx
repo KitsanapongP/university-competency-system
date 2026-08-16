@@ -125,7 +125,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
         <div className="tfm-step1">
             {/* ชื่อ */}
             <div className="cfm-field">
-                <label className="cfm-label">ชื่อ Template <span className="cfm-required">*</span></label>
+                <label className="cfm-label">ชื่อแบบแผนการประเมิน <span className="cfm-required">*</span></label>
                 <input className="cfm-input" autoFocus
                     value={form.name}
                     onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
@@ -136,7 +136,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
             {/* เลือก Curriculum Master */}
             <div className="cfm-field" style={{ marginTop: '1.25rem' }}>
                 <label className="cfm-label">หลักสูตร <span className="cfm-required">*</span></label>
-                <p className="tfm-hint">Template จะเป็นของหลักสูตรที่เลือก และเชื่อมกับรุ่นนักศึกษาในภายหลัง</p>
+                <p className="tfm-hint">แบบแผนการประเมินจะเป็นของหลักสูตรที่เลือก และกำหนดให้รุ่นนักศึกษาในภายหลัง</p>
             </div>
 
             {/* Search */}
