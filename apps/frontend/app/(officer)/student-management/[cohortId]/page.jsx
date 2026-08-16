@@ -3,15 +3,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Edit3, FileSpreadsheet, Plus, RefreshCw, Search, Trash2, Upload, Users } from 'lucide-react';
+import { ArrowLeft, Edit3, FileSpreadsheet, Plus, RefreshCw, Save, Search, Target, Trash2, Upload, Users } from 'lucide-react';
 import { useLanguage } from '../../../../providers/LanguageContext';
 import {
     addCohortStudent,
     commitCohortImport,
     fetchCohortStudents,
+	    fetchCohortCompetencyRequirements,
+	    fetchCohortCourseCompetencyScoreSummary,
     fetchStudentCohort,
     previewCohortImport,
     removeCohortStudent,
+	    recalculateCohortCourseCompetencyScores,
+	    saveCohortCompetencyRequirements,
     updateCohortStudent,
 } from '../../../../lib/student-management';
 import { downloadStudentImportTemplate, parseStudentImportFile } from '../../../../lib/student-import';
@@ -126,6 +130,27 @@ function ImportModal({ language, cohortId, submitting, onClose, onSuccess, onErr
     </BaseModal>;
 }
 
+function CompetencyScorePanel({ language, requirements, summary, loading, readOnly, submitting, onChangeRequirement, onSaveRequirements, onRequestRecalculate }) {
+    const summaryByStudent = useMemo(() => {
+        const grouped = new Map();
+        summary.forEach(item => {
+            const key = item.enrollmentId;
+            if (!grouped.has(key)) grouped.set(key, { studentCode: item.studentCode, studentNameTh: item.studentNameTh, items: [] });
+            grouped.get(key).items.push(item);
+        });
+        return [...grouped.values()];
+    }, [summary]);
+
+    return <section className="student-management-panel cohort-score-panel">
+        <div className="cohort-score-panel__header">
+            <div><h2>{label(language, 'เป้าหมายและคะแนนสมรรถนะ', 'Competency targets and scores')}</h2><p>{label(language, 'คะแนนหลักมาจากวิชาบังคับ คะแนนเสริมมาจากวิชาเลือก และคะแนนกิจกรรมจะแสดงแยกเป็นคะแนนสะสม', 'Core comes from required courses, bonus from electives, and activity remains a separate accumulated score.')}</p></div>
+            <div className="course-list-header__actions"><button className="course-btn course-btn--ghost" onClick={onSaveRequirements} disabled={readOnly || submitting || loading || requirements.length === 0}><Save size={16} />{label(language, 'บันทึกเป้าหมาย', 'Save targets')}</button><button className="course-btn course-btn--primary" onClick={onRequestRecalculate} disabled={readOnly || submitting || loading || requirements.length === 0}><RefreshCw size={16} />{label(language, 'คำนวณคะแนนใหม่', 'Recalculate scores')}</button></div>
+        </div>
+        <div className="student-table-wrap"><table className="student-table cohort-score-targets"><thead><tr><th>{label(language, 'สมรรถนะ', 'Competency')}</th><th>{label(language, 'เป้าหมายคะแนนรายวิชา', 'Course target')}</th><th>{label(language, 'น้ำหนักคะแนนหลัก', 'Core weight')}</th><th>{label(language, 'น้ำหนักคะแนนเสริม', 'Bonus weight')}</th><th>{label(language, 'เป็นเกณฑ์ผ่าน', 'Required')}</th></tr></thead><tbody>{loading ? <tr><td colSpan={5} className="student-empty">{label(language, 'กำลังโหลดการตั้งค่า...', 'Loading configuration...')}</td></tr> : requirements.length ? requirements.map((item, index) => <tr key={item.competencyId}><td><strong>{item.competencyName}</strong><span className="cohort-score-code">{item.competencyCode}</span></td><td><input className="course-input cohort-score-target-input" type="number" min="0" value={item.targetScore} disabled={readOnly || submitting} onChange={event => onChangeRequirement(index, { targetScore: event.target.value })} /></td><td><strong>{item.coreWeight.toFixed(2)}%</strong></td><td><strong>{item.bonusWeight.toFixed(2)}%</strong></td><td><input type="checkbox" checked={item.isRequired} disabled={readOnly || submitting} onChange={event => onChangeRequirement(index, { isRequired: event.target.checked })} /></td></tr>) : <tr><td colSpan={5} className="student-empty">{label(language, 'ยังไม่มีแบบแผนการประเมินที่เชื่อมกับรุ่นนี้', 'No assigned assessment plan for this cohort.')}</td></tr>}</tbody></table></div>
+        <div className="cohort-score-results"><h3>{label(language, 'ผลคะแนนผู้เรียน', 'Learner score results')}</h3><div className="student-table-wrap"><table className="student-table"><thead><tr><th>{label(language, 'ผู้เรียน', 'Learner')}</th><th>{label(language, 'สมรรถนะ', 'Competency')}</th><th>{label(language, 'คะแนนหลัก', 'Core')}</th><th>{label(language, 'คะแนนเสริม', 'Bonus')}</th><th>{label(language, 'รวมรายวิชา', 'Course total')}</th><th>{label(language, 'กิจกรรม', 'Activity')}</th><th>{label(language, 'สะสมทั้งหมด', 'Accumulated')}</th><th>{label(language, 'สถานะ', 'Status')}</th></tr></thead><tbody>{summaryByStudent.length ? summaryByStudent.flatMap(student => student.items.map((item, index) => <tr key={`${student.studentCode}-${item.competencyId}`}><td>{index === 0 && <div className="student-cohort-cell"><strong>{student.studentCode}</strong><span>{student.studentNameTh}</span></div>}</td><td>{item.competencyName}</td><td>{item.coreScore.toFixed(2)}</td><td>{item.courseBonusScore.toFixed(2)}</td><td>{item.courseTotalScore.toFixed(2)} / {item.targetScore.toFixed(2)}</td><td>{item.activityScore.toFixed(2)}</td><td>{item.accumulatedScore.toFixed(2)}</td><td><span className={item.passedRequirement ? 'cohort-score-status cohort-score-status--pass' : 'cohort-score-status cohort-score-status--pending'}>{item.passedRequirement ? label(language, 'ผ่าน', 'Pass') : label(language, 'ยังไม่ถึงเป้าหมาย', 'Below target')}</span></td></tr>)) : <tr><td colSpan={8} className="student-empty">{label(language, 'กดคำนวณคะแนนจากผลการเรียนเพื่อแสดงผล', 'Recalculate from course grades to show results.')}</td></tr>}</tbody></table></div></div>
+    </section>;
+}
+
 export default function CohortRosterPage() {
     const { cohortId } = useParams();
     const { language } = useLanguage();
@@ -140,6 +165,11 @@ export default function CohortRosterPage() {
     const [editingStudent, setEditingStudent] = useState(null);
     const [removingStudent, setRemovingStudent] = useState(null);
     const [importOpen, setImportOpen] = useState(false);
+    const [workspaceTab, setWorkspaceTab] = useState('roster');
+    const [requirements, setRequirements] = useState([]);
+    const [scoreSummary, setScoreSummary] = useState([]);
+    const [scoreLoading, setScoreLoading] = useState(false);
+    const [recalculateOpen, setRecalculateOpen] = useState(false);
 
     const loadWorkspace = useCallback(async () => {
         if (!cohortId) return;
@@ -153,6 +183,22 @@ export default function CohortRosterPage() {
 
     useEffect(() => { loadWorkspace(); }, [loadWorkspace]);
     useEffect(() => { if (feedback.type !== 'success') return undefined; const timer = window.setTimeout(() => setFeedback(current => current.type === 'success' ? { type: '', message: '' } : current), 4500); return () => window.clearTimeout(timer); }, [feedback]);
+
+    const loadScores = useCallback(async () => {
+        if (!cohortId) return;
+        setScoreLoading(true);
+        try {
+            const [nextRequirements, nextSummary] = await Promise.all([
+                fetchCohortCompetencyRequirements(cohortId),
+                fetchCohortCourseCompetencyScoreSummary(cohortId),
+            ]);
+            setRequirements(nextRequirements);
+            setScoreSummary(nextSummary);
+        } catch (error) { setFeedback({ type: 'error', message: rosterError(error, language) }); }
+        finally { setScoreLoading(false); }
+    }, [cohortId, language]);
+
+    useEffect(() => { if (workspaceTab === 'scores') loadScores(); }, [workspaceTab, loadScores]);
 
     const readOnly = cohort?.status === 'archived';
     const openAdd = () => { setEditingStudent(null); setForm(EMPTY_STUDENT); setFormMode('add'); };
@@ -181,13 +227,38 @@ export default function CohortRosterPage() {
         finally { setSubmitting(false); }
     };
 
+    const saveRequirements = async () => {
+        if (!cohort) return;
+        setSubmitting(true);
+        try {
+            const next = await saveCohortCompetencyRequirements(cohort.cohortId, requirements);
+            setRequirements(next);
+            setFeedback({ type: 'success', message: label(language, 'บันทึกเป้าหมายสมรรถนะแล้ว', 'Competency targets saved.') });
+        } catch (error) { setFeedback({ type: 'error', message: rosterError(error, language) }); }
+        finally { setSubmitting(false); }
+    };
+
+    const recalculateScores = async () => {
+        if (!cohort) return;
+        setSubmitting(true);
+        try {
+            const result = await recalculateCohortCourseCompetencyScores(cohort.cohortId);
+            setRecalculateOpen(false);
+            setFeedback({ type: 'success', message: label(language, `คำนวณคะแนนผู้เรียน ${result?.calculated_students || 0} คนแล้ว`, `Recalculated scores for ${result?.calculated_students || 0} learners.`) });
+            await loadScores();
+        } catch (error) { setFeedback({ type: 'error', message: rosterError(error, language) }); }
+        finally { setSubmitting(false); }
+    };
+
     return <div className="student-management-page cohort-roster-page">
         <div className="cohort-roster-header"><div><Link className="course-btn course-btn--ghost cohort-back" href="/student-management"><ArrowLeft size={16} />{label(language, 'รุ่นนักศึกษาทั้งหมด', 'All cohorts')}</Link>{cohort ? <><h1>{cohort.curriculumCode} · {label(language, `รุ่น ${cohort.entryYearBe}`, `Entry ${cohort.entryYearBe}`)}</h1><p>{cohort.curriculumNameTh} · {cohort.majorNameTh}</p></> : <h1>{label(language, 'กำลังโหลดรุ่นนักศึกษา...', 'Loading cohort...')}</h1>}</div><div className="course-list-header__actions"><button className="course-btn course-btn--ghost" onClick={loadWorkspace} disabled={loading}><RefreshCw size={16} className={loading ? 'student-spin' : ''} />{label(language, 'โหลดใหม่', 'Refresh')}</button><button className="course-btn course-btn--ghost" onClick={() => setImportOpen(true)} disabled={!cohort || readOnly}><Upload size={16} />{label(language, 'นำเข้ารายชื่อ', 'Import roster')}</button><button className="course-btn course-btn--primary" onClick={openAdd} disabled={!cohort || readOnly}><Plus size={16} />{label(language, 'เพิ่มนักศึกษา', 'Add student')}</button></div></div>
         <ToastNotifications success={feedback.type === 'success' ? feedback.message : ''} error={feedback.type === 'error' ? feedback.message : ''} onCloseSuccess={() => setFeedback({ type: '', message: '' })} onCloseError={() => setFeedback({ type: '', message: '' })} />
         {cohort && <div className="cohort-summary"><div><span>{label(language, 'สถานะรุ่น', 'Cohort status')}</span><strong>{cohort.status}</strong></div><div><span>{label(language, 'จำนวนรายชื่อ', 'Roster')}</span><strong>{cohort.rosterCount}</strong></div><div><span>{label(language, 'นักศึกษาปัจจุบัน', 'Current students')}</span><strong>{cohort.studentCount}</strong></div><div><span>{label(language, 'ผู้พักการศึกษา', 'Suspended')}</span><strong>{cohort.suspendedCount}</strong></div>{readOnly && <p>{label(language, 'รุ่นนี้เก็บเข้าคลังแล้ว จึงดูข้อมูลได้อย่างเดียว', 'This cohort is archived and read-only.')}</p>}</div>}
-        <section className="student-management-panel"><div className="cohort-roster-toolbar"><div className="student-search"><Search size={16} /><input value={filters.search} onChange={event => setFilters(prev => ({ ...prev, search: event.target.value }))} placeholder={label(language, 'ค้นหารหัสหรือชื่อนักศึกษา', 'Search student code or name')} /></div><select className="course-input" value={filters.status} onChange={event => setFilters(prev => ({ ...prev, status: event.target.value }))}><option value="">{label(language, 'ทุกสถานะ', 'All statuses')}</option>{STATUS_OPTIONS.map(status => <option key={status} value={status}>{studentStatusLabel(language, status)}</option>)}</select><span><Users size={16} /> {students.length} {label(language, 'รายการ', 'items')}</span></div><div className="student-table-wrap"><table className="student-table cohort-roster-table"><thead><tr><th>{label(language, 'นักศึกษา', 'Student')}</th><th>{label(language, 'ชื่อภาษาอังกฤษ', 'English name')}</th><th>{label(language, 'ติดต่อ', 'Contact')}</th><th>{label(language, 'สถานะ', 'Status')}</th><th aria-label="Actions" /></tr></thead><tbody>{loading ? <tr><td className="student-empty" colSpan={5}>{label(language, 'กำลังโหลดรายชื่อนักศึกษา...', 'Loading student roster...')}</td></tr> : students.length ? students.map(student => <tr key={student.enrollmentId}><td><div className="student-cohort-cell"><strong>{student.studentCode}</strong><span>{personName(student)}</span></div></td><td>{student.firstNameEn || student.lastNameEn ? `${student.firstNameEn} ${student.lastNameEn}`.trim() : '-'}</td><td><div className="student-cohort-cell"><span>{student.email || '-'}</span><span>{student.phone || '-'}</span></div></td><td><span className={`student-enrollment-status student-enrollment-status--${student.enrollmentStatus}`}>{studentStatusLabel(language, student.enrollmentStatus)}</span></td><td><div className="student-row-actions"><button className="course-icon-btn" onClick={() => openEdit(student)} disabled={readOnly} title={label(language, 'แก้ไข', 'Edit')}><Edit3 size={16} /></button><button className="course-icon-btn course-icon-btn--danger" onClick={() => setRemovingStudent(student)} disabled={readOnly} title={label(language, 'ถอดจากรุ่น', 'Remove from cohort')}><Trash2 size={16} /></button></div></td></tr>) : <tr><td className="student-empty" colSpan={5}>{label(language, 'ยังไม่มีรายชื่อนักศึกษา', 'No students in this cohort yet.')}</td></tr>}</tbody></table></div></section>
+        <div className="cohort-workspace-tabs" role="tablist"><button type="button" className={workspaceTab === 'roster' ? 'is-active' : ''} onClick={() => setWorkspaceTab('roster')}><Users size={16} />{label(language, 'รายชื่อนักศึกษา', 'Roster')}</button><button type="button" className={workspaceTab === 'scores' ? 'is-active' : ''} onClick={() => setWorkspaceTab('scores')}><Target size={16} />{label(language, 'เป้าหมายสมรรถนะ', 'Competency targets')}</button></div>
+        {workspaceTab === 'roster' ? <section className="student-management-panel"><div className="cohort-roster-toolbar"><div className="student-search"><Search size={16} /><input value={filters.search} onChange={event => setFilters(prev => ({ ...prev, search: event.target.value }))} placeholder={label(language, 'ค้นหารหัสหรือชื่อนักศึกษา', 'Search student code or name')} /></div><select className="course-input" value={filters.status} onChange={event => setFilters(prev => ({ ...prev, status: event.target.value }))}><option value="">{label(language, 'ทุกสถานะ', 'All statuses')}</option>{STATUS_OPTIONS.map(status => <option key={status} value={status}>{studentStatusLabel(language, status)}</option>)}</select><span><Users size={16} /> {students.length} {label(language, 'รายการ', 'items')}</span></div><div className="student-table-wrap"><table className="student-table cohort-roster-table"><thead><tr><th>{label(language, 'นักศึกษา', 'Student')}</th><th>{label(language, 'ชื่อภาษาอังกฤษ', 'English name')}</th><th>{label(language, 'ติดต่อ', 'Contact')}</th><th>{label(language, 'สถานะ', 'Status')}</th><th aria-label="Actions" /></tr></thead><tbody>{loading ? <tr><td className="student-empty" colSpan={5}>{label(language, 'กำลังโหลดรายชื่อนักศึกษา...', 'Loading student roster...')}</td></tr> : students.length ? students.map(student => <tr key={student.enrollmentId}><td><div className="student-cohort-cell"><strong>{student.studentCode}</strong><span>{personName(student)}</span></div></td><td>{student.firstNameEn || student.lastNameEn ? `${student.firstNameEn} ${student.lastNameEn}`.trim() : '-'}</td><td><div className="student-cohort-cell"><span>{student.email || '-'}</span><span>{student.phone || '-'}</span></div></td><td><span className={`student-enrollment-status student-enrollment-status--${student.enrollmentStatus}`}>{studentStatusLabel(language, student.enrollmentStatus)}</span></td><td><div className="student-row-actions"><button className="course-icon-btn" onClick={() => openEdit(student)} disabled={readOnly} title={label(language, 'แก้ไข', 'Edit')}><Edit3 size={16} /></button><button className="course-icon-btn course-icon-btn--danger" onClick={() => setRemovingStudent(student)} disabled={readOnly} title={label(language, 'ถอดจากรุ่น', 'Remove from cohort')}><Trash2 size={16} /></button></div></td></tr>) : <tr><td className="student-empty" colSpan={5}>{label(language, 'ยังไม่มีรายชื่อนักศึกษา', 'No students in this cohort yet.')}</td></tr>}</tbody></table></div></section> : <CompetencyScorePanel language={language} requirements={requirements} summary={scoreSummary} loading={scoreLoading} readOnly={readOnly} submitting={submitting} onChangeRequirement={(index, changes) => setRequirements(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...changes } : item))} onSaveRequirements={saveRequirements} onRequestRecalculate={() => setRecalculateOpen(true)} />}
         {formMode && <StudentFormModal language={language} form={form} setForm={setForm} mode={formMode} submitting={submitting} readOnly={readOnly} onClose={() => !submitting && setFormMode('')} onSubmit={saveStudent} />}
         {importOpen && cohort && <ImportModal language={language} cohortId={cohort.cohortId} submitting={submitting} onClose={() => !submitting && setImportOpen(false)} onError={error => setFeedback({ type: 'error', message: rosterError(error, language) })} onSuccess={async () => { setImportOpen(false); setFeedback({ type: 'success', message: label(language, 'นำเข้ารายชื่อนักศึกษาสำเร็จ', 'Student roster imported.') }); await loadWorkspace(); }} />}
         <ConfirmActionModal open={Boolean(removingStudent)} title={label(language, 'ถอดนักศึกษาออกจากรุ่น', 'Remove student from cohort')} message={label(language, `ถอด ${removingStudent ? personName(removingStudent) : ''} ออกจากรุ่นนี้หรือไม่`, `Remove ${removingStudent ? personName(removingStudent) : ''} from this cohort?`)} hint={label(language, 'ข้อมูลบุคคลและบัญชีผู้ใช้จะไม่ถูกลบ', 'Person data and login accounts are never deleted.')} confirmLabel={label(language, 'ถอดออก', 'Remove')} variant="danger" loading={submitting} onCancel={() => !submitting && setRemovingStudent(null)} onConfirm={removeStudent} />
+        <ConfirmActionModal open={recalculateOpen} title={label(language, 'คำนวณคะแนนจากผลการเรียนใหม่', 'Recalculate course competency scores')} message={label(language, 'ระบบจะอ่านเกรดที่ดีที่สุดของผู้เรียนและบันทึก snapshot ใหม่ตามน้ำหนักแบบแผนการประเมินปัจจุบัน', 'The system will use each learner\'s best grades and save new snapshots using the current assessment-plan weights.')} hint={label(language, 'การคำนวณจะไม่เกิดขึ้นอัตโนมัติเมื่อแก้หลักสูตรหรือค่าน้ำหนัก', 'Curriculum and weight edits never automatically rewrite historical scores.')} confirmLabel={label(language, 'ยืนยันคำนวณ', 'Recalculate')} variant="warning" loading={submitting} onCancel={() => !submitting && setRecalculateOpen(false)} onConfirm={recalculateScores} />
     </div>;
 }

@@ -192,3 +192,65 @@ export async function commitCohortImport(cohortId, rows) {
     });
     return unwrapData(response, null);
 }
+
+function mapCompetencyRequirement(item) {
+    return {
+        competencyId: item.competency_id,
+        competencyCode: item.competency_code || '',
+        competencyName: item.competency_name || '',
+        targetScore: Number(item.target_score || 0),
+        isRequired: Boolean(item.is_required),
+        displayOrder: Number(item.display_order || 0),
+        coreWeight: Number(item.core_weight || 0),
+        bonusWeight: Number(item.bonus_weight || 0),
+    };
+}
+
+function mapCompetencyScoreSummary(item) {
+    return {
+        enrollmentId: item.enrollment_id,
+        studentCode: item.student_code || '',
+        studentNameTh: item.student_name_th || '',
+        competencyId: item.competency_id,
+        competencyCode: item.competency_code || '',
+        competencyName: item.competency_name || '',
+        targetScore: Number(item.target_score || 0),
+        coreScore: Number(item.core_score || 0),
+        courseBonusScore: Number(item.course_bonus_score || 0),
+        courseTotalScore: Number(item.course_total_score || 0),
+        activityScore: Number(item.activity_score || 0),
+        accumulatedScore: Number(item.accumulated_score || 0),
+        passedRequirement: Boolean(item.passed_requirement),
+    };
+}
+
+export async function fetchCohortCompetencyRequirements(cohortId) {
+    const response = await apiFetch(`/api/v1/student-cohorts/${cohortId}/competency-requirements`);
+    return unwrapData(response, []).map(mapCompetencyRequirement);
+}
+
+export async function saveCohortCompetencyRequirements(cohortId, requirements) {
+    const response = await apiFetch(`/api/v1/student-cohorts/${cohortId}/competency-requirements`, {
+        method: 'PUT',
+        body: JSON.stringify({
+            requirements: requirements.map(item => ({
+                competency_id: item.competencyId,
+                target_score: Number(item.targetScore) || 0,
+                is_required: Boolean(item.isRequired),
+            })),
+        }),
+    });
+    return unwrapData(response, []).map(mapCompetencyRequirement);
+}
+
+export async function recalculateCohortCourseCompetencyScores(cohortId) {
+    const response = await apiFetch(`/api/v1/student-cohorts/${cohortId}/course-competency-scores/recalculate`, {
+        method: 'POST',
+    });
+    return unwrapData(response, null);
+}
+
+export async function fetchCohortCourseCompetencyScoreSummary(cohortId) {
+    const response = await apiFetch(`/api/v1/student-cohorts/${cohortId}/course-competency-scores/summary`);
+    return unwrapData(response, []).map(mapCompetencyScoreSummary);
+}
