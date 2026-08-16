@@ -255,17 +255,19 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 			data.AvailableYear = append(data.AvailableYear, year)
 		}
 
-		// Requirements ตามหลักสูตรปัจจุบัน
-		curriculumID, err := s.Repo.GetCurrentCurriculumID(ctx, personID)
-		if err != nil {
-			return nil, err
-		}
-		if curriculumID != 0 {
-			requirements, err := s.Repo.GetRequirementsByCurriculum(ctx, curriculumID)
+		// Cohort targets supersede legacy Curriculum-level requirements.
+		if len(data.Progress) == 0 {
+			curriculumID, err := s.Repo.GetCurrentCurriculumID(ctx, personID)
 			if err != nil {
 				return nil, err
 			}
-			data.Requirements = requirements
+			if curriculumID != 0 {
+				requirements, err := s.Repo.GetRequirementsByCurriculum(ctx, curriculumID)
+				if err != nil {
+					return nil, err
+				}
+				data.Requirements = requirements
+			}
 		}
 
 	} else if category == "course" {
@@ -286,17 +288,19 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 			data.AvailableYear = append(data.AvailableYear, year)
 		}
 
-		// Requirements ตามหลักสูตรของนิสิต
-		curriculumID, err := s.Repo.GetCurrentCurriculumID(ctx, personID)
-		if err != nil {
-			return nil, err
-		}
-		if curriculumID != 0 {
-			requirements, err := s.Repo.GetRequirementsByCurriculum(ctx, curriculumID)
+		// Cohort targets supersede legacy Curriculum-level requirements.
+		if len(data.Progress) == 0 {
+			curriculumID, err := s.Repo.GetCurrentCurriculumID(ctx, personID)
 			if err != nil {
 				return nil, err
 			}
-			data.Requirements = requirements
+			if curriculumID != 0 {
+				requirements, err := s.Repo.GetRequirementsByCurriculum(ctx, curriculumID)
+				if err != nil {
+					return nil, err
+				}
+				data.Requirements = requirements
+			}
 		}
 	}
 
