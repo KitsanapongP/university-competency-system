@@ -78,6 +78,11 @@ const CompetencyRadarChart = ({
     const tooltipTitleColor = isDark ? '#f1f5f9' : '#0f172a';
     const tooltipBodyColor = isDark ? '#cbd5e1' : '#475569';
     const tooltipBorderColor = isDark ? '#475569' : '#e2e8f0';
+    const chartValueMax = Math.max(
+        100,
+        ...((chartData?.datasets || []).flatMap((dataset) => dataset.data || []).map(Number))
+    );
+    const chartScaleMax = Math.ceil(chartValueMax / 25) * 25;
 
     const radarOptions = {
         onClick: handleChartClick,
@@ -91,9 +96,9 @@ const CompetencyRadarChart = ({
             r: {
                 angleLines: { color: angleLineColor },
                 suggestedMin: 0,
-                suggestedMax: 100,
+                suggestedMax: chartScaleMax,
                 ticks: {
-                    stepSize: 25,
+                    stepSize: chartScaleMax / 4,
                     backdropColor: 'transparent',
                     color: tickColor,
                     font: { size: 10 }
