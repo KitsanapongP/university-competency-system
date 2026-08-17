@@ -9,6 +9,7 @@ import (
 // Core DB Models
 type Curriculum struct {
 	CurriculumID        uint64     `json:"curriculum_id"`
+	FacultyID           uint64     `json:"faculty_id"`
 	MajorID             uint64     `json:"major_id"`
 	MajorNameTH         string     `json:"major_name_th"`
 	MajorNameEN         *string    `json:"major_name_en"`

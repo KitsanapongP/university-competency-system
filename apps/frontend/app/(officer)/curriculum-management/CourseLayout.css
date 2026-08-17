@@ -26,6 +26,8 @@
     --course-tree-hover: #243044;
     --course-panel-selected-bg: #1e3a5f;
     --course-panel-selected-border: #3b82f6;
+    --course-panel-selected-text: #ffffff;
+    --course-panel-selected-text-muted: rgba(255, 255, 255, 0.72);
     --course-tree-name: #cbd5e1;
     --course-ss-header-bg: #151a27;
 }
@@ -53,6 +55,8 @@
     --course-tree-hover: #f1f5f9;
     --course-panel-selected-bg: #eff6ff;
     --course-panel-selected-border: #3b82f6;
+    --course-panel-selected-text: #1d4ed8;
+    --course-panel-selected-text-muted: #3b82f6;
     --course-tree-name: #475569;
     --course-ss-header-bg: #f1f5f9;
 }
