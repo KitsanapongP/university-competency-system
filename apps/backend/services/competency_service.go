@@ -250,12 +250,12 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 			TargetScore:      progress.TargetScore,
 			Passed:           progress.Passed,
 		}
-		if progressRows[comp.ID].TargetScore > 0 || progressRows[comp.ID].TargetScore == 0 && hasRequirement(progressRows, comp.ID) {
-			data.Requirements[comp.ID] = progress.TargetScore
+		if requirement, exists := progressRows[comp.ID]; exists {
+			data.Requirements[comp.ID] = requirement.TargetScore
 		}
 	}
 	data.Status.HasRequirements = len(progressRows) > 0
-	data.Status.HasScores = hasNonZeroProgress(progressRows)
+	data.Status.HasScores = hasAnyResult(progressRows)
 
 	if scope.CohortID == 0 {
 		data.Status.Code = "NO_ACTIVE_COHORT"
@@ -298,14 +298,9 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 	return data, nil
 }
 
-func hasRequirement(progress map[int64]repositories.LearnerCompetencyProgressRecord, competencyID int64) bool {
-	_, exists := progress[competencyID]
-	return exists
-}
-
-func hasNonZeroProgress(progress map[int64]repositories.LearnerCompetencyProgressRecord) bool {
+func hasAnyResult(progress map[int64]repositories.LearnerCompetencyProgressRecord) bool {
 	for _, item := range progress {
-		if item.CoreScore != 0 || item.CourseBonusScore != 0 || item.ActivityScore != 0 || item.AccumulatedScore != 0 {
+		if item.HasResult {
 			return true
 		}
 	}

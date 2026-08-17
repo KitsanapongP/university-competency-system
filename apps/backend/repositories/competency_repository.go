@@ -148,7 +148,6 @@ JOIN comp_competencies competency
 	AND competency.is_active = 1
 	AND competency.deleted_at IS NULL
 WHERE item.template_id = ?
-	AND item.course_id IS NOT NULL
 	AND item.is_active = 1
 	AND item.deleted_at IS NULL
 ORDER BY competency.competency_id`, scope.TemplateID)
@@ -443,6 +442,7 @@ type LearnerCompetencyProgressRecord struct {
 	AccumulatedScore float64
 	TargetScore      float64
 	Passed           bool
+	HasResult        bool
 }
 
 // GetLearnerCompetencyProgress returns the active Cohort's accumulated score
@@ -451,7 +451,8 @@ func (r *CompetencyRepository) GetLearnerCompetencyProgress(ctx context.Context,
 	rows, err := r.DB.QueryContext(ctx, `
 		SELECT requirement.competency_id, COALESCE(result.core_score, 0), COALESCE(result.course_bonus_score, 0),
 			COALESCE(result.activity_score, 0), COALESCE(result.final_score, 0), requirement.target_score,
-			CASE WHEN requirement.is_required = 0 OR COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) >= requirement.target_score THEN 1 ELSE 0 END
+			CASE WHEN requirement.is_required = 0 OR COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) >= requirement.target_score THEN 1 ELSE 0 END,
+			CASE WHEN result.competency_result_id IS NULL THEN 0 ELSE 1 END
 		FROM kku_enrollments enrollment
 		JOIN kku_enrollment_curricula cohortEnrollment ON cohortEnrollment.enrollment_id = enrollment.enrollment_id AND cohortEnrollment.deleted_at IS NULL
 		JOIN edu_student_cohorts cohort ON cohort.cohort_id = cohortEnrollment.cohort_id AND cohort.status = 'active' AND cohort.deleted_at IS NULL
@@ -467,7 +468,7 @@ func (r *CompetencyRepository) GetLearnerCompetencyProgress(ctx context.Context,
 	for rows.Next() {
 		var competencyID int64
 		var item LearnerCompetencyProgressRecord
-		if err := rows.Scan(&competencyID, &item.CoreScore, &item.CourseBonusScore, &item.ActivityScore, &item.AccumulatedScore, &item.TargetScore, &item.Passed); err != nil {
+		if err := rows.Scan(&competencyID, &item.CoreScore, &item.CourseBonusScore, &item.ActivityScore, &item.AccumulatedScore, &item.TargetScore, &item.Passed, &item.HasResult); err != nil {
 			return nil, err
 		}
 		if _, exists := progress[competencyID]; !exists {
