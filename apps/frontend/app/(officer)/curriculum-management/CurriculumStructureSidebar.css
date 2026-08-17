@@ -75,7 +75,7 @@
 .curriculum-structure-row--selected {
     background: var(--course-panel-selected-bg);
     border-color: var(--course-panel-selected-border);
-    color: #ffffff;
+    color: var(--course-panel-selected-text);
 }
 
 .curriculum-structure-row--selected:hover {
@@ -161,7 +161,7 @@
 }
 
 .curriculum-structure-row--selected .curriculum-structure-row__meta {
-    color: rgba(255, 255, 255, 0.72);
+    color: var(--course-panel-selected-text-muted);
 }
 
 .curriculum-structure-row__input {

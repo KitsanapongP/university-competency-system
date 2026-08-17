@@ -157,7 +157,7 @@
 .app-sidebar-shell {
     --app-sidebar-width: 270px;
     min-height: 100vh;
-    background: #0b0f17;
+    background: var(--bg);
 }
 
 .app-sidebar-shell--collapsed {
@@ -396,7 +396,7 @@
     width: calc(100% - var(--app-sidebar-width));
     min-height: 100vh;
     margin-left: var(--app-sidebar-width);
-    background: #0b0f17;
+    background: var(--bg);
 }
 
 .competency-app--sidebar .main-content-officer.main-content--sidebar {
