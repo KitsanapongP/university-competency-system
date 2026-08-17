@@ -38,11 +38,19 @@ type ActivityRecord struct {
 }
 
 type CourseRecord struct {
+	RecordID     int64
 	CourseID     int64
 	CompetencyID int64
 	CourseName   string
 	AcademicYear string // ปีการศึกษา (Buddhist Era)
 	Score        sql.NullFloat64
+}
+
+type LearnerDashboardScope struct {
+	CohortID     int64
+	TemplateID   int64
+	TemplateName string
+	Competencies []CompetencyRecord
 }
 
 func (r *CompetencyRepository) ResolvePersonID(ctx context.Context, userID int64) (int64, error) {
@@ -83,6 +91,87 @@ LIMIT 1
 		return 0, err
 	}
 	return curriculumID, nil
+}
+
+func (r *CompetencyRepository) GetLearnerDashboardScope(ctx context.Context, personID int64) (LearnerDashboardScope, error) {
+	var scope LearnerDashboardScope
+	var cohortID sql.NullInt64
+	var templateID sql.NullInt64
+	var templateName sql.NullString
+
+	err := r.DB.QueryRowContext(ctx, `
+SELECT cohort.cohort_id, template.template_id, template.name
+FROM kku_enrollments enrollment
+JOIN kku_enrollment_curricula enrollmentCurriculum
+	ON enrollmentCurriculum.enrollment_id = enrollment.enrollment_id
+	AND enrollmentCurriculum.is_current = 1
+	AND enrollmentCurriculum.deleted_at IS NULL
+JOIN edu_student_cohorts cohort
+	ON cohort.cohort_id = enrollmentCurriculum.cohort_id
+	AND cohort.status = 'active'
+	AND cohort.deleted_at IS NULL
+LEFT JOIN curri_template_assignments assignment
+	ON assignment.cohort_id = cohort.cohort_id
+	AND assignment.deleted_at IS NULL
+LEFT JOIN comp_templates template
+	ON template.template_id = assignment.template_id
+	AND template.is_active = 1
+	AND template.deleted_at IS NULL
+WHERE enrollment.person_id = ?
+	AND enrollment.deleted_at IS NULL
+ORDER BY cohort.entry_year_be DESC, assignment.assigned_at DESC
+LIMIT 1`, personID).Scan(&cohortID, &templateID, &templateName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return scope, nil
+		}
+		return scope, err
+	}
+	if cohortID.Valid {
+		scope.CohortID = cohortID.Int64
+	}
+	if templateID.Valid {
+		scope.TemplateID = templateID.Int64
+	}
+	if templateName.Valid {
+		scope.TemplateName = templateName.String
+	}
+	if scope.TemplateID == 0 {
+		return scope, nil
+	}
+
+	rows, err := r.DB.QueryContext(ctx, `
+SELECT DISTINCT competency.competency_id, competency.code, competency.name_th, competency.name_en
+FROM comp_template_items item
+JOIN comp_competencies competency
+	ON competency.competency_id = item.competency_id
+	AND competency.is_active = 1
+	AND competency.deleted_at IS NULL
+WHERE item.template_id = ?
+	AND item.course_id IS NOT NULL
+	AND item.is_active = 1
+	AND item.deleted_at IS NULL
+ORDER BY competency.competency_id`, scope.TemplateID)
+	if err != nil {
+		return scope, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var item CompetencyRecord
+		var nameEN sql.NullString
+		if err := rows.Scan(&item.ID, &item.Code, &item.NameTH, &nameEN); err != nil {
+			return scope, err
+		}
+		if nameEN.Valid {
+			item.NameEN = &nameEN.String
+		}
+		scope.Competencies = append(scope.Competencies, item)
+	}
+	if err := rows.Err(); err != nil {
+		return scope, err
+	}
+	return scope, nil
 }
 
 func (r *CompetencyRepository) GetCompetencies(ctx context.Context) ([]CompetencyRecord, error) {
@@ -298,10 +387,10 @@ FROM act_session_competencies sc
 JOIN comp_competencies c ON c.competency_id = sc.competency_id AND c.deleted_at IS NULL
 JOIN act_sessions s ON s.session_id = sc.session_id AND s.deleted_at IS NULL
 JOIN act_activities a ON a.activity_id = s.activity_id AND a.deleted_at IS NULL
-LEFT JOIN score_session_competency_scores scc
-  ON scc.session_competency_id = sc.session_competency_id
-  AND scc.person_id = ?
-  AND scc.deleted_at IS NULL
+JOIN score_session_competency_scores scc
+	ON scc.session_competency_id = sc.session_competency_id
+	AND scc.person_id = ?
+	AND scc.deleted_at IS NULL
 LEFT JOIN score_session_competency_results csr
   ON csr.score_id = scc.session_competency_score_id
   AND csr.deleted_at IS NULL
@@ -422,38 +511,38 @@ func scanCompetencyOption(scanner competencyScanner) (*models.CompetencyOption, 
 	return &item, nil
 }
 
-// เพิ่ม GetCoursesByPerson method ใน CompetencyRepository
 func (r *CompetencyRepository) GetCoursesByPerson(ctx context.Context, personID int64) ([]CourseRecord, error) {
 	rows, err := r.DB.QueryContext(ctx, `
-        SELECT
-            sc.section_competency_id,
-            sc.competency_id,
-            c.name_th,
-            cs.academic_year_be,
-            sc.max_percent,
-            COALESCE(scr.earned_percent, 0) AS earned_percent
-        FROM crs_section_enrollments se
-        JOIN crs_course_sections cs 
-            ON cs.section_id = se.section_id
-            AND cs.deleted_at IS NULL
-        JOIN crs_courses c 
-            ON c.course_id = cs.course_id
-            AND c.deleted_at IS NULL
-        JOIN crs_section_competencies sc 
-            ON sc.section_id = cs.section_id
-            AND sc.deleted_at IS NULL
-        LEFT JOIN score_section_competency_scores scs 
-            ON scs.section_competency_id = sc.section_competency_id
-            AND scs.person_id = ?
-            AND scs.deleted_at IS NULL
-        LEFT JOIN score_section_competency_results scr 
-            ON scr.score_id = scs.section_competency_score_id
-            AND scr.deleted_at IS NULL
-        WHERE se.person_id = ?
-            AND se.deleted_at IS NULL
-            AND se.status IN ('enrolled', 'completed')
-        ORDER BY cs.academic_year_be DESC, c.name_th ASC
-    `, personID, personID)
+SELECT
+	score.score_id,
+	grade.course_id,
+	score.competency_id,
+	course.name_th,
+	COALESCE(grade.academic_year_be, 0),
+	COALESCE(score.weighted_score, 0)
+FROM kku_enrollments enrollment
+JOIN kku_enrollment_curricula enrollmentCurriculum
+	ON enrollmentCurriculum.enrollment_id = enrollment.enrollment_id
+	AND enrollmentCurriculum.is_current = 1
+	AND enrollmentCurriculum.deleted_at IS NULL
+JOIN edu_student_cohorts cohort
+	ON cohort.cohort_id = enrollmentCurriculum.cohort_id
+	AND cohort.status = 'active'
+	AND cohort.deleted_at IS NULL
+JOIN crs_course_enrollment grade
+	ON grade.enrollment_id = enrollment.enrollment_id
+	AND grade.student_curricula_id = enrollmentCurriculum.enrollment_curriculum_id
+	AND grade.is_best_grade = 1
+	AND grade.deleted_at IS NULL
+JOIN crs_courses course
+	ON course.course_id = grade.course_id
+	AND course.deleted_at IS NULL
+JOIN score_course_competency_scores score
+	ON score.course_student_id = grade.course_student_id
+	AND score.deleted_at IS NULL
+WHERE enrollment.person_id = ?
+	AND enrollment.deleted_at IS NULL
+ORDER BY grade.academic_year_be DESC, course.name_th ASC, score.score_id`, personID)
 	if err != nil {
 		return nil, err
 	}
@@ -462,21 +551,20 @@ func (r *CompetencyRepository) GetCoursesByPerson(ctx context.Context, personID 
 	var items []CourseRecord
 	for rows.Next() {
 		var rec CourseRecord
-		var yearBE int
-		var maxPercent float64
-		var earnedPercent float64
+		var yearBE int64
+		var weightedScore float64
 		if err := rows.Scan(
+			&rec.RecordID,
 			&rec.CourseID,
 			&rec.CompetencyID,
 			&rec.CourseName,
 			&yearBE,
-			&maxPercent,
-			&earnedPercent,
+			&weightedScore,
 		); err != nil {
 			return nil, err
 		}
-		rec.AcademicYear = strconv.Itoa(yearBE)
-		rec.Score.Float64 = earnedPercent
+		rec.AcademicYear = strconv.FormatInt(yearBE, 10)
+		rec.Score.Float64 = weightedScore
 		rec.Score.Valid = true
 		items = append(items, rec)
 	}
