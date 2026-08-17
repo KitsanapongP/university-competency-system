@@ -241,6 +241,14 @@ func (r *CourseCompetencyScoringRepository) Recalculate(ctx context.Context, coh
 	if err := r.recomputeResults(ctx, tx, cohortID); err != nil {
 		return nil, err
 	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE edu_student_cohorts
+		SET course_scores_recalculation_required = 0,
+			course_scores_recalculated_at = NOW(),
+			updated_at = NOW()
+		WHERE cohort_id = ? AND deleted_at IS NULL`, cohortID); err != nil {
+		return nil, err
+	}
 	result.CalculatedStudents = len(students)
 	if err := tx.Commit(); err != nil {
 		return nil, err
