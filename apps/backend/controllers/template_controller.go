@@ -71,6 +71,28 @@ func writeTemplateCompetencyError(w http.ResponseWriter, err error) {
 	utils.JSON(w, status, utils.Envelope{"success": false, "error": errorData})
 }
 
+func writeTemplateDuplicateError(w http.ResponseWriter, err error) {
+	var domainErr *services.TemplateDuplicateError
+	if !errors.As(err, &domainErr) {
+		utils.Error(w, http.StatusInternalServerError, "SERVER_ERROR", err.Error())
+		return
+	}
+	status := http.StatusBadRequest
+	switch domainErr.Code {
+	case "FORBIDDEN":
+		status = http.StatusForbidden
+	case "NOT_FOUND":
+		status = http.StatusNotFound
+	case "TARGET_LINK_EXISTS", "CURRICULUM_INACTIVE":
+		status = http.StatusConflict
+	}
+	errorData := utils.Envelope{"code": domainErr.Code, "message": domainErr.Message}
+	if domainErr.Data != nil {
+		errorData["data"] = domainErr.Data
+	}
+	utils.JSON(w, status, utils.Envelope{"success": false, "error": errorData})
+}
+
 func resolveFacultyID(r *http.Request, claims *utils.Claims) uint64 {
 	if claims.FacultyID != nil && *claims.FacultyID > 0 {
 		return uint64(*claims.FacultyID)
@@ -117,6 +139,61 @@ func (c *TemplateController) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.OK(w, template)
+}
+
+func (c *TemplateController) PreviewDuplicate(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid template id")
+		return
+	}
+	facultyID, isAdmin, ok := templateCompetencyActor(w, r)
+	if !ok {
+		return
+	}
+	var req models.DuplicateTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json body")
+		return
+	}
+	preview, err := c.Service.PreviewTemplateDuplicate(r.Context(), id, facultyID, isAdmin, req)
+	if err != nil {
+		writeTemplateDuplicateError(w, err)
+		return
+	}
+	utils.OK(w, preview)
+}
+
+func (c *TemplateController) Duplicate(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid template id")
+		return
+	}
+	claims, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return
+	}
+	facultyID, isAdmin, ok := templateCompetencyActor(w, r)
+	if !ok {
+		return
+	}
+	var req models.DuplicateTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json body")
+		return
+	}
+	created, err := c.Service.DuplicateTemplate(r.Context(), id, uint64(claims.UserID), facultyID, isAdmin, req)
+	if err != nil {
+		writeTemplateDuplicateError(w, err)
+		return
+	}
+	utils.JSON(w, http.StatusCreated, utils.Envelope{
+		"success": true,
+		"message": "template duplicated successfully",
+		"data":    created,
+	})
 }
 
 func (c *TemplateController) Create(w http.ResponseWriter, r *http.Request) {

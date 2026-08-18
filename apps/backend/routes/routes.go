@@ -180,6 +180,8 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				tr.Post("/", templateHandler.Create)
 				tr.Route("/{id}", func(tir chi.Router) {
 					tir.Get("/", templateHandler.GetByID)
+					tir.Post("/duplicate-preview", templateHandler.PreviewDuplicate)
+					tir.Post("/duplicate", templateHandler.Duplicate)
 					tir.Patch("/", templateHandler.UpdateName)
 					tir.Patch("/status", templateHandler.UpdateStatus)
 					tir.Delete("/", templateHandler.Delete)
