@@ -202,3 +202,53 @@ type UpdateTemplateStatusRequest struct {
 type UpdateTemplateNameRequest struct {
 	Name string `json:"name"`
 }
+
+// DuplicateTemplateRequest describes a requested copy of an existing template.
+// The target curriculum owns the new template directly; cohort assignment is a
+// separate workflow and is intentionally not part of this request.
+type DuplicateTemplateRequest struct {
+	Name          string   `json:"name"`
+	CurriculumID  uint64   `json:"curriculum_id"`
+	CompetencyIDs []uint64 `json:"competency_ids"`
+}
+
+type CurriculumDuplicateReference struct {
+	CurriculumID  uint64 `json:"curriculum_id"`
+	FacultyID     uint64 `json:"faculty_id"`
+	Code          string `json:"code"`
+	NameTH        string `json:"name_th"`
+	NameEN        string `json:"name_en,omitempty"`
+	EffectiveYear uint64 `json:"effective_year_be"`
+	Status        string `json:"status"`
+}
+
+type TemplateDuplicateCourseImpact struct {
+	Code       string   `json:"code"`
+	NameTH     string   `json:"name_th"`
+	NameEN     string   `json:"name_en,omitempty"`
+	Competency []string `json:"competencies,omitempty"`
+}
+
+type TemplateDuplicateWarning struct {
+	Code       string `json:"code"`
+	Message    string `json:"message"`
+	Severity   string `json:"severity"`
+	CourseCode string `json:"course_code,omitempty"`
+	CourseName string `json:"course_name,omitempty"`
+	Competency string `json:"competency,omitempty"`
+}
+
+type TemplateDuplicatePreview struct {
+	SourceTemplate          *Template                     `json:"source_template"`
+	TargetCurriculum        *CurriculumDuplicateReference `json:"target_curriculum"`
+	SameCurriculum          bool                          `json:"same_curriculum"`
+	SelectedCompetencies    []TemplateCompetency          `json:"selected_competencies"`
+	NewCompetencies         []TemplateCompetency          `json:"new_competencies"`
+	RemovedCompetencies     []TemplateCompetency          `json:"removed_competencies"`
+	MappedCourseCount       int                           `json:"mapped_course_count"`
+	AdditionalCourseCount   int                           `json:"additional_course_count"`
+	AdditionalCategoryCount int                           `json:"additional_category_count"`
+	Warnings                []TemplateDuplicateWarning    `json:"warnings"`
+	HasWarnings             bool                          `json:"has_warnings"`
+	ReadyToCreate           bool                          `json:"ready_to_create"`
+}

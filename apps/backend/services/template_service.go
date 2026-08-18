@@ -22,6 +22,16 @@ type TemplateCompetencyError struct {
 	Data    any
 }
 
+type TemplateDuplicateError struct {
+	Code    string
+	Message string
+	Data    any
+}
+
+func (e *TemplateDuplicateError) Error() string {
+	return e.Message
+}
+
 func (e *TemplateCompetencyError) Error() string {
 	return e.Message
 }
@@ -36,6 +46,65 @@ func (s *TemplateService) GetTemplatesByFaculty(ctx context.Context, facultyID u
 
 func (s *TemplateService) GetTemplateByID(ctx context.Context, templateID uint64) (*models.Template, error) {
 	return s.Repo.GetTemplateByID(ctx, templateID)
+}
+
+func (s *TemplateService) prepareTemplateDuplicate(ctx context.Context, sourceID, facultyID uint64, isAdmin bool, req models.DuplicateTemplateRequest) (*models.TemplateDuplicatePreview, error) {
+	if strings.TrimSpace(req.Name) == "" {
+		return nil, &TemplateDuplicateError{Code: "BAD_REQUEST", Message: "template name is required"}
+	}
+	if req.CurriculumID == 0 {
+		return nil, &TemplateDuplicateError{Code: "BAD_REQUEST", Message: "target curriculum is required"}
+	}
+	if len(uniqueCompetencyIDs(req.CompetencyIDs)) == 0 {
+		return nil, &TemplateDuplicateError{Code: "BAD_REQUEST", Message: "at least one competency is required"}
+	}
+	source, err := s.Repo.GetTemplateByID(ctx, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	if source == nil {
+		return nil, &TemplateDuplicateError{Code: "NOT_FOUND", Message: "source template not found"}
+	}
+	if !isAdmin && (facultyID == 0 || source.FacultyID != facultyID) {
+		return nil, &TemplateDuplicateError{Code: "FORBIDDEN", Message: "you do not have access to this template"}
+	}
+	target, err := s.Repo.GetCurriculumDuplicateReference(ctx, req.CurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	if target == nil {
+		return nil, &TemplateDuplicateError{Code: "NOT_FOUND", Message: "target curriculum not found"}
+	}
+	if !isAdmin && target.FacultyID != facultyID {
+		return nil, &TemplateDuplicateError{Code: "FORBIDDEN", Message: "target curriculum is outside your faculty scope"}
+	}
+	if target.Status != "active" {
+		return nil, &TemplateDuplicateError{Code: "CURRICULUM_INACTIVE", Message: "target curriculum must be active"}
+	}
+
+	preview, err := s.Repo.PreviewTemplateDuplicate(ctx, sourceID, req)
+	if err != nil {
+		return nil, &TemplateDuplicateError{Code: "BAD_REQUEST", Message: err.Error()}
+	}
+	return preview, nil
+}
+
+func (s *TemplateService) PreviewTemplateDuplicate(ctx context.Context, sourceID, facultyID uint64, isAdmin bool, req models.DuplicateTemplateRequest) (*models.TemplateDuplicatePreview, error) {
+	return s.prepareTemplateDuplicate(ctx, sourceID, facultyID, isAdmin, req)
+}
+
+func (s *TemplateService) DuplicateTemplate(ctx context.Context, sourceID, userID, facultyID uint64, isAdmin bool, req models.DuplicateTemplateRequest) (*models.Template, error) {
+	if _, err := s.prepareTemplateDuplicate(ctx, sourceID, facultyID, isAdmin, req); err != nil {
+		return nil, err
+	}
+	created, err := s.Repo.DuplicateTemplate(ctx, sourceID, userID, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "uq_curri_tpl_cohort") {
+			return nil, &TemplateDuplicateError{Code: "TARGET_LINK_EXISTS", Message: "a template already exists for this curriculum and cohort year"}
+		}
+		return nil, err
+	}
+	return created, nil
 }
 
 func (s *TemplateService) CreateTemplate(ctx context.Context, facultyID uint64, userID uint64, req models.CreateTemplateRequest) (*models.Template, error) {

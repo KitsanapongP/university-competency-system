@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, RefreshCw, Settings, Settings2, SlidersHorizontal, BarChart3, Files } from 'lucide-react';
-import { fetchTemplates, deleteTemplate, updateTemplateStatus, updateTemplateName, fetchTemplateItems, fetchTemplateStructure, fetchTemplateCompetencies, updateTemplateCompetencies, createTemplate, saveTemplateItems } from '../../../lib/template';
+import { Plus, Pencil, Trash2, BookOpen, ArrowLeft, CalendarDays, BookOpenCheck, RefreshCw, Settings, Settings2, SlidersHorizontal, BarChart3, Files, Copy } from 'lucide-react';
+import { fetchTemplates, deleteTemplate, updateTemplateStatus, updateTemplateName, fetchTemplateItems, fetchTemplateStructure, fetchTemplateCompetencies, updateTemplateCompetencies, createTemplate, saveTemplateItems, previewDuplicateTemplate, duplicateTemplate } from '../../../lib/template';
 import { fetchCompetencies } from '../../../lib/competency';
 import { fetchCurriculumDetail } from '../../../lib/curriculum';
 import { useLanguage } from '../../../providers/LanguageContext';
@@ -144,7 +144,7 @@ function moveCourseToCategory(coursesByCategory, course, targetCategoryId, befor
 // ============================================================
 // TemplateCard — การ์ดแสดงใน list view
 // ============================================================
-function TemplateCard({ template, courseCount, onOpen, onDelete }) {
+function TemplateCard({ template, courseCount, onOpen, onDelete, onDuplicate }) {
     const courseMasterDisplay = template.masterData
         ? `${template.masterData.name || template.masterData.nameTh || template.masterData.curriculum_name_th || ''}`
         : null;
@@ -172,6 +172,13 @@ function TemplateCard({ template, courseCount, onOpen, onDelete }) {
             >
                 <Trash2 size={15}/>
             </button>
+            <button
+                className="icon-btn tpl-card__duplicate"
+                title="ทำสำเนาแบบแผนการประเมิน"
+                onClick={e => { e.stopPropagation(); onDuplicate(template); }}
+            >
+                <Copy size={15}/>
+            </button>
         </div>
     );
 }
@@ -198,6 +205,9 @@ export default function TemplateManagementPage() {
     const [draggedTemplateCourse, setDraggedTemplateCourse] = useState(null);
     const [dropTargetCategoryId, setDropTargetCategoryId] = useState(null);
     const [showTemplateModal, setShowTemplateModal] = useState(false);
+    const [templateModalMode, setTemplateModalMode] = useState('create');
+    const [duplicateSource, setDuplicateSource] = useState(null);
+    const [duplicateCompetencyIds, setDuplicateCompetencyIds] = useState([]);
     const [deletingTemplate,  setDeletingTemplate]  = useState(null);
     const [deletingCategory,  setDeletingCategory]  = useState(null);
     const [deletingCourse,    setDeletingCourse]    = useState(null);
@@ -536,7 +546,83 @@ export default function TemplateManagementPage() {
         setDropTargetCategoryId(null);
     }, []);
 
+    const handleOpenCreateTemplate = useCallback(() => {
+        setTemplateModalMode('create');
+        setDuplicateSource(null);
+        setDuplicateCompetencyIds([]);
+        setShowTemplateModal(true);
+    }, []);
+
     const handleRequestDeleteTemplate = useCallback((t) => setDeletingTemplate(t), []);
+
+    const handleRequestDuplicateTemplate = useCallback(async (template) => {
+        if (!template?.id) return;
+        try {
+            const response = await fetchTemplateCompetencies(template.id);
+            const competencies = response?.competencies || response?.data?.competencies || response?.data || response || [];
+            setDuplicateSource(template);
+            setDuplicateCompetencyIds((Array.isArray(competencies) ? competencies : [])
+                .map(comp => comp.id || comp.competency_id)
+                .filter(Boolean));
+            setTemplateModalMode('duplicate');
+            setShowTemplateModal(true);
+        } catch (error) {
+            showTemplateToast(
+                'error',
+                language === 'th' ? 'ไม่สามารถโหลด Competency ของแบบแผนต้นฉบับได้' : 'Unable to load source competencies.',
+                error?.message,
+            );
+        }
+    }, [language, showTemplateToast]);
+
+    const handlePreviewDuplicate = useCallback(async (payload) => {
+        if (!duplicateSource?.id) {
+            throw new Error(language === 'th' ? 'ไม่พบแบบแผนต้นฉบับ' : 'Source assessment plan was not found.');
+        }
+        return previewDuplicateTemplate(duplicateSource.id, payload);
+    }, [duplicateSource, language]);
+
+    const handleSaveDuplicate = useCallback(async (payload) => {
+        if (!duplicateSource?.id) return;
+        try {
+            const created = await duplicateTemplate(duplicateSource.id, payload);
+            const actualCreated = created?.data || created;
+            const createdID = actualCreated?.template_id || actualCreated?.id;
+            if (!createdID) throw new Error('duplicate template returned no template id');
+
+            const nextTemplate = {
+                ...actualCreated,
+                id: createdID,
+                name: actualCreated?.name || payload.name,
+                curriculum_id: actualCreated?.curriculum_id || payload.curriculum_id,
+                academicYear: actualCreated?.version_year_be || duplicateSource?.academicYear || '',
+                isActive: actualCreated?.is_active ?? false,
+                masterData: {
+                    id: payload.curriculum_id,
+                    name: actualCreated?.curriculum_name_th || duplicateSource?.masterData?.name || '',
+                    nameTh: actualCreated?.curriculum_name_th || duplicateSource?.masterData?.nameTh || '',
+                    year: actualCreated?.version_year_be || duplicateSource?.academicYear || '',
+                },
+            };
+            setTemplates(previous => [nextTemplate, ...previous.filter(item => item.id !== createdID)]);
+            setShowTemplateModal(false);
+            setTemplateModalMode('create');
+            setDuplicateSource(null);
+            setDuplicateCompetencyIds([]);
+            setSelectedTemplate(nextTemplate);
+            setSelectedCategory(null);
+            setShowAllCourses(true);
+            setEditorTab('setup');
+            setView('editor');
+            showTemplateToast('success', language === 'th' ? 'สร้างสำเนาแบบแผนสำเร็จ' : 'Assessment plan duplicated successfully.');
+        } catch (error) {
+            showTemplateToast(
+                'error',
+                language === 'th' ? 'ไม่สามารถสร้างสำเนาแบบแผนได้' : 'Unable to duplicate assessment plan.',
+                error?.message,
+            );
+        }
+    }, [duplicateSource, language, showTemplateToast]);
 
     const handleSaveTitle = useCallback(async () => {
         const trimmed = titleVal.trim();
@@ -1224,7 +1310,7 @@ export default function TemplateManagementPage() {
                             <p className="tpl-list-view__sub">เลือกแบบแผนการประเมินที่ต้องการแก้ไข หรือสร้างแบบแผนใหม่</p>
                         </div>
                         <div style={{ display: 'flex', gap: '0.75rem' }}>
-                            <button className="btn btn--primary" onClick={() => setShowTemplateModal(true)}>
+                            <button className="btn btn--primary" onClick={handleOpenCreateTemplate}>
                                 <Plus size={15}/> สร้างแบบแผนใหม่
                             </button>
                         </div>
@@ -1235,7 +1321,7 @@ export default function TemplateManagementPage() {
                         <div className="tpl-list-view__empty">
                             <BookOpenCheck size={48} opacity={0.2}/>
                             <p>ยังไม่มีแบบแผนการประเมิน — กดปุ่ม &quot;สร้างแบบแผนใหม่&quot; เพื่อเริ่ม</p>
-                            <button className="btn btn--primary" onClick={() => setShowTemplateModal(true)}>
+                            <button className="btn btn--primary" onClick={handleOpenCreateTemplate}>
                                 <Plus size={15}/> สร้างแบบแผนใหม่
                             </button>
                         </div>
@@ -1248,10 +1334,11 @@ export default function TemplateManagementPage() {
                                     courseCount={courseCountMap[t.id] ?? 0}
                                     onOpen={handleOpenTemplate}
                                     onDelete={handleRequestDeleteTemplate}
+                                    onDuplicate={handleRequestDuplicateTemplate}
                                 />
                             ))}
                             {/* + Create card */}
-                            <div className="tpl-card tpl-card--create" onClick={() => setShowTemplateModal(true)}>
+                            <div className="tpl-card tpl-card--create" onClick={handleOpenCreateTemplate}>
                                 <Plus size={28} opacity={0.4}/>
                                 <span>สร้างแบบแผนใหม่</span>
                             </div>
@@ -1261,10 +1348,20 @@ export default function TemplateManagementPage() {
                 {/* Modals */}
                 {showTemplateModal && (
                     <TemplateFormModal
-                        onClose={() => setShowTemplateModal(false)}
+                        onClose={() => {
+                            setShowTemplateModal(false);
+                            setTemplateModalMode('create');
+                            setDuplicateSource(null);
+                            setDuplicateCompetencyIds([]);
+                        }}
                         onSave={handleSaveTemplate}
+                        onPreviewDuplicate={handlePreviewDuplicate}
+                        onSaveDuplicate={handleSaveDuplicate}
+                        duplicateSource={templateModalMode === 'duplicate' ? duplicateSource : null}
+                        duplicateCompetencyIds={templateModalMode === 'duplicate' ? duplicateCompetencyIds : []}
                         allCompetencies={allCompetencies}
                         onRefreshCompetencies={loadCompetencies}
+                        language={language}
                     />
                 )}
                 {deletingTemplate && (
@@ -1299,6 +1396,7 @@ export default function TemplateManagementPage() {
             back: 'All assessment plans',
             reload: 'Reload',
             manageCompetencies: 'Manage competencies',
+            duplicate: 'Duplicate',
             fallbackCurriculum: 'Curriculum is not assigned',
             setup: 'Course setup',
             weight: 'Competency weights',
@@ -1308,6 +1406,7 @@ export default function TemplateManagementPage() {
             back: 'แบบแผนการประเมินทั้งหมด',
             reload: 'โหลดใหม่',
             manageCompetencies: 'จัดการสมรรถนะ',
+            duplicate: 'ทำสำเนา',
             fallbackCurriculum: 'ยังไม่กำหนดหลักสูตร',
             setup: 'ตั้งค่าวิชา',
             weight: 'ใส่น้ำหนักสมรรถนะ',
@@ -1360,6 +1459,9 @@ export default function TemplateManagementPage() {
                 <div className="editor-topbar__actions">
                     <button className="btn btn--ghost btn--sm" onClick={handleReloadEditor}>
                         <RefreshCw size={15}/> {editorCopy.reload}
+                    </button>
+                    <button className="btn btn--ghost btn--sm editor-topbar__duplicate" onClick={() => handleRequestDuplicateTemplate(selectedTemplate)}>
+                        <Copy size={14}/> {editorCopy.duplicate}
                     </button>
                     <button className="btn btn--primary btn--sm" onClick={handleOpenCompetencyManager}>
                         <Settings2 size={15}/> {editorCopy.manageCompetencies}

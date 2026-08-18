@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search, ExternalLink, RefreshCw } from 'lucide-react';
+import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search, ExternalLink, RefreshCw, AlertTriangle, CheckCircle2, Copy } from 'lucide-react';
 import { fetchCurriculums, fetchCurriculumDetail } from '../../../../lib/curriculum';
 import { useLanguage } from '../../../../providers/LanguageContext';
 
@@ -31,7 +31,7 @@ function StepIndicator({ step, labels }) {
 // ============================================================
 // CourseMasterTree — แสดง category/course ของ master
 // ============================================================
-function CourseMasterTree({ categories, depth = 0 }) {
+function CourseMasterTree({ categories, depth = 0, language = 'th' }) {
     const [expanded, setExpanded] = useState({});
     const toggle = (id) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
@@ -57,7 +57,7 @@ function CourseMasterTree({ categories, depth = 0 }) {
                             <span className="master-cat-row__code">{cat.code}</span>
                             <span className="master-cat-row__name">{cat.name}</span>
                             {hasCourses && (
-                                <span className="master-cat-row__badge">{cat.courses.length} วิชา</span>
+                                <span className="master-cat-row__badge">{cat.courses.length} {language === 'th' ? 'วิชา' : 'courses'}</span>
                             )}
                         </div>
 
@@ -68,11 +68,11 @@ function CourseMasterTree({ categories, depth = 0 }) {
                                         style={{ paddingLeft: `${1.25 + depth * 0.875}rem` }}>
                                         <span className="master-course-row__code">{course.code}</span>
                                         <span className="master-course-row__name">{course.nameTh || course.nameEn}</span>
-                                        <span className="master-course-row__credits">{course.credits} น.</span>
+                                        <span className="master-course-row__credits">{course.credits} {language === 'th' ? 'น.' : 'cr.'}</span>
                                     </div>
                                 ))}
                                 {hasChildren && (
-                                    <CourseMasterTree categories={cat.children} depth={depth + 1}/>
+                                    <CourseMasterTree categories={cat.children} depth={depth + 1} language={language}/>
                                 )}
                             </>
                         )}
@@ -86,9 +86,30 @@ function CourseMasterTree({ categories, depth = 0 }) {
 // ============================================================
 // Step 1 — ข้อมูลหลักสูตร + เลือก Curriculum Master
 // ============================================================
-function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false }) {
+function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false, language = 'th' }) {
     const [search, setSearch] = useState('');
-    const [previewId, setPreviewId] = useState(null);
+    const [previewId, setPreviewId] = useState(form.masterId || null);
+    const copy = language === 'th'
+        ? {
+            name: 'ชื่อแบบแผนการประเมิน',
+            namePlaceholder: 'เช่น แบบแผนการประเมินวิทยาการคอมพิวเตอร์',
+            curriculum: 'หลักสูตร',
+            hint: 'แบบแผนการประเมินจะเป็นของหลักสูตรที่เลือก และกำหนดให้รุ่นนักศึกษาในภายหลัง',
+            search: 'ค้นหาหลักสูตร...',
+            loading: 'กำลังโหลดรายชื่อหลักสูตรจากระบบ...',
+            year: 'ปี',
+            empty: 'ไม่พบหลักสูตรที่ตรงกับการค้นหา',
+        }
+        : {
+            name: 'Assessment plan name',
+            namePlaceholder: 'e.g. Computer Science assessment plan',
+            curriculum: 'Curriculum',
+            hint: 'This assessment plan belongs to the selected curriculum and can be assigned to a cohort later.',
+            search: 'Search curricula...',
+            loading: 'Loading curricula...',
+            year: 'Year',
+            empty: 'No curricula match your search',
+        };
 
     const filtered = masters.filter(m =>
         (m.nameTh && m.nameTh.toLowerCase().includes(search.toLowerCase())) ||
@@ -125,18 +146,18 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
         <div className="tfm-step1">
             {/* ชื่อ */}
             <div className="cfm-field">
-                <label className="cfm-label">ชื่อแบบแผนการประเมิน <span className="cfm-required">*</span></label>
+                <label className="cfm-label">{copy.name} <span className="cfm-required">*</span></label>
                 <input className="cfm-input" autoFocus
                     value={form.name}
                     onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                    placeholder="เช่น หลักสูตรวิทยาการคอมพิวเตอร์"
+                    placeholder={copy.namePlaceholder}
                 />
             </div>
 
             {/* เลือก Curriculum Master */}
             <div className="cfm-field" style={{ marginTop: '1.25rem' }}>
-                <label className="cfm-label">หลักสูตร <span className="cfm-required">*</span></label>
-                <p className="tfm-hint">แบบแผนการประเมินจะเป็นของหลักสูตรที่เลือก และกำหนดให้รุ่นนักศึกษาในภายหลัง</p>
+                <label className="cfm-label">{copy.curriculum} <span className="cfm-required">*</span></label>
+                <p className="tfm-hint">{copy.hint}</p>
             </div>
 
             {/* Search */}
@@ -144,7 +165,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                 <Search size={14} className="tfm-search-icon"/>
                 <input className="tfm-search" value={search}
                     onChange={e => setSearch(e.target.value)}
-                    placeholder="ค้นหาหลักสูตร..."/>
+                    placeholder={copy.search}/>
             </div>
 
             <div className="tfm-master-layout">
@@ -174,7 +195,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                     <div className="tfm-master-list" aria-label="รายการหลักสูตร">
                         {loadingMasters && (
                         <div style={{ padding: '1.5rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
-                            กำลังโหลดรายชื่อหลักสูตรจากระบบ...
+                            {copy.loading}
                         </div>
                         )}
                         {!loadingMasters && filtered.map(m => (
@@ -190,7 +211,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                                     {m.nameTh}
                                 </div>
                                 <div className={`tfm-master-card__meta ${form.masterId === m.id ? 'tfm-master-card__meta--selected' : ''}`}>
-                                    {m.degreeName ? `${m.degreeName} • ` : ''}ปี {m.year}
+                                    {m.degreeName ? `${m.degreeName} • ` : ''}{copy.year} {m.year}
                                 </div>
                             </div>
                             {form.masterId === m.id && <Check size={16} className="tfm-master-card__check"/>}
@@ -198,7 +219,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                         ))}
                         {!loadingMasters && filtered.length === 0 && (
                             <div className="tfm-master-list__empty">
-                                ไม่พบหลักสูตรที่ตรงกับการค้นหา
+                                {copy.empty}
                             </div>
                         )}
                     </div>
@@ -211,13 +232,13 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                             <span>{preview.nameTh} ({preview.year})</span>
                         </div>
                         <div className="tfm-preview-body">
-                            <CourseMasterTree categories={preview.categories}/>
+                            <CourseMasterTree categories={preview.categories} language={language}/>
                         </div>
                     </div>
                 ) : (
                     <div className="tfm-master-preview tfm-master-preview--empty">
                         <BookOpenCheck size={28} opacity={0.2}/>
-                        <span>เลือก Curriculum Master เพื่อดูตัวอย่าง</span>
+                        <span>{language === 'th' ? 'เลือกหลักสูตรเพื่อดูตัวอย่าง' : 'Select a curriculum to preview'}</span>
                     </div>
                 )}
             </div>
@@ -414,19 +435,94 @@ function Step2({ form, setForm, allCompetencies, onRefreshCompetencies }) {
     );
 }
 
+function DuplicatePreview({ preview, language = 'th' }) {
+    const isThai = language === 'th';
+    const warningLabels = {
+        SOURCE_COURSE_MISSING: isThai ? 'วิชาจากแบบแผนเดิมไม่มีในหลักสูตรใหม่' : 'Source course is missing from the target curriculum',
+        TARGET_COURSE_UNMAPPED: isThai ? 'วิชาในหลักสูตรใหม่ยังไม่มี Competency จากแบบแผนเดิม' : 'Target course has no competency mapping from the source',
+        REMOVED_COMPETENCY_MAPPING: isThai ? 'การเอา Competency ออกจะล้างน้ำหนักของวิชานี้' : 'Removing this competency will clear this course weight',
+        NEW_COMPETENCY_NO_WEIGHT: isThai ? 'Competency ใหม่ยังไม่มีน้ำหนักรายวิชา' : 'New competency has no copied course weight',
+    };
+    const warningText = (warning) => {
+        const label = warningLabels[warning.code] || warning.message;
+        const course = warning.course_code
+            ? `${warning.course_code}${warning.course_name ? ` · ${warning.course_name}` : ''}`
+            : '';
+        const comp = warning.competency ? ` · ${warning.competency}` : '';
+        return `${label}${course ? `: ${course}` : ''}${comp}`;
+    };
+
+    if (!preview) {
+        return <div className="tfm-duplicate-preview__empty">{isThai ? 'ยังไม่มีข้อมูล Preview' : 'No preview is available.'}</div>;
+    }
+
+    return (
+        <div className="tfm-duplicate-preview">
+            <div className={`tfm-duplicate-preview__result ${preview.has_warnings ? 'tfm-duplicate-preview__result--warning' : 'tfm-duplicate-preview__result--success'}`}>
+                {preview.has_warnings ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
+                <div>
+                    <strong>{preview.has_warnings
+                        ? (isThai ? 'พบประเด็นที่ควรตรวจสอบ' : 'Please review these items')
+                        : (isThai ? 'ไม่พบปัญหาใด ๆ' : 'No issues found')}</strong>
+                    <span>{preview.same_curriculum
+                        ? (isThai ? 'คัดลอกไปยังหลักสูตรเดิม' : 'Copying to the same curriculum')
+                        : (isThai ? 'คัดลอกไปยังหลักสูตรใหม่ โดยเทียบจากรหัสวิชา' : 'Copying to a new curriculum by course code')}</span>
+                </div>
+            </div>
+
+            <div className="tfm-duplicate-preview__stats">
+                <div><span>{isThai ? 'วิชาที่คัดลอกน้ำหนัก' : 'Mapped courses'}</span><strong>{preview.mapped_course_count ?? 0}</strong></div>
+                <div><span>{isThai ? 'วิชาเพิ่มเฉพาะแบบแผน' : 'Additional courses'}</span><strong>{preview.additional_course_count ?? 0}</strong></div>
+                <div><span>{isThai ? 'หมวดเพิ่มเฉพาะแบบแผน' : 'Additional categories'}</span><strong>{preview.additional_category_count ?? 0}</strong></div>
+            </div>
+
+            {preview.warnings?.length > 0 && (
+                <div className="tfm-duplicate-preview__warnings" role="status">
+                    <h4>{isThai ? 'รายการที่ควรตรวจสอบ' : 'Items to review'}</h4>
+                    <ul>
+                        {preview.warnings.map((warning, index) => (
+                            <li key={`${warning.code}-${index}`}>{warningText(warning)}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            <div className="tfm-duplicate-preview__note">
+                {isThai
+                    ? 'แบบแผนใหม่จะเริ่มเป็นสถานะไม่พร้อมใช้งาน และจะไม่คัดลอกการเชื่อมรุ่นหรือคะแนนผู้เรียน'
+                    : 'The new assessment plan starts inactive. Cohort assignments and learner scores are not copied.'}
+            </div>
+        </div>
+    );
+}
+
 // ============================================================
 // TemplateFormModal — main export
 // ============================================================
-export default function TemplateFormModal({ onClose, onSave, allCompetencies = [], onRefreshCompetencies }) {
+export default function TemplateFormModal({
+    onClose,
+    onSave,
+    onPreviewDuplicate,
+    onSaveDuplicate,
+    duplicateSource = null,
+    duplicateCompetencyIds = [],
+    allCompetencies = [],
+    onRefreshCompetencies,
+    language = 'th',
+}) {
     const { t } = useLanguage();
+    const isDuplicate = Boolean(duplicateSource);
     const [step, setStep] = useState(1);
     const [form, setForm] = useState({
-        name:          '',
-        masterId:      null,
-        competencyIds: new Set(),
+        name: isDuplicate ? `สำเนา - ${duplicateSource.name || ''}` : '',
+        masterId: duplicateSource?.curriculum_id || duplicateSource?.curriculumId || duplicateSource?.masterData?.id || null,
+        competencyIds: new Set(duplicateCompetencyIds),
     });
     const [masters, setMasters] = useState([]);
     const [loadingMasters, setLoadingMasters] = useState(true);
+    const [duplicatePreview, setDuplicatePreview] = useState(null);
+    const [duplicatePreviewLoading, setDuplicatePreviewLoading] = useState(false);
+    const [duplicatePreviewError, setDuplicatePreviewError] = useState('');
 
     useEffect(() => {
         fetchCurriculums()
@@ -436,7 +532,6 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
                 setMasters([]);
             })
             .finally(() => setLoadingMasters(false));
-
     }, []);
 
     const canNext = step === 1
@@ -446,26 +541,71 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
     const handleSave = () => {
         if (!canNext) return;
         const master = masters.find(m => m.id === form.masterId) ?? null;
-        onSave({
-            name:              form.name.trim(),
-            masterId:          form.masterId,
-            masterData:        master,
-            competencyIds:     [...form.competencyIds],
+        if (!isDuplicate) {
+            onSave?.({
+                name: form.name.trim(),
+                masterId: form.masterId,
+                masterData: master,
+                competencyIds: [...form.competencyIds],
+            });
+            return;
+        }
+
+        setDuplicatePreview(null);
+        setDuplicatePreviewError('');
+        setDuplicatePreviewLoading(true);
+        Promise.resolve(onPreviewDuplicate?.({
+            name: form.name.trim(),
+            curriculum_id: form.masterId,
+            competency_ids: [...form.competencyIds],
+        }))
+            .then(preview => {
+                setDuplicatePreview(preview);
+                setStep(3);
+            })
+            .catch(error => setDuplicatePreviewError(
+                error?.message || (language === 'th' ? 'ไม่สามารถสร้าง Preview ได้' : 'Unable to create preview.'),
+            ))
+            .finally(() => setDuplicatePreviewLoading(false));
+    };
+
+    const handleCreateDuplicate = () => {
+        if (!duplicatePreview || duplicatePreviewLoading || !onSaveDuplicate) return;
+        onSaveDuplicate({
+            name: form.name.trim(),
+            curriculum_id: form.masterId,
+            competency_ids: [...form.competencyIds],
         });
     };
+
+    const title = isDuplicate
+        ? (language === 'th' ? 'ทำสำเนาแบบแผนการประเมิน' : 'Duplicate assessment plan')
+        : t('template_create_title');
+    const labels = isDuplicate
+        ? (language === 'th' ? ['ข้อมูลแบบแผน', 'เลือก Competency', 'ตรวจสอบ'] : ['Plan details', 'Choose competencies', 'Review'])
+        : [t('template_step_curriculum'), t('template_step_competency')];
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-box modal-box--tfm" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <h3>{t('template_create_title')}</h3>
+                    <h3>{title}</h3>
                     <button className="modal-close" onClick={onClose}><X size={18}/></button>
                 </div>
                 <div style={{ padding: '0.75rem 1.5rem 0' }}>
-                    <StepIndicator step={step} labels={[t('template_step_curriculum'), t('template_step_competency')]}/>
+                    <StepIndicator step={step} labels={labels}/>
                 </div>
                 <div className="modal-body tfm-body">
-                    {step === 1 && <Step1 form={form} setForm={setForm} masters={masters} setMasters={setMasters} loadingMasters={loadingMasters}/>}
+                    {step === 1 && (
+                        <Step1
+                            form={form}
+                            setForm={setForm}
+                            masters={masters}
+                            setMasters={setMasters}
+                            loadingMasters={loadingMasters}
+                            language={language}
+                        />
+                    )}
                     {step === 2 && (
                         <Step2
                             form={form}
@@ -474,15 +614,25 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
                             onRefreshCompetencies={onRefreshCompetencies}
                         />
                     )}
+                    {isDuplicate && step === 3 && <DuplicatePreview preview={duplicatePreview} language={language} />}
+                    {duplicatePreviewError && <div className="tfm-duplicate-preview__error" role="alert">{duplicatePreviewError}</div>}
                 </div>
                 <div className="modal-footer">
                     {step === 1
                         ? <button className="btn btn--ghost" onClick={onClose}>{t('template_cancel')}</button>
-                        : <button className="btn btn--ghost" onClick={() => setStep(1)}>← {t('template_back')}</button>
+                        : <button className="btn btn--ghost" onClick={() => setStep(step === 3 ? 2 : 1)}>← {t('template_back')}</button>
                     }
                     {step === 1
                         ? <button className="btn btn--primary" disabled={!canNext} onClick={() => setStep(2)}>{t('template_next')} →</button>
-                        : <button className="btn btn--primary" disabled={!canNext} onClick={handleSave}><Check size={15}/> {t('template_create_action')}</button>
+                        : step === 2
+                            ? <button className="btn btn--primary" disabled={!canNext || duplicatePreviewLoading} onClick={handleSave}>
+                                {duplicatePreviewLoading
+                                    ? (language === 'th' ? 'กำลังตรวจสอบ...' : 'Checking...')
+                                    : (isDuplicate ? `${t('template_next')} →` : <><Check size={15}/> {t('template_create_action')}</>)}
+                            </button>
+                            : <button className="btn btn--primary" disabled={duplicatePreviewLoading || !duplicatePreview || duplicatePreview.ready_to_create === false} onClick={handleCreateDuplicate}>
+                                <Copy size={15}/> {language === 'th' ? 'สร้างแบบแผน' : 'Create assessment plan'}
+                            </button>
                     }
                 </div>
             </div>

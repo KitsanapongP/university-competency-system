@@ -127,6 +127,523 @@ func (r *TemplateRepository) GetTemplateByID(ctx context.Context, templateID uin
 	return &t, nil
 }
 
+type templateDuplicateCourseRef struct {
+	ID         uint64
+	Code       string
+	NameTH     string
+	NameEN     string
+	CategoryID uint64
+}
+
+type templateDuplicateCategoryRef struct {
+	ID     uint64
+	Code   string
+	NameTH string
+}
+
+type templateDuplicateMapping struct {
+	Item             models.TemplateItem
+	TargetCourseID   uint64
+	SourceCourseCode string
+}
+
+type templateDuplicatePlan struct {
+	Source               *models.Template
+	Target               *models.CurriculumDuplicateReference
+	SelectedCompetencies []models.TemplateCompetency
+	NewCompetencies      []models.TemplateCompetency
+	RemovedCompetencies  []models.TemplateCompetency
+	SourceItems          []models.TemplateItem
+	SourceCategories     []models.TemplateCategory
+	SourceCourses        []models.TemplateCourse
+	Mappings             []templateDuplicateMapping
+	TargetCourses        []templateDuplicateCourseRef
+	TargetCategories     map[string]templateDuplicateCategoryRef
+	SourceCategoriesByID map[uint64]templateDuplicateCategoryRef
+	Warnings             []models.TemplateDuplicateWarning
+}
+
+func (r *TemplateRepository) GetCurriculumDuplicateReference(ctx context.Context, curriculumID uint64) (*models.CurriculumDuplicateReference, error) {
+	var reference models.CurriculumDuplicateReference
+	var nameEN sql.NullString
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT c.curriculum_id, d.faculty_id, COALESCE(c.code, ''), c.name_th,
+		       c.name_en, c.effective_year_be, c.status
+		FROM edu_curricula c
+		JOIN edu_majors m ON m.major_id = c.major_id AND m.deleted_at IS NULL
+		JOIN org_departments d ON d.department_id = m.department_id AND d.deleted_at IS NULL
+		WHERE c.curriculum_id = ? AND c.deleted_at IS NULL
+	`, curriculumID).Scan(
+		&reference.CurriculumID,
+		&reference.FacultyID,
+		&reference.Code,
+		&reference.NameTH,
+		&nameEN,
+		&reference.EffectiveYear,
+		&reference.Status,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if nameEN.Valid {
+		reference.NameEN = nameEN.String
+	}
+	return &reference, nil
+}
+
+func (r *TemplateRepository) getTemplateDuplicateCourseRefs(ctx context.Context, curriculumID uint64) ([]templateDuplicateCourseRef, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT DISTINCT course.course_id, course.code, course.name_th,
+		       COALESCE(course.name_en, ''), cc.category_id
+		FROM crs_curriculum_courses cc
+		JOIN crs_course_categories cat ON cat.category_id = cc.category_id
+		JOIN crs_courses course ON course.course_id = cc.course_id
+		WHERE cat.curriculum_id = ?
+		  AND cat.is_active = 1 AND cat.deleted_at IS NULL
+		  AND cc.is_active = 1 AND cc.deleted_at IS NULL
+		  AND course.deleted_at IS NULL
+		  AND course.curriculum_id = cat.curriculum_id
+		ORDER BY course.code, course.course_id
+	`, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	refs := []templateDuplicateCourseRef{}
+	for rows.Next() {
+		var ref templateDuplicateCourseRef
+		if err := rows.Scan(&ref.ID, &ref.Code, &ref.NameTH, &ref.NameEN, &ref.CategoryID); err != nil {
+			return nil, err
+		}
+		refs = append(refs, ref)
+	}
+	return refs, rows.Err()
+}
+
+func (r *TemplateRepository) getTemplateDuplicateCategoryRefs(ctx context.Context, curriculumID uint64) (map[uint64]templateDuplicateCategoryRef, map[string]templateDuplicateCategoryRef, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT category_id, COALESCE(code, ''), name_th
+		FROM crs_course_categories
+		WHERE curriculum_id = ? AND is_active = 1 AND deleted_at IS NULL
+		ORDER BY display_order, category_id
+	`, curriculumID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	byID := map[uint64]templateDuplicateCategoryRef{}
+	byCode := map[string]templateDuplicateCategoryRef{}
+	for rows.Next() {
+		var ref templateDuplicateCategoryRef
+		if err := rows.Scan(&ref.ID, &ref.Code, &ref.NameTH); err != nil {
+			return nil, nil, err
+		}
+		byID[ref.ID] = ref
+		if ref.Code != "" {
+			byCode[strings.ToLower(strings.TrimSpace(ref.Code))] = ref
+		}
+	}
+	return byID, byCode, rows.Err()
+}
+
+func duplicateCourseKey(code string) string {
+	return strings.ToLower(strings.TrimSpace(code))
+}
+
+func (r *TemplateRepository) buildTemplateDuplicatePlan(ctx context.Context, sourceID uint64, req models.DuplicateTemplateRequest) (*templateDuplicatePlan, error) {
+	source, err := r.GetTemplateByID(ctx, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	if source == nil {
+		return nil, fmt.Errorf("source template not found")
+	}
+	target, err := r.GetCurriculumDuplicateReference(ctx, req.CurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	if target == nil {
+		return nil, fmt.Errorf("target curriculum not found")
+	}
+	if target.Status != "active" {
+		return nil, fmt.Errorf("target curriculum must be active")
+	}
+	items, err := r.GetTemplateItems(ctx, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	categories, err := r.GetTemplateCategories(ctx, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	courses, err := r.GetTemplateCourses(ctx, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	sourceCompetencies, err := r.GetTemplateCompetencies(ctx, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.ValidateActiveCompetencyIDs(ctx, req.CompetencyIDs); err != nil {
+		return nil, fmt.Errorf("one or more selected competencies are unavailable")
+	}
+
+	selectedIDs := uniqueIDs(req.CompetencyIDs)
+	selectedSet := make(map[uint64]struct{}, len(selectedIDs))
+	for _, id := range selectedIDs {
+		selectedSet[id] = struct{}{}
+	}
+	selectedCompetencies := make([]models.TemplateCompetency, 0, len(selectedIDs))
+	for _, competency := range sourceCompetencies {
+		if _, ok := selectedSet[competency.CompetencyID]; ok {
+			selectedCompetencies = append(selectedCompetencies, competency)
+		}
+	}
+	for _, id := range selectedIDs {
+		found := false
+		for _, competency := range selectedCompetencies {
+			if competency.CompetencyID == id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			comp, err := r.getCompetencyByID(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			selectedCompetencies = append(selectedCompetencies, comp)
+		}
+	}
+
+	sourceSet := make(map[uint64]models.TemplateCompetency, len(sourceCompetencies))
+	for _, competency := range sourceCompetencies {
+		sourceSet[competency.CompetencyID] = competency
+	}
+	newCompetencies := []models.TemplateCompetency{}
+	removedCompetencies := []models.TemplateCompetency{}
+	for _, competency := range selectedCompetencies {
+		if _, exists := sourceSet[competency.CompetencyID]; !exists {
+			newCompetencies = append(newCompetencies, competency)
+		}
+	}
+	for _, competency := range sourceCompetencies {
+		if _, kept := selectedSet[competency.CompetencyID]; !kept {
+			removedCompetencies = append(removedCompetencies, competency)
+		}
+	}
+
+	sourceCourseRefs, err := r.getTemplateDuplicateCourseRefs(ctx, source.CurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	targetCourseRefs, err := r.getTemplateDuplicateCourseRefs(ctx, req.CurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	targetByCode := map[string]templateDuplicateCourseRef{}
+	for _, course := range targetCourseRefs {
+		targetByCode[duplicateCourseKey(course.Code)] = course
+	}
+	sourceCourseByID := map[uint64]templateDuplicateCourseRef{}
+	for _, course := range sourceCourseRefs {
+		sourceCourseByID[course.ID] = course
+	}
+	sourceCustomCourseByID := map[uint64]models.TemplateCourse{}
+	for _, course := range courses {
+		sourceCustomCourseByID[course.TemplateCourseID] = course
+	}
+
+	warnings := []models.TemplateDuplicateWarning{}
+	warnedMissingSource := map[string]bool{}
+	warnedMissingTarget := map[string]bool{}
+	mappings := []templateDuplicateMapping{}
+	mappedTargetCodes := map[string]bool{}
+	for _, item := range items {
+		if item.CourseID == nil {
+			continue
+		}
+		if _, selected := selectedSet[item.CompetencyID]; !selected {
+			if _, removed := sourceSet[item.CompetencyID]; removed {
+				courseCode := item.CourseCode
+				courseName := item.CourseNameTH
+				if item.IsCustomCourse {
+					if custom, ok := sourceCustomCourseByID[*item.CourseID]; ok {
+						courseCode, courseName = custom.Code, custom.NameTH
+					}
+				}
+				key := fmt.Sprintf("%s:%d", duplicateCourseKey(courseCode), item.CompetencyID)
+				if !warnedMissingSource[key] {
+					warnings = append(warnings, models.TemplateDuplicateWarning{
+						Code: "REMOVED_COMPETENCY_MAPPING", Severity: "warning", CourseCode: courseCode,
+						CourseName: courseName, Competency: sourceSet[item.CompetencyID].NameTH,
+						Message: "removing this competency will remove its course weight",
+					})
+					warnedMissingSource[key] = true
+				}
+			}
+			continue
+		}
+
+		if item.IsCustomCourse {
+			custom, ok := sourceCustomCourseByID[*item.CourseID]
+			if ok {
+				mappings = append(mappings, templateDuplicateMapping{Item: item, SourceCourseCode: custom.Code})
+			}
+			continue
+		}
+
+		ref, ok := sourceCourseByID[*item.CourseID]
+		if !ok {
+			ref = templateDuplicateCourseRef{ID: *item.CourseID, Code: item.CourseCode, NameTH: item.CourseNameTH}
+		}
+		targetCourse, exists := targetByCode[duplicateCourseKey(ref.Code)]
+		if !exists {
+			key := duplicateCourseKey(ref.Code)
+			if !warnedMissingTarget[key] {
+				warnings = append(warnings, models.TemplateDuplicateWarning{
+					Code: "SOURCE_COURSE_MISSING", Severity: "warning", CourseCode: ref.Code,
+					CourseName: ref.NameTH, Message: "this source course is not in the target curriculum",
+				})
+				warnedMissingTarget[key] = true
+			}
+			continue
+		}
+		mappings = append(mappings, templateDuplicateMapping{Item: item, TargetCourseID: targetCourse.ID, SourceCourseCode: ref.Code})
+		mappedTargetCodes[duplicateCourseKey(targetCourse.Code)] = true
+	}
+	for _, targetCourse := range targetCourseRefs {
+		if !mappedTargetCodes[duplicateCourseKey(targetCourse.Code)] {
+			warnings = append(warnings, models.TemplateDuplicateWarning{
+				Code: "TARGET_COURSE_UNMAPPED", Severity: "warning", CourseCode: targetCourse.Code,
+				CourseName: targetCourse.NameTH, Message: "this target course has no competency mapping from the source template",
+			})
+		}
+	}
+	for _, competency := range newCompetencies {
+		warnings = append(warnings, models.TemplateDuplicateWarning{
+			Code: "NEW_COMPETENCY_NO_WEIGHT", Severity: "warning", Competency: competency.NameTH,
+			Message: "this competency is selected but has no copied course weight",
+		})
+	}
+
+	sourceCategoryByID, _, err := r.getTemplateDuplicateCategoryRefs(ctx, source.CurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	_, targetCategoryByCode, err := r.getTemplateDuplicateCategoryRefs(ctx, req.CurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	return &templateDuplicatePlan{
+		Source: source, Target: target, SelectedCompetencies: selectedCompetencies,
+		NewCompetencies: newCompetencies, RemovedCompetencies: removedCompetencies,
+		SourceItems: items, SourceCategories: categories, SourceCourses: courses,
+		Mappings: mappings, TargetCourses: targetCourseRefs, TargetCategories: targetCategoryByCode,
+		SourceCategoriesByID: sourceCategoryByID, Warnings: warnings,
+	}, nil
+}
+
+func uniqueIDs(ids []uint64) []uint64 {
+	seen := map[uint64]bool{}
+	result := []uint64{}
+	for _, id := range ids {
+		if id == 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		result = append(result, id)
+	}
+	return result
+}
+
+func (r *TemplateRepository) getCompetencyByID(ctx context.Context, id uint64) (models.TemplateCompetency, error) {
+	var competency models.TemplateCompetency
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT competency_id, code, name_th, COALESCE(name_en, ''), is_active
+		FROM comp_competencies WHERE competency_id = ? AND is_active = 1 AND deleted_at IS NULL
+	`, id).Scan(&competency.CompetencyID, &competency.Code, &competency.NameTH, &competency.NameEN, &competency.IsActive)
+	return competency, err
+}
+
+func (r *TemplateRepository) PreviewTemplateDuplicate(ctx context.Context, sourceID uint64, req models.DuplicateTemplateRequest) (*models.TemplateDuplicatePreview, error) {
+	plan, err := r.buildTemplateDuplicatePlan(ctx, sourceID, req)
+	if err != nil {
+		return nil, err
+	}
+	preview := &models.TemplateDuplicatePreview{
+		SourceTemplate: plan.Source, TargetCurriculum: plan.Target,
+		SameCurriculum:       plan.Source.CurriculumID == plan.Target.CurriculumID,
+		SelectedCompetencies: plan.SelectedCompetencies, NewCompetencies: plan.NewCompetencies,
+		RemovedCompetencies: plan.RemovedCompetencies, MappedCourseCount: len(plan.Mappings),
+		AdditionalCourseCount: len(plan.SourceCourses), AdditionalCategoryCount: len(plan.SourceCategories),
+		Warnings: plan.Warnings, HasWarnings: len(plan.Warnings) > 0, ReadyToCreate: true,
+	}
+	if preview.Warnings == nil {
+		preview.Warnings = []models.TemplateDuplicateWarning{}
+	}
+	return preview, nil
+}
+
+func (r *TemplateRepository) DuplicateTemplate(ctx context.Context, sourceID, userID uint64, req models.DuplicateTemplateRequest) (*models.Template, error) {
+	plan, err := r.buildTemplateDuplicatePlan(ctx, sourceID, req)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		return nil, fmt.Errorf("template name is required")
+	}
+	versionYearBE := plan.Source.CohortYearBE
+	if versionYearBE == 0 {
+		versionYearBE = plan.Target.EffectiveYear
+	}
+
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	now := time.Now()
+	code := fmt.Sprintf("tpl_%d_%d_%d", plan.Target.FacultyID, versionYearBE, now.UnixNano())
+
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO comp_templates (faculty_id, curriculum_id, code, name, description, version_year_be, is_active, created_by, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+	`, plan.Target.FacultyID, plan.Target.CurriculumID, code, strings.TrimSpace(req.Name), plan.Source.Description, versionYearBE, userID, now, now)
+	if err != nil {
+		return nil, fmt.Errorf("insert duplicated template failed: %w", err)
+	}
+	newTemplateID, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	selectedIDs := uniqueIDs(req.CompetencyIDs)
+	selectedOrder := map[uint64]int{}
+	for index, id := range selectedIDs {
+		selectedOrder[id] = index + 1
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO comp_template_items (template_id, competency_id, course_id, is_custom_course, weight, display_order, is_active, created_at, updated_at)
+			VALUES (?, ?, NULL, 0, NULL, ?, 0, ?, ?)
+		`, newTemplateID, id, index+1, now, now); err != nil {
+			return nil, fmt.Errorf("insert duplicated competency marker failed: %w", err)
+		}
+	}
+
+	templateCategoryIDMap := map[uint64]uint64{}
+	fallbackCategoryIDMap := map[uint64]uint64{}
+	for _, category := range plan.SourceCategories {
+		var parentID any
+		if category.ParentID != nil {
+			mappedParent, ok := templateCategoryIDMap[*category.ParentID]
+			if !ok {
+				return nil, fmt.Errorf("template additional category tree is invalid")
+			}
+			parentID = mappedParent
+		}
+		var curriculumParentID any
+		if category.CurriculumParentID != nil {
+			if sourceCategory, ok := plan.SourceCategoriesByID[*category.CurriculumParentID]; ok {
+				if targetCategory, found := plan.TargetCategories[duplicateCourseKey(sourceCategory.Code)]; found {
+					curriculumParentID = targetCategory.ID
+				}
+			}
+		}
+		res, err := tx.ExecContext(ctx, `
+			INSERT INTO comp_template_categories (template_id, curriculum_parent_id, parent_id, code, name, display_order, is_active, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, newTemplateID, curriculumParentID, parentID, category.Code, category.Name, category.DisplayOrder, category.IsActive, now, now)
+		if err != nil {
+			return nil, fmt.Errorf("insert duplicated template category failed: %w", err)
+		}
+		newCategoryID, err := res.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+		templateCategoryIDMap[category.TemplateCategoryID] = uint64(newCategoryID)
+	}
+
+	templateCourseIDMap := map[uint64]uint64{}
+	for _, course := range plan.SourceCourses {
+		var curriculumCategoryID any
+		var templateCategoryID any
+		if course.TemplateCategoryID != nil {
+			mapped, ok := templateCategoryIDMap[*course.TemplateCategoryID]
+			if !ok {
+				return nil, fmt.Errorf("template additional course category is invalid")
+			}
+			templateCategoryID = mapped
+		} else if course.CurriculumCategoryID != nil {
+			if sourceCategory, ok := plan.SourceCategoriesByID[*course.CurriculumCategoryID]; ok {
+				if targetCategory, found := plan.TargetCategories[duplicateCourseKey(sourceCategory.Code)]; found {
+					curriculumCategoryID = targetCategory.ID
+				} else {
+					if fallback, ok := fallbackCategoryIDMap[*course.CurriculumCategoryID]; ok {
+						templateCategoryID = fallback
+					} else {
+						fallbackRes, fallbackErr := tx.ExecContext(ctx, `
+							INSERT INTO comp_template_categories (template_id, parent_id, code, name, display_order, is_active, created_at, updated_at)
+							VALUES (?, NULL, ?, ?, 0, 1, ?, ?)
+						`, newTemplateID, sourceCategory.Code, sourceCategory.NameTH, now, now)
+						if fallbackErr != nil {
+							return nil, fmt.Errorf("insert fallback template category failed: %w", fallbackErr)
+						}
+						fallbackID, fallbackErr := fallbackRes.LastInsertId()
+						if fallbackErr != nil {
+							return nil, fallbackErr
+						}
+						fallbackCategoryIDMap[*course.CurriculumCategoryID] = uint64(fallbackID)
+						templateCategoryID = uint64(fallbackID)
+					}
+				}
+			}
+		}
+		res, err := tx.ExecContext(ctx, `
+			INSERT INTO comp_template_courses (template_id, curriculum_category_id, template_category_id, code, name_th, name_en, credits, description, display_order, is_active, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, newTemplateID, curriculumCategoryID, templateCategoryID, course.Code, course.NameTH, course.NameEN, course.Credits, course.Description, course.DisplayOrder, course.IsActive, now, now)
+		if err != nil {
+			return nil, fmt.Errorf("insert duplicated template course failed: %w", err)
+		}
+		newCourseID, err := res.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+		templateCourseIDMap[course.TemplateCourseID] = uint64(newCourseID)
+	}
+
+	for _, mapping := range plan.Mappings {
+		if _, ok := selectedOrder[mapping.Item.CompetencyID]; !ok {
+			continue
+		}
+		courseID := mapping.TargetCourseID
+		custom := mapping.Item.IsCustomCourse
+		if custom {
+			mapped, ok := templateCourseIDMap[*mapping.Item.CourseID]
+			if !ok {
+				continue
+			}
+			courseID = mapped
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO comp_template_items (template_id, competency_id, course_id, is_custom_course, weight, display_order, is_active, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, newTemplateID, mapping.Item.CompetencyID, courseID, custom, mapping.Item.Weight, mapping.Item.DisplayOrder, mapping.Item.IsActive, now, now); err != nil {
+			return nil, fmt.Errorf("insert duplicated template mapping failed: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetTemplateByID(ctx, uint64(newTemplateID))
+}
+
 func (r *TemplateRepository) CreateTemplate(ctx context.Context, facultyID uint64, userID uint64, req models.CreateTemplateRequest) (*models.Template, error) {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
