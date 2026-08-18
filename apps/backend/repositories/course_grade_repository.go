@@ -54,7 +54,7 @@ func (r *CourseGradeRepository) GetStudentGrades(ctx context.Context, cohortID, 
 			course.course_id, course.code, course.name_th, COALESCE(course.name_en, ''),
 			CASE WHEN placement.is_required = 1 THEN 'core' ELSE 'bonus' END,
 			course.credits, grade.course_student_id, grade.student_curricula_id,
-			grade.academic_year_be, grade.semester, COALESCE(grade.grade, ''),
+			COALESCE(grade.academic_year_be, 0), COALESCE(grade.semester, 0), COALESCE(grade.grade, ''),
 			COALESCE(grade.grade_source, 'manual'), grade.source_reference,
 			COALESCE(grade.is_best_grade, 0), grade.updated_at,
 			cohort.course_scores_recalculation_required
