@@ -182,9 +182,9 @@ export default function CompetencyPage() {
                 setAvailableYears(years);
                 setDashboardStatus(payload.status || null);
 
-                if (styledCompetencies.length) {
-                    setSelectedCompetencies(styledCompetencies.map((c) => c.id));
-                }
+                setSelectedCompetencies(styledCompetencies.map((c) => c.id));
+                setActiveCompetency(null);
+                setActiveDetailYear(null);
                 if (years.length) {
                     setSelectedYears([years[0]]);
                     setDateRange((prev) => ({
@@ -249,6 +249,9 @@ export default function CompetencyPage() {
 
     // Get Data Helper
     const getScoresForCurrentFilter = () => {
+        if (category === 'activity') {
+            return getAccumulatedScores(radarChartByCompetency);
+        }
         if (filterMode === 'year') {
             return getScoresByYear(selectedYears[0], radarChartByCompetency);
         }
@@ -263,7 +266,22 @@ export default function CompetencyPage() {
         );
         const datasets = [];
 
-        if (filterMode === 'year') {
+        if (category === 'activity') {
+            const accumulatedScores = getAccumulatedScores(radarChartByCompetency);
+            datasets.push({
+                label: t('activity_accumulated_score'),
+                data: selectedCompetencies.map(id => accumulatedScores[id] || 0),
+                backgroundColor: CHART_COLORS[0].bg,
+                borderColor: CHART_COLORS[0].border,
+                borderWidth: 2,
+                pointBackgroundColor: CHART_COLORS[0].border,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 6,
+                pointHoverRadius: 10,
+                pointHitRadius: 20,
+            });
+        } else if (filterMode === 'year') {
             selectedYears.forEach((year, index) => {
                 const yearData = getScoresByYear(year, radarChartByCompetency);
                 const data = selectedCompetencies.map(id => yearData[id] || 0);
@@ -375,7 +393,12 @@ export default function CompetencyPage() {
             return score >= req;
         }).length;
 
-        return { avg, growth, passed, total: selectedCompetencies.length };
+        return {
+            avg,
+            growth,
+            passed: category === 'course' ? passed : 0,
+            total: category === 'course' ? selectedCompetencies.length : 0,
+        };
     };
 
     const scoresForFilters = useMemo(
@@ -385,6 +408,10 @@ export default function CompetencyPage() {
 
     const dashboardStatusMessage = (() => {
         if (!dashboardStatus) return null;
+        if (category === 'activity') {
+            if (dashboardStatus.code === 'NO_ACTIVITY_SCORES') return t('dashboard_no_activity_scores');
+            return t('dashboard_activity_score_mode');
+        }
         if (dashboardStatus.code === 'NO_ACTIVE_COHORT') return t('dashboard_no_active_cohort');
         if (dashboardStatus.code === 'NO_ACTIVE_TEMPLATE') return t('dashboard_no_active_template');
         if (dashboardStatus.code === 'NO_TEMPLATE_COMPETENCIES') return t('dashboard_no_template_competencies');
@@ -470,14 +497,16 @@ export default function CompetencyPage() {
                     />
 
                     {/* Stats Cards */}
-                    <CompetencyStats stats={getStats()} />
+                    <CompetencyStats stats={getStats()} showPassedCriteria={category === 'course'} />
 
                     {/* Gap Analysis */}
-                    <GapAnalysis
-                        competencies={competencies.filter((comp) => selectedCompetencies.includes(comp.id))}
-                        scores={scoresForFilters}
-                        requirements={requirements}
-                    />
+                    {category === 'course' && (
+                        <GapAnalysis
+                            competencies={competencies.filter((comp) => selectedCompetencies.includes(comp.id))}
+                            scores={scoresForFilters}
+                            requirements={requirements}
+                        />
+                    )}
                 </>
             )}
 
@@ -687,6 +716,19 @@ function getScoresByDateRange(startYear, startMonth, endYear, endMonth, activity
         });
         const total = completed.reduce((sum, activity) => sum + (activity.score || 0), 0);
         scores[compId] = roundNumber(total, 2);
+    });
+    return scores;
+}
+
+function getAccumulatedScores(activityMap) {
+    const scores = {};
+    Object.keys(activityMap).forEach((compId) => {
+        scores[compId] = roundNumber(
+            (activityMap[compId] || [])
+                .filter((activity) => activity.status === 'completed')
+                .reduce((sum, activity) => sum + (activity.score || 0), 0),
+            2
+        );
     });
     return scores;
 }

@@ -137,6 +137,7 @@ const CompetencyRadarChart = ({
 
     // Custom Chart Labels Renderer
     const renderChartLabels = () => {
+        if (!selectedCompetencies.length) return null;
         const angleStep = (2 * Math.PI) / selectedCompetencies.length;
         const startAngle = -Math.PI / 2;
 
