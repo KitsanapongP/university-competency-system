@@ -3,29 +3,31 @@ package models
 import "time"
 
 type StudentCohort struct {
-	CohortID                uint64     `json:"cohort_id"`
-	CurriculumID            uint64     `json:"curriculum_id"`
-	CurriculumCode          string     `json:"curriculum_code"`
-	CurriculumNameTH        string     `json:"curriculum_name_th"`
-	CurriculumNameEN        *string    `json:"curriculum_name_en"`
-	CurriculumEffectiveYear uint64     `json:"curriculum_effective_year_be"`
-	MajorID                 uint64     `json:"major_id"`
-	MajorNameTH             string     `json:"major_name_th"`
-	FacultyID               uint64     `json:"faculty_id"`
-	FacultyNameTH           string     `json:"faculty_name_th"`
-	EntryYearBE             uint64     `json:"entry_year_be"`
-	Status                  string     `json:"status"`
-	Note                    *string    `json:"note"`
-	RosterCount             int        `json:"roster_count"`
-	StudentCount            int        `json:"student_count"`
-	SuspendedCount          int        `json:"suspended_count"`
-	TemplateCount           int        `json:"template_count"`
-	ActiveTemplateCount     int        `json:"active_template_count"`
-	LastReactivationReason  *string    `json:"last_reactivation_reason"`
-	LastReactivatedAt       *time.Time `json:"last_reactivated_at"`
-	LastReactivatedBy       *uint64    `json:"last_reactivated_by"`
-	CreatedAt               time.Time  `json:"created_at"`
-	UpdatedAt               time.Time  `json:"updated_at"`
+	CohortID                          uint64     `json:"cohort_id"`
+	CurriculumID                      uint64     `json:"curriculum_id"`
+	CurriculumCode                    string     `json:"curriculum_code"`
+	CurriculumNameTH                  string     `json:"curriculum_name_th"`
+	CurriculumNameEN                  *string    `json:"curriculum_name_en"`
+	CurriculumEffectiveYear           uint64     `json:"curriculum_effective_year_be"`
+	MajorID                           uint64     `json:"major_id"`
+	MajorNameTH                       string     `json:"major_name_th"`
+	FacultyID                         uint64     `json:"faculty_id"`
+	FacultyNameTH                     string     `json:"faculty_name_th"`
+	EntryYearBE                       uint64     `json:"entry_year_be"`
+	Status                            string     `json:"status"`
+	Note                              *string    `json:"note"`
+	RosterCount                       int        `json:"roster_count"`
+	StudentCount                      int        `json:"student_count"`
+	SuspendedCount                    int        `json:"suspended_count"`
+	TemplateCount                     int        `json:"template_count"`
+	ActiveTemplateCount               int        `json:"active_template_count"`
+	CourseScoresRecalculationRequired bool       `json:"course_scores_recalculation_required"`
+	CourseScoresRecalculatedAt        *time.Time `json:"course_scores_recalculated_at"`
+	LastReactivationReason            *string    `json:"last_reactivation_reason"`
+	LastReactivatedAt                 *time.Time `json:"last_reactivated_at"`
+	LastReactivatedBy                 *uint64    `json:"last_reactivated_by"`
+	CreatedAt                         time.Time  `json:"created_at"`
+	UpdatedAt                         time.Time  `json:"updated_at"`
 }
 
 type StudentCohortFilters struct {

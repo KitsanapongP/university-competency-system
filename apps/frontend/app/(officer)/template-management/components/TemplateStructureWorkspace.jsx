@@ -539,10 +539,10 @@ export default function TemplateStructureWorkspace({
                             showAllCourses={showAllCourses}
                             coursesByCategoryId={coursesByCategoryId}
                             weightsByCourseId={weightsByCourseId}
-                            competencies={competencies}
+                        competencies={competencies}
                             allCourses={allCourses}
                             language={language}
-                            onSetWeight={onSetWeight}
+                        onSetWeight={onSetWeight}
                         />
                     )}
                 </div>

@@ -374,7 +374,16 @@ export default function TemplateAssignmentsPage() {
             </BaseModal>
 
             <BaseModal open={Boolean(assignmentTemplate?.replacementCandidates)} title={text(language, 'เลือกแบบแผนการประเมินใหม่', 'Select replacement assessment plan')} size="lg" onClose={() => setAssignmentTemplate(null)} footer={<button type="button" className="course-btn course-btn--ghost" onClick={() => setAssignmentTemplate(null)}>{text(language, 'ยกเลิก', 'Cancel')}</button>}>
-                {assignmentTemplate?.replacementCandidates && <><p className="course-modal-message">{text(language, `เลือกรายการสำหรับรุ่น ${assignmentTemplate.entryYearBe}`, `Choose a replacement for cohort ${assignmentTemplate.entryYearBe}.`)}</p>{assignmentTemplate.replacementCandidates.length === 0 ? <div className="template-assignment-empty">{text(language, 'ไม่มี Template ใหม่ที่พร้อมใช้ในหลักสูตรนี้', 'No unused active template is available in this curriculum.')}</div> : <div className="template-assignment-choice-list">{assignmentTemplate.replacementCandidates.map(template => <button type="button" key={template.templateId} onClick={() => { const assignment = assignments.find(item => item.assignmentId === assignmentTemplate.assignmentId); setAssignmentTemplate(null); setAction({ type: 'replace', assignment, template, cohort: null, reason: '' }); }}><span><strong>{template.templateName}</strong><small>{template.templateCode}</small></span><Replace size={18} /></button>)}</div>}</>}
+                {assignmentTemplate?.replacementCandidates && (
+                    <>
+                        <p className="course-modal-message">{text(language, `เลือกรายการสำหรับรุ่น ${assignmentTemplate.entryYearBe}`, `Choose a replacement for cohort ${assignmentTemplate.entryYearBe}.`)}</p>
+                        {assignmentTemplate.replacementCandidates.length === 0 ? (
+                            <div className="template-assignment-empty">{text(language, 'ไม่มีแบบแผนการประเมินใหม่ที่พร้อมใช้ในหลักสูตรนี้', 'No unused active assessment plan is available in this curriculum.')}</div>
+                        ) : (
+                            <div className="template-assignment-choice-list">{assignmentTemplate.replacementCandidates.map(template => <button type="button" key={template.templateId} onClick={() => { const assignment = assignments.find(item => item.assignmentId === assignmentTemplate.assignmentId); setAssignmentTemplate(null); setAction({ type: 'replace', assignment, template, cohort: null, reason: '' }); }}><span><strong>{template.templateName}</strong><small>{template.templateCode}</small></span><Replace size={18} /></button>)}</div>
+                        )}
+                    </>
+                )}
             </BaseModal>
 
             <AssignmentActionModal language={language} action={action} loading={operationLoading} onClose={() => setAction(EMPTY_ACTION)} onContinue={continueAction} />

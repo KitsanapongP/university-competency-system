@@ -80,10 +80,13 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	studentCohortSvc := services.NewStudentCohortService(studentCohortRepo)
 	courseCompetencyScoringRepo := repositories.NewCourseCompetencyScoringRepository(db)
 	courseCompetencyScoringSvc := services.NewCourseCompetencyScoringService(studentCohortSvc, courseCompetencyScoringRepo)
+	courseGradeRepo := repositories.NewCourseGradeRepository(db)
+	courseGradeSvc := services.NewCourseGradeService(studentCohortSvc, courseGradeRepo)
 	studentCohortHandler := &controllers.StudentCohortController{
 		Service:        studentCohortSvc,
 		ScoringService: courseCompetencyScoringSvc,
 	}
+	courseGradeHandler := &controllers.CourseGradeController{Service: courseGradeSvc}
 	templateAssignmentRepo := repositories.NewTemplateAssignmentRepository(db)
 	templateAssignmentSvc := services.NewTemplateAssignmentService(templateRepo, studentCohortRepo, templateAssignmentRepo)
 	templateAssignmentHandler := &controllers.TemplateAssignmentController{
@@ -179,6 +182,11 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 					cor.Put("/competency-requirements", studentCohortHandler.ReplaceCompetencyRequirements)
 					cor.Post("/course-competency-scores/recalculate", studentCohortHandler.RecalculateCourseCompetencyScores)
 					cor.Get("/course-competency-scores/summary", studentCohortHandler.GetCourseCompetencyScoreSummary)
+					cor.Get("/course-grades", courseGradeHandler.GetOverview)
+					cor.Get("/course-grades/students/{enrollment_id}", courseGradeHandler.GetStudent)
+					cor.Put("/course-grades", courseGradeHandler.Put)
+					cor.Post("/course-grade-imports/preview", courseGradeHandler.PreviewImport)
+					cor.Post("/course-grade-imports/commit", courseGradeHandler.CommitImport)
 				})
 			})
 

@@ -18,6 +18,7 @@ const CompetencyFilters = ({
     setDateRange,
     showRequirement,
     setShowRequirement,
+    showRequirementToggle = true,
     category,
     setCategory,
 }) => {
@@ -181,18 +182,20 @@ const CompetencyFilters = ({
             )}
 
             {/* Requirement Toggle */}
-            <div className="filter-group toggle-group">
-                <label>
-                    <Target size={14} />
-                    {t('show_requirement')}
-                </label>
-                <button
-                    className={`toggle-switch ${showRequirement ? 'on' : ''}`}
-                    onClick={() => setShowRequirement(!showRequirement)}
-                >
-                    <div className="toggle-knob"></div>
-                </button>
-            </div>
+            {showRequirementToggle && (
+                <div className="filter-group toggle-group">
+                    <label>
+                        <Target size={14} />
+                        {t('show_requirement')}
+                    </label>
+                    <button
+                        className={`toggle-switch ${showRequirement ? 'on' : ''}`}
+                        onClick={() => setShowRequirement(!showRequirement)}
+                    >
+                        <div className="toggle-knob"></div>
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

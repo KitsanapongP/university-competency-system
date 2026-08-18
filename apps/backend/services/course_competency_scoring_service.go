@@ -4,13 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 
+	"github.com/spw32767/university-competency-system-backend/grading"
 	"github.com/spw32767/university-competency-system-backend/models"
 	"github.com/spw32767/university-competency-system-backend/repositories"
 )
 
-var fixedCourseGradeMap = map[string]float64{"A": 100, "B+": 85, "B": 80, "C+": 75, "C": 70, "D+": 65, "D": 60, "F": 0}
+var fixedCourseGradeMap = grading.FixedCourseGradeMap
 
 type CourseCompetencyScoringService struct {
 	Cohorts *StudentCohortService
@@ -84,6 +84,5 @@ func (s *CourseCompetencyScoringService) GetSummary(ctx context.Context, cohortI
 }
 
 func FixedCourseGradeScore(grade string) (float64, bool) {
-	score, ok := fixedCourseGradeMap[strings.ToUpper(strings.TrimSpace(grade))]
-	return score, ok
+	return grading.Score(grade)
 }
