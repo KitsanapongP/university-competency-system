@@ -36,6 +36,10 @@ function gradeError(error, language) {
     return messages[message] ? label(language, ...messages[message]) : message || label(language, 'ไม่สามารถดำเนินการกับผลการเรียนได้', 'Unable to complete the grade operation.');
 }
 
+function notify(onFeedback, type, message) {
+    onFeedback?.({ type, message });
+}
+
 function GradeEditorModal({ language, editor, rows, setRows, submitting, readOnly, onClose, onSave }) {
     const title = editor?.mode === 'course'
         ? label(language, `แก้เกรดวิชา ${editor.course?.courseCode || ''}`, `Edit grades for ${editor.course?.courseCode || ''}`)
@@ -111,7 +115,7 @@ export default function CourseGradeWorkspace({ language, cohort, cohortId, readO
         if (!cohortId) return;
         setLoading(true);
         try { setOverview(await fetchCourseGradeOverview(cohortId, filters)); }
-        catch (error) { onFeedback?.('error', gradeError(error, language)); }
+        catch (error) { notify(onFeedback, 'error', gradeError(error, language)); }
         finally { setLoading(false); }
     }, [cohortId, filters, language, onFeedback]);
     useEffect(() => { loadOverview(); }, [loadOverview, reloadToken]);
@@ -125,7 +129,7 @@ export default function CourseGradeWorkspace({ language, cohort, cohortId, readO
                 return existing || { enrollmentId: overview.students[index].enrollmentId, studentCode: overview.students[index].studentCode, studentNameTh: overview.students[index].studentNameTh, courseId: course.courseId, courseCode: course.courseCode, courseNameTh: course.courseNameTh, courseNameEn: course.courseNameEn, academicYearBe: filters.academicYearBe || cohort?.entryYearBe || '', semester: filters.semester || 1, grade: '', gradeSource: 'manual', isBestGrade: false };
             });
             setEditorRows(rows);
-        } catch (error) { setEditor(null); onFeedback?.('error', gradeError(error, language)); }
+        } catch (error) { setEditor(null); notify(onFeedback, 'error', gradeError(error, language)); }
         finally { setEditorLoading(false); }
     };
 
@@ -134,7 +138,7 @@ export default function CourseGradeWorkspace({ language, cohort, cohortId, readO
         try {
             const detail = await fetchStudentCourseGrades(cohortId, student.enrollmentId, filters);
             setEditorRows(detail.grades.map(row => ({ ...row, academicYearBe: row.academicYearBe || filters.academicYearBe || cohort?.entryYearBe || '', semester: row.semester || filters.semester || 1, studentCode: student.studentCode, studentNameTh: student.studentNameTh })));
-        } catch (error) { setEditor(null); onFeedback?.('error', gradeError(error, language)); }
+        } catch (error) { setEditor(null); notify(onFeedback, 'error', gradeError(error, language)); }
         finally { setEditorLoading(false); }
     };
 
@@ -143,8 +147,8 @@ export default function CourseGradeWorkspace({ language, cohort, cohortId, readO
         try {
             await saveCourseGrades(cohortId, rows);
             setEditor(null); await loadOverview();
-            onFeedback?.('success', label(language, 'บันทึกผลการเรียนแล้ว ระบบจะคำนวณคะแนนเมื่อกดคำนวณใหม่', 'Grades saved. Recalculate scores when ready.'));
-        } catch (error) { onFeedback?.('error', gradeError(error, language)); }
+            notify(onFeedback, 'success', label(language, 'บันทึกผลการเรียนแล้ว ระบบจะคำนวณคะแนนเมื่อกดคำนวณใหม่', 'Grades saved. Recalculate scores when ready.'));
+        } catch (error) { notify(onFeedback, 'error', gradeError(error, language)); }
     };
 
     const statusText = overview?.courseScoresRecalculationRequired
@@ -162,7 +166,7 @@ export default function CourseGradeWorkspace({ language, cohort, cohortId, readO
         <div className="course-grade-view-tabs"><button className={view === 'courses' ? 'is-active' : ''} onClick={() => setView('courses')}><BookOpen size={16} />{label(language, 'มุมมองรายวิชา', 'By course')}</button><button className={view === 'students' ? 'is-active' : ''} onClick={() => setView('students')}><Users size={16} />{label(language, 'มุมมองรายผู้เรียน', 'By student')}</button></div>
         <div className="student-table-wrap course-grade-table-wrap"><table className="student-table course-grade-table"><thead><tr>{view === 'courses' ? <><th>{label(language, 'รายวิชา', 'Course')}</th><th>{label(language, 'ประเภทวิชา', 'Type')}</th><th>{label(language, 'จำนวนผู้เรียน', 'Students')}</th><th>{label(language, 'บันทึกเกรดแล้ว', 'Recorded')}</th><th aria-label="Actions" /></> : <><th>{label(language, 'ผู้เรียน', 'Student')}</th><th>{label(language, 'วิชาทั้งหมด', 'Total courses')}</th><th>{label(language, 'บันทึกแล้ว', 'Recorded')}</th><th>{label(language, 'ความครบถ้วน', 'Completeness')}</th><th aria-label="Actions" /></>}</tr></thead><tbody>{loading ? <tr><td colSpan={5} className="student-empty">{label(language, 'กำลังโหลดผลการเรียน...', 'Loading grades...')}</td></tr> : view === 'courses' ? courses.length ? courses.map(course => <tr key={course.courseId}><td><div className="student-cohort-cell"><strong>{course.courseCode}</strong><span>{courseName(course, language)}</span></div></td><td><span className={`course-grade-type course-grade-type--${course.courseType}`}>{course.courseType === 'core' ? label(language, 'วิชาบังคับ', 'Core') : label(language, 'วิชาเลือก', 'Elective')}</span></td><td>{course.totalStudents}</td><td>{course.recordedStudents} / {course.totalStudents}</td><td><button className="course-btn course-btn--ghost course-grade-edit-btn" onClick={() => openCourseEditor(course)} disabled={readOnly || editorLoading}><Edit3 size={15} />{label(language, 'แก้เกรด', 'Edit grades')}</button></td></tr>) : <tr><td colSpan={5} className="student-empty">{label(language, 'ไม่พบรายวิชาในตัวกรองนี้', 'No courses match the filters.')}</td></tr> : students.length ? students.map(student => <tr key={student.enrollmentId}><td><div className="student-cohort-cell"><strong>{student.studentCode}</strong><span>{student.studentNameTh}</span></div></td><td>{student.totalCourses}</td><td>{student.recordedCourses}</td><td><div className="course-grade-progress"><span style={{ width: `${student.totalCourses ? Math.min(100, (student.recordedCourses / student.totalCourses) * 100) : 0}%` }} /></div></td><td><button className="course-btn course-btn--ghost course-grade-edit-btn" onClick={() => openStudentEditor(student)} disabled={readOnly || editorLoading}><Edit3 size={15} />{label(language, 'ดู/แก้ไข', 'View/edit')}</button></td></tr>) : <tr><td colSpan={5} className="student-empty">{label(language, 'ยังไม่มีผู้เรียนในรุ่นนี้', 'No students in this cohort.')}</td></tr>}</tbody></table></div>
         <GradeEditorModal language={language} editor={editor} rows={editorLoading ? [] : editorRows} setRows={setEditorRows} submitting={submitting || editorLoading} readOnly={readOnly} onClose={() => !submitting && setEditor(null)} onSave={saveEditor} />
-        <GradeImportModal language={language} open={importOpen} cohortId={cohortId} submitting={submitting} onClose={() => !submitting && setImportOpen(false)} onError={error => onFeedback?.('error', gradeError(error, language))} onSuccess={async () => { setImportOpen(false); await loadOverview(); onFeedback?.('success', label(language, 'นำเข้าผลการเรียนแล้ว ต้องคำนวณคะแนนใหม่เพื่ออัปเดต Dashboard', 'Grades imported. Recalculate to update the dashboard.')); }} />
+        <GradeImportModal language={language} open={importOpen} cohortId={cohortId} submitting={submitting} onClose={() => !submitting && setImportOpen(false)} onError={error => notify(onFeedback, 'error', gradeError(error, language))} onSuccess={async () => { setImportOpen(false); await loadOverview(); notify(onFeedback, 'success', label(language, 'นำเข้าผลการเรียนแล้ว ต้องคำนวณคะแนนใหม่เพื่ออัปเดต Dashboard', 'Grades imported. Recalculate to update the dashboard.')); }} />
         <BaseModal open={regOpen} title={label(language, 'ดึงผลการเรียนจาก REG', 'Import grades from REG')} size="sm" onClose={() => setRegOpen(false)} footer={<button className="course-btn course-btn--ghost" onClick={() => setRegOpen(false)}>{label(language, 'ปิด', 'Close')}</button>}><div className="course-grade-reg-placeholder"><Database size={28} /><strong>{label(language, 'ยังไม่ได้ตั้งค่าการเชื่อมต่อ REG', 'REG integration is not configured')}</strong><p>{label(language, 'ใน v1 กรุณาใช้การกรอกเกรดหรือ Import Excel ก่อน เมื่อเชื่อมต่อ REG แล้วระบบจะแสดง Preview ก่อนแทนที่ข้อมูลเดิม', 'For v1, use manual entry or Excel import. A future REG connector will show a preview before replacing existing data.')}</p></div></BaseModal>
     </section>;
 }
