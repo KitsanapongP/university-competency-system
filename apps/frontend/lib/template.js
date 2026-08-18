@@ -23,6 +23,22 @@ export async function createTemplate(payload) {
     return unwrapData(res, res);
 }
 
+export async function previewDuplicateTemplate(id, payload) {
+    const res = await apiFetch(`/api/v1/templates/${id}/duplicate-preview`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+    return unwrapData(res, null);
+}
+
+export async function duplicateTemplate(id, payload) {
+    const res = await apiFetch(`/api/v1/templates/${id}/duplicate`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+    return unwrapData(res, res);
+}
+
 export async function updateTemplateStatus(id, status) {
     const res = await apiFetch(`/api/v1/templates/${id}/status`, {
         method: 'PATCH',

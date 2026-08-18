@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search, ExternalLink, RefreshCw } from 'lucide-react';
+import { X, Check, ChevronRight, ChevronDown, BookOpenCheck, PenLine, Search, ExternalLink, RefreshCw, AlertTriangle, CheckCircle2, Copy } from 'lucide-react';
 import { fetchCurriculums, fetchCurriculumDetail } from '../../../../lib/curriculum';
 import { useLanguage } from '../../../../providers/LanguageContext';
 
@@ -31,7 +31,7 @@ function StepIndicator({ step, labels }) {
 // ============================================================
 // CourseMasterTree — แสดง category/course ของ master
 // ============================================================
-function CourseMasterTree({ categories, depth = 0 }) {
+function CourseMasterTree({ categories, depth = 0, language = 'th' }) {
     const [expanded, setExpanded] = useState({});
     const toggle = (id) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
@@ -57,7 +57,7 @@ function CourseMasterTree({ categories, depth = 0 }) {
                             <span className="master-cat-row__code">{cat.code}</span>
                             <span className="master-cat-row__name">{cat.name}</span>
                             {hasCourses && (
-                                <span className="master-cat-row__badge">{cat.courses.length} วิชา</span>
+                                <span className="master-cat-row__badge">{cat.courses.length} {language === 'th' ? 'วิชา' : 'courses'}</span>
                             )}
                         </div>
 
@@ -68,11 +68,11 @@ function CourseMasterTree({ categories, depth = 0 }) {
                                         style={{ paddingLeft: `${1.25 + depth * 0.875}rem` }}>
                                         <span className="master-course-row__code">{course.code}</span>
                                         <span className="master-course-row__name">{course.nameTh || course.nameEn}</span>
-                                        <span className="master-course-row__credits">{course.credits} น.</span>
+                                        <span className="master-course-row__credits">{course.credits} {language === 'th' ? 'น.' : 'cr.'}</span>
                                     </div>
                                 ))}
                                 {hasChildren && (
-                                    <CourseMasterTree categories={cat.children} depth={depth + 1}/>
+                                    <CourseMasterTree categories={cat.children} depth={depth + 1} language={language}/>
                                 )}
                             </>
                         )}
@@ -86,18 +86,19 @@ function CourseMasterTree({ categories, depth = 0 }) {
 // ============================================================
 // AcademicYearSelector — เลือก 1 ปีการศึกษา
 // ============================================================
-function AcademicYearSelector({ year, onChange }) {
+function AcademicYearSelector({ year, onChange, language = 'th' }) {
     const currentYear = new Date().getFullYear() + 543;
+    const isThai = language === 'th';
 
     return (
         <div className="tfm-year-selector">
-            <label className="cfm-label">ปีการศึกษา <span className="cfm-required">*</span></label>
+            <label className="cfm-label">{isThai ? 'ปีการศึกษา' : 'Academic year'} <span className="cfm-required">*</span></label>
             <input
                 type="number"
                 className="cfm-input"
                 min={currentYear}
                 value={year || ''}
-                placeholder={`ระบุปี พ.ศ. (ตั้งแต่ ${currentYear} เป็นต้นไป)`}
+                placeholder={isThai ? `ระบุปี พ.ศ. (ตั้งแต่ ${currentYear} เป็นต้นไป)` : `Enter Buddhist year (from ${currentYear})`}
                 onChange={e => {
                     const val = e.target.value ? parseInt(e.target.value, 10) : '';
                     onChange(val);
@@ -110,7 +111,9 @@ function AcademicYearSelector({ year, onChange }) {
                 }}
             />
             <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
-                * กรอกเป็นตัวเลขปี พ.ศ. ตั้งแต่ปีปัจจุบัน ({currentYear}) เป็นต้นไป (ห้ามกรอกปีย้อนหลัง)
+                {isThai
+                    ? `* กรอกเป็นตัวเลขปี พ.ศ. ตั้งแต่ปีปัจจุบัน (${currentYear}) เป็นต้นไป (ห้ามกรอกปีย้อนหลัง)`
+                    : `* Enter a Buddhist year from the current year (${currentYear}) onward.`}
             </span>
         </div>
     );
@@ -119,9 +122,35 @@ function AcademicYearSelector({ year, onChange }) {
 // ============================================================
 // Step 1 — ข้อมูลหลักสูตร + เลือก Curriculum Master
 // ============================================================
-function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false }) {
+function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false, language = 'th' }) {
     const [search, setSearch] = useState('');
     const [previewId, setPreviewId] = useState(null);
+    const isThai = language === 'th';
+    const copy = isThai
+        ? {
+            templateName: 'ชื่อ Template',
+            namePlaceholder: 'เช่น หลักสูตรวิทยาการคอมพิวเตอร์',
+            curriculum: 'หลักสูตร',
+            curriculumHint: 'เลือกหลักสูตรต้นแบบ ปีการศึกษาจะถูกกำหนดอัตโนมัติตามหลักสูตรที่เลือก',
+            search: 'ค้นหาหลักสูตร...',
+            createFromScratch: 'สร้างใหม่ทั้งหมด',
+            createFromScratchHint: 'กรอกหมวดวิชาและรายวิชาเอง',
+            loading: 'กำลังโหลดรายชื่อหลักสูตรจากระบบ...',
+            noMatch: 'ไม่พบหลักสูตรที่ตรงกับการค้นหา',
+            previewEmpty: 'เลือก Curriculum Master เพื่อดูตัวอย่าง',
+        }
+        : {
+            templateName: 'Assessment plan name',
+            namePlaceholder: 'e.g. Computer Science assessment plan',
+            curriculum: 'Curriculum',
+            curriculumHint: 'Choose the target curriculum. The academic year follows the selected curriculum.',
+            search: 'Search curriculum...',
+            createFromScratch: 'Create from scratch',
+            createFromScratchHint: 'Enter categories and courses manually',
+            loading: 'Loading curricula...',
+            noMatch: 'No curriculum matches your search.',
+            previewEmpty: 'Select a curriculum to preview its structure.',
+        };
 
     const filtered = masters.filter(m =>
         (m.nameTh && m.nameTh.toLowerCase().includes(search.toLowerCase())) ||
@@ -163,18 +192,18 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
         <div className="tfm-step1">
             {/* ชื่อ */}
             <div className="cfm-field">
-                <label className="cfm-label">ชื่อ Template <span className="cfm-required">*</span></label>
+                <label className="cfm-label">{copy.templateName} <span className="cfm-required">*</span></label>
                 <input className="cfm-input" autoFocus
                     value={form.name}
                     onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                    placeholder="เช่น หลักสูตรวิทยาการคอมพิวเตอร์"
+                    placeholder={copy.namePlaceholder}
                 />
             </div>
 
             {/* เลือก Curriculum Master */}
             <div className="cfm-field" style={{ marginTop: '1.25rem' }}>
-                <label className="cfm-label">หลักสูตร <span className="cfm-required">*</span></label>
-                <p className="tfm-hint">เลือกหลักสูตรต้นแบบ ปีการศึกษาจะถูกกำหนดอัตโนมัติตามหลักสูตรที่เลือก</p>
+                <label className="cfm-label">{copy.curriculum} <span className="cfm-required">*</span></label>
+                <p className="tfm-hint">{copy.curriculumHint}</p>
             </div>
 
             {/* Search */}
@@ -182,7 +211,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                 <Search size={14} className="tfm-search-icon"/>
                 <input className="tfm-search" value={search}
                     onChange={e => setSearch(e.target.value)}
-                    placeholder="ค้นหาหลักสูตร..."/>
+                    placeholder={copy.search}/>
             </div>
 
             <div className="tfm-master-layout">
@@ -197,11 +226,11 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                         </div>
                         <div>
                             <div className={`tfm-master-card__name ${form.masterId === null ? 'tfm-master-card__name--selected' : ''}`}>
-                                สร้างใหม่ทั้งหมด
+                                {copy.createFromScratch}
                             </div>
                             <div
                                 className={`tfm-master-card__meta ${form.masterId === null ? 'tfm-master-card__meta--selected' : ''}`}>
-                                กรอกหมวดวิชาและรายวิชาเอง
+                                {copy.createFromScratchHint}
                             </div>
                         </div>
                         {form.masterId === null && <Check size={16} className="tfm-master-card__check"/>}
@@ -210,7 +239,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                     <div className="tfm-master-list" aria-label="รายการหลักสูตร">
                         {loadingMasters && (
                         <div style={{ padding: '1.5rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
-                            กำลังโหลดรายชื่อหลักสูตรจากระบบ...
+                            {copy.loading}
                         </div>
                         )}
                         {!loadingMasters && filtered.map(m => (
@@ -234,7 +263,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                         ))}
                         {!loadingMasters && filtered.length === 0 && (
                             <div className="tfm-master-list__empty">
-                                ไม่พบหลักสูตรที่ตรงกับการค้นหา
+                                {copy.noMatch}
                             </div>
                         )}
                     </div>
@@ -247,13 +276,13 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                             <span>{preview.nameTh} ({preview.year})</span>
                         </div>
                         <div className="tfm-preview-body">
-                            <CourseMasterTree categories={preview.categories}/>
+                            <CourseMasterTree categories={preview.categories} language={language}/>
                         </div>
                     </div>
                 ) : (
                     <div className="tfm-master-preview tfm-master-preview--empty">
                         <BookOpenCheck size={28} opacity={0.2}/>
-                        <span>เลือก Curriculum Master เพื่อดูตัวอย่าง</span>
+                        <span>{copy.previewEmpty}</span>
                     </div>
                 )}
             </div>
@@ -263,6 +292,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                 <AcademicYearSelector
                     year={form.academicYear}
                     onChange={(year) => setForm(p => ({ ...p, academicYear: year }))}
+                    language={language}
                 />
             </div>
         </div>
@@ -457,20 +487,91 @@ function Step2({ form, setForm, allCompetencies, onRefreshCompetencies }) {
     );
 }
 
+function DuplicatePreview({ preview, language = 'th' }) {
+    const isThai = language === 'th';
+    const warningLabels = {
+        SOURCE_COURSE_MISSING: isThai ? 'วิชาจากแบบแผนเดิมไม่มีในหลักสูตรใหม่' : 'Source course is missing from the target curriculum',
+        TARGET_COURSE_UNMAPPED: isThai ? 'วิชาในหลักสูตรใหม่ยังไม่มี Competency จากแบบแผนเดิม' : 'Target course has no competency mapping from the source',
+        REMOVED_COMPETENCY_MAPPING: isThai ? 'การเอา Competency ออกจะล้างน้ำหนักของวิชานี้' : 'Removing this competency will clear this course weight',
+        NEW_COMPETENCY_NO_WEIGHT: isThai ? 'Competency ใหม่ยังไม่มีน้ำหนักรายวิชา' : 'New competency has no copied course weight',
+    };
+    const warningText = (warning) => {
+        const label = warningLabels[warning.code] || warning.message;
+        const course = warning.course_code ? `${warning.course_code}${warning.course_name ? ` · ${warning.course_name}` : ''}` : '';
+        const comp = warning.competency ? ` · ${warning.competency}` : '';
+        return `${label}${course ? `: ${course}` : ''}${comp}`;
+    };
+
+    if (!preview) {
+        return <div className="tfm-duplicate-preview__empty">{isThai ? 'ยังไม่มีข้อมูล Preview' : 'No preview is available.'}</div>;
+    }
+
+    return (
+        <div className="tfm-duplicate-preview">
+            <div className={`tfm-duplicate-preview__result ${preview.has_warnings ? 'tfm-duplicate-preview__result--warning' : 'tfm-duplicate-preview__result--success'}`}>
+                {preview.has_warnings ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
+                <div>
+                    <strong>{preview.has_warnings
+                        ? (isThai ? 'พบประเด็นที่ควรตรวจสอบ' : 'Please review these items')
+                        : (isThai ? 'ไม่พบปัญหาใด ๆ' : 'No issues found')}</strong>
+                    <span>{preview.same_curriculum
+                        ? (isThai ? 'คัดลอกไปยังหลักสูตรเดิม' : 'Copying to the same curriculum')
+                        : (isThai ? 'คัดลอกไปยังหลักสูตรใหม่ โดยเทียบจากรหัสวิชา' : 'Copying to a new curriculum by course code')}</span>
+                </div>
+            </div>
+
+            <div className="tfm-duplicate-preview__stats">
+                <div><span>{isThai ? 'วิชาที่คัดลอกน้ำหนัก' : 'Mapped courses'}</span><strong>{preview.mapped_course_count ?? 0}</strong></div>
+                <div><span>{isThai ? 'วิชาเพิ่มเฉพาะแบบแผน' : 'Additional courses'}</span><strong>{preview.additional_course_count ?? 0}</strong></div>
+                <div><span>{isThai ? 'หมวดเพิ่มเฉพาะแบบแผน' : 'Additional categories'}</span><strong>{preview.additional_category_count ?? 0}</strong></div>
+            </div>
+
+            {preview.warnings?.length > 0 && (
+                <div className="tfm-duplicate-preview__warnings" role="status">
+                    <h4>{isThai ? 'รายการที่ควรตรวจสอบ' : 'Items to review'}</h4>
+                    <ul>
+                        {preview.warnings.map((warning, index) => <li key={`${warning.code}-${index}`}>{warningText(warning)}</li>)}
+                    </ul>
+                </div>
+            )}
+
+            <div className="tfm-duplicate-preview__note">
+                {isThai
+                    ? 'แบบแผนใหม่จะเริ่มเป็นสถานะไม่พร้อมใช้งาน และจะไม่คัดลอกการเชื่อมรุ่นหรือคะแนนผู้เรียน'
+                    : 'The new assessment plan starts inactive. Cohort assignments and learner scores are not copied.'}
+            </div>
+        </div>
+    );
+}
+
 // ============================================================
 // TemplateFormModal — main export
 // ============================================================
-export default function TemplateFormModal({ onClose, onSave, allCompetencies = [], onRefreshCompetencies }) {
+export default function TemplateFormModal({
+    onClose,
+    onSave,
+    onPreviewDuplicate,
+    onSaveDuplicate,
+    duplicateSource = null,
+    duplicateCompetencyIds = [],
+    allCompetencies = [],
+    onRefreshCompetencies,
+    language = 'th',
+}) {
     const { t } = useLanguage();
     const [step, setStep] = useState(1);
     const [form, setForm] = useState({
-        name:          '',
-        academicYear:  new Date().getFullYear() + 543,
-        masterId:      null,
-        competencyIds: new Set(),
+        name:          duplicateSource ? `สำเนา - ${duplicateSource.name || ''}` : '',
+        academicYear:  duplicateSource?.academicYear || duplicateSource?.cohort_year_be || new Date().getFullYear() + 543,
+        masterId:      duplicateSource?.curriculum_id || duplicateSource?.curriculumId || duplicateSource?.masterData?.id || null,
+        competencyIds: new Set(duplicateCompetencyIds),
     });
     const [masters, setMasters] = useState([]);
     const [loadingMasters, setLoadingMasters] = useState(true);
+    const [duplicatePreview, setDuplicatePreview] = useState(null);
+    const [duplicatePreviewLoading, setDuplicatePreviewLoading] = useState(false);
+    const [duplicatePreviewError, setDuplicatePreviewError] = useState('');
+    const isDuplicate = Boolean(duplicateSource);
 
     useEffect(() => {
         fetchCurriculums()
@@ -490,27 +591,63 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
     const handleSave = () => {
         if (!canNext) return;
         const master = masters.find(m => m.id === form.masterId) ?? null;
-        onSave({
+        const payload = {
             name:              form.name.trim(),
             academicYear:      form.academicYear,
             masterId:          form.masterId,
             masterData:        master,
             competencyIds:     [...form.competencyIds],
+        };
+        if (isDuplicate) {
+            setDuplicatePreview(null);
+            setDuplicatePreviewLoading(true);
+            setDuplicatePreviewError('');
+            Promise.resolve(onPreviewDuplicate?.({
+                name: payload.name,
+                curriculum_id: payload.masterId,
+                cohort_year_be: Number(payload.academicYear) || 0,
+                competency_ids: payload.competencyIds,
+            }))
+                .then(preview => {
+                    setDuplicatePreview(preview);
+                    setStep(3);
+                })
+                .catch(error => setDuplicatePreviewError(error?.message || (language === 'th' ? 'ไม่สามารถสร้าง Preview ได้' : 'Unable to create preview.')))
+                .finally(() => setDuplicatePreviewLoading(false));
+            return;
+        }
+        onSave?.(payload);
+    };
+
+    const handleCreateDuplicate = () => {
+        if (!duplicatePreview || duplicatePreviewLoading || !onSaveDuplicate) return;
+        onSaveDuplicate({
+            name: form.name.trim(),
+            curriculum_id: form.masterId,
+            cohort_year_be: Number(form.academicYear) || 0,
+            competency_ids: [...form.competencyIds],
         });
     };
+
+    const title = isDuplicate
+        ? (language === 'th' ? 'ทำสำเนาแบบแผนการประเมิน' : 'Duplicate assessment plan')
+        : t('template_create_title');
+    const labels = isDuplicate
+        ? (language === 'th' ? ['ข้อมูลแบบแผน', 'เลือก Competency', 'ตรวจสอบ'] : ['Plan details', 'Choose competencies', 'Review'])
+        : [t('template_step_curriculum'), t('template_step_competency')];
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-box modal-box--tfm" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <h3>{t('template_create_title')}</h3>
+                    <h3>{title}</h3>
                     <button className="modal-close" onClick={onClose}><X size={18}/></button>
                 </div>
                 <div style={{ padding: '0.75rem 1.5rem 0' }}>
-                    <StepIndicator step={step} labels={[t('template_step_curriculum'), t('template_step_competency')]}/>
+                    <StepIndicator step={step} labels={labels}/>
                 </div>
                 <div className="modal-body tfm-body">
-                    {step === 1 && <Step1 form={form} setForm={setForm} masters={masters} setMasters={setMasters} loadingMasters={loadingMasters}/>}
+                    {step === 1 && <Step1 form={form} setForm={setForm} masters={masters} setMasters={setMasters} loadingMasters={loadingMasters} language={language}/>}
                     {step === 2 && (
                         <Step2
                             form={form}
@@ -519,15 +656,19 @@ export default function TemplateFormModal({ onClose, onSave, allCompetencies = [
                             onRefreshCompetencies={onRefreshCompetencies}
                         />
                     )}
+                    {isDuplicate && step === 3 && <DuplicatePreview preview={duplicatePreview} language={language} />}
+                    {duplicatePreviewError && <div className="tfm-duplicate-preview__error" role="alert">{duplicatePreviewError}</div>}
                 </div>
                 <div className="modal-footer">
                     {step === 1
                         ? <button className="btn btn--ghost" onClick={onClose}>{t('template_cancel')}</button>
-                        : <button className="btn btn--ghost" onClick={() => setStep(1)}>← {t('template_back')}</button>
+                        : <button className="btn btn--ghost" onClick={() => setStep(step === 3 ? 2 : 1)}>← {t('template_back')}</button>
                     }
                     {step === 1
                         ? <button className="btn btn--primary" disabled={!canNext} onClick={() => setStep(2)}>{t('template_next')} →</button>
-                        : <button className="btn btn--primary" disabled={!canNext} onClick={handleSave}><Check size={15}/> {t('template_create_action')}</button>
+                        : step === 2
+                            ? <button className="btn btn--primary" disabled={!canNext || duplicatePreviewLoading} onClick={isDuplicate ? handleSave : handleSave}>{duplicatePreviewLoading ? (language === 'th' ? 'กำลังตรวจสอบ...' : 'Checking...') : (isDuplicate ? `${t('template_next')} →` : <><Check size={15}/> {t('template_create_action')}</>)}</button>
+                            : <button className="btn btn--primary" disabled={duplicatePreviewLoading || !duplicatePreview || duplicatePreview.ready_to_create === false} onClick={handleCreateDuplicate}><Copy size={15}/> {language === 'th' ? 'สร้างแบบแผน' : 'Create assessment plan'}</button>
                     }
                 </div>
             </div>
