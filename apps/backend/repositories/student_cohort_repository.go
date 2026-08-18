@@ -622,7 +622,8 @@ func buildStudentCohortQuery(filters models.StudentCohortFilters, byID bool) (st
 			c.major_id, m.name_th, d.faculty_id, f.name_th, sc.entry_year_be, sc.status, sc.note,
 			COALESCE(roster.roster_count, 0), COALESCE(roster.student_count, 0), COALESCE(roster.suspended_count, 0),
 			COALESCE(templates.template_count, 0), COALESCE(templates.active_template_count, 0), sc.last_reactivation_reason,
-			sc.last_reactivated_at, sc.last_reactivated_by, sc.created_at, sc.updated_at
+			sc.last_reactivated_at, sc.last_reactivated_by, sc.course_scores_recalculation_required,
+			sc.course_scores_recalculated_at, sc.created_at, sc.updated_at
 		FROM edu_student_cohorts sc
 		JOIN edu_curricula c ON c.curriculum_id = sc.curriculum_id AND c.deleted_at IS NULL
 		JOIN edu_majors m ON m.major_id = c.major_id AND m.deleted_at IS NULL
@@ -662,7 +663,7 @@ func scanStudentCohort(row scanner) (*models.StudentCohort, error) {
 		&item.CurriculumEffectiveYear, &item.MajorID, &item.MajorNameTH, &item.FacultyID, &item.FacultyNameTH,
 		&item.EntryYearBE, &item.Status, &item.Note, &item.RosterCount, &item.StudentCount, &item.SuspendedCount,
 		&item.TemplateCount, &item.ActiveTemplateCount, &item.LastReactivationReason, &item.LastReactivatedAt, &item.LastReactivatedBy,
-		&item.CreatedAt, &item.UpdatedAt)
+		&item.CourseScoresRecalculationRequired, &item.CourseScoresRecalculatedAt, &item.CreatedAt, &item.UpdatedAt)
 	return item, err
 }
 

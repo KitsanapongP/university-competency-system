@@ -60,7 +60,7 @@ export default function CompetencyPage() {
     });
 
     // Category: 'activity' | 'course'
-    const [category, setCategory] = useState('activity');
+    const [category, setCategory] = useState('course');
 
     // Course History States
     const[courseHistory, setCourseHistoryMap] = useState([]);
@@ -68,7 +68,8 @@ export default function CompetencyPage() {
     // Activity History States
     const [activityHistory, setActivityHistoryMap] = useState([]);
 
-    const [showRequirement, setShowRequirement] = useState(false);
+    const showRequirement = category === 'course';
+    const [dashboardStatus, setDashboardStatus] = useState(null);
 
     // Chart Interaction State
     const [activeCompetency, setActiveCompetency] = useState(null);
@@ -122,62 +123,68 @@ export default function CompetencyPage() {
                     };
                 });
 
-                // สร้าง map สำหรับ cometency ทั้งหมด
-                const activityMap = {};
+                // Keep history and radar data in separate maps. The dashboard API
+                // already returns the data for the selected category, so a second
+                // request must not be allowed to make the whole dashboard fail.
+                const historyMap = {};
                 Object.entries(payload.activities || {}).forEach(([key, value]) => {
-                    activityMap[Number(key)] = value || [];
+                    historyMap[Number(key)] = value || [];
                 });
+
                 // The current Cohort score is the source for the radar chart.
-                // History remains available in the separate activity/course panels.
+                // Course mode uses Course Total; activity mode uses Activity Score.
                 const progress = payload.progress || {};
-                const progressYear = String(new Date().getFullYear() + 543);
+                const progressYear = [...(payload.available_years || [])]
+                    .map(String)
+                    .sort((a, b) => Number(b) - Number(a))[0]
+                    || String(new Date().getFullYear() + 543);
+                const radarMap = {};
                 Object.entries(progress).forEach(([key, value]) => {
-                    activityMap[Number(key)] = [{
+                    const courseTotal = Number(
+                        value.course_total_score ??
+                        (Number(value.core_score || 0) + Number(value.course_bonus_score || 0))
+                    );
+                    const activityScore = Number(value.activity_score || 0);
+                    const score = category === 'course' ? courseTotal : activityScore;
+
+                    radarMap[Number(key)] = [{
                         id: `accumulated-${key}`,
-                        title: language === 'en' ? 'Accumulated competency score' : 'คะแนนสมรรถนะสะสม',
+                        title: category === 'course'
+                            ? (language === 'en' ? 'Course competency score' : 'คะแนนสมรรถนะจากรายวิชา')
+                            : (language === 'en' ? 'Activity competency score' : 'คะแนนสมรรถนะจากกิจกรรม'),
                         date: progressYear,
                         year: progressYear,
                         month: 0,
-                        score: Number(value.accumulated_score || 0),
-                        max_score: Math.max(Number(value.target_score || 0), Number(value.accumulated_score || 0)),
+                        score,
+                        max_score: Math.max(Number(value.target_score || 0), score),
                         type: 'accumulated',
                         status: 'completed',
                         competency_id: Number(key),
                         core_score: Number(value.core_score || 0),
                         course_bonus_score: Number(value.course_bonus_score || 0),
-                        activity_score: Number(value.activity_score || 0),
+                        course_total_score: courseTotal,
+                        activity_score: activityScore,
+                        accumulated_score: Number(value.accumulated_score || 0),
                         target_score: Number(value.target_score || 0),
                     }];
                 });
-                setRadarChartByCompetency(activityMap);
+                setRadarChartByCompetency(radarMap);
 
-                const years = normalizeYears(payload.available_years || [], activityMap);
-                
-                // โหลด activity แยกสำหรับ Profile History
-                const actResponse = await fetchCompetencyDashboard('activity');
-                const actPayload = actResponse?.data || actResponse;
-                const actMap = {};
-                Object.entries(actPayload.activities || {}).forEach(([key, value]) => {
-                    actMap[Number(key)] = value || [];
-                });
-                setActivityHistoryMap(actMap);
-
-                // โหลด course แยกสำหรับ Profile History
-                const crsResponse = await fetchCompetencyDashboard('course');
-                const crsPayload = crsResponse?.data || crsResponse;
-                const crsMap = {};
-                Object.entries(crsPayload.activities || {}).forEach(([key, value]) => {
-                    crsMap[Number(key)] = value || [];
-                });
-                setCourseHistoryMap(crsMap);
+                const years = normalizeYears(payload.available_years || [], historyMap);
+                if (category === 'activity') {
+                    setActivityHistoryMap(historyMap);
+                } else {
+                    setCourseHistoryMap(historyMap);
+                }
 
                 setCompetencies(styledCompetencies);
                 setRequirements(payload.requirements || {});
                 setAvailableYears(years);
+                setDashboardStatus(payload.status || null);
 
-                if (styledCompetencies.length) {
-                    setSelectedCompetencies(styledCompetencies.slice(0, 6).map((c) => c.id));
-                }
+                setSelectedCompetencies(styledCompetencies.map((c) => c.id));
+                setActiveCompetency(null);
+                setActiveDetailYear(null);
                 if (years.length) {
                     setSelectedYears([years[0]]);
                     setDateRange((prev) => ({
@@ -242,6 +249,9 @@ export default function CompetencyPage() {
 
     // Get Data Helper
     const getScoresForCurrentFilter = () => {
+        if (category === 'activity') {
+            return getAccumulatedScores(radarChartByCompetency);
+        }
         if (filterMode === 'year') {
             return getScoresByYear(selectedYears[0], radarChartByCompetency);
         }
@@ -256,7 +266,22 @@ export default function CompetencyPage() {
         );
         const datasets = [];
 
-        if (filterMode === 'year') {
+        if (category === 'activity') {
+            const accumulatedScores = getAccumulatedScores(radarChartByCompetency);
+            datasets.push({
+                label: t('activity_accumulated_score'),
+                data: selectedCompetencies.map(id => accumulatedScores[id] || 0),
+                backgroundColor: CHART_COLORS[0].bg,
+                borderColor: CHART_COLORS[0].border,
+                borderWidth: 2,
+                pointBackgroundColor: CHART_COLORS[0].border,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 6,
+                pointHoverRadius: 10,
+                pointHitRadius: 20,
+            });
+        } else if (filterMode === 'year') {
             selectedYears.forEach((year, index) => {
                 const yearData = getScoresByYear(year, radarChartByCompetency);
                 const data = selectedCompetencies.map(id => yearData[id] || 0);
@@ -368,13 +393,34 @@ export default function CompetencyPage() {
             return score >= req;
         }).length;
 
-        return { avg, growth, passed, total: selectedCompetencies.length };
+        return {
+            avg,
+            growth,
+            passed: category === 'course' ? passed : 0,
+            total: category === 'course' ? selectedCompetencies.length : 0,
+        };
     };
 
     const scoresForFilters = useMemo(
         () => getScoresForCurrentFilter(),
         [filterMode, selectedYears, dateRange, radarChartByCompetency]
     );
+
+    const dashboardStatusMessage = (() => {
+        if (!dashboardStatus) return null;
+        if (category === 'activity') {
+            if (dashboardStatus.code === 'NO_ACTIVITY_SCORES') return t('dashboard_no_activity_scores');
+            return t('dashboard_activity_score_mode');
+        }
+        if (dashboardStatus.code === 'NO_ACTIVE_COHORT') return t('dashboard_no_active_cohort');
+        if (dashboardStatus.code === 'NO_ACTIVE_TEMPLATE') return t('dashboard_no_active_template');
+        if (dashboardStatus.code === 'NO_TEMPLATE_COMPETENCIES') return t('dashboard_no_template_competencies');
+        if (dashboardStatus.code === 'NO_REQUIREMENTS') return t('dashboard_no_requirements');
+        if (!dashboardStatus.hasScores) return t('dashboard_scores_pending');
+        return category === 'course'
+            ? t('dashboard_course_score_mode')
+            : t('dashboard_activity_score_mode');
+    })();
 
     if (dataLoading) {
         return <LoadingSkeleton />;
@@ -392,6 +438,11 @@ export default function CompetencyPage() {
             {dataError && (
                 <div className="card" style={{ margin: '1.5rem', color: '#b91c1c' }}>
                     {dataError}
+                </div>
+            )}
+            {dashboardStatusMessage && (
+                <div className={`dashboard-status-notice ${dashboardStatus?.code === 'READY' ? 'info' : 'warning'}`}>
+                    {dashboardStatusMessage}
                 </div>
             )}
             {/* DASHBOARD PAGE */}
@@ -426,7 +477,7 @@ export default function CompetencyPage() {
                             dateRange={dateRange}
                             setDateRange={setDateRange}
                             showRequirement={showRequirement}
-                            setShowRequirement={setShowRequirement}
+                            showRequirementToggle={false}
                             category={category}
                             setCategory={setCategory}
                         />
@@ -439,21 +490,23 @@ export default function CompetencyPage() {
                         setActiveCompetency={setActiveCompetency}
                         setActiveDetailYear={setActiveDetailYear}
                         competencies={competencies}
-                        radarChartByCompetency={radarChartByCompetency}
+                        activitiesByCompetency={radarChartByCompetency}
                         filterMode={filterMode}
                         selectedYears={selectedYears}
                         dateRange={dateRange}
                     />
 
                     {/* Stats Cards */}
-                    <CompetencyStats stats={getStats()} />
+                    <CompetencyStats stats={getStats()} showPassedCriteria={category === 'course'} />
 
                     {/* Gap Analysis */}
-                    <GapAnalysis
-                        competencies={competencies.filter((comp) => selectedCompetencies.includes(comp.id))}
-                        scores={scoresForFilters}
-                        requirements={requirements}
-                    />
+                    {category === 'course' && (
+                        <GapAnalysis
+                            competencies={competencies.filter((comp) => selectedCompetencies.includes(comp.id))}
+                            scores={scoresForFilters}
+                            requirements={requirements}
+                        />
+                    )}
                 </>
             )}
 
@@ -663,6 +716,19 @@ function getScoresByDateRange(startYear, startMonth, endYear, endMonth, activity
         });
         const total = completed.reduce((sum, activity) => sum + (activity.score || 0), 0);
         scores[compId] = roundNumber(total, 2);
+    });
+    return scores;
+}
+
+function getAccumulatedScores(activityMap) {
+    const scores = {};
+    Object.keys(activityMap).forEach((compId) => {
+        scores[compId] = roundNumber(
+            (activityMap[compId] || [])
+                .filter((activity) => activity.status === 'completed')
+                .reduce((sum, activity) => sum + (activity.score || 0), 0),
+            2
+        );
     });
     return scores;
 }

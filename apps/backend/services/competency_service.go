@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -67,6 +68,17 @@ type DashboardData struct {
 	Activities    map[int64][]Activity                `json:"activities"`
 	AvailableYear []string                            `json:"available_years"`
 	Progress      map[int64]LearnerCompetencyProgress `json:"progress"`
+	Status        DashboardStatus                     `json:"status"`
+}
+
+type DashboardStatus struct {
+	Code            string `json:"code"`
+	Ready           bool   `json:"ready"`
+	CohortID        int64  `json:"cohort_id,omitempty"`
+	TemplateID      int64  `json:"template_id,omitempty"`
+	TemplateName    string `json:"template_name,omitempty"`
+	HasRequirements bool   `json:"has_requirements"`
+	HasScores       bool   `json:"has_scores"`
 }
 
 type LearnerCompetencyProgress struct {
@@ -197,37 +209,108 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 		return nil, err
 	}
 
-	// ดึง competencies ทั้งหมด (ไม่ว่าจะเป็น activity หรือ course)
-	competencies, err := s.Repo.GetCompetencies(ctx)
+	if category == "activity" {
+		return s.buildActivityDashboard(ctx, personID)
+	}
+
+	scope, err := s.Repo.GetLearnerDashboardScope(ctx, personID)
 	if err != nil {
 		return nil, err
 	}
 
-	// สร้าง empty dashboard data
 	data := &DashboardData{
-		Competencies:  make([]Competency, 0, len(competencies)),
+		Competencies:  make([]Competency, 0, len(scope.Competencies)),
 		Requirements:  make(map[int64]float64),
 		Activities:    make(map[int64][]Activity),
 		AvailableYear: []string{},
 		Progress:      make(map[int64]LearnerCompetencyProgress),
+		Status: DashboardStatus{
+			Code:         "READY",
+			Ready:        len(scope.Competencies) > 0,
+			CohortID:     scope.CohortID,
+			TemplateID:   scope.TemplateID,
+			TemplateName: scope.TemplateName,
+		},
 	}
 
 	progressRows, err := s.Repo.GetLearnerCompetencyProgress(ctx, personID)
 	if err != nil {
 		return nil, err
 	}
-	for competencyID, progress := range progressRows {
-		data.Progress[competencyID] = LearnerCompetencyProgress{
-			CoreScore: progress.CoreScore, CourseBonusScore: progress.CourseBonusScore,
+	for _, comp := range scope.Competencies {
+		data.Competencies = append(data.Competencies, Competency{
+			ID:     comp.ID,
+			Code:   comp.Code,
+			NameTH: comp.NameTH,
+			NameEN: comp.NameEN,
+		})
+
+		progress := progressRows[comp.ID]
+		data.Progress[comp.ID] = LearnerCompetencyProgress{
+			CoreScore:        progress.CoreScore,
+			CourseBonusScore: progress.CourseBonusScore,
 			CourseTotalScore: progress.CoreScore + progress.CourseBonusScore,
-			ActivityScore:    progress.ActivityScore, AccumulatedScore: progress.AccumulatedScore,
-			TargetScore: progress.TargetScore, Passed: progress.Passed,
+			ActivityScore:    progress.ActivityScore,
+			AccumulatedScore: progress.AccumulatedScore,
+			TargetScore:      progress.TargetScore,
+			Passed:           progress.Passed,
 		}
-		data.Requirements[competencyID] = progress.TargetScore
+		if requirement, exists := progressRows[comp.ID]; exists {
+			data.Requirements[comp.ID] = requirement.TargetScore
+		}
+	}
+	data.Status.HasRequirements = len(progressRows) > 0
+	data.Status.HasScores = hasAnyResult(progressRows)
+
+	if scope.CohortID == 0 {
+		data.Status.Code = "NO_ACTIVE_COHORT"
+	} else if scope.TemplateID == 0 {
+		data.Status.Code = "NO_ACTIVE_TEMPLATE"
+	} else if len(scope.Competencies) == 0 {
+		data.Status.Code = "NO_TEMPLATE_COMPETENCIES"
+	} else if len(progressRows) == 0 {
+		data.Status.Code = "NO_REQUIREMENTS"
 	}
 
-	// เติม competencies data
-	for _, comp := range competencies {
+	if category == "course" {
+		courseRows, err := s.Repo.GetCoursesByPerson(ctx, personID)
+		if err != nil {
+			return nil, err
+		}
+
+		activitiesByCompetency := s.processCourses(filterCourseRecords(courseRows, scope.Competencies))
+		data.Activities = activitiesByCompetency
+
+		yearsSet := s.extractYearsFromCourses(filterCourseRecords(courseRows, scope.Competencies))
+		for year := range yearsSet {
+			data.AvailableYear = append(data.AvailableYear, year)
+		}
+	}
+
+	return data, nil
+}
+
+func (s *CompetencyService) buildActivityDashboard(ctx context.Context, personID int64) (*DashboardData, error) {
+	activityRows, err := s.Repo.GetActivitiesByPerson(ctx, personID)
+	if err != nil {
+		return nil, err
+	}
+
+	competencyRecords := activityCompetencies(activityRows)
+	data := &DashboardData{
+		Competencies:  make([]Competency, 0, len(competencyRecords)),
+		Requirements:  make(map[int64]float64),
+		Activities:    s.processActivities(activityRows),
+		AvailableYear: []string{},
+		Progress:      activityProgress(activityRows),
+		Status: DashboardStatus{
+			Code:      "READY",
+			Ready:     len(competencyRecords) > 0,
+			HasScores: len(activityRows) > 0,
+		},
+	}
+
+	for _, comp := range competencyRecords {
 		data.Competencies = append(data.Competencies, Competency{
 			ID:     comp.ID,
 			Code:   comp.Code,
@@ -236,75 +319,89 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 		})
 	}
 
-	// แบ่งการจัดการตาม category
-	if category == "activity" {
-		// === ACTIVITY MODE ===
-		// ดึง activities ของนิสิต
-		activityRows, err := s.Repo.GetActivitiesByPerson(ctx, personID)
-		if err != nil {
-			return nil, err
+	yearsSet := s.extractYearsFromActivities(activityRows)
+	for year := range yearsSet {
+		data.AvailableYear = append(data.AvailableYear, year)
+	}
+	if len(activityRows) == 0 {
+		data.Status.Code = "NO_ACTIVITY_SCORES"
+	}
+	return data, nil
+}
+
+func activityCompetencies(records []repositories.ActivityRecord) []repositories.CompetencyRecord {
+	byID := make(map[int64]repositories.CompetencyRecord, len(records))
+	for _, record := range records {
+		if _, exists := byID[record.CompetencyID]; exists {
+			continue
 		}
-
-		// ประมวลผล activities เป็น map
-		activitiesByCompetency := s.processActivities(activityRows)
-		data.Activities = activitiesByCompetency
-
-		// ดึง available years จาก activities
-		yearsSet := s.extractYearsFromActivities(activityRows)
-		for year := range yearsSet {
-			data.AvailableYear = append(data.AvailableYear, year)
-		}
-
-		// Cohort targets supersede legacy Curriculum-level requirements.
-		if len(data.Progress) == 0 {
-			curriculumID, err := s.Repo.GetCurrentCurriculumID(ctx, personID)
-			if err != nil {
-				return nil, err
-			}
-			if curriculumID != 0 {
-				requirements, err := s.Repo.GetRequirementsByCurriculum(ctx, curriculumID)
-				if err != nil {
-					return nil, err
-				}
-				data.Requirements = requirements
-			}
-		}
-
-	} else if category == "course" {
-		// === COURSE MODE ===
-		// ดึง course/หลักสูตรของนิสิต
-		courseRows, err := s.Repo.GetCoursesByPerson(ctx, personID)
-		if err != nil {
-			return nil, err
-		}
-
-		// ประมวลผล courses เป็น map activities
-		activitiesByCompetency := s.processCourses(courseRows)
-		data.Activities = activitiesByCompetency
-
-		// ดึง available years จาก courses
-		yearsSet := s.extractYearsFromCourses(courseRows)
-		for year := range yearsSet {
-			data.AvailableYear = append(data.AvailableYear, year)
-		}
-
-		// Cohort targets supersede legacy Curriculum-level requirements.
-		if len(data.Progress) == 0 {
-			curriculumID, err := s.Repo.GetCurrentCurriculumID(ctx, personID)
-			if err != nil {
-				return nil, err
-			}
-			if curriculumID != 0 {
-				requirements, err := s.Repo.GetRequirementsByCurriculum(ctx, curriculumID)
-				if err != nil {
-					return nil, err
-				}
-				data.Requirements = requirements
-			}
+		byID[record.CompetencyID] = repositories.CompetencyRecord{
+			ID:     record.CompetencyID,
+			Code:   record.CompetencyCode,
+			NameTH: record.CompetencyNameTH,
+			NameEN: record.CompetencyNameEN,
 		}
 	}
 
-	return data, nil
+	result := make([]repositories.CompetencyRecord, 0, len(byID))
+	for _, record := range byID {
+		result = append(result, record)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ID < result[j].ID
+	})
+	return result
+}
+
+func activityProgress(records []repositories.ActivityRecord) map[int64]LearnerCompetencyProgress {
+	progress := make(map[int64]LearnerCompetencyProgress)
+	for _, record := range records {
+		if !record.EarnedPercent.Valid {
+			continue
+		}
+		item := progress[record.CompetencyID]
+		item.ActivityScore += record.EarnedPercent.Float64
+		item.AccumulatedScore = item.ActivityScore
+		progress[record.CompetencyID] = item
+	}
+	return progress
+}
+
+func hasAnyResult(progress map[int64]repositories.LearnerCompetencyProgressRecord) bool {
+	for _, item := range progress {
+		if item.HasResult {
+			return true
+		}
+	}
+	return false
+}
+
+func filterActivityRecords(records []repositories.ActivityRecord, competencies []repositories.CompetencyRecord) []repositories.ActivityRecord {
+	allowed := make(map[int64]struct{}, len(competencies))
+	for _, competency := range competencies {
+		allowed[competency.ID] = struct{}{}
+	}
+	filtered := make([]repositories.ActivityRecord, 0, len(records))
+	for _, record := range records {
+		if _, ok := allowed[record.CompetencyID]; ok {
+			filtered = append(filtered, record)
+		}
+	}
+	return filtered
+}
+
+func filterCourseRecords(records []repositories.CourseRecord, competencies []repositories.CompetencyRecord) []repositories.CourseRecord {
+	allowed := make(map[int64]struct{}, len(competencies))
+	for _, competency := range competencies {
+		allowed[competency.ID] = struct{}{}
+	}
+	filtered := make([]repositories.CourseRecord, 0, len(records))
+	for _, record := range records {
+		if _, ok := allowed[record.CompetencyID]; ok {
+			filtered = append(filtered, record)
+		}
+	}
+	return filtered
 }
 
 // processActivities ประมวลผล activity rows เป็น map
@@ -370,8 +467,12 @@ func (s *CompetencyService) processCourses(courseRows []repositories.CourseRecor
 
 		actType := "Course" // ประเภทเป็น "Course"
 
+		activityID := row.RecordID
+		if activityID == 0 {
+			activityID = row.CourseID
+		}
 		activitiesByCompetency[row.CompetencyID] = append(activitiesByCompetency[row.CompetencyID], Activity{
-			ID:           row.CourseID,
+			ID:           activityID,
 			Title:        row.CourseName,
 			Date:         date,
 			Year:         year,

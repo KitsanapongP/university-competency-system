@@ -505,6 +505,26 @@ body:has(.competency-app) {
   margin-bottom: 32px;
 }
 
+.dashboard-status-notice {
+  margin: 1.5rem 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--card);
+  font-size: 0.9rem;
+}
+
+.dashboard-status-notice.info {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  background: color-mix(in srgb, var(--primary-bg) 70%, var(--card));
+}
+
+.dashboard-status-notice.warning {
+  border-color: color-mix(in srgb, var(--accent-orange) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent-orange) 10%, var(--card));
+}
+
 /* Chart Section */
 .chart-section {
   overflow: visible;
