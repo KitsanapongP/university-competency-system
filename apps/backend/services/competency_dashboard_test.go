@@ -39,6 +39,59 @@ func TestFilterActivityRecordsToAssignedTemplateCompetencies(t *testing.T) {
 	}
 }
 
+func TestActivityCompetenciesAreDerivedFromFinalizedSessionRecords(t *testing.T) {
+	nameEN := "Communication"
+	records := []repositories.ActivityRecord{
+		{
+			SessionCompetencyID: 21,
+			CompetencyID:        7,
+			CompetencyCode:      "tst_csk",
+			CompetencyNameTH:    "การคิดเชิงระบบ",
+			CompetencyNameEN:    &nameEN,
+		},
+		{
+			SessionCompetencyID: 22,
+			CompetencyID:        7,
+			CompetencyCode:      "tst_csk",
+			CompetencyNameTH:    "การคิดเชิงระบบ",
+			CompetencyNameEN:    &nameEN,
+		},
+		{
+			SessionCompetencyID: 23,
+			CompetencyID:        100,
+			CompetencyCode:      "activity_only",
+			CompetencyNameTH:    "สมรรถนะกิจกรรม",
+		},
+	}
+
+	competencies := activityCompetencies(records)
+	if len(competencies) != 2 {
+		t.Fatalf("expected two unique activity competencies, got %#v", competencies)
+	}
+	if competencies[0].ID != 7 || competencies[1].ID != 100 {
+		t.Fatalf("expected deterministic activity competency ordering, got %#v", competencies)
+	}
+	if competencies[1].NameTH != "สมรรถนะกิจกรรม" {
+		t.Fatalf("expected activity-only competency to be preserved, got %#v", competencies[1])
+	}
+}
+
+func TestActivityProgressAccumulatesScoresAcrossSessionsWithoutCap(t *testing.T) {
+	records := []repositories.ActivityRecord{
+		{CompetencyID: 7, EarnedPercent: sql.NullFloat64{Float64: 65, Valid: true}},
+		{CompetencyID: 7, EarnedPercent: sql.NullFloat64{Float64: 55, Valid: true}},
+		{CompetencyID: 100, EarnedPercent: sql.NullFloat64{Float64: 25, Valid: true}},
+	}
+
+	progress := activityProgress(records)
+	if progress[7].ActivityScore != 120 || progress[7].AccumulatedScore != 120 {
+		t.Fatalf("expected activity score to accumulate above 100, got %#v", progress[7])
+	}
+	if progress[100].ActivityScore != 25 {
+		t.Fatalf("expected independent activity competency score, got %#v", progress[100])
+	}
+}
+
 func TestHasAnyResultRecognizesZeroScoreResult(t *testing.T) {
 	progress := map[int64]repositories.LearnerCompetencyProgressRecord{
 		7: {HasResult: true},
