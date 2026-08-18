@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -208,6 +209,10 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 		return nil, err
 	}
 
+	if category == "activity" {
+		return s.buildActivityDashboard(ctx, personID)
+	}
+
 	scope, err := s.Repo.GetLearnerDashboardScope(ctx, personID)
 	if err != nil {
 		return nil, err
@@ -267,20 +272,7 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 		data.Status.Code = "NO_REQUIREMENTS"
 	}
 
-	if category == "activity" {
-		activityRows, err := s.Repo.GetActivitiesByPerson(ctx, personID)
-		if err != nil {
-			return nil, err
-		}
-
-		activitiesByCompetency := s.processActivities(filterActivityRecords(activityRows, scope.Competencies))
-		data.Activities = activitiesByCompetency
-
-		yearsSet := s.extractYearsFromActivities(filterActivityRecords(activityRows, scope.Competencies))
-		for year := range yearsSet {
-			data.AvailableYear = append(data.AvailableYear, year)
-		}
-	} else if category == "course" {
+	if category == "course" {
 		courseRows, err := s.Repo.GetCoursesByPerson(ctx, personID)
 		if err != nil {
 			return nil, err
@@ -296,6 +288,83 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 	}
 
 	return data, nil
+}
+
+func (s *CompetencyService) buildActivityDashboard(ctx context.Context, personID int64) (*DashboardData, error) {
+	activityRows, err := s.Repo.GetActivitiesByPerson(ctx, personID)
+	if err != nil {
+		return nil, err
+	}
+
+	competencyRecords := activityCompetencies(activityRows)
+	data := &DashboardData{
+		Competencies:  make([]Competency, 0, len(competencyRecords)),
+		Requirements:  make(map[int64]float64),
+		Activities:    s.processActivities(activityRows),
+		AvailableYear: []string{},
+		Progress:      activityProgress(activityRows),
+		Status: DashboardStatus{
+			Code:      "READY",
+			Ready:     len(competencyRecords) > 0,
+			HasScores: len(activityRows) > 0,
+		},
+	}
+
+	for _, comp := range competencyRecords {
+		data.Competencies = append(data.Competencies, Competency{
+			ID:     comp.ID,
+			Code:   comp.Code,
+			NameTH: comp.NameTH,
+			NameEN: comp.NameEN,
+		})
+	}
+
+	yearsSet := s.extractYearsFromActivities(activityRows)
+	for year := range yearsSet {
+		data.AvailableYear = append(data.AvailableYear, year)
+	}
+	if len(activityRows) == 0 {
+		data.Status.Code = "NO_ACTIVITY_SCORES"
+	}
+	return data, nil
+}
+
+func activityCompetencies(records []repositories.ActivityRecord) []repositories.CompetencyRecord {
+	byID := make(map[int64]repositories.CompetencyRecord, len(records))
+	for _, record := range records {
+		if _, exists := byID[record.CompetencyID]; exists {
+			continue
+		}
+		byID[record.CompetencyID] = repositories.CompetencyRecord{
+			ID:     record.CompetencyID,
+			Code:   record.CompetencyCode,
+			NameTH: record.CompetencyNameTH,
+			NameEN: record.CompetencyNameEN,
+		}
+	}
+
+	result := make([]repositories.CompetencyRecord, 0, len(byID))
+	for _, record := range byID {
+		result = append(result, record)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ID < result[j].ID
+	})
+	return result
+}
+
+func activityProgress(records []repositories.ActivityRecord) map[int64]LearnerCompetencyProgress {
+	progress := make(map[int64]LearnerCompetencyProgress)
+	for _, record := range records {
+		if !record.EarnedPercent.Valid {
+			continue
+		}
+		item := progress[record.CompetencyID]
+		item.ActivityScore += record.EarnedPercent.Float64
+		item.AccumulatedScore = item.ActivityScore
+		progress[record.CompetencyID] = item
+	}
+	return progress
 }
 
 func hasAnyResult(progress map[int64]repositories.LearnerCompetencyProgressRecord) bool {

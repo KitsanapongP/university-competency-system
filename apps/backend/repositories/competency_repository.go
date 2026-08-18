@@ -27,6 +27,8 @@ type ActivityRecord struct {
 	SessionCompetencyID int64
 	CompetencyID        int64
 	CompetencyCode      string
+	CompetencyNameTH    string
+	CompetencyNameEN    *string
 	ActivityID          int64
 	ActivityName        string
 	ActivityCategory    *string
@@ -371,27 +373,34 @@ WHERE curriculum_id = ? AND deleted_at IS NULL
 func (r *CompetencyRepository) GetActivitiesByPerson(ctx context.Context, personID int64) ([]ActivityRecord, error) {
 	rows, err := r.DB.QueryContext(ctx, `
 SELECT
-  sc.session_competency_id,
-  sc.competency_id,
-  c.code,
-  a.activity_id,
-  a.name_th,
+   sc.session_competency_id,
+   sc.competency_id,
+   c.code,
+   c.name_th,
+   c.name_en,
+   a.activity_id,
+   a.name_th,
   a.category,
   a.type,
   s.status,
-  s.start_at,
-  sc.max_percent,
-  csr.earned_percent
+   s.start_at,
+   sc.max_percent,
+   csr.earned_percent
 FROM act_session_competencies sc
-JOIN comp_competencies c ON c.competency_id = sc.competency_id AND c.deleted_at IS NULL
-JOIN act_sessions s ON s.session_id = sc.session_id AND s.deleted_at IS NULL
+JOIN comp_competencies c ON c.competency_id = sc.competency_id AND c.is_active = 1 AND c.deleted_at IS NULL
+JOIN act_sessions s ON s.session_id = sc.session_id
+  AND s.status = 'completed'
+  AND s.scores_finalized_at IS NOT NULL
+  AND s.deleted_at IS NULL
 JOIN act_activities a ON a.activity_id = s.activity_id AND a.deleted_at IS NULL
 JOIN score_session_competency_scores scc
 	ON scc.session_competency_id = sc.session_competency_id
 	AND scc.person_id = ?
+	AND scc.is_locked = 1
 	AND scc.deleted_at IS NULL
-LEFT JOIN score_session_competency_results csr
+JOIN score_session_competency_results csr
   ON csr.score_id = scc.session_competency_score_id
+  AND csr.is_locked = 1
   AND csr.deleted_at IS NULL
 WHERE sc.deleted_at IS NULL
 ORDER BY s.start_at DESC
@@ -406,10 +415,13 @@ ORDER BY s.start_at DESC
 		var rec ActivityRecord
 		var category sql.NullString
 		var actType sql.NullString
+		var nameEN sql.NullString
 		if err := rows.Scan(
 			&rec.SessionCompetencyID,
 			&rec.CompetencyID,
 			&rec.CompetencyCode,
+			&rec.CompetencyNameTH,
+			&nameEN,
 			&rec.ActivityID,
 			&rec.ActivityName,
 			&category,
@@ -420,6 +432,9 @@ ORDER BY s.start_at DESC
 			&rec.EarnedPercent,
 		); err != nil {
 			return nil, err
+		}
+		if nameEN.Valid {
+			rec.CompetencyNameEN = &nameEN.String
 		}
 		if category.Valid {
 			rec.ActivityCategory = &category.String
