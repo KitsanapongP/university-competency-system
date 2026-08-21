@@ -513,42 +513,57 @@ function Step2({ form, setForm, allCompetencies, onRefreshCompetencies }) {
 
 function DuplicatePreview({ preview, language = 'th' }) {
     const isThai = language === 'th';
-    const warningLabels = {
-        SOURCE_COURSE_MISSING: isThai ? 'วิชาจากแบบแผนเดิมไม่มีในหลักสูตรใหม่' : 'Source course is missing from the target curriculum',
-        TARGET_COURSE_UNMAPPED: isThai ? 'วิชาในหลักสูตรใหม่ยังไม่มี Competency จากแบบแผนเดิม' : 'Target course has no competency mapping from the source',
-        REMOVED_COMPETENCY_MAPPING: isThai ? 'การเอา Competency ออกจะล้างน้ำหนักของวิชานี้' : 'Removing this competency will clear this course weight',
-        NEW_COMPETENCY_NO_WEIGHT: isThai ? 'Competency ใหม่ยังไม่มีน้ำหนักรายวิชา' : 'New competency has no copied course weight',
-    };
-    const warningDetails = (warning) => {
-        const label = warningLabels[warning.code] || warning.message;
-        const course = warning.course_code
-            ? `${warning.course_code}${warning.course_name ? ` · ${warning.course_name}` : ''}`
-            : '';
-        const comp = warning.competency ? ` · ${warning.competency}` : '';
-        if (warning.code === 'REMOVED_COMPETENCY_MAPPING') {
-            return {
-                title: warning.competency || label,
-                detail: course
-                    ? `${isThai ? 'กระทบรายวิชา' : 'Affected course'}: ${course}`
-                    : label,
-            };
-        }
-        return {
-            title: course || warning.competency || label,
-            detail: `${label}${comp}`,
-        };
-    };
-
     const warnings = Array.isArray(preview?.warnings) ? preview.warnings : [];
     const courseWarnings = warnings.filter(warning => (
         warning.code === 'SOURCE_COURSE_MISSING' || warning.code === 'TARGET_COURSE_UNMAPPED'
     ));
-    const competencyWarnings = warnings.filter(warning => (
-        warning.code === 'REMOVED_COMPETENCY_MAPPING' || warning.code === 'NEW_COMPETENCY_NO_WEIGHT'
-    ));
+    const removedCompetencyGroups = new Map();
+    const newCompetencyGroups = new Map();
+    const knownWarningCodes = new Set([
+        'SOURCE_COURSE_MISSING',
+        'TARGET_COURSE_UNMAPPED',
+        'REMOVED_COMPETENCY_MAPPING',
+        'NEW_COMPETENCY_NO_WEIGHT',
+    ]);
 
-    const renderWarningGroup = (title, Icon, groupWarnings, groupKey) => {
-        if (groupWarnings.length === 0) return null;
+    warnings.forEach(warning => {
+        if (warning.code === 'REMOVED_COMPETENCY_MAPPING') {
+            const key = warning.competency || 'unknown-competency';
+            const group = removedCompetencyGroups.get(key) || { name: warning.competency || (isThai ? 'ไม่ระบุสมรรถนะ' : 'Unnamed Competency'), courses: [] };
+            if (warning.course_code) {
+                const course = `${warning.course_code}${warning.course_name ? ` · ${warning.course_name}` : ''}`;
+                if (!group.courses.includes(course)) group.courses.push(course);
+            }
+            removedCompetencyGroups.set(key, group);
+        }
+        if (warning.code === 'NEW_COMPETENCY_NO_WEIGHT') {
+            const key = warning.competency || 'unknown-competency';
+            newCompetencyGroups.set(key, warning.competency || (isThai ? 'ไม่ระบุสมรรถนะ' : 'Unnamed Competency'));
+        }
+    });
+
+    const competencyGroups = [
+        ...Array.from(removedCompetencyGroups.entries()).map(([key, group]) => ({ key, type: 'removed', ...group })),
+        ...Array.from(newCompetencyGroups.entries()).map(([key, name]) => ({ key, type: 'new', name, courses: [] })),
+    ];
+    const unknownWarnings = warnings.filter(warning => !knownWarningCodes.has(warning.code));
+
+    const [expandedCompetencies, setExpandedCompetencies] = useState(() => new Set());
+    const toggleCompetency = (key) => {
+        setExpandedCompetencies(current => {
+            const next = new Set(current);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
+
+    const formatCourse = (warning) => warning.course_code
+        ? `${warning.course_code}${warning.course_name ? ` · ${warning.course_name}` : ''}`
+        : (isThai ? 'ไม่ระบุรายวิชา' : 'Unnamed course');
+
+    const renderWarningGroup = ({ title, Icon, count, countLabel, groupKey, children }) => {
+        if (count === 0) return null;
         return (
             <section className="tfm-duplicate-preview__warning-group" aria-labelledby={`duplicate-warning-${groupKey}`}>
                 <div className="tfm-duplicate-preview__warning-group-header">
@@ -556,22 +571,117 @@ function DuplicatePreview({ preview, language = 'th' }) {
                         <Icon size={16} aria-hidden="true" />
                         <h4>{title}</h4>
                     </div>
-                    <span className="tfm-duplicate-preview__warning-count">{groupWarnings.length}</span>
+                    <span className="tfm-duplicate-preview__warning-count">
+                        {count} {countLabel}
+                    </span>
                 </div>
-                <ul>
-                    {groupWarnings.map((warning, index) => {
-                        const details = warningDetails(warning);
-                        return (
-                            <li key={`${warning.code}-${index}`} className="tfm-duplicate-preview__warning-item">
-                                <strong>{details.title}</strong>
-                                <span>{details.detail}</span>
-                            </li>
-                        );
-                    })}
-                </ul>
+                <ul className="tfm-duplicate-preview__warning-list">{children}</ul>
             </section>
         );
     };
+
+    const renderCourseWarning = (warning, index) => {
+        const isMissing = warning.code === 'SOURCE_COURSE_MISSING';
+        return (
+            <li key={`${warning.code}-${warning.course_code || index}`} className="tfm-duplicate-preview__warning-item">
+                <div className="tfm-duplicate-preview__warning-item-top">
+                    <strong>{isMissing
+                        ? (isThai ? 'วิชาจากแบบแผนเดิมไม่มีในหลักสูตรใหม่' : 'Source course is not in the new curriculum')
+                        : (isThai ? 'วิชาในหลักสูตรใหม่ยังไม่มีน้ำหนัก' : 'New curriculum course has no weight yet')}</strong>
+                    <span className="tfm-duplicate-preview__warning-kind">{isThai ? 'วิชา' : 'Course'}</span>
+                </div>
+                <span className="tfm-duplicate-preview__warning-description">
+                    <strong>{formatCourse(warning)}</strong><br />
+                    {isMissing
+                        ? (isThai ? 'หลักสูตรปลายทางไม่มีวิชานี้ จึงไม่สามารถนำ mapping และน้ำหนักไปใช้ต่อได้' : 'The target curriculum does not contain this course, so its mapping and weights cannot be carried forward')
+                        : (isThai ? 'วิชานี้มีอยู่ในหลักสูตรปลายทาง แต่แบบแผนเดิมยังไม่มี Competency ที่เชื่อมกับวิชานี้' : 'The course exists in the target curriculum, but the source plan has no Competency mapping for it')}
+                </span>
+                <span className="tfm-duplicate-preview__warning-effect">
+                    {isMissing
+                        ? (isThai ? 'ผลที่จะเกิดขึ้น: วิชานี้จะไม่ถูกคัดลอกน้ำหนักไปยังแบบแผนใหม่' : 'Result: this course weight will not be copied to the new plan')
+                        : (isThai ? 'ผลที่จะเกิดขึ้น: วิชาจะถูกคัดลอกมา แต่ยังไม่มีน้ำหนัก' : 'Result: the course is copied, but it has no weight yet')}
+                </span>
+                {!isMissing && (
+                    <span className="tfm-duplicate-preview__warning-next">
+                        <strong>{isThai ? 'สิ่งที่ต้องทำต่อ:' : 'Next step:'}</strong>{' '}
+                        {isThai ? 'กำหนด Competency และน้ำหนักให้วิชานี้ก่อนเปิดใช้งานแบบแผน' : 'Configure a Competency mapping and weight before activating the plan'}
+                    </span>
+                )}
+            </li>
+        );
+    };
+
+    const renderCompetencyWarning = (group) => {
+        const isRemoved = group.type === 'removed';
+        const expanded = expandedCompetencies.has(group.key);
+        const affectedCount = group.courses.length;
+        return (
+            <li key={`${group.type}-${group.key}`} className="tfm-duplicate-preview__warning-item">
+                <div className="tfm-duplicate-preview__warning-item-top">
+                    <strong>{isRemoved
+                        ? (isThai ? 'คุณนำ Competency นี้ออกจากแบบแผนใหม่' : 'You removed this Competency from the new plan')
+                        : (isThai ? 'Competency ใหม่ยังไม่มีน้ำหนักรายวิชา' : 'New Competency has no course weight yet')}</strong>
+                    <span className="tfm-duplicate-preview__warning-kind">{isThai ? 'สมรรถนะ' : 'Competency'}</span>
+                </div>
+                <span className="tfm-duplicate-preview__warning-description">
+                    <strong>“{group.name}”</strong><br />
+                    {isRemoved
+                        ? (isThai ? 'Competency เดิมถูกใช้กับรายวิชาในแบบแผนต้นฉบับ' : 'This Competency was used by courses in the source plan')
+                        : (isThai ? 'คุณเพิ่ม Competency นี้ แต่แบบแผนต้นฉบับไม่มี mapping เดิมให้คัดลอก' : 'You added this Competency, but the source plan has no previous mapping to copy')}
+                </span>
+                <span className="tfm-duplicate-preview__warning-effect">
+                    {isRemoved
+                        ? (isThai ? `ผลที่จะเกิดขึ้น: น้ำหนักที่เชื่อมกับ ${affectedCount} รายวิชาจะไม่ถูกคัดลอกไปยังแบบแผนใหม่` : `Result: weights connected to ${affectedCount} course${affectedCount === 1 ? '' : 's'} will not be copied to the new plan`)
+                        : (isThai ? 'ผลที่จะเกิดขึ้น: Competency จะแสดงในแบบแผน แต่ยังไม่มีน้ำหนักรายวิชาและคะแนนจะเริ่มที่ 0' : 'Result: the Competency appears in the plan, but it has no course weight and scores start at 0')}
+                </span>
+                {isRemoved && affectedCount > 0 && (
+                    <>
+                        <span className="tfm-duplicate-preview__warning-next">
+                            <strong>{isThai ? 'สิ่งที่ต้องทำต่อ:' : 'Next step:'}</strong>{' '}
+                            {isThai ? 'เลือก Competency นี้กลับมา หรือกำหนด mapping ใหม่หลังสร้างแบบแผน' : 'Select this Competency again or configure new mappings after creation'}
+                        </span>
+                        <button
+                            type="button"
+                            className="tfm-duplicate-preview__details-button"
+                            aria-expanded={expanded}
+                            aria-controls={`duplicate-affected-courses-${group.key}`}
+                            onClick={() => toggleCompetency(group.key)}
+                        >
+                            {expanded
+                                ? (isThai ? 'ซ่อนรายวิชาที่ได้รับผลกระทบ' : 'Hide affected courses')
+                                : (isThai ? `ดูรายวิชาที่ได้รับผลกระทบ ${affectedCount} วิชา` : `View ${affectedCount} affected course${affectedCount === 1 ? '' : 's'}`)}
+                        </button>
+                        <div
+                            id={`duplicate-affected-courses-${group.key}`}
+                            className={`tfm-duplicate-preview__affected-courses ${expanded ? 'tfm-duplicate-preview__affected-courses--open' : ''}`}
+                            hidden={!expanded}
+                        >
+                            <span>{isThai ? 'รายวิชาที่ได้รับผลกระทบ' : 'Affected courses'}</span>
+                            <ul>
+                                {group.courses.map(course => <li key={course}>{course}</li>)}
+                            </ul>
+                        </div>
+                    </>
+                )}
+                {!isRemoved && (
+                    <span className="tfm-duplicate-preview__warning-next">
+                        <strong>{isThai ? 'สิ่งที่ต้องทำต่อ:' : 'Next step:'}</strong>{' '}
+                        {isThai ? 'กำหนดน้ำหนักให้รายวิชาในหน้าใส่น้ำหนักสมรรถนะก่อนเปิดใช้งาน' : 'Configure course weights in the Competency weight editor before activating the plan'}
+                    </span>
+                )}
+            </li>
+        );
+    };
+
+    const renderUnknownWarning = (warning, index) => (
+        <li key={`unknown-${index}`} className="tfm-duplicate-preview__warning-item">
+            <div className="tfm-duplicate-preview__warning-item-top">
+                <strong>{isThai ? 'รายการที่ต้องตรวจสอบเพิ่มเติม' : 'Additional item to review'}</strong>
+                <span className="tfm-duplicate-preview__warning-kind">{isThai ? 'ข้อมูล' : 'Data'}</span>
+            </div>
+            <span className="tfm-duplicate-preview__warning-description">{warning.message || (isThai ? 'ระบบพบข้อมูลที่ควรตรวจสอบ' : 'The system found an item to review')}</span>
+        </li>
+    );
 
     if (!preview) {
         return <div className="tfm-duplicate-preview__empty">{isThai ? 'ยังไม่มีข้อมูล Preview' : 'No preview is available.'}</div>;
@@ -583,12 +693,15 @@ function DuplicatePreview({ preview, language = 'th' }) {
                 {preview.has_warnings ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
                 <div>
                     <strong>{preview.has_warnings
-                        ? (isThai ? 'พบประเด็นที่ควรตรวจสอบ' : 'Please review these items')
+                        ? (isThai ? 'ยังสร้างได้ แต่ต้องตั้งค่าต่อ' : 'Can be created, but needs setup')
                         : (isThai ? 'ไม่พบปัญหาใด ๆ' : 'No issues found')}</strong>
-                    <span>{preview.same_curriculum
-                        ? (isThai ? 'คัดลอกไปยังหลักสูตรเดิม' : 'Copying to the same curriculum')
-                        : (isThai ? 'คัดลอกไปยังหลักสูตรใหม่ โดยเทียบจากรหัสวิชา' : 'Copying to a new curriculum by course code')}</span>
+                    <span>{preview.has_warnings
+                        ? (isThai ? 'Warning ไม่ได้บล็อกการสร้าง แต่บางน้ำหนักอาจไม่ถูกคัดลอกหรือยังต้องกำหนดเพิ่ม' : 'Warnings do not block creation, but some weights may not be copied or still need setup')
+                        : (preview.same_curriculum
+                            ? (isThai ? 'คัดลอกไปยังหลักสูตรเดิมได้ครบตามข้อมูลปัจจุบัน' : 'The current data can be copied to the same curriculum')
+                            : (isThai ? 'คัดลอกไปยังหลักสูตรใหม่ได้ครบตามข้อมูลปัจจุบัน' : 'The current data can be copied to the new curriculum'))}</span>
                 </div>
+                {preview.has_warnings && <span className="tfm-duplicate-preview__result-count">{courseWarnings.length + competencyGroups.length + unknownWarnings.length}</span>}
             </div>
 
             <div className="tfm-duplicate-preview__stats">
@@ -601,19 +714,40 @@ function DuplicatePreview({ preview, language = 'th' }) {
                 <div className="tfm-duplicate-preview__warnings" role="status">
                     <div className="tfm-duplicate-preview__warnings-title">
                         <AlertTriangle size={16} aria-hidden="true" />
-                        <h4>{isThai ? 'รายการที่ควรตรวจสอบ' : 'Items to review'}</h4>
+                        <div>
+                            <h4>{isThai ? 'รายละเอียดผลกระทบ' : 'Impact details'}</h4>
+                            <span>{isThai ? 'ระบบแสดงให้เห็นว่าการตั้งค่าครั้งนี้มีผลอย่างไร' : 'See how these choices affect the copied plan'}</span>
+                        </div>
                     </div>
                     {renderWarningGroup(
-                        isThai ? 'วิชาที่ควรตรวจสอบ' : 'Courses to review',
-                        BookOpenCheck,
-                        courseWarnings,
-                        'courses',
+                        {
+                            title: isThai ? 'วิชาที่ต้องตรวจสอบ' : 'Courses to review',
+                            Icon: BookOpenCheck,
+                            count: courseWarnings.length,
+                            countLabel: isThai ? 'รายการ' : 'items',
+                            groupKey: 'courses',
+                            children: courseWarnings.map(renderCourseWarning),
+                        },
                     )}
                     {renderWarningGroup(
-                        isThai ? 'สมรรถนะที่ควรตรวจสอบ' : 'Competencies to review',
-                        Sparkles,
-                        competencyWarnings,
-                        'competencies',
+                        {
+                            title: isThai ? 'สมรรถนะที่ต้องตรวจสอบ' : 'Competencies to review',
+                            Icon: Sparkles,
+                            count: competencyGroups.length,
+                            countLabel: isThai ? 'รายการ' : 'items',
+                            groupKey: 'competencies',
+                            children: competencyGroups.map(renderCompetencyWarning),
+                        },
+                    )}
+                    {renderWarningGroup(
+                        {
+                            title: isThai ? 'ข้อมูลที่ต้องตรวจสอบเพิ่มเติม' : 'Additional data to review',
+                            Icon: AlertTriangle,
+                            count: unknownWarnings.length,
+                            countLabel: isThai ? 'รายการ' : 'items',
+                            groupKey: 'other',
+                            children: unknownWarnings.map(renderUnknownWarning),
+                        },
                     )}
                 </div>
             )}
