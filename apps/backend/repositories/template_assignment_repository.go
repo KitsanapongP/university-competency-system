@@ -45,20 +45,43 @@ func (r *TemplateAssignmentRepository) GetCohortAssignmentHistory(ctx context.Co
 
 func (r *TemplateAssignmentRepository) GetAvailableTemplates(ctx context.Context, facultyID *uint64) ([]models.TemplateAssignmentCandidate, error) {
 	args := make([]any, 0, 1)
-	where := "t.deleted_at IS NULL AND t.is_active = 1 AND t.curriculum_id IS NOT NULL"
+	where := `t.deleted_at IS NULL
+		AND t.curriculum_id IS NOT NULL
+		AND NOT EXISTS (
+			SELECT 1 FROM curri_template_assignments live
+			WHERE live.template_id = t.template_id AND live.deleted_at IS NULL
+		)
+		AND (
+			t.is_active = 1
+			OR EXISTS (
+				SELECT 1 FROM curri_template_assignments history
+				WHERE history.template_id = t.template_id AND history.deleted_at IS NOT NULL
+			)
+		)`
 	if facultyID != nil {
 		where += " AND t.faculty_id = ?"
 		args = append(args, *facultyID)
 	}
 	query := `
-		SELECT t.template_id, t.code, t.name, t.curriculum_id, c.code, c.name_th
+		SELECT
+			t.template_id,
+			t.code,
+			t.name,
+			t.is_active,
+			EXISTS (
+				SELECT 1 FROM curri_template_assignments history
+				WHERE history.template_id = t.template_id
+			) AS was_assigned_before,
+			CASE WHEN t.is_active = 0 AND EXISTS (
+				SELECT 1 FROM curri_template_assignments history
+				WHERE history.template_id = t.template_id AND history.deleted_at IS NOT NULL
+			) THEN 1 ELSE 0 END AS requires_reactivation,
+			t.curriculum_id,
+			c.code,
+			c.name_th
 		FROM comp_templates t
 		JOIN edu_curricula c ON c.curriculum_id = t.curriculum_id AND c.deleted_at IS NULL
 		WHERE ` + where + `
-			AND NOT EXISTS (
-				SELECT 1 FROM curri_template_assignments prior
-				WHERE prior.template_id = t.template_id
-			)
 		ORDER BY c.code, t.name, t.template_id DESC
 	`
 	rows, err := r.DB.QueryContext(ctx, query, args...)
@@ -70,7 +93,17 @@ func (r *TemplateAssignmentRepository) GetAvailableTemplates(ctx context.Context
 	items := make([]models.TemplateAssignmentCandidate, 0)
 	for rows.Next() {
 		var item models.TemplateAssignmentCandidate
-		if err := rows.Scan(&item.TemplateID, &item.TemplateCode, &item.TemplateName, &item.CurriculumID, &item.CurriculumCode, &item.CurriculumNameTH); err != nil {
+		if err := rows.Scan(
+			&item.TemplateID,
+			&item.TemplateCode,
+			&item.TemplateName,
+			&item.TemplateIsActive,
+			&item.WasAssignedBefore,
+			&item.RequiresReactivation,
+			&item.CurriculumID,
+			&item.CurriculumCode,
+			&item.CurriculumNameTH,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -115,9 +148,32 @@ func (r *TemplateAssignmentRepository) GetAvailableCohorts(ctx context.Context, 
 	return items, rows.Err()
 }
 
-func (r *TemplateAssignmentRepository) HasAnyAssignmentForTemplate(ctx context.Context, templateID uint64) (bool, error) {
+func (r *TemplateAssignmentRepository) HasLiveAssignmentForTemplate(ctx context.Context, templateID uint64) (bool, error) {
 	var exists bool
-	err := r.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM curri_template_assignments WHERE template_id = ?)`, templateID).Scan(&exists)
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM curri_template_assignments
+			WHERE template_id = ? AND deleted_at IS NULL
+		)
+	`, templateID).Scan(&exists)
+	return exists, err
+}
+
+// HasAnyAssignmentForTemplate is kept as a compatibility shim for callers
+// that still use the old method name. Assignment reuse only considers live
+// relationships, so this deliberately delegates to the live-only query.
+func (r *TemplateAssignmentRepository) HasAnyAssignmentForTemplate(ctx context.Context, templateID uint64) (bool, error) {
+	return r.HasLiveAssignmentForTemplate(ctx, templateID)
+}
+
+func (r *TemplateAssignmentRepository) HasHistoricalAssignmentForTemplate(ctx context.Context, templateID uint64) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM curri_template_assignments
+			WHERE template_id = ? AND deleted_at IS NOT NULL
+		)
+	`, templateID).Scan(&exists)
 	return exists, err
 }
 
@@ -177,6 +233,9 @@ func (r *TemplateAssignmentRepository) CreateAssignment(ctx context.Context, tem
 	if err := lockAssignmentCohort(ctx, tx, cohortID); err != nil {
 		return nil, err
 	}
+	if err := reactivateHistoricalTemplate(ctx, tx, templateID); err != nil {
+		return nil, err
+	}
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO curri_template_assignments (template_id, cohort_id, assigned_by, assigned_at, created_at, updated_at)
 		VALUES (?, ?, ?, NOW(), NOW(), NOW())
@@ -220,7 +279,7 @@ func (r *TemplateAssignmentRepository) ReplaceAssignment(ctx context.Context, as
 	`, userID, reason, assignmentID); err != nil {
 		return nil, err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE comp_templates SET is_active = 0, updated_at = NOW() WHERE template_id = ?`, currentTemplateID); err != nil {
+	if err := reactivateHistoricalTemplate(ctx, tx, replacementTemplateID); err != nil {
 		return nil, err
 	}
 	if _, err := tx.ExecContext(ctx, `
@@ -266,9 +325,6 @@ func (r *TemplateAssignmentRepository) RemoveAssignment(ctx context.Context, ass
 	if affected == 0 {
 		return nil, sql.ErrNoRows
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE comp_templates SET is_active = 0, updated_at = NOW() WHERE template_id = ?`, current.TemplateID); err != nil {
-		return nil, err
-	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -277,7 +333,6 @@ func (r *TemplateAssignmentRepository) RemoveAssignment(ctx context.Context, ass
 	current.EndedAt = &endedAt
 	current.EndReason = &reason
 	current.DeletedAt = &endedAt
-	current.TemplateIsActive = false
 	return current, nil
 }
 
@@ -296,6 +351,24 @@ func lockAssignmentCohort(ctx context.Context, tx *sql.Tx, cohortID uint64) erro
 	if errors.Is(err, sql.ErrNoRows) {
 		return sql.ErrNoRows
 	}
+	return err
+}
+
+// reactivateHistoricalTemplate changes only a previously assigned inactive
+// template. The service validates its configuration before this transaction;
+// this update keeps reactivation and assignment atomic.
+func reactivateHistoricalTemplate(ctx context.Context, tx *sql.Tx, templateID uint64) error {
+	_, err := tx.ExecContext(ctx, `
+		UPDATE comp_templates
+		SET is_active = 1, updated_at = NOW()
+		WHERE template_id = ?
+		  AND is_active = 0
+		  AND EXISTS (
+			  SELECT 1 FROM curri_template_assignments history
+			  WHERE history.template_id = ?
+			    AND history.deleted_at IS NOT NULL
+		  )
+	`, templateID, templateID)
 	return err
 }
 

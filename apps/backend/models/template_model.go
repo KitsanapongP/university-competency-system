@@ -52,15 +52,18 @@ type TemplateAssignment struct {
 // TemplateAssignmentCandidate is a Template or Cohort returned to the
 // assignment workspace before an Assignment is created.
 type TemplateAssignmentCandidate struct {
-	TemplateID       uint64 `json:"template_id,omitempty"`
-	TemplateCode     string `json:"template_code,omitempty"`
-	TemplateName     string `json:"template_name,omitempty"`
-	CurriculumID     uint64 `json:"curriculum_id"`
-	CurriculumCode   string `json:"curriculum_code"`
-	CurriculumNameTH string `json:"curriculum_name_th"`
-	CohortID         uint64 `json:"cohort_id,omitempty"`
-	EntryYearBE      uint64 `json:"entry_year_be,omitempty"`
-	RosterCount      int    `json:"roster_count,omitempty"`
+	TemplateID           uint64 `json:"template_id,omitempty"`
+	TemplateCode         string `json:"template_code,omitempty"`
+	TemplateName         string `json:"template_name,omitempty"`
+	TemplateIsActive     bool   `json:"template_is_active,omitempty"`
+	WasAssignedBefore    bool   `json:"was_assigned_before,omitempty"`
+	RequiresReactivation bool   `json:"requires_reactivation,omitempty"`
+	CurriculumID         uint64 `json:"curriculum_id"`
+	CurriculumCode       string `json:"curriculum_code"`
+	CurriculumNameTH     string `json:"curriculum_name_th"`
+	CohortID             uint64 `json:"cohort_id,omitempty"`
+	EntryYearBE          uint64 `json:"entry_year_be,omitempty"`
+	RosterCount          int    `json:"roster_count,omitempty"`
 }
 
 type CreateTemplateAssignmentRequest struct {
