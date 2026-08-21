@@ -120,16 +120,25 @@ function AssignmentActionModal({ language, action, loading, onClose, onContinue 
     const needsReason = action.type === 'replace' || action.type === 'unassign';
     const isReplace = action.type === 'replace';
     const template = action.template || action.assignment;
+    const handleClose = () => {
+        setReason('');
+        onClose();
+    };
+    const handleContinue = () => {
+        const normalizedReason = String(reason || '').trim();
+        setReason('');
+        onContinue(normalizedReason);
+    };
     return (
         <BaseModal
             open={Boolean(action.type)}
             size="md"
             title={isReplace ? text(language, 'เปลี่ยนแบบแผนการประเมิน', 'Replace template') : text(language, 'ถอดแบบแผนการประเมิน', 'Unassign template')}
-            onClose={onClose}
+            onClose={handleClose}
             closeDisabled={loading}
             footer={<>
-                <button type="button" className="course-btn course-btn--ghost" onClick={onClose} disabled={loading}>{text(language, 'ยกเลิก', 'Cancel')}</button>
-                <button type="button" className="course-btn course-btn--danger" onClick={() => onContinue(reason)} disabled={loading || (needsReason && !reason.trim())}>{text(language, 'ดำเนินการต่อ', 'Continue')}</button>
+                <button type="button" className="course-btn course-btn--ghost" onClick={handleClose} disabled={loading}>{text(language, 'ยกเลิก', 'Cancel')}</button>
+                <button type="button" className="course-btn course-btn--danger" onClick={handleContinue} disabled={loading || (needsReason && !reason.trim())}>{text(language, 'ดำเนินการต่อ', 'Continue')}</button>
             </>}
         >
             <p className="course-modal-message">
