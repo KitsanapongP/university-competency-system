@@ -396,7 +396,7 @@
     width: calc(100% - var(--app-sidebar-width));
     min-height: 100vh;
     margin-left: var(--app-sidebar-width);
-    background: var(--bg);
+    background: var(--course-bg, var(--bg));
 }
 
 .competency-app--sidebar .main-content-officer.main-content--sidebar {
