@@ -593,8 +593,8 @@ function DuplicatePreview({ preview, language = 'th' }) {
                 <span className="tfm-duplicate-preview__warning-description">
                     <strong>{formatCourse(warning)}</strong><br />
                     {isMissing
-                        ? (isThai ? 'หลักสูตรปลายทางไม่มีวิชานี้ จึงไม่สามารถนำ mapping และน้ำหนักไปใช้ต่อได้' : 'The target curriculum does not contain this course, so its mapping and weights cannot be carried forward')
-                        : (isThai ? 'วิชานี้มีอยู่ในหลักสูตรปลายทาง แต่แบบแผนเดิมยังไม่มี Competency ที่เชื่อมกับวิชานี้' : 'The course exists in the target curriculum, but the source plan has no Competency mapping for it')}
+                        ? (isThai ? 'หลักสูตรปลายทางที่เลือกไม่มีวิชานี้ จึงไม่สามารถนำวิชาและน้ำหนักมาใช้ในแผนการประเมินนี้ได้' : 'The target curriculum does not contain this course, so its course and weights cannot be used in this template')
+                        : (isThai ? 'วิชานี้มีอยู่ในหลักสูตรปลายทางที่เลือก แต่แบบแผนเดิมยังไม่มี Competency ที่เชื่อมกับวิชานี้' : 'The course exists in the target curriculum, but the template has no Competency mapping for it')}
                 </span>
                 <span className="tfm-duplicate-preview__warning-effect">
                     {isMissing
@@ -619,26 +619,26 @@ function DuplicatePreview({ preview, language = 'th' }) {
             <li key={`${group.type}-${group.key}`} className="tfm-duplicate-preview__warning-item">
                 <div className="tfm-duplicate-preview__warning-item-top">
                     <strong>{isRemoved
-                        ? (isThai ? 'คุณนำ Competency นี้ออกจากแบบแผนใหม่' : 'You removed this Competency from the new plan')
-                        : (isThai ? 'Competency ใหม่ยังไม่มีน้ำหนักรายวิชา' : 'New Competency has no course weight yet')}</strong>
+                        ? (isThai ? 'คุณนำสมรรถนะนี้ออกจากแบบแผนใหม่' : 'You removed this Competency from the new plan')
+                        : (isThai ? 'สมรรถนะใหม่ยังไม่มีน้ำหนักรายวิชา' : 'New Competency has no course weight yet')}</strong>
                     <span className="tfm-duplicate-preview__warning-kind">{isThai ? 'สมรรถนะ' : 'Competency'}</span>
                 </div>
                 <span className="tfm-duplicate-preview__warning-description">
                     <strong>“{group.name}”</strong><br />
                     {isRemoved
-                        ? (isThai ? 'Competency เดิมถูกใช้กับรายวิชาในแบบแผนต้นฉบับ' : 'This Competency was used by courses in the source plan')
+                        ? (isThai ? 'สมรรถนะเดิมถูกใช้กับรายวิชาในแบบแผนต้นฉบับ' : 'This Competency was used by courses in the source plan')
                         : (isThai ? 'คุณเพิ่ม Competency นี้ แต่แบบแผนต้นฉบับไม่มี mapping เดิมให้คัดลอก' : 'You added this Competency, but the source plan has no previous mapping to copy')}
                 </span>
                 <span className="tfm-duplicate-preview__warning-effect">
                     {isRemoved
                         ? (isThai ? `ผลที่จะเกิดขึ้น: น้ำหนักที่เชื่อมกับ ${affectedCount} รายวิชาจะไม่ถูกคัดลอกไปยังแบบแผนใหม่` : `Result: weights connected to ${affectedCount} course${affectedCount === 1 ? '' : 's'} will not be copied to the new plan`)
-                        : (isThai ? 'ผลที่จะเกิดขึ้น: Competency จะแสดงในแบบแผน แต่ยังไม่มีน้ำหนักรายวิชาและคะแนนจะเริ่มที่ 0' : 'Result: the Competency appears in the plan, but it has no course weight and scores start at 0')}
+                        : (isThai ? 'ผลที่จะเกิดขึ้น: สมรรถนะจะแสดงในแบบแผน แต่ยังไม่มีน้ำหนักรายวิชาและคะแนนจะเริ่มที่ 0' : 'Result: the Competency appears in the plan, but it has no course weight and scores start at 0')}
                 </span>
                 {isRemoved && affectedCount > 0 && (
                     <>
                         <span className="tfm-duplicate-preview__warning-next">
                             <strong>{isThai ? 'สิ่งที่ต้องทำต่อ:' : 'Next step:'}</strong>{' '}
-                            {isThai ? 'เลือก Competency นี้กลับมา หรือกำหนด mapping ใหม่หลังสร้างแบบแผน' : 'Select this Competency again or configure new mappings after creation'}
+                            {isThai ? 'เลือกสมรรถนะนี้กลับมา หรือกำหนด mapping ใหม่หลังสร้างแบบแผน' : 'Select this Competency again or configure new mappings after creation'}
                         </span>
                         <button
                             type="button"
@@ -696,7 +696,7 @@ function DuplicatePreview({ preview, language = 'th' }) {
                         ? (isThai ? 'ยังสร้างได้ แต่ต้องตั้งค่าต่อ' : 'Can be created, but needs setup')
                         : (isThai ? 'ไม่พบปัญหาใด ๆ' : 'No issues found')}</strong>
                     <span>{preview.has_warnings
-                        ? (isThai ? 'Warning ไม่ได้บล็อกการสร้าง แต่บางน้ำหนักอาจไม่ถูกคัดลอกหรือยังต้องกำหนดเพิ่ม' : 'Warnings do not block creation, but some weights may not be copied or still need setup')
+                        ? (isThai ? 'การแจ้งเตือนครั้งนี้ไม่ได้บล็อกการสร้าง แต่บางน้ำหนักอาจไม่ถูกคัดลอกหรือยังต้องกำหนดเพิ่ม' : 'Warnings do not block creation, but some weights may not be copied or still need setup')
                         : (preview.same_curriculum
                             ? (isThai ? 'คัดลอกไปยังหลักสูตรเดิมได้ครบตามข้อมูลปัจจุบัน' : 'The current data can be copied to the same curriculum')
                             : (isThai ? 'คัดลอกไปยังหลักสูตรใหม่ได้ครบตามข้อมูลปัจจุบัน' : 'The current data can be copied to the new curriculum'))}</span>
