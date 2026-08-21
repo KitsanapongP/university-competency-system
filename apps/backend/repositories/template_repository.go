@@ -255,6 +255,35 @@ func duplicateCourseKey(code string) string {
 	return strings.ToLower(strings.TrimSpace(code))
 }
 
+// filterDuplicableTemplateItems keeps only mappings that belong to the
+// current Template structure. A normal course must still be placed in an
+// active Curriculum category; an Additional Course must still be active in
+// the Template. Competency marker rows are retained for the duplicate plan,
+// although they do not produce course mappings.
+func filterDuplicableTemplateItems(items []models.TemplateItem, activeCourseIDs map[uint64]struct{}, customCourses map[uint64]models.TemplateCourse) []models.TemplateItem {
+	filtered := make([]models.TemplateItem, 0, len(items))
+	for _, item := range items {
+		if item.CourseID == nil {
+			filtered = append(filtered, item)
+			continue
+		}
+		if !item.IsActive {
+			continue
+		}
+		if item.IsCustomCourse {
+			course, ok := customCourses[*item.CourseID]
+			if ok && course.IsActive {
+				filtered = append(filtered, item)
+			}
+			continue
+		}
+		if _, ok := activeCourseIDs[*item.CourseID]; ok {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
 func (r *TemplateRepository) buildTemplateDuplicatePlan(ctx context.Context, sourceID uint64, req models.DuplicateTemplateRequest) (*templateDuplicatePlan, error) {
 	source, err := r.GetTemplateByID(ctx, sourceID)
 	if err != nil {
@@ -358,13 +387,18 @@ func (r *TemplateRepository) buildTemplateDuplicatePlan(ctx context.Context, sou
 	for _, course := range courses {
 		sourceCustomCourseByID[course.TemplateCourseID] = course
 	}
+	activeSourceCourseIDs := make(map[uint64]struct{}, len(sourceCourseRefs))
+	for _, course := range sourceCourseRefs {
+		activeSourceCourseIDs[course.ID] = struct{}{}
+	}
+	duplicableItems := filterDuplicableTemplateItems(items, activeSourceCourseIDs, sourceCustomCourseByID)
 
 	warnings := []models.TemplateDuplicateWarning{}
 	warnedMissingSource := map[string]bool{}
 	warnedMissingTarget := map[string]bool{}
 	mappings := []templateDuplicateMapping{}
 	mappedTargetCodes := map[string]bool{}
-	for _, item := range items {
+	for _, item := range duplicableItems {
 		if item.CourseID == nil {
 			continue
 		}
@@ -400,7 +434,10 @@ func (r *TemplateRepository) buildTemplateDuplicatePlan(ctx context.Context, sou
 
 		ref, ok := sourceCourseByID[*item.CourseID]
 		if !ok {
-			ref = templateDuplicateCourseRef{ID: *item.CourseID, Code: item.CourseCode, NameTH: item.CourseNameTH}
+			// A normal mapping without a current active placement is stale.
+			// It is deliberately ignored instead of being reported as a
+			// missing target course.
+			continue
 		}
 		targetCourse, exists := targetByCode[duplicateCourseKey(ref.Code)]
 		if !exists {

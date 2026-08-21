@@ -291,7 +291,7 @@ func (s *CurriculumService) DeleteCategory(ctx context.Context, curriculumID uin
 		return nil, err
 	}
 
-	if err := s.Repo.DeleteCategoryTx(ctx, preview); err != nil {
+	if err := s.Repo.DeleteCategoryTx(ctx, curriculumID, preview); err != nil {
 		return nil, err
 	}
 	return s.GetCurriculumByID(ctx, curriculumID, roles, facultyID)
