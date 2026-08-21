@@ -89,6 +89,11 @@ function CourseMasterTree({ categories, depth = 0, language = 'th' }) {
 function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false, language = 'th' }) {
     const [search, setSearch] = useState('');
     const [previewId, setPreviewId] = useState(form.masterId || null);
+    const [loadingDetailId, setLoadingDetailId] = useState(null);
+    const [previewError, setPreviewError] = useState('');
+    const detailRequestsRef = useRef(new Map());
+    const mountedRef = useRef(true);
+    const selectedPreviewIdRef = useRef(form.masterId || null);
     const copy = language === 'th'
         ? {
             name: 'ชื่อแบบแผนการประเมิน',
@@ -99,6 +104,8 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
             loading: 'กำลังโหลดรายชื่อหลักสูตรจากระบบ...',
             year: 'ปี',
             empty: 'ไม่พบหลักสูตรที่ตรงกับการค้นหา',
+            previewLoading: 'กำลังโหลดโครงสร้างหลักสูตร...',
+            previewError: 'ไม่สามารถโหลดโครงสร้างหลักสูตรได้',
         }
         : {
             name: 'Assessment plan name',
@@ -109,6 +116,8 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
             loading: 'Loading curricula...',
             year: 'Year',
             empty: 'No curricula match your search',
+            previewLoading: 'Loading curriculum structure...',
+            previewError: 'Unable to load curriculum structure.',
         };
 
     const filtered = masters.filter(m =>
@@ -120,26 +129,72 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
 
     const preview = masters.find(m => m.id === previewId);
 
-    const handleMasterSelect = async (masterId) => {
-        let master = masterId ? masters.find(m => m.id === masterId) : null;
-        if (master && (!master.categories || master.categories.length === 0)) {
+    useEffect(() => () => {
+        mountedRef.current = false;
+    }, []);
+
+    useEffect(() => {
+        selectedPreviewIdRef.current = previewId;
+        setPreviewError('');
+    }, [previewId]);
+
+    const loadMasterDetail = useCallback(async (masterId) => {
+        if (!masterId) return null;
+
+        const master = masters.find(item => String(item.id) === String(masterId));
+        if (!master || master.categories?.length > 0) return master;
+
+        const requestKey = String(masterId);
+        const existingRequest = detailRequestsRef.current.get(requestKey);
+        if (existingRequest) return existingRequest;
+
+        const request = (async () => {
+            if (mountedRef.current) setLoadingDetailId(masterId);
             try {
                 const detail = await fetchCurriculumDetail(masterId);
-                if (detail) {
-                    master = { ...master, ...detail, name: detail.nameTh || detail.name || master.nameTh };
-                    if (setMasters) setMasters(prev => prev.map(m => m.id === masterId ? master : m));
+                if (!detail || !mountedRef.current) return detail;
+
+                const enrichedMaster = {
+                    ...master,
+                    ...detail,
+                    name: detail.nameTh || detail.name || master.nameTh,
+                };
+                setMasters?.(previous => previous.map(item => (
+                    String(item.id) === requestKey ? enrichedMaster : item
+                )));
+                return enrichedMaster;
+            } catch (error) {
+                console.error('Failed to fetch curriculum detail:', error);
+                if (mountedRef.current && String(selectedPreviewIdRef.current) === requestKey) {
+                    setPreviewError(copy.previewError);
                 }
-            } catch (err) {
-                console.error('Failed to fetch curriculum detail:', err);
+                return null;
+            } finally {
+                detailRequestsRef.current.delete(requestKey);
+                if (mountedRef.current) {
+                    setLoadingDetailId(current => (
+                        String(current) === requestKey ? null : current
+                    ));
+                }
             }
-        } else if (master && !master.name) {
-            master.name = master.nameTh || master.name;
+        })();
+
+        detailRequestsRef.current.set(requestKey, request);
+        return request;
+    }, [copy.previewError, masters, setMasters]);
+
+    useEffect(() => {
+        if (!loadingMasters && form.masterId) {
+            loadMasterDetail(form.masterId);
         }
-        setForm(p => ({ 
-            ...p, 
-            masterId
-        }));
+    }, [form.masterId, loadingMasters, loadMasterDetail]);
+
+    const handleMasterSelect = async (masterId) => {
+        selectedPreviewIdRef.current = masterId;
+        setPreviewError('');
+        setForm(p => ({ ...p, masterId }));
         setPreviewId(masterId);
+        await loadMasterDetail(masterId);
     };
 
     return (
@@ -231,9 +286,20 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                         <div className="tfm-preview-header">
                             <span>{preview.nameTh} ({preview.year})</span>
                         </div>
-                        <div className="tfm-preview-body">
-                            <CourseMasterTree categories={preview.categories} language={language}/>
-                        </div>
+                        {preview.categories?.length > 0 ? (
+                            <div className="tfm-preview-body">
+                                <CourseMasterTree categories={preview.categories} language={language}/>
+                            </div>
+                        ) : (
+                            <div className="tfm-preview-body tfm-preview-body--empty">
+                                <BookOpenCheck size={28} opacity={0.2}/>
+                                <span>
+                                    {loadingDetailId && String(loadingDetailId) === String(previewId)
+                                        ? copy.previewLoading
+                                        : (previewError || copy.previewError)}
+                                </span>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="tfm-master-preview tfm-master-preview--empty">
