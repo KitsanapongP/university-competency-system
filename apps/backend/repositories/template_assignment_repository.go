@@ -242,6 +242,9 @@ func (r *TemplateAssignmentRepository) CreateAssignment(ctx context.Context, tem
 	`, templateID, cohortID, userID); err != nil {
 		return nil, err
 	}
+	if err := markCohortRecalculationRequired(ctx, tx, cohortID); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -288,6 +291,9 @@ func (r *TemplateAssignmentRepository) ReplaceAssignment(ctx context.Context, as
 	`, replacementTemplateID, cohortID, userID); err != nil {
 		return nil, err
 	}
+	if err := markCohortRecalculationRequired(ctx, tx, cohortID); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -325,6 +331,9 @@ func (r *TemplateAssignmentRepository) RemoveAssignment(ctx context.Context, ass
 	if affected == 0 {
 		return nil, sql.ErrNoRows
 	}
+	if err := markCohortRecalculationRequired(ctx, tx, current.CohortID); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -351,6 +360,15 @@ func lockAssignmentCohort(ctx context.Context, tx *sql.Tx, cohortID uint64) erro
 	if errors.Is(err, sql.ErrNoRows) {
 		return sql.ErrNoRows
 	}
+	return err
+}
+
+func markCohortRecalculationRequired(ctx context.Context, tx *sql.Tx, cohortID uint64) error {
+	_, err := tx.ExecContext(ctx, `
+		UPDATE edu_student_cohorts
+		SET course_scores_recalculation_required = 1, updated_at = NOW()
+		WHERE cohort_id = ? AND deleted_at IS NULL
+	`, cohortID)
 	return err
 }
 
