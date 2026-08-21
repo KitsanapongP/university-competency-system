@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useSyncExternalStore } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import { Menu, LayoutDashboard, User, ClipboardCheck, BookOpen, GraduationCap, Users, Settings, ShieldCheck, CalendarClock, Link2 } from 'lucide-react';
 import { useLanguage } from '../../providers/LanguageContext';
@@ -14,6 +14,7 @@ import { AppSidebar, AppSidebarMobile, AppSidebarMobileShell } from './AppSideba
 import './AppLayout.css';
 
 const SIDEBAR_COLLAPSE_STORAGE_KEY = 'kku.sidebar.collapsed';
+const sidebarPreferenceListeners = new Set();
 
 function subscribeToClient(callback) {
     const frame = requestAnimationFrame(callback);
@@ -26,6 +27,22 @@ function getClientSnapshot() {
 
 function getServerSnapshot() {
     return false;
+}
+
+function subscribeToSidebarPreference(callback) {
+    sidebarPreferenceListeners.add(callback);
+    return () => sidebarPreferenceListeners.delete(callback);
+}
+
+function getSidebarCollapsedSnapshot() {
+    if (typeof window === 'undefined') return false;
+
+    return window.localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY) === 'true';
+}
+
+function setSidebarCollapsedPreference(collapsed) {
+    window.localStorage.setItem(SIDEBAR_COLLAPSE_STORAGE_KEY, String(collapsed));
+    sidebarPreferenceListeners.forEach((listener) => listener());
 }
 
 const MENU_CONFIG = {
@@ -79,7 +96,11 @@ export function AppLayout({
     const { resolvedTheme } = useTheme();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const sidebarCollapsed = useSyncExternalStore(
+        subscribeToSidebarPreference,
+        getSidebarCollapsedSnapshot,
+        getServerSnapshot,
+    );
     const mounted = useSyncExternalStore(subscribeToClient, getClientSnapshot, getServerSnapshot);
 
     const isDark = mounted && resolvedTheme === 'dark';
@@ -99,22 +120,8 @@ export function AppLayout({
         setMobileMenuOpen(false);
     };
 
-    useEffect(() => {
-        if (!usesSidebarNavigation) return;
-
-        const frame = requestAnimationFrame(() => {
-            setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY) === 'true');
-        });
-
-        return () => cancelAnimationFrame(frame);
-    }, [usesSidebarNavigation]);
-
     const handleToggleSidebar = () => {
-        setSidebarCollapsed((collapsed) => {
-            const nextCollapsed = !collapsed;
-            localStorage.setItem(SIDEBAR_COLLAPSE_STORAGE_KEY, String(nextCollapsed));
-            return nextCollapsed;
-        });
+        setSidebarCollapsedPreference(!sidebarCollapsed);
     };
 
     const mainContentClass = role === 'officer' ? 'main-content-officer' : 'main-content';
