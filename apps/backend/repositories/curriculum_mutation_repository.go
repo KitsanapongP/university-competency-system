@@ -617,7 +617,26 @@ func (r *CurriculumRepository) UpdateCurriculumCoursePlacement(ctx context.Conte
 }
 
 func (r *CurriculumRepository) SoftRemoveCurriculumCourse(ctx context.Context, curriculumID uint64, curriculumCourseID uint64) error {
-	res, err := r.DB.ExecContext(ctx, `
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var courseID uint64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT cc.course_id
+		FROM crs_curriculum_courses cc
+		JOIN crs_course_categories cat ON cat.category_id = cc.category_id
+		WHERE cc.curriculum_course_id = ?
+			AND cat.curriculum_id = ?
+			AND cat.deleted_at IS NULL
+			AND cc.deleted_at IS NULL
+	`, curriculumCourseID, curriculumID).Scan(&courseID); err != nil {
+		return err
+	}
+
+	res, err := tx.ExecContext(ctx, `
 		UPDATE crs_curriculum_courses cc
 		JOIN crs_course_categories cat ON cat.category_id = cc.category_id
 		SET cc.is_active = 0,
@@ -639,7 +658,43 @@ func (r *CurriculumRepository) SoftRemoveCurriculumCourse(ctx context.Context, c
 		return sql.ErrNoRows
 	}
 
-	return nil
+	if err := retireTemplateMappingsForRemovedCourseTx(ctx, tx, curriculumID, courseID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// retireTemplateMappingsForRemovedCourseTx retires mappings only when the
+// course no longer has any active placement in the owning Curriculum. This
+// preserves a mapping when the same course is still placed in another category.
+func retireTemplateMappingsForRemovedCourseTx(ctx context.Context, tx *sql.Tx, curriculumID, courseID uint64) error {
+	_, err := tx.ExecContext(ctx, `
+		UPDATE comp_template_items cti
+		JOIN curri_curriculum_templates cct ON cct.template_id = cti.template_id
+		SET cti.is_active = 0,
+			cti.deleted_at = NOW()
+		WHERE cct.curriculum_id = ?
+			AND cct.deleted_at IS NULL
+			AND cti.course_id = ?
+			AND (cti.is_custom_course = 0 OR cti.is_custom_course IS NULL)
+			AND cti.deleted_at IS NULL
+			AND NOT EXISTS (
+				SELECT 1
+				FROM curri_curriculum_templates current_cct
+				JOIN crs_curriculum_courses remaining ON remaining.course_id = cti.course_id
+				JOIN crs_course_categories remaining_cat ON remaining_cat.category_id = remaining.category_id
+				WHERE current_cct.template_id = cti.template_id
+					AND current_cct.deleted_at IS NULL
+					AND remaining_cat.curriculum_id = current_cct.curriculum_id
+					AND remaining.course_id = cti.course_id
+					AND remaining.is_active = 1
+					AND remaining.deleted_at IS NULL
+					AND remaining_cat.is_active = 1
+					AND remaining_cat.deleted_at IS NULL
+			)
+	`, curriculumID, courseID)
+	return err
 }
 
 func (r *CurriculumRepository) GetCategoryDeletePreview(ctx context.Context, curriculumID uint64, categoryID uint64) (*models.DeleteCategoryPreview, error) {
@@ -838,7 +893,7 @@ func (r *CurriculumRepository) getCurriculumCourseIDsInCategories(ctx context.Co
 	return ids, nil
 }
 
-func (r *CurriculumRepository) DeleteCategoryTx(ctx context.Context, preview *models.DeleteCategoryPreview) error {
+func (r *CurriculumRepository) DeleteCategoryTx(ctx context.Context, curriculumID uint64, preview *models.DeleteCategoryPreview) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -870,6 +925,9 @@ func (r *CurriculumRepository) DeleteCategoryTx(ctx context.Context, preview *mo
 		if err != nil {
 			return err
 		}
+		if err := retireTemplateMappingsForRemovedCategoriesTx(ctx, tx, curriculumID, preview.SubtreeCategoryIDs); err != nil {
+			return err
+		}
 	}
 
 	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
@@ -884,6 +942,40 @@ func (r *CurriculumRepository) DeleteCategoryTx(ctx context.Context, preview *mo
 	}
 
 	return tx.Commit()
+}
+
+func retireTemplateMappingsForRemovedCategoriesTx(ctx context.Context, tx *sql.Tx, curriculumID uint64, categoryIDs []uint64) error {
+	if len(categoryIDs) == 0 {
+		return nil
+	}
+
+	categoryPlaceholders := placeholders(len(categoryIDs))
+	categoryArgs := uint64sToAny(categoryIDs)
+	args := append([]any{curriculumID}, categoryArgs...)
+	_, err := tx.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE comp_template_items cti
+		JOIN curri_curriculum_templates cct ON cct.template_id = cti.template_id
+		JOIN crs_curriculum_courses removed ON removed.course_id = cti.course_id
+		SET cti.is_active = 0,
+			cti.deleted_at = NOW()
+		WHERE cct.curriculum_id = ?
+			AND cct.deleted_at IS NULL
+			AND removed.category_id IN (%s)
+			AND (cti.is_custom_course = 0 OR cti.is_custom_course IS NULL)
+			AND cti.deleted_at IS NULL
+			AND NOT EXISTS (
+				SELECT 1
+				FROM crs_curriculum_courses remaining
+				JOIN crs_course_categories remaining_cat ON remaining_cat.category_id = remaining.category_id
+				WHERE remaining.course_id = cti.course_id
+					AND remaining_cat.curriculum_id = cct.curriculum_id
+					AND remaining.is_active = 1
+					AND remaining.deleted_at IS NULL
+					AND remaining_cat.is_active = 1
+					AND remaining_cat.deleted_at IS NULL
+			)
+	`, categoryPlaceholders), args...)
+	return err
 }
 
 func (r *CurriculumRepository) CountConnectedTemplatesForCurriculum(ctx context.Context, curriculumID uint64) (int, error) {
