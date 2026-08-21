@@ -44,6 +44,10 @@
 .template-assignment-ready-item > div { display: grid; gap: .2rem; }
 .template-assignment-ready-item strong { color: var(--text-primary, #e2e8f0); }
 .template-assignment-ready-item span, .template-assignment-ready-item p { color: var(--text-muted, #94a3b8); font-size: .82rem; margin: 0; }
+.template-assignment-ready-item > div { grid-template-columns: 1fr auto; align-items: center; }
+.template-assignment-ready-item > div strong { grid-column: 1 / -1; }
+.template-assignment-reuse-badge { justify-self: end; border-radius: 999px; padding: .18rem .45rem; color: var(--primary, #60a5fa); background: color-mix(in srgb, var(--primary, #3b82f6) 14%, transparent); font-size: .7rem; font-style: normal; white-space: nowrap; }
+.template-assignment-reuse-note { color: var(--warning, #f59e0b) !important; }
 .template-assignment-ready-item .course-btn { justify-self: end; }
 
 .template-assignment-empty { min-height: 6rem; padding: 1.5rem; display: grid; place-items: center; color: var(--text-muted, #94a3b8); text-align: center; }
@@ -62,6 +66,7 @@
 .template-assignment-choice-list button:hover { border-color: var(--primary, #3b82f6); background: color-mix(in srgb, var(--primary, #3b82f6) 10%, transparent); }
 .template-assignment-choice-list span { display: grid; gap: .2rem; }
 .template-assignment-choice-list small { color: var(--text-muted, #94a3b8); }
+.template-assignment-choice-list button:has(small) small { line-height: 1.45; }
 .template-assignment-impact { display: grid; grid-template-columns: max-content 1fr; gap: .45rem .8rem; margin-top: .9rem; color: var(--text-muted, #94a3b8); font-size: .85rem; }
 .template-assignment-impact strong { color: var(--text-primary, #e2e8f0); }
 .template-assignment-reason { min-height: 5.5rem; resize: vertical; }
