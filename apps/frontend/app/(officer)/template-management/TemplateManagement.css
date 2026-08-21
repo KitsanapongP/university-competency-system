@@ -2786,6 +2786,17 @@
     padding: 0.25rem 0;
 }
 
+.tfm-preview-body--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.5rem;
+    color: var(--tfm-preview-empty-color);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
 /* Master category tree */
 .master-cat-row {
     display: flex;
