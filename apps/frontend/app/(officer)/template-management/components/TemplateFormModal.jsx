@@ -92,6 +92,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
     const [loadingDetailId, setLoadingDetailId] = useState(null);
     const [previewError, setPreviewError] = useState('');
     const detailRequestsRef = useRef(new Map());
+    const loadedDetailIdsRef = useRef(new Set());
     const mountedRef = useRef(true);
     const selectedPreviewIdRef = useRef(form.masterId || null);
     const copy = language === 'th'
@@ -106,6 +107,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
             empty: 'ไม่พบหลักสูตรที่ตรงกับการค้นหา',
             previewLoading: 'กำลังโหลดโครงสร้างหลักสูตร...',
             previewError: 'ไม่สามารถโหลดโครงสร้างหลักสูตรได้',
+            previewEmpty: 'หลักสูตรนี้ยังไม่มีโครงสร้างรายวิชา',
         }
         : {
             name: 'Assessment plan name',
@@ -118,6 +120,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
             empty: 'No curricula match your search',
             previewLoading: 'Loading curriculum structure...',
             previewError: 'Unable to load curriculum structure.',
+            previewEmpty: 'This curriculum has no course structure yet.',
         };
 
     const filtered = masters.filter(m =>
@@ -129,8 +132,12 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
 
     const preview = masters.find(m => m.id === previewId);
 
-    useEffect(() => () => {
-        mountedRef.current = false;
+    useEffect(() => {
+        // React Strict Mode mounts, cleans up, and mounts again in development.
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
     }, []);
 
     useEffect(() => {
@@ -153,6 +160,7 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
             try {
                 const detail = await fetchCurriculumDetail(masterId);
                 if (!detail || !mountedRef.current) return detail;
+                loadedDetailIdsRef.current.add(requestKey);
 
                 const enrichedMaster = {
                     ...master,
@@ -296,7 +304,9 @@ function Step1({ form, setForm, masters = [], setMasters, loadingMasters = false
                                 <span>
                                     {loadingDetailId && String(loadingDetailId) === String(previewId)
                                         ? copy.previewLoading
-                                        : (previewError || copy.previewError)}
+                                        : (previewError || (loadedDetailIdsRef.current.has(String(previewId))
+                                            ? copy.previewEmpty
+                                            : copy.previewLoading))}
                                 </span>
                             </div>
                         )}
