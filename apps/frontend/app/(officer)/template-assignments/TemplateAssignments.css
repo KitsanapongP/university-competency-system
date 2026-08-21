@@ -44,6 +44,10 @@
 .template-assignment-ready-item > div { display: grid; gap: .2rem; }
 .template-assignment-ready-item strong { color: var(--course-text); }
 .template-assignment-ready-item span, .template-assignment-ready-item p { color: var(--course-text-muted); font-size: .82rem; margin: 0; }
+.template-assignment-ready-item > div { grid-template-columns: 1fr auto; align-items: center; }
+.template-assignment-ready-item > div strong { grid-column: 1 / -1; }
+.template-assignment-reuse-badge { justify-self: end; border-radius: 999px; padding: .18rem .45rem; color: var(--course-accent); background: color-mix(in srgb, var(--course-accent) 14%, transparent); font-size: .7rem; font-style: normal; white-space: nowrap; }
+.template-assignment-reuse-note { color: var(--course-warning, #f59e0b) !important; }
 .template-assignment-ready-item .course-btn { justify-self: end; }
 
 .template-assignment-empty { min-height: 6rem; padding: 1.5rem; display: grid; place-items: center; color: var(--course-text-muted); text-align: center; }
@@ -159,6 +163,7 @@
 .template-assignment-choice-list button:hover { border-color: var(--course-accent); background: color-mix(in srgb, var(--course-accent) 10%, transparent); }
 .template-assignment-choice-list span { display: grid; gap: .2rem; }
 .template-assignment-choice-list small { color: var(--course-text-muted); }
+.template-assignment-choice-list button:has(small) small { line-height: 1.45; }
 .template-assignment-impact { display: grid; grid-template-columns: max-content 1fr; gap: .45rem .8rem; margin-top: .9rem; color: var(--course-text-muted); font-size: .85rem; }
 .template-assignment-impact strong { color: var(--course-text); }
 .template-assignment-reason { min-height: 5.5rem; resize: vertical; }
