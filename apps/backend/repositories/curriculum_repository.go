@@ -720,6 +720,7 @@ func (r *CurriculumRepository) getCurriculumCategories(ctx context.Context, curr
 		SELECT category_id, curriculum_id, parent_id, code, name_th, name_en, required_credits, display_order, is_active, created_at, updated_at, deleted_at
 		FROM crs_course_categories
 		WHERE curriculum_id = ?
+			AND is_active = 1
 			AND deleted_at IS NULL
 		ORDER BY COALESCE(parent_id, 0), display_order, category_id
 	`
@@ -808,7 +809,9 @@ func (r *CurriculumRepository) getCurriculumCoursesByCategory(ctx context.Contex
 		JOIN crs_course_categories cat ON cat.category_id = cc.category_id
 		JOIN crs_courses course ON course.course_id = cc.course_id
 		WHERE cat.curriculum_id = ?
+			AND cat.is_active = 1
 			AND cat.deleted_at IS NULL
+			AND cc.is_active = 1
 			AND cc.deleted_at IS NULL
 			AND course.deleted_at IS NULL
 			AND course.curriculum_id = cat.curriculum_id

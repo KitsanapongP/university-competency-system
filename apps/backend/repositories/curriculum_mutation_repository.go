@@ -3,11 +3,32 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/spw32767/university-competency-system-backend/models"
 )
+
+var ErrCurriculumCourseCodeAlreadyPlaced = errors.New("course code already has an active placement in this curriculum")
+
+type importedCourseAction uint8
+
+const (
+	importedCourseCreate importedCourseAction = iota
+	importedCourseReuse
+	importedCourseConflict
+)
+
+func importedCourseActionFor(masterFound bool, activePlacementCount int) importedCourseAction {
+	if !masterFound {
+		return importedCourseCreate
+	}
+	if activePlacementCount > 0 {
+		return importedCourseConflict
+	}
+	return importedCourseReuse
+}
 
 func (r *CurriculumRepository) UpdateCurriculumMetadataTx(ctx context.Context, curriculumID uint64, payload models.UpdateCurriculumMetadataPayload, targetMajor MajorScope, updateCourseContext bool) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
@@ -516,7 +537,7 @@ func (r *CurriculumRepository) CommitCurriculumStructureImport(ctx context.Conte
 			nextCourseOrder[categoryID] = displayOrder
 		}
 		nextCourseOrder[categoryID]++
-		courseID, err := r.createCourse(ctx, tx, curriculumID, models.CreateCourseInCatPayload{
+		courseID, err := r.findOrCreateImportedCourse(ctx, tx, curriculumID, models.CreateCourseInCatPayload{
 			Code: course.Code, NameTH: course.NameTH, NameEN: course.NameEN, Credits: course.Credits,
 		}, opts)
 		if err != nil {
@@ -531,6 +552,65 @@ func (r *CurriculumRepository) CommitCurriculumStructureImport(ctx context.Conte
 	}
 
 	return tx.Commit()
+}
+
+func (r *CurriculumRepository) findOrCreateImportedCourse(ctx context.Context, tx *sql.Tx, curriculumID uint64, payload models.CreateCourseInCatPayload, opts CreateCurriculumOptions) (uint64, error) {
+	codeKey := strings.ToLower(strings.TrimSpace(payload.Code))
+	var courseID uint64
+	err := tx.QueryRowContext(ctx, `
+		SELECT course_id
+		FROM crs_courses
+		WHERE curriculum_id = ?
+			AND LOWER(TRIM(code)) = ?
+			AND deleted_at IS NULL
+		LIMIT 1
+		FOR UPDATE
+	`, curriculumID, codeKey).Scan(&courseID)
+	if err == sql.ErrNoRows {
+		return r.createCourse(ctx, tx, curriculumID, payload, opts)
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	var activePlacementCount int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM crs_curriculum_courses cc
+		JOIN crs_course_categories cat ON cat.category_id = cc.category_id
+		WHERE cc.course_id = ?
+			AND cat.curriculum_id = ?
+			AND cc.is_active = 1
+			AND cc.deleted_at IS NULL
+			AND cat.is_active = 1
+			AND cat.deleted_at IS NULL
+	`, courseID, curriculumID).Scan(&activePlacementCount); err != nil {
+		return 0, err
+	}
+	if importedCourseActionFor(true, activePlacementCount) == importedCourseConflict {
+		return 0, fmt.Errorf("%w: %s", ErrCurriculumCourseCodeAlreadyPlaced, payload.Code)
+	}
+
+	var nameEN any
+	if payload.NameEN != nil {
+		nameEN = *payload.NameEN
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE crs_courses
+		SET code = ?,
+			name_th = ?,
+			name_en = ?,
+			credits = ?,
+			is_active = 1,
+			updated_at = NOW()
+		WHERE course_id = ?
+			AND curriculum_id = ?
+			AND deleted_at IS NULL
+	`, payload.Code, payload.NameTH, nameEN, payload.Credits, courseID, curriculumID); err != nil {
+		return 0, err
+	}
+
+	return courseID, nil
 }
 
 func (r *CurriculumRepository) UpdateCourseForCurriculum(ctx context.Context, curriculumID uint64, courseID uint64, payload models.UpdateCurriculumCourseDetailPayload) error {

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -60,6 +61,9 @@ func (s *CurriculumService) CommitStructureImport(ctx context.Context, curriculu
 		DegreeLevel: majorScope.DegreeLevel,
 		CreatedBy:   uint64(max(userID, 0)),
 	}); err != nil {
+		if errors.Is(err, repositories.ErrCurriculumCourseCodeAlreadyPlaced) {
+			return nil, CurriculumConflictError{Code: "DUPLICATE", Message: "course code already exists in this curriculum"}
+		}
 		return nil, err
 	}
 
