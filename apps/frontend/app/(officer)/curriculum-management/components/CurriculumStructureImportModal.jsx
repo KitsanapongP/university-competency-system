@@ -29,6 +29,8 @@ const copy = {
         structureWarnings: 'ปัญหาของโครงสร้าง',
         courseUnit: 'วิชา',
         creditUnit: 'หน่วยกิต',
+        requiredCourse: 'วิชาบังคับ',
+        electiveCourse: 'วิชาเลือก',
         issues: 'รายการที่ต้องแก้ไข',
         warnings: 'รายการที่จะไม่ถูกนำเข้า',
         warningHint: 'รายวิชาที่มีรหัสซ้ำจะถูกข้าม และรายวิชาอื่นจะยังนำเข้าได้',
@@ -58,6 +60,8 @@ const copy = {
         structureWarnings: 'Structure issues',
         courseUnit: 'courses',
         creditUnit: 'credits',
+        requiredCourse: 'Required',
+        electiveCourse: 'Elective',
         issues: 'Items to fix',
         warnings: 'Items that will be skipped',
         warningHint: 'Courses with duplicate codes will be skipped; other courses can still be imported.',
@@ -88,6 +92,8 @@ const importIssueMessages = {
         'course code is required': 'ต้องระบุรหัสวิชา',
         'course name_th is required': 'ต้องระบุชื่อวิชาภาษาไทย',
         'course credits must be zero or greater': 'หน่วยกิตต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป',
+        'course type is required': 'ต้องระบุประเภทวิชา',
+        'course type must be required or elective': 'ประเภทวิชาต้องเป็นวิชาบังคับหรือวิชาเลือก',
         'course code already exists in this curriculum': 'รหัสวิชานี้มีอยู่แล้วในหลักสูตร',
         'courses can only be placed in leaf categories': 'เพิ่มรายวิชาได้เฉพาะหมวดวิชาที่ย่อยที่สุด',
         'หมวดวิชาต้องระบุเรียงต่อเนื่องจากระดับ 1': 'หมวดวิชาต้องระบุเรียงต่อเนื่องจากระดับ 1',
@@ -101,6 +107,7 @@ const importIssueMessages = {
         'ต้องระบุรหัสวิชา': 'ต้องระบุรหัสวิชา',
         'ต้องระบุชื่อวิชาภาษาไทย': 'ต้องระบุชื่อวิชาภาษาไทย',
         'หน่วยกิตต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป': 'หน่วยกิตต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป',
+        'ประเภทวิชาต้องเป็นวิชาบังคับหรือวิชาเลือก': 'ประเภทวิชาต้องเป็นวิชาบังคับหรือวิชาเลือก',
         'รหัสวิชานี้มีอยู่แล้วในหลักสูตร': 'รหัสวิชานี้มีอยู่แล้วในหลักสูตร',
         'เพิ่มรายวิชาได้เฉพาะหมวดวิชาที่ย่อยที่สุด': 'เพิ่มรายวิชาได้เฉพาะหมวดวิชาที่ย่อยที่สุด',
     },
@@ -119,6 +126,9 @@ const importIssueMessages = {
         'ต้องระบุรหัสวิชา': 'Course code is required',
         'ต้องระบุชื่อวิชาภาษาไทย': 'Course Thai name is required',
         'หน่วยกิตต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป': 'Course credits must be a non-negative integer',
+        'course type is required': 'Course type is required',
+        'course type must be required or elective': 'Course type must be Required or Elective',
+        'ประเภทวิชาต้องเป็นวิชาบังคับหรือวิชาเลือก': 'Course type must be Required or Elective',
         'รหัสวิชานี้มีอยู่แล้วในหลักสูตร': 'Course code already exists in this curriculum',
         'เพิ่มรายวิชาได้เฉพาะหมวดวิชาที่ย่อยที่สุด': 'Courses can only be placed in leaf categories',
     },
@@ -213,7 +223,7 @@ function ImportPreviewNode({ category, depth, labels, issuesByRow, language }) {
             {category.courses?.length > 0 && (
                 <ul className="curriculum-import-preview__courses">
                     {category.courses.map((course, index) => {
-                        const courseIssues = getPreviewIssues(issuesByRow, [course.rowNumber], ['course_code', 'course_name_th', 'credits']);
+                        const courseIssues = getPreviewIssues(issuesByRow, [course.rowNumber], ['course_code', 'course_name_th', 'credits', 'course_type']);
                         const courseHasErrors = courseIssues.some(issue => issue.severity !== 'warning');
                         const courseHasWarnings = courseIssues.some(issue => issue.severity === 'warning');
                         return (
@@ -221,6 +231,9 @@ function ImportPreviewNode({ category, depth, labels, issuesByRow, language }) {
                                 <BookOpen size={13} aria-hidden="true" />
                                 <strong>{course.code || '-'}</strong>
                                 <span>{course.nameTh || '-'}</span>
+                                <span className={`curriculum-import-preview__course-type${course.isRequired ? ' curriculum-import-preview__course-type--required' : ' curriculum-import-preview__course-type--elective'}`}>
+                                    {course.isRequired ? labels.requiredCourse : labels.electiveCourse}
+                                </span>
                                 <span>{course.credits} {labels.creditUnit}</span>
                                 {courseIssues.length > 0 && <AlertTriangle size={14} className={`curriculum-import-preview__warning-icon${!courseHasErrors && courseHasWarnings ? ' curriculum-import-preview__warning-icon--warning' : ''}`} aria-hidden="true" />}
                                 <PreviewIssueList issues={courseIssues} language={language} />

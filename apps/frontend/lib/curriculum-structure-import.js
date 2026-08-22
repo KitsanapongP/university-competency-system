@@ -9,6 +9,7 @@ export const CURRICULUM_STRUCTURE_IMPORT_HEADERS = [
     'ชื่อวิชา (ไทย)',
     'ชื่อวิชา (อังกฤษ)',
     'หน่วยกิต',
+    'ประเภทวิชา',
 ];
 
 const categoryCodePattern = /^\d+(?:\.\d+){0,3}$/;
@@ -36,7 +37,7 @@ export async function downloadCurriculumStructureTemplate() {
         '1.1', 'หมวดภาษา',
         '', '',
         '', '',
-        'EX1001', 'ตัวอย่างรายวิชา', 'Sample Course', 3,
+        'EX1001', 'ตัวอย่างรายวิชา', 'Sample Course', 3, 'วิชาบังคับ',
     ];
     const worksheet = XLSX.utils.aoa_to_sheet([CURRICULUM_STRUCTURE_IMPORT_HEADERS, sample]);
     const workbook = XLSX.utils.book_new();
@@ -77,13 +78,25 @@ export async function parseCurriculumStructureWorkbook(file) {
         const courseNameTh = getCell('ชื่อวิชา (ไทย)');
         const courseNameEn = getCell('ชื่อวิชา (อังกฤษ)');
         const creditValue = getCell('หน่วยกิต');
-        const hasValue = [...categories.flatMap(category => [category.code, category.name_th]), courseCode, courseNameTh, courseNameEn, creditValue]
+        const courseType = getCell('ประเภทวิชา');
+        const hasValue = [...categories.flatMap(category => [category.code, category.name_th]), courseCode, courseNameTh, courseNameEn, creditValue, courseType]
             .some(Boolean);
         if (!hasValue) return;
 
         const credits = Number(creditValue);
         if (!creditValue || !Number.isFinite(credits) || !Number.isInteger(credits) || credits < 0) {
             issues.push(issue(rowNumber, 'credits', 'หน่วยกิตต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป'));
+        }
+        const normalizedCourseType = courseType.toLocaleLowerCase();
+        const requiredCourseTypes = new Set(['วิชาบังคับ', 'บังคับ', 'required', 'core']);
+        const electiveCourseTypes = new Set(['วิชาเลือก', 'เลือก', 'elective']);
+        let isRequired = null;
+        if (requiredCourseTypes.has(normalizedCourseType)) {
+            isRequired = true;
+        } else if (electiveCourseTypes.has(normalizedCourseType)) {
+            isRequired = false;
+        } else {
+            issues.push(issue(rowNumber, 'course_type', 'ประเภทวิชาต้องเป็นวิชาบังคับหรือวิชาเลือก'));
         }
         rows.push({
             row_number: rowNumber,
@@ -92,6 +105,7 @@ export async function parseCurriculumStructureWorkbook(file) {
             course_name_th: courseNameTh,
             course_name_en: courseNameEn || null,
             credits: Number.isFinite(credits) ? credits : -1,
+            is_required: isRequired,
         });
     });
 
@@ -144,6 +158,7 @@ export function buildCurriculumStructureImportTree(rows) {
             code: normalize(row.course_code),
             nameTh: normalize(row.course_name_th),
             credits: Number(row.credits) || 0,
+            isRequired: row.is_required === true,
             rowNumber: Number(row.row_number) || 0,
         });
     });
@@ -263,6 +278,10 @@ function analyzeRows(rows, existingCategories, existingCourseCodes) {
             issues.push(issue(rowNumber, 'credits', 'หน่วยกิตต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป'));
             valid = false;
         }
+        if (typeof row.is_required !== 'boolean') {
+            issues.push(issue(rowNumber, 'course_type', 'ประเภทวิชาต้องเป็นวิชาบังคับหรือวิชาเลือก'));
+            valid = false;
+        }
         const courseKey = key(courseCode);
         const duplicateCourse = courseCode && (existingCourseCodes.has(courseKey) || importedCourseCodes.has(courseKey));
         if (duplicateCourse) {
@@ -363,7 +382,7 @@ export function applyDraftCurriculumStructureImport(categories, coursesByCategor
                 nameTh: normalize(row.course_name_th),
                 nameEn: normalize(row.course_name_en),
                 credits: Number(row.credits),
-                isCoreCourse: true,
+                isCoreCourse: row.is_required === true,
             },
         ];
     });

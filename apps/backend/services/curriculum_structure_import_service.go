@@ -187,6 +187,10 @@ func (s *CurriculumService) analyzeStructureImport(ctx context.Context, curricul
 			preview.Issues = append(preview.Issues, importIssue(rowNumber, "credits", "course credits must be zero or greater"))
 			rowValid = false
 		}
+		if row.IsRequired == nil {
+			preview.Issues = append(preview.Issues, importIssue(rowNumber, "course_type", "course type is required"))
+			rowValid = false
+		}
 		courseKey := strings.ToLower(courseCode)
 		if courseCode != "" && (existingCourseCodes[courseKey] || importedCourseCodes[courseKey]) {
 			preview.Issues = append(preview.Issues, importWarning(rowNumber, "course_code", "course code already exists in this curriculum"))
@@ -204,6 +208,7 @@ func (s *CurriculumService) analyzeStructureImport(ctx context.Context, curricul
 				NameTH:       courseNameTH,
 				NameEN:       nameEN,
 				Credits:      row.Credits,
+				IsRequired:   *row.IsRequired,
 			})
 		}
 	}

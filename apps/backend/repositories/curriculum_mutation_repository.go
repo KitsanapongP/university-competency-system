@@ -524,8 +524,8 @@ func (r *CurriculumRepository) CommitCurriculumStructureImport(ctx context.Conte
 		}
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO crs_curriculum_courses (category_id, course_id, is_required, display_order, is_active)
-			VALUES (?, ?, 1, ?, 1)
-		`, categoryID, courseID, nextCourseOrder[categoryID]); err != nil {
+			VALUES (?, ?, ?, ?, 1)
+		`, categoryID, courseID, course.IsRequired, nextCourseOrder[categoryID]); err != nil {
 			return err
 		}
 	}

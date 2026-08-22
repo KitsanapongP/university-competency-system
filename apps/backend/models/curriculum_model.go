@@ -319,6 +319,7 @@ type CurriculumStructureImportRow struct {
 	CourseNameTH string                              `json:"course_name_th"`
 	CourseNameEN *string                             `json:"course_name_en"`
 	Credits      int                                 `json:"credits"`
+	IsRequired   *bool                               `json:"is_required"`
 }
 
 type CurriculumStructureImportPayload struct {
@@ -355,6 +356,7 @@ type CurriculumStructureImportCoursePlan struct {
 	NameTH       string
 	NameEN       *string
 	Credits      int
+	IsRequired   bool
 }
 
 type CurriculumStructureImportPlan struct {

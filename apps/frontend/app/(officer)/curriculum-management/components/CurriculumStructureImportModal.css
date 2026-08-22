@@ -221,9 +221,29 @@
     flex-wrap: wrap;
 }
 
-.curriculum-import-preview__course span:last-child {
+.curriculum-import-preview__course > span:last-of-type {
     margin-left: auto;
     white-space: nowrap;
+}
+
+.curriculum-import-preview__course-type {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.4rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.curriculum-import-preview__course-type--required {
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.14);
+}
+
+.curriculum-import-preview__course-type--elective {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.14);
 }
 
 .curriculum-import-preview__warning-icon {
