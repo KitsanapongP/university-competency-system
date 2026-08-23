@@ -67,7 +67,7 @@ func (r *CourseGradeRepository) GetStudentGrades(ctx context.Context, cohortID, 
 		JOIN crs_courses course ON course.course_id = placement.course_id AND course.deleted_at IS NULL AND course.is_active = 1
 		LEFT JOIN crs_course_enrollment grade ON grade.student_curricula_id = roster.enrollment_curriculum_id
 			AND grade.enrollment_id = roster.enrollment_id AND grade.course_id = course.course_id AND grade.deleted_at IS NULL` + gradeFilter + `
-		WHERE cohort.cohort_id = ? AND roster.enrollment_id = ?` + searchWhere + courseGradeStatusWhere(filters) + `
+		WHERE cohort.cohort_id = ? AND roster.enrollment_id = ?` + searchWhere + courseGradeResultWhere(filters) + `
 		ORDER BY course.code, grade.academic_year_be DESC, grade.semester DESC`
 	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -354,7 +354,7 @@ func (r *CourseGradeRepository) getCourseSummaries(ctx context.Context, cohortID
 		LEFT JOIN kku_enrollment_curricula roster ON roster.cohort_id = cohort.cohort_id AND roster.deleted_at IS NULL
 		LEFT JOIN crs_course_enrollment grade ON grade.student_curricula_id = roster.enrollment_curriculum_id
 			AND grade.enrollment_id = roster.enrollment_id AND grade.course_id = course.course_id AND grade.deleted_at IS NULL` + gradeFilter + `
-		WHERE cohort.cohort_id = ?` + searchWhere + courseGradeStatusWhere(filters) + `
+		WHERE cohort.cohort_id = ?` + searchWhere + courseGradeResultWhere(filters) + `
 		GROUP BY course.course_id, course.code, course.name_th, course.name_en, placement.is_required, course.credits
 		ORDER BY course.code`
 	rows, err := r.DB.QueryContext(ctx, query, args...)
@@ -391,7 +391,7 @@ func (r *CourseGradeRepository) getStudentSummaries(ctx context.Context, cohortI
 		JOIN crs_courses course ON course.course_id = placement.course_id AND course.deleted_at IS NULL AND course.is_active = 1
 		LEFT JOIN crs_course_enrollment grade ON grade.student_curricula_id = roster.enrollment_curriculum_id
 			AND grade.enrollment_id = roster.enrollment_id AND grade.course_id = course.course_id AND grade.deleted_at IS NULL` + gradeFilter + `
-		WHERE cohort.cohort_id = ?` + searchWhere + courseGradeStatusWhere(filters) + `
+		WHERE cohort.cohort_id = ?` + searchWhere + courseGradeResultWhere(filters) + `
 		GROUP BY roster.enrollment_id, student.student_code, person.first_name_th, person.last_name_th
 		ORDER BY student.student_code`
 	rows, err := r.DB.QueryContext(ctx, query, args...)
@@ -445,15 +445,17 @@ func courseGradeSearchWhereWithArgs(filters models.CourseGradeFilters, alias str
 	return " AND " + strings.Join(conditions, " AND "), args
 }
 
-func courseGradeStatusWhere(filters models.CourseGradeFilters) string {
+func courseGradeResultWhere(filters models.CourseGradeFilters) string {
 	switch filters.Status {
 	case "recorded":
 		return " AND grade.course_student_id IS NOT NULL"
 	case "missing":
 		return " AND grade.course_student_id IS NULL"
-	default:
-		return ""
 	}
+	if filters.AcademicYearBE != nil || filters.Semester != nil {
+		return " AND grade.course_student_id IS NOT NULL"
+	}
+	return ""
 }
 
 func uint64OrZero(value sql.NullInt64) uint64 {
