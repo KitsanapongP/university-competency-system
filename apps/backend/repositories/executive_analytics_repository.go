@@ -337,7 +337,7 @@ func (r *ExecutiveAnalyticsRepository) GetStudentFacts(ctx context.Context, f mo
 		JOIN kku_enrollment_curricula roster ON roster.cohort_id = sc.cohort_id AND roster.deleted_at IS NULL
 		JOIN kku_enrollments e ON e.enrollment_id = roster.enrollment_id
 			AND e.enrollment_status = 'student' AND e.deleted_at IS NULL
-		JOIN persons p ON p.person_id = e.person_id AND p.deleted_at IS NULL` + competencyJoin + `
+		JOIN persons p ON p.person_id = e.person_id AND p.deleted_at IS NULL ` + competencyJoin + `
 		LEFT JOIN comp_competencies comp ON comp.competency_id = req.competency_id AND comp.deleted_at IS NULL
 		LEFT JOIN score_competency_result result ON result.enrollment_id = e.enrollment_id
 			AND result.competency_id = req.competency_id AND result.deleted_at IS NULL
@@ -369,6 +369,81 @@ func (r *ExecutiveAnalyticsRepository) GetStudentFacts(ctx context.Context, f mo
 		}
 		item.IsRequired, item.HasScore = required == 1, hasScore == 1
 		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *ExecutiveAnalyticsRepository) GetStudentCourses(ctx context.Context, cohortID, enrollmentID uint64) ([]models.ExecutiveStudentCourse, error) {
+	rows, err := r.DB.QueryContext(ctx, `SELECT cce.course_student_id, cce.course_id, course.code, course.name_th, COALESCE(course.name_en, ''),
+			COALESCE(cce.academic_year_be, 0), COALESCE(cce.semester, 0), COALESCE(cce.grade, ''),
+			score.competency_id, COALESCE(competency.code, ''), COALESCE(competency.name_th, ''),
+			COALESCE(competency.name_en, ''), COALESCE(score.weighted_score, 0)
+		FROM crs_course_enrollment cce
+		JOIN kku_enrollment_curricula roster ON roster.enrollment_curriculum_id = cce.student_curricula_id
+			AND roster.deleted_at IS NULL
+		JOIN crs_courses course ON course.course_id = cce.course_id AND course.deleted_at IS NULL
+		LEFT JOIN score_course_competency_scores score ON score.course_student_id = cce.course_student_id
+			AND score.deleted_at IS NULL
+		LEFT JOIN comp_competencies competency ON competency.competency_id = score.competency_id
+			AND competency.deleted_at IS NULL
+		WHERE roster.cohort_id = ? AND roster.enrollment_id = ? AND cce.deleted_at IS NULL
+		ORDER BY cce.academic_year_be, cce.semester, course.code, competency.code`, cohortID, enrollmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]models.ExecutiveStudentCourse, 0)
+	courseByEnrollment := make(map[uint64]int)
+	for rows.Next() {
+		var courseEnrollmentID uint64
+		var courseID uint64
+		var courseCode, courseNameTH, courseNameEN, grade string
+		var academicYearBE, semester uint64
+		var competencyID sql.NullInt64
+		var competencyCode, competencyNameTH, competencyNameEN string
+		var weightedScore float64
+		if err := rows.Scan(
+			&courseEnrollmentID,
+			&courseID,
+			&courseCode,
+			&courseNameTH,
+			&courseNameEN,
+			&academicYearBE,
+			&semester,
+			&grade,
+			&competencyID,
+			&competencyCode,
+			&competencyNameTH,
+			&competencyNameEN,
+			&weightedScore,
+		); err != nil {
+			return nil, err
+		}
+		index, exists := courseByEnrollment[courseEnrollmentID]
+		if !exists {
+			items = append(items, models.ExecutiveStudentCourse{
+				CourseID:       courseID,
+				CourseCode:     courseCode,
+				CourseNameTH:   courseNameTH,
+				CourseNameEN:   courseNameEN,
+				AcademicYearBE: academicYearBE,
+				Semester:       semester,
+				Grade:          grade,
+				Competencies:   make([]models.ExecutiveStudentCourseCompetency, 0),
+			})
+			index = len(items) - 1
+			courseByEnrollment[courseEnrollmentID] = index
+		}
+		if competencyID.Valid {
+			items[index].Competencies = append(items[index].Competencies, models.ExecutiveStudentCourseCompetency{
+				CompetencyID:     uint64(competencyID.Int64),
+				CompetencyCode:   competencyCode,
+				CompetencyNameTH: competencyNameTH,
+				CompetencyNameEN: competencyNameEN,
+				Score:            weightedScore,
+			})
+		}
 	}
 	return items, rows.Err()
 }

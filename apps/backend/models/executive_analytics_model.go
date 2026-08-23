@@ -142,10 +142,29 @@ type ExecutiveStudentCompetency struct {
 	HasScore     bool    `json:"has_score"`
 }
 
+type ExecutiveStudentCourse struct {
+	CourseID       uint64                             `json:"course_id"`
+	CourseCode     string                             `json:"course_code"`
+	CourseNameTH   string                             `json:"course_name_th"`
+	CourseNameEN   string                             `json:"course_name_en,omitempty"`
+	AcademicYearBE uint64                             `json:"academic_year_be"`
+	Semester       uint64                             `json:"semester"`
+	Grade          string                             `json:"grade"`
+	Competencies   []ExecutiveStudentCourseCompetency `json:"competencies"`
+}
+
+type ExecutiveStudentCourseCompetency struct {
+	CompetencyID     uint64  `json:"competency_id"`
+	CompetencyCode   string  `json:"competency_code"`
+	CompetencyNameTH string  `json:"competency_name_th"`
+	CompetencyNameEN string  `json:"competency_name_en,omitempty"`
+	Score            float64 `json:"score"`
+}
+
 type ExecutiveStudentDetail struct {
 	Student      ExecutiveStudentSummary      `json:"student"`
 	Competencies []ExecutiveStudentCompetency `json:"competencies"`
-	Sources      []ExecutiveCourseSource      `json:"sources"`
+	Courses      []ExecutiveStudentCourse     `json:"courses"`
 }
 
 type ExecutiveOverviewResponse struct {

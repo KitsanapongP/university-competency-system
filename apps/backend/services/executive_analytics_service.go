@@ -320,8 +320,6 @@ func (s *ExecutiveAnalyticsService) StudentDetail(ctx context.Context, claims *u
 	}
 	seen := map[uint64]bool{}
 	competencies := make([]models.ExecutiveStudentCompetency, 0)
-	sourceByKey := map[uint64]struct{}{}
-	sources := make([]models.ExecutiveCourseSource, 0)
 	for _, fact := range facts {
 		if fact.CompetencyID == 0 {
 			continue
@@ -336,16 +334,12 @@ func (s *ExecutiveAnalyticsService) StudentDetail(ctx context.Context, claims *u
 				HasScore: fact.HasScore,
 			})
 		}
-		if _, exists := sourceByKey[fact.CompetencyID]; !exists {
-			sourceByKey[fact.CompetencyID] = struct{}{}
-			items, sourceErr := s.Repo.GetCourseSources(ctx, []uint64{fact.CohortID}, fact.CompetencyID, &enrollmentID)
-			if sourceErr != nil {
-				return nil, sourceErr
-			}
-			sources = append(sources, items...)
-		}
 	}
-	return &models.ExecutiveStudentDetail{Student: students[0], Competencies: competencies, Sources: sources}, nil
+	courses, err := s.Repo.GetStudentCourses(ctx, facts[0].CohortID, enrollmentID)
+	if err != nil {
+		return nil, err
+	}
+	return &models.ExecutiveStudentDetail{Student: students[0], Competencies: competencies, Courses: courses}, nil
 }
 
 func (s *ExecutiveAnalyticsService) Comparison(ctx context.Context, claims *utils.Claims, f models.ExecutiveAnalyticsFilters) ([]models.ExecutiveComparisonRow, error) {
