@@ -1,18 +1,20 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
     AlertTriangle,
     BarChart3,
-    CheckCircle2,
     ChevronRight,
     Filter,
     GraduationCap,
+    Info,
+    LockKeyhole,
     Loader2,
+    RefreshCw,
     Search,
     ShieldCheck,
+    Target,
     Users,
     X,
 } from 'lucide-react';
@@ -57,24 +59,31 @@ function apiFilters(filters) {
 
 function nameOf(item, language, fallback = '-') {
     if (!item) return fallback;
+    const nameTH = item.name_th || item.curriculum_name_th || '';
+    const nameEN = item.name_en || item.curriculum_name_en || '';
+    const code = item.code || item.curriculum_code || '';
     return language === 'en'
-        ? (item.name_en || item.name_th || item.code || fallback)
-        : (item.name_th || item.name_en || item.code || fallback);
+        ? (nameEN || nameTH || code || fallback)
+        : (nameTH || nameEN || code || fallback);
 }
 
 function score(value) {
     return Number(value || 0).toFixed(2);
 }
 
-function dateLabel(value) {
-    return value || '-';
+function studentCompetencyOutcome(item, isEnglish) {
+    if (!item.is_required) return { label: isEnglish ? 'For tracking' : 'ติดตามผล', tone: 'tracking' };
+    const target = isEnglish
+        ? ' (target ' + score(item.target_score) + ' points)'
+        : ' (เป้าหมาย ' + score(item.target_score) + ' คะแนน)';
+    if (!item.has_score) return { label: (isEnglish ? 'Not calculated yet' : 'ยังไม่มีผลคำนวณ') + target, tone: 'pending' };
+    return item.passed
+        ? { label: (isEnglish ? 'At target' : 'ผ่านเกณฑ์') + target, tone: 'passed' }
+        : { label: (isEnglish ? 'Below target' : 'ยังไม่ผ่านเกณฑ์') + target, tone: 'below-target' };
 }
 
-function readiness(item, language, t) {
-    if (item?.ready) return t('executive_ready') || 'พร้อมใช้งาน';
-    return language === 'en'
-        ? (item?.readiness_message_en || 'Data is not ready')
-        : (item?.readiness_message_th || 'ข้อมูลยังไม่พร้อม');
+function dateLabel(value) {
+    return value || '-';
 }
 
 function metricValue(metrics, key) {
@@ -97,9 +106,8 @@ function LoadingState() {
 function MetricCard({ label, value, note, icon: Icon, tone = '' }) {
     return (
         <div className={'executive-metric ' + tone}>
-            <div className="executive-metric-icon"><Icon size={18} /></div>
             <div>
-                <span>{label}</span>
+                <span className="executive-metric-label"><Icon size={16} />{label}</span>
                 <strong>{value}</strong>
                 {note && <small>{note}</small>}
             </div>
@@ -151,6 +159,7 @@ export default function ExecutiveAnalyticsWorkspace({ view = 'overview' }) {
         [searchParams, user],
     );
     const filterQuery = useMemo(() => JSON.stringify(apiFilters(filters)), [filters]);
+    const hasDeanScope = user?.roles?.includes('dean');
 
     const [scope, setScope] = useState({ faculties: [], majors: [], curricula: [], cohorts: [], entry_years: [] });
     const [overview, setOverview] = useState(null);
@@ -164,6 +173,7 @@ export default function ExecutiveAnalyticsWorkspace({ view = 'overview' }) {
     const [competencyDetail, setCompetencyDetail] = useState(null);
     const [studentDetail, setStudentDetail] = useState(null);
     const [detailLoading, setDetailLoading] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const updateFilter = useCallback((key, value) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -197,7 +207,7 @@ export default function ExecutiveAnalyticsWorkspace({ view = 'overview' }) {
                 if (alive) setScopeLoading(false);
             });
         return () => { alive = false; };
-    }, [filterQuery, filters, t]);
+    }, [filterQuery, filters, refreshKey, t]);
 
     useEffect(() => {
         let alive = true;
@@ -222,7 +232,7 @@ export default function ExecutiveAnalyticsWorkspace({ view = 'overview' }) {
                 if (alive) setLoading(false);
             });
         return () => { alive = false; };
-    }, [filterQuery, filters, t, view]);
+    }, [filterQuery, filters, refreshKey, t, view]);
 
     const openCompetency = async (item) => {
         setSelectedCompetency(item);
@@ -262,61 +272,42 @@ export default function ExecutiveAnalyticsWorkspace({ view = 'overview' }) {
         ));
     }, [search, students]);
 
-    const routeTabs = [
-        { href: '/executive-management', label: t('executive_overview') || 'ภาพรวม' },
-        { href: '/executive-management/competencies', label: t('executive_competencies') || 'ภาพรวมสมรรถนะ' },
-        { href: '/executive-management/comparison', label: t('executive_comparison') || 'เปรียบเทียบรุ่น' },
-        { href: '/executive-management/students', label: t('executive_students') || 'เจาะดูนักศึกษา' },
-    ];
-
     const selectedFaculty = filters.faculty_id || '';
     const selectedMajor = filters.major_id || '';
     const selectedCurriculum = filters.curriculum_id || '';
     const selectedCohort = filters.cohort_id || '';
-    const selectedYear = filters.entry_year_be || '';
     const overviewMetrics = overview?.metrics || {};
 
     return (
         <section className="executive-page">
-            <header className="executive-page-header">
+            <header className="executive-page-header executive-topbar">
                 <div>
-                    <p className="executive-eyebrow">{t('executive_analytics') || 'วิเคราะห์ข้อมูลผู้บริหาร'}</p>
+                    <p className="executive-eyebrow"><ShieldCheck size={15} />{hasDeanScope ? (isEnglish ? 'Your faculty data' : 'ข้อมูลภายในคณะของคุณ') : (t('executive_analytics') || 'วิเคราะห์ข้อมูลผู้บริหาร')}</p>
                     <h1>{isEnglish ? 'Faculty Competency Analytics' : 'ภาพรวมสมรรถนะระดับคณะ'}</h1>
                     <p>{isEnglish ? 'Read-only view of course competency outcomes and cohort targets.' : 'ดูภาพรวมผลลัพธ์สมรรถนะจากรายวิชาและเกณฑ์ของแต่ละรุ่น'}</p>
                 </div>
-                <div className="executive-scope-note">
-                    <ShieldCheck size={18} />
-                    <span>{user?.roles?.includes('dean') ? (isEnglish ? 'Faculty scope' : 'ข้อมูลเฉพาะคณะของคุณ') : (isEnglish ? 'Admin view' : 'มุมมองผู้ดูแลระบบ')}</span>
+                <div className="executive-top-actions">
+                    <button type="button" className="executive-refresh-button" onClick={() => setRefreshKey((current) => current + 1)} disabled={loading || scopeLoading}>
+                        <RefreshCw size={16} className={loading || scopeLoading ? 'executive-spin' : ''} />
+                        {isEnglish ? 'Refresh' : 'โหลดใหม่'}
+                    </button>
                 </div>
             </header>
 
-            <nav className="executive-tabs" aria-label="Executive analytics views">
-                {routeTabs.map((tab) => (
-                    <Link key={tab.href} href={tab.href} className={pathname === tab.href ? 'active' : ''}>
-                        {tab.label}
-                    </Link>
-                ))}
-            </nav>
-
-            <section className="executive-filter-panel">
-                <div className="executive-filter-heading">
-                    <Filter size={18} />
-                    <div>
-                        <strong>{t('filters') || 'ตัวกรองข้อมูล'}</strong>
-                        <span>{isEnglish ? 'Choose the scope to compare.' : 'เลือกขอบเขตข้อมูลที่ต้องการดู'}</span>
-                    </div>
-                </div>
-                <div className="executive-filter-grid">
-                    <FilterSelect
-                        label={t('faculty') || 'คณะ'}
-                        value={selectedFaculty}
-                        options={(scope.faculties || []).map((item) => ({ value: item.faculty_id, label: nameOf(item, language) }))}
-                        placeholder={isEnglish ? 'All faculties' : 'ทุกคณะ'}
-                        onChange={(value) => updateFilter('faculty_id', value)}
-                        disabled={user?.roles?.includes('dean') || scopeLoading}
-                    />
-                    <FilterSelect
-                        label={t('major') || 'สาขา'}
+            <section className="executive-filter-panel executive-scopebar">
+                <div className={'executive-filter-grid ' + (hasDeanScope ? 'dean-scope' : 'admin-scope')}>
+                    {!hasDeanScope && (
+                        <FilterSelect
+                            label={isEnglish ? 'Faculty' : 'คณะ'}
+                            value={selectedFaculty}
+                            options={(scope.faculties || []).map((item) => ({ value: item.faculty_id, label: nameOf(item, language) }))}
+                            placeholder={isEnglish ? 'All faculties' : 'ทุกคณะ'}
+                            onChange={(value) => updateFilter('faculty_id', value)}
+                            disabled={scopeLoading}
+                        />
+                    )}
+                        <FilterSelect
+                        label={isEnglish ? 'Major' : 'สาขา'}
                         value={selectedMajor}
                         options={(scope.majors || []).filter((item) => !selectedFaculty || String(item.faculty_id) === selectedFaculty).map((item) => ({ value: item.major_id, label: nameOf(item, language) }))}
                         placeholder={isEnglish ? 'All majors' : 'ทุกสาขา'}
@@ -324,31 +315,32 @@ export default function ExecutiveAnalyticsWorkspace({ view = 'overview' }) {
                         disabled={scopeLoading}
                     />
                     <FilterSelect
-                        label={t('curriculum') || 'หลักสูตร'}
+                        label={isEnglish ? 'Curriculum' : 'หลักสูตร'}
                         value={selectedCurriculum}
-                        options={(scope.curricula || []).map((item) => ({ value: item.curriculum_id, label: nameOf(item, language) + ' · ' + item.code }))}
+                        options={(scope.curricula || []).map((item) => ({ value: item.curriculum_id, label: nameOf(item, language) }))}
                         placeholder={isEnglish ? 'All curricula' : 'ทุกหลักสูตร'}
                         onChange={(value) => updateFilter('curriculum_id', value)}
                         disabled={scopeLoading}
                     />
                     <FilterSelect
-                        label={t('cohort') || 'รุ่นนักศึกษา'}
+                        label={isEnglish ? 'Student cohort' : 'รุ่นนักศึกษา'}
                         value={selectedCohort}
-                        options={(scope.cohorts || []).map((item) => ({ value: item.cohort_id, label: nameOf(item, language) + ' · ' + item.entry_year_be }))}
+                        options={(scope.cohorts || []).map((item) => ({ value: item.cohort_id, label: nameOf(item, language) + (isEnglish ? ' (entered ' : ' (ปีเข้า ') + item.entry_year_be + ')' }))}
                         placeholder={isEnglish ? 'All cohorts' : 'ทุกรุ่น'}
                         onChange={(value) => updateFilter('cohort_id', value)}
                         disabled={scopeLoading}
                     />
-                    <FilterSelect
-                        label={t('entry_year') || 'ปีเข้าเรียน'}
-                        value={selectedYear}
-                        options={(scope.entry_years || []).map((item) => ({ value: item, label: String(item) }))}
-                        placeholder={isEnglish ? 'All years' : 'ทุกปี'}
-                        onChange={(value) => updateFilter('entry_year_be', value)}
-                        disabled={scopeLoading}
-                    />
+                </div>
+                <div className="executive-scope-lock">
+                    {hasDeanScope ? <LockKeyhole size={15} /> : <Filter size={15} />}
+                    <span>{hasDeanScope ? (isEnglish ? 'Limited to your faculty' : 'จำกัดเฉพาะคณะของคุณ') : (isEnglish ? 'Faculty can be changed' : 'เลือกดูข้อมูลตามคณะที่ต้องการ')}</span>
                 </div>
             </section>
+
+            <div className="executive-data-note">
+                <Info size={16} />
+                <span>{isEnglish ? 'Results use current Course Total and cohort competency targets. Activity scores are not included.' : 'ข้อมูลนี้ใช้คะแนนจากรายวิชาและเกณฑ์สมรรถนะของรุ่น คะแนนกิจกรรมยังไม่รวมในหน้านี้'}</span>
+            </div>
 
             {error && (
                 <div className="executive-error" role="alert">
@@ -373,7 +365,15 @@ export default function ExecutiveAnalyticsWorkspace({ view = 'overview' }) {
                         />
                     )}
                     {view === 'comparison' && (
-                        <ComparisonView rows={comparison} language={language} t={t} isEnglish={isEnglish} />
+                        <ComparisonView
+                            rows={comparison}
+                            scope={scope}
+                            filters={filters}
+                            onCurriculumChange={(value) => updateFilter('curriculum_id', value)}
+                            language={language}
+                            t={t}
+                            isEnglish={isEnglish}
+                        />
                     )}
                     {view === 'students' && (
                         <StudentsView
@@ -414,10 +414,10 @@ function OverviewView({ view, overview, metrics, competencies, onCompetency, lan
             {view === 'overview' && (
                 <>
                     <div className="executive-kpi-grid">
-                        <MetricCard label={isEnglish ? 'Students' : 'นักศึกษา'} value={metricValue(metrics, 'students')} note={isEnglish ? 'in selected scope' : 'ในขอบเขตที่เลือก'} icon={Users} />
-                        <MetricCard label={isEnglish ? 'Cohorts' : 'รุ่นนักศึกษา'} value={metricValue(metrics, 'cohorts')} note={metricValue(metrics, 'ready_cohorts') + ' พร้อมใช้งาน'} icon={GraduationCap} />
-                        <MetricCard label={isEnglish ? 'Reached target' : 'ถึงเกณฑ์'} value={metricValue(metrics, 'students_at_target')} note={metricValue(metrics, 'students_evaluated') + ' มีผลคำนวณ'} icon={CheckCircle2} tone="success" />
-                        <MetricCard label={isEnglish ? 'Not ready' : 'ข้อมูลยังไม่พร้อม'} value={metricValue(metrics, 'not_ready_cohorts')} note={isEnglish ? 'cohorts excluded from pass rate' : 'ไม่ถูกนับเป็นไม่ผ่าน'} icon={AlertTriangle} tone="warning" />
+                        <MetricCard label={isEnglish ? 'Students with results' : 'นักศึกษาที่มีข้อมูล'} value={metricValue(metrics, 'students_evaluated')} note={metricValue(metrics, 'students') + (isEnglish ? ' students in scope' : ' รายชื่อในขอบเขต')} icon={Users} />
+                        <MetricCard label={isEnglish ? 'Active cohorts' : 'รุ่นที่กำลังใช้งาน'} value={metricValue(metrics, 'ready_cohorts')} note={metricValue(metrics, 'cohorts') + (isEnglish ? ' selected cohorts' : ' รุ่นในขอบเขต')} icon={GraduationCap} />
+                        <MetricCard label={isEnglish ? 'Reached cohort target' : 'ถึงเกณฑ์หลักสูตร'} value={metricValue(metrics, 'students_at_target')} note={metricValue(metrics, 'students_evaluated') + (isEnglish ? ' evaluated' : ' คนที่คำนวณแล้ว')} icon={Target} tone="success" />
+                        <MetricCard label={isEnglish ? 'Needs data setup' : 'ข้อมูลยังไม่พร้อม'} value={metricValue(metrics, 'not_ready_cohorts')} note={isEnglish ? 'not counted as below target' : 'ไม่นับเป็นผู้ไม่ผ่าน'} icon={AlertTriangle} tone="warning" />
                     </div>
                     <div className="executive-main-grid">
                         <section className="executive-panel executive-radar-panel">
@@ -425,55 +425,54 @@ function OverviewView({ view, overview, metrics, competencies, onCompetency, lan
                             <ExecutiveRadarChart competencies={competencies} />
                         </section>
                         <section className="executive-panel">
-                            <PanelTitle icon={GraduationCap} title={isEnglish ? 'Cohort readiness' : 'ความพร้อมของข้อมูลแต่ละรุ่น'} description={isEnglish ? 'Only ready cohorts are included in outcome statistics.' : 'เฉพาะรุ่นที่พร้อมเท่านั้นที่จะถูกนำไปคำนวณสถิติผลลัพธ์'} />
-                            <div className="executive-cohort-list">
-                                {(overview.cohorts || []).map((item) => (
-                                    <div key={item.cohort_id} className="executive-cohort-row">
-                                        <div>
-                                            <strong>{nameOf(item, language)} · {item.entry_year_be}</strong>
-                                            <span>{item.student_count.toLocaleString()} {isEnglish ? 'students' : 'รายชื่อ'}</span>
-                                        </div>
-                                        <span className={'executive-status ' + (item.ready ? 'ready' : 'pending')}>
-                                            {readiness(item, language, t)}
-                                        </span>
-                                    </div>
+                            <PanelTitle icon={AlertTriangle} title={isEnglish ? 'Competencies furthest from their targets' : 'สมรรถนะที่ผู้เรียนยังไปไม่ถึงเป้าหมายมากที่สุด'} description={isEnglish ? 'These are required competencies where the fewest evaluated learners have reached their cohort targets.' : 'เป็นสมรรถนะที่ใช้เป็นเกณฑ์จบ และมีผู้เรียนที่คำนวณผลแล้วทำคะแนนถึงเป้าหมายของรุ่นนักศึกษาน้อยกว่าด้านอื่น'} />
+                            <div className="executive-attention-list executive-attention-cards">
+                                {(overview.attention || []).map((item) => (
+                                    <button type="button" key={item.competency_id} className="executive-attention-row" onClick={() => onCompetency(item)}>
+                                        <span className="executive-attention-icon"><AlertTriangle size={16} /></span>
+                                        <span className="executive-attention-copy"><strong>{nameOf(item, language)}</strong><small>{isEnglish ? 'Learners who reached their cohort target' : 'ผู้เรียนที่ทำคะแนนถึงเป้าหมายของรุ่นนักศึกษา'}</small></span>
+                                        <b>{score(item.pass_rate)}%</b>
+                                    </button>
                                 ))}
-                                {!overview.cohorts?.length && <EmptyState>{t('executive_no_cohort_data') || 'ยังไม่มีข้อมูลรุ่นนักศึกษา'}</EmptyState>}
+                                {!overview.attention?.length && <EmptyState>{t('executive_no_attention') || 'ยังไม่มีรายการที่ต้องติดตาม'}</EmptyState>}
                             </div>
                         </section>
                     </div>
                 </>
             )}
-            <div className="executive-secondary-grid">
-                <section className="executive-panel">
-                    <PanelTitle icon={ShieldCheck} title={isEnglish ? 'Competency ranking' : 'อันดับสมรรถนะ'} description={isEnglish ? 'Click a competency to see its course sources.' : 'กดเลือกสมรรถนะเพื่อดูว่าคะแนนมาจากวิชาใด'} />
+            {view === 'competencies' && (
+                <section className="executive-panel executive-competency-directory">
+                    <PanelTitle
+                        icon={ShieldCheck}
+                        title={isEnglish ? 'All competency outcomes' : 'ผลลัพธ์ของสมรรถนะทั้งหมด'}
+                        description={isEnglish ? 'Review the average score, target, and learner attainment for every competency. Select a row to see contributing courses.' : 'ตรวจดูคะแนนเฉลี่ย เป้าหมาย และสัดส่วนผู้เรียนที่ถึงเป้าหมายของสมรรถนะทุกด้าน แล้วกดเพื่อดูรายวิชาที่สร้างคะแนน'}
+                    />
                     <div className="executive-competency-list">
                         {competencies.map((item) => (
-                            <button type="button" key={item.competency_id} className="executive-competency-row" onClick={() => onCompetency(item)}>
+                            <button type="button" key={item.competency_id} className="executive-competency-row executive-competency-row--detail" onClick={() => onCompetency(item)}>
                                 <span className="executive-rank-name">
                                     <strong>{nameOf(item, language)}</strong>
-                                    <small>{item.is_required ? (isEnglish ? 'Required' : 'เกณฑ์จบ') : (isEnglish ? 'Track' : 'ติดตามผล')}</small>
+                                    <small>{item.is_required ? (isEnglish ? 'Graduation criterion' : 'ใช้เป็นเกณฑ์จบ') : (isEnglish ? 'For tracking' : 'ใช้ติดตามผล')}</small>
                                 </span>
-                                <span className="executive-score">{score(item.average_score)}</span>
+                                <span className="executive-competency-progress">
+                                    <span className="executive-competency-track"><i style={{ width: Math.min(100, Number(item.average_score || 0)) + '%' }} /></span>
+                                    <small>{isEnglish ? 'Average score' : 'คะแนนเฉลี่ย'} <b>{score(item.average_score)}</b></small>
+                                </span>
+                                <span className="executive-competency-metric">
+                                    <small>{isEnglish ? 'Target' : 'เป้าหมาย'}</small>
+                                    <b>{item.is_required ? score(item.target_score) : '-'}</b>
+                                </span>
+                                <span className="executive-competency-metric">
+                                    <small>{isEnglish ? 'Reached target' : 'สัดส่วนนักศึกษาที่ถึงเป้าหมาย'}</small>
+                                    <b>{item.is_required ? score(item.pass_rate) + '%' : '-'}</b>
+                                </span>
                                 <ChevronRight size={17} />
                             </button>
                         ))}
                         {!competencies.length && <EmptyState>{t('executive_no_competency_data') || 'ยังไม่มีข้อมูลสมรรถนะที่พร้อมแสดง'}</EmptyState>}
                     </div>
                 </section>
-                <section className="executive-panel">
-                    <PanelTitle icon={AlertTriangle} title={isEnglish ? 'Top areas to watch' : 'เรื่องที่ควรติดตาม'} description={isEnglish ? 'Required competencies with the lowest pass rate.' : 'สมรรถนะที่เป็นเกณฑ์จบและมีอัตราถึงเกณฑ์ต่ำ'} />
-                    <div className="executive-attention-list">
-                        {(overview.attention || []).map((item) => (
-                            <button type="button" key={item.competency_id} className="executive-attention-row" onClick={() => onCompetency(item)}>
-                                <span>{nameOf(item, language)}</span>
-                                <strong>{score(item.pass_rate)}%</strong>
-                            </button>
-                        ))}
-                        {!overview.attention?.length && <EmptyState>{t('executive_no_attention') || 'ยังไม่มีรายการที่ต้องติดตาม'}</EmptyState>}
-                    </div>
-                </section>
-            </div>
+            )}
         </div>
     );
 }
@@ -487,19 +486,150 @@ function PanelTitle({ icon: Icon, title, description }) {
     );
 }
 
-function ComparisonView({ rows, language, t, isEnglish }) {
+function ComparisonView({ rows, scope, filters, onCurriculumChange, language, t, isEnglish }) {
+    const [selectedYears, setSelectedYears] = useState([]);
+    const [selectedCompetencyIDs, setSelectedCompetencyIDs] = useState([]);
+    const availableYears = useMemo(
+        () => Array.from(new Set(rows.map((row) => Number(row.entry_year_be)))).sort((left, right) => left - right),
+        [rows],
+    );
+    const competencyOptions = useMemo(() => {
+        const seen = new Map();
+        rows.forEach((row) => {
+            if (!seen.has(String(row.competency_id))) seen.set(String(row.competency_id), row);
+        });
+        return Array.from(seen.values()).sort((left, right) => nameOf(left, language).localeCompare(nameOf(right, language)));
+    }, [language, rows]);
+    const filteredRows = useMemo(() => rows.filter((row) => (
+        (!selectedYears.length || selectedYears.includes(Number(row.entry_year_be)))
+        && (!selectedCompetencyIDs.length || selectedCompetencyIDs.includes(String(row.competency_id)))
+    )), [rows, selectedCompetencyIDs, selectedYears]);
+    const series = useMemo(() => {
+        const grouped = new Map();
+        filteredRows.forEach((row) => {
+            const key = String(row.competency_id);
+            const current = grouped.get(key) || { ...row, rows: [], minimum: Number.POSITIVE_INFINITY, maximum: Number.NEGATIVE_INFINITY };
+            const value = Number(row.average_score || 0);
+            current.rows.push(row);
+            current.minimum = Math.min(current.minimum, value);
+            current.maximum = Math.max(current.maximum, value);
+            grouped.set(key, current);
+        });
+        return Array.from(grouped.values())
+            .map((item) => ({ ...item, spread: item.maximum - item.minimum }))
+            .sort((left, right) => right.spread - left.spread || nameOf(left, language).localeCompare(nameOf(right, language)))
+            .slice(0, 8);
+    }, [filteredRows, language]);
+
+    const years = useMemo(
+        () => Array.from(new Set(filteredRows.map((row) => Number(row.entry_year_be)))).sort((left, right) => left - right),
+        [filteredRows],
+    );
+    const scaleMaximum = Math.max(100, ...series.flatMap((item) => item.rows.map((row) => Number(row.average_score || 0))));
+    const impactSummaries = useMemo(() => series.map((item) => {
+        const values = [...item.rows].sort((left, right) => Number(left.average_score || 0) - Number(right.average_score || 0));
+        return { ...item, lowest: values[0], highest: values[values.length - 1] };
+    }), [series]);
+    const canCompare = years.length >= 2 && series.length > 0;
+
+    const toggleYear = (year) => {
+        setSelectedYears((current) => current.includes(year)
+            ? current.filter((item) => item !== year)
+            : [...current, year]);
+    };
+    const toggleCompetency = (competencyID) => {
+        setSelectedCompetencyIDs((current) => current.includes(competencyID)
+            ? current.filter((item) => item !== competencyID)
+            : [...current, competencyID]);
+    };
+
     return (
-        <section className="executive-panel">
-            <PanelTitle icon={BarChart3} title={isEnglish ? 'Compare cohorts by entry year' : 'เปรียบเทียบรุ่นตามปีเข้าเรียน'} description={isEnglish ? 'Only competencies shared by all selected ready cohorts are shown.' : 'แสดงเฉพาะสมรรถนะที่มีร่วมกันในรุ่นที่พร้อมทั้งหมด'} />
-            {!rows.length ? <EmptyState>{t('executive_no_comparison') || 'ยังไม่มีข้อมูลเปรียบเทียบที่พร้อมใช้'}</EmptyState> : (
-                <div className="executive-table-wrap">
-                    <table className="executive-table">
-                        <thead><tr><th>{isEnglish ? 'Entry year' : 'ปีเข้าเรียน'}</th><th>{isEnglish ? 'Competency' : 'สมรรถนะ'}</th><th>{isEnglish ? 'Average' : 'ค่าเฉลี่ย'}</th><th>{isEnglish ? 'Pass rate' : 'อัตราถึงเกณฑ์'}</th><th>{isEnglish ? 'Evaluated' : 'มีผลคำนวณ'}</th></tr></thead>
-                        <tbody>{rows.map((row) => <tr key={row.entry_year_be + '-' + row.competency_id}><td>{row.entry_year_be}</td><td><strong>{nameOf(row, language)}</strong><small>{row.cohort_count} {isEnglish ? 'cohorts' : 'รุ่น'}</small></td><td>{score(row.average_score)}</td><td>{score(row.pass_rate)}%</td><td>{row.evaluated_count}</td></tr>)}</tbody>
-                    </table>
-                </div>
+        <>
+            <section className="executive-panel executive-comparison-panel">
+                <PanelTitle icon={BarChart3} title={isEnglish ? 'Compare competency results by cohort' : 'เปรียบเทียบผลสมรรถนะระหว่างรุ่น'} description={isEnglish ? 'Choose a curriculum, cohorts, and competencies to compare their average course scores.' : 'เลือกหลักสูตร รุ่น และสมรรถนะที่ต้องการ เพื่อเปรียบเทียบคะแนนเฉลี่ยจากรายวิชา'} />
+                {!rows.length ? <EmptyState>{t('executive_no_comparison') || 'ยังไม่มีข้อมูลเปรียบเทียบที่พร้อมใช้'}</EmptyState> : (
+                    <>
+                        <div className="executive-comparison-controls">
+                            <label className="executive-comparison-select">
+                                <span>{isEnglish ? 'Curriculum' : 'หลักสูตรที่ต้องการเปรียบเทียบ'}</span>
+                                <select value={filters.curriculum_id || ''} onChange={(event) => onCurriculumChange(event.target.value)}>
+                                    <option value="">{isEnglish ? 'All curricula' : 'ทุกหลักสูตร'}</option>
+                                    {(scope.curricula || []).map((item) => <option key={item.curriculum_id} value={item.curriculum_id}>{nameOf(item, language)}</option>)}
+                                </select>
+                            </label>
+                            <div className="executive-comparison-choice">
+                                <span>{isEnglish ? 'Cohorts to compare' : 'รุ่นที่ต้องการเปรียบเทียบ'}</span>
+                                <div className="executive-choice-chips">
+                                    {availableYears.map((year) => <button type="button" key={year} className={!selectedYears.length || selectedYears.includes(year) ? 'active' : ''} onClick={() => toggleYear(year)}>{isEnglish ? 'Cohort ' : 'รุ่น '}{year}</button>)}
+                                </div>
+                            </div>
+                            <div className="executive-comparison-choice executive-comparison-choice--competencies">
+                                <span>{isEnglish ? 'Competencies to compare' : 'สมรรถนะที่ต้องการเปรียบเทียบ'}</span>
+                                <div className="executive-choice-chips">
+                                    {competencyOptions.map((item) => {
+                                        const competencyID = String(item.competency_id);
+                                        return <button type="button" key={competencyID} className={!selectedCompetencyIDs.length || selectedCompetencyIDs.includes(competencyID) ? 'active' : ''} onClick={() => toggleCompetency(competencyID)}>{nameOf(item, language)}</button>;
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                        {canCompare ? (
+                            <>
+                                <div className="executive-comparison-key" aria-label={isEnglish ? 'Competency legend' : 'คำอธิบายสีของสมรรถนะ'}>
+                                    {series.map((item, index) => (
+                                        <span key={item.competency_id} className={'executive-comparison-key-item tone-' + index}>
+                                            <i />{nameOf(item, language)}
+                                        </span>
+                                    ))}
+                                </div>
+                                <div className="executive-bar-scroll">
+                                    <div className="executive-bar-chart" role="img" aria-label={isEnglish ? 'Average competency scores by entry year' : 'กราฟเปรียบเทียบคะแนนสมรรถนะเฉลี่ยตามปีเข้าเรียน'}>
+                                        {years.map((year) => (
+                                            <div className="executive-bar-group" key={year}>
+                                                <div className="executive-bar-set" style={{ '--bar-count': series.length }}>
+                                                    {series.map((item, index) => {
+                                                        const matching = item.rows.find((row) => Number(row.entry_year_be) === year);
+                                                        const value = Number(matching?.average_score || 0);
+                                                        return (
+                                                            <div key={item.competency_id} className={'executive-bar tone-' + index} style={{ height: (value / scaleMaximum) * 100 + '%' }}>
+                                                                <span>{score(value)}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <div className="executive-bar-label">{isEnglish ? 'Cohort ' + year : 'รุ่น ' + year}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <EmptyState>{isEnglish ? 'Select at least two cohorts to compare.' : 'เลือกอย่างน้อยสองรุ่นเพื่อเริ่มเปรียบเทียบ'}</EmptyState>
+                        )}
+                    </>
+                )}
+            </section>
+
+            {canCompare && (
+                <section className="executive-panel executive-comparison-summary">
+                    <PanelTitle icon={Info} title={isEnglish ? 'Clear differences to review' : 'สรุปความแตกต่างที่เห็นชัด'} description={isEnglish ? 'These cards show the largest score gaps among the choices above.' : 'บัตรเหล่านี้แสดงสมรรถนะที่มีคะแนนเฉลี่ยต่างกันมากที่สุดจากตัวเลือกด้านบน'} />
+                    <div className="executive-impact-cards">
+                        {impactSummaries.slice(0, 3).map((item) => (
+                            <article key={item.competency_id} className="executive-impact-card">
+                                <span className="executive-impact-card__label">{isEnglish ? 'Competency' : 'สมรรถนะ'}</span>
+                                <h3>{nameOf(item, language)}</h3>
+                                <strong>{score(item.spread)} {isEnglish ? 'points different' : 'คะแนน'}</strong>
+                                <p>{isEnglish ? 'Difference between ' : 'คะแนนเฉลี่ยต่างกันระหว่างรุ่น '}{item.lowest.entry_year_be} {isEnglish ? 'and ' : 'กับรุ่น '}{item.highest.entry_year_be}</p>
+                                <div className="executive-impact-card__values">
+                                    <span>{isEnglish ? 'Cohort ' : 'รุ่น '}{item.lowest.entry_year_be}<b>{score(item.lowest.average_score)}</b></span>
+                                    <span>{isEnglish ? 'Cohort ' : 'รุ่น '}{item.highest.entry_year_be}<b>{score(item.highest.average_score)}</b></span>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                </section>
             )}
-        </section>
+        </>
     );
 }
 
@@ -514,8 +644,8 @@ function StudentsView({ students, search, onSearch, onStudent, language, t, isEn
             {!students.length ? <EmptyState>{t('executive_no_student_data') || 'ยังไม่มีข้อมูลนักศึกษาที่พร้อมแสดง'}</EmptyState> : (
                 <div className="executive-table-wrap">
                     <table className="executive-table">
-                        <thead><tr><th>{isEnglish ? 'Student' : 'นักศึกษา'}</th><th>{isEnglish ? 'Cohort' : 'รุ่น'}</th><th>{isEnglish ? 'Course total' : 'คะแนนจากรายวิชา'}</th><th>{isEnglish ? 'Target' : 'เป้าหมาย'}</th><th>{isEnglish ? 'Status' : 'สถานะ'}</th><th /></tr></thead>
-                        <tbody>{students.map((student) => <tr key={student.enrollment_id}><td><strong>{student.student_code}</strong><small>{language === 'en' ? (student.student_name_en || student.student_name_th) : student.student_name_th}</small></td><td>{student.curriculum_code} · {student.entry_year_be}</td><td>{student.ready ? score(student.course_total_score) : '-'}</td><td>{student.ready ? score(student.target_score) : '-'}</td><td><span className={'executive-status ' + (student.ready ? (student.passed ? 'ready' : 'pending') : 'pending')}>{student.ready ? (student.passed ? (isEnglish ? 'At target' : 'ถึงเกณฑ์') : (isEnglish ? 'Below target' : 'ต่ำกว่าเกณฑ์')) : (isEnglish ? 'Not ready' : 'ข้อมูลยังไม่พร้อม')}</span></td><td><button type="button" className="executive-text-button" onClick={() => onStudent(student)}>{isEnglish ? 'View' : 'ดูข้อมูล'} <ChevronRight size={15} /></button></td></tr>)}</tbody>
+                        <thead><tr><th>{isEnglish ? 'Student' : 'นักศึกษา'}</th><th>{isEnglish ? 'Curriculum and cohort' : 'หลักสูตรและรุ่น'}</th><th>{isEnglish ? 'Course total' : 'คะแนนจากรายวิชา'}</th><th>{isEnglish ? 'Target' : 'เป้าหมาย'}</th><th>{isEnglish ? 'Status' : 'สถานะ'}</th><th /></tr></thead>
+                        <tbody>{students.map((student) => <tr key={student.enrollment_id}><td><strong>{student.student_code}</strong><small>{language === 'en' ? (student.student_name_en || student.student_name_th) : student.student_name_th}</small></td><td><strong>{student.curriculum_name_th || '-'}</strong><small>{isEnglish ? 'Entered ' : 'ปีเข้า '}{student.entry_year_be}</small></td><td>{student.ready ? score(student.course_total_score) : '-'}</td><td>{student.ready ? score(student.target_score) : '-'}</td><td><span className={'executive-status ' + (student.ready ? (student.passed ? 'ready' : 'pending') : 'pending')}>{student.ready ? (student.passed ? (isEnglish ? 'At target' : 'ถึงเกณฑ์') : (isEnglish ? 'Below target' : 'ต่ำกว่าเกณฑ์')) : (isEnglish ? 'Not ready' : 'ข้อมูลยังไม่พร้อม')}</span></td><td><button type="button" className="executive-text-button" onClick={() => onStudent(student)}>{isEnglish ? 'View' : 'ดูข้อมูล'} <ChevronRight size={15} /></button></td></tr>)}</tbody>
                     </table>
                 </div>
             )}
@@ -537,13 +667,64 @@ function CompetencyDrawer({ detail, language, t, isEnglish }) {
 
 function StudentDrawer({ detail, language, t, isEnglish }) {
     const student = detail.student || {};
+    const curriculumName = language === 'en'
+        ? (student.curriculum_name_en || student.curriculum_name_th || '-')
+        : (student.curriculum_name_th || student.curriculum_name_en || '-');
+    const coursesByTerm = (detail.courses || []).reduce((groups, course) => {
+        const key = course.academic_year_be + '-' + course.semester;
+        const term = groups.get(key) || {
+            academicYearBE: course.academic_year_be,
+            semester: course.semester,
+            courses: [],
+        };
+        term.courses.push(course);
+        groups.set(key, term);
+        return groups;
+    }, new Map());
+    const courseTerms = Array.from(coursesByTerm.values())
+        .sort((left, right) => Number(left.academicYearBE) - Number(right.academicYearBE) || Number(left.semester) - Number(right.semester));
     return (
         <>
-            <div className="executive-student-heading"><strong>{student.student_code}</strong><span>{language === 'en' ? (student.student_name_en || student.student_name_th) : student.student_name_th}</span><small>{student.curriculum_code} · {student.entry_year_be}</small></div>
+            <div className="executive-student-heading"><strong>{student.student_code}</strong><span>{language === 'en' ? (student.student_name_en || student.student_name_th) : student.student_name_th}</span><small>{curriculumName} · {isEnglish ? 'entered ' : 'ปีเข้า '}{student.entry_year_be}</small></div>
             <h3>{isEnglish ? 'Competency results' : 'ผลลัพธ์สมรรถนะ'}</h3>
-            <div className="executive-detail-list">{(detail.competencies || []).map((item) => <div className="executive-detail-row" key={item.competency_id}><span>{nameOf(item, language)}</span><strong>{item.has_score ? score(item.course_total_score) : '-'}</strong><small>{item.is_required ? (isEnglish ? 'Required' : 'เกณฑ์จบ') : (isEnglish ? 'Track' : 'ติดตามผล')}</small></div>)}</div>
-            <h3>{isEnglish ? 'Course sources' : 'วิชาที่สร้างคะแนน'}</h3>
-            <div className="executive-detail-list">{(detail.sources || []).map((item, index) => <div className="executive-detail-row" key={item.course_id + '-' + index}><span>{item.course_code}</span><strong>{item.course_name_th}</strong><small>{score(item.contribution)}</small></div>)}{!detail.sources?.length && <EmptyState>{t('executive_no_sources') || 'ยังไม่มีข้อมูลที่มา'}</EmptyState>}</div>
+            <div className="executive-detail-list">{(detail.competencies || []).map((item) => {
+                const outcome = studentCompetencyOutcome(item, isEnglish);
+                return <div className="executive-detail-row" key={item.competency_id}><span>{nameOf(item, language)}</span><strong>{item.has_score ? score(item.course_total_score) : '-'}</strong><small className={'executive-student-outcome ' + outcome.tone}>{outcome.label}</small></div>;
+            })}</div>
+            <h3>{isEnglish ? 'Courses taken' : 'วิชาที่เรียน'}</h3>
+            <div className="executive-student-course-terms">
+                {courseTerms.map((term) => (
+                    <section className="executive-student-course-term" key={term.academicYearBE + '-' + term.semester}>
+                        <header>
+                            <strong>{isEnglish ? 'Academic year ' : 'ปีการศึกษา '}{term.academicYearBE || '-'}</strong>
+                            <span>{isEnglish ? 'Semester ' : 'ภาคเรียนที่ '}{term.semester || '-'}</span>
+                        </header>
+                        <div className="executive-student-course-list">
+                            {term.courses.map((course) => (
+                                <article className="executive-student-course" key={course.course_id + '-' + course.academic_year_be + '-' + course.semester}>
+                                    <header>
+                                        <div>
+                                            <strong>{course.course_code}</strong>
+                                            <span>{language === 'en' ? (course.course_name_en || course.course_name_th) : course.course_name_th}</span>
+                                        </div>
+                                        <span className="executive-course-grade">{isEnglish ? 'Grade ' : 'เกรด '}{course.grade || '-'}</span>
+                                    </header>
+                                    <div className="executive-course-competencies">
+                                        {course.competencies?.map((competency) => (
+                                            <div key={competency.competency_id}>
+                                                <span>{language === 'en' ? (competency.competency_name_en || competency.competency_name_th) : competency.competency_name_th}</span>
+                                                <b>{score(competency.score)}</b>
+                                            </div>
+                                        ))}
+                                        {!course.competencies?.length && <small>{isEnglish ? 'No competency score from this course' : 'รายวิชานี้ยังไม่มีคะแนนสมรรถนะ'}</small>}
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    </section>
+                ))}
+                {!courseTerms.length && <EmptyState>{isEnglish ? 'No course enrollment data is available' : 'ยังไม่มีข้อมูลรายวิชาที่เรียน'}</EmptyState>}
+            </div>
         </>
     );
 }

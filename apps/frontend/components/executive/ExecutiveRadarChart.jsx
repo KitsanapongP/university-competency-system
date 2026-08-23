@@ -120,7 +120,7 @@ export default function ExecutiveRadarChart({ competencies = [], targetLabel }) 
                 <Radar data={data} options={options} />
             </div>
             <p className="executive-chart-note">
-                {targetLabel || (t('executive_target_note') || 'เส้นสีส้มคือเกณฑ์ของ Cohort')}
+                    {targetLabel || (t('executive_target_note') || 'เส้นสีส้มคือเกณฑ์ของรุ่นนักศึกษา')}
             </p>
         </div>
     );
