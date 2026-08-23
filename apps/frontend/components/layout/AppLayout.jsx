@@ -120,6 +120,7 @@ export function AppLayout({
 
     const displayName = user?.display_name || user?.username || 'Guest';
     const primaryRole = user?.roles?.[0] || '';
+    const primaryRoleLabel = primaryRole === 'dean' ? t('role_dean') : primaryRole;
     const avatarLabel = displayName.split(' ').filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase()).join('') || 'U';
 
     const handleNavigate = (page) => {
@@ -172,7 +173,7 @@ export function AppLayout({
                                 onToggleCollapsed={handleToggleSidebar}
                                 loading={loading}
                                 displayName={displayName}
-                                primaryRole={primaryRole}
+                                primaryRole={primaryRoleLabel}
                                 avatarLabel={avatarLabel}
                                 onLogout={onLogout}
                                 t={t}
@@ -186,7 +187,7 @@ export function AppLayout({
                                 onClose={() => setMobileMenuOpen(false)}
                                 loading={loading}
                                 displayName={displayName}
-                                primaryRole={primaryRole}
+                                primaryRole={primaryRoleLabel}
                                 avatarLabel={avatarLabel}
                                 onLogout={onLogout}
                                 t={t}
@@ -242,7 +243,7 @@ export function AppLayout({
                                                     <span className="user-name">
                                                         {loading ? t('loading') : displayName}
                                                     </span>
-                                                    <span className="user-role">{primaryRole}</span>
+                                                    <span className="user-role">{primaryRoleLabel}</span>
                                                 </div>
                                                 <div className="avatar">{avatarLabel}</div>
                                             </button>
@@ -278,7 +279,7 @@ export function AppLayout({
                                 user={user}
                                 loading={loading}
                                 displayName={displayName}
-                                primaryRole={primaryRole}
+                            primaryRole={primaryRoleLabel}
                                 avatarLabel={avatarLabel}
                                 onLogout={onLogout}
                                 t={t}
