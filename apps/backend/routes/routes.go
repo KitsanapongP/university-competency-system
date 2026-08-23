@@ -92,6 +92,9 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	templateAssignmentHandler := &controllers.TemplateAssignmentController{
 		Service: templateAssignmentSvc,
 	}
+	executiveAnalyticsRepo := repositories.NewExecutiveAnalyticsRepository(db)
+	executiveAnalyticsSvc := services.NewExecutiveAnalyticsService(executiveAnalyticsRepo)
+	executiveAnalyticsHandler := &controllers.ExecutiveAnalyticsController{Service: executiveAnalyticsSvc}
 
 	// Versioned API routes
 	r.Route("/api/v1", func(api chi.Router) {
@@ -105,6 +108,16 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			// Who am I (for role-based UI)
 			pr.Get("/auth/me", authHandler.Me)
 			pr.Post("/auth/logout", authHandler.Logout)
+
+			pr.Route("/executive-analytics", func(ear chi.Router) {
+				ear.Use(middleware.RequireRoles("admin", "dean"))
+				ear.Get("/scopes", executiveAnalyticsHandler.Scope)
+				ear.Get("/overview", executiveAnalyticsHandler.Overview)
+				ear.Get("/competencies/{competency_id}", executiveAnalyticsHandler.Competency)
+				ear.Get("/comparison", executiveAnalyticsHandler.Comparison)
+				ear.Get("/students", executiveAnalyticsHandler.Students)
+				ear.Get("/students/{enrollment_id}", executiveAnalyticsHandler.Student)
+			})
 
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)
 			pr.Get("/competencies", competencyHandler.GetAll)
