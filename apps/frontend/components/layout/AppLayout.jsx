@@ -2,7 +2,7 @@
 
 import React, { useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
-import { Menu, LayoutDashboard, User, ClipboardCheck, BookOpen, GraduationCap, Users, Settings, ShieldCheck, CalendarClock, Link2 } from 'lucide-react';
+import { Menu, LayoutDashboard, User, ClipboardCheck, BookOpen, GraduationCap, Users, Settings, ShieldCheck, CalendarClock, Link2, BarChart3, GitCompare, UserRoundSearch } from 'lucide-react';
 import { useLanguage } from '../../providers/LanguageContext';
 import { useTheme } from '../../providers/theme-provider';
 import ClickSpark from '../ClickSpark';
@@ -62,6 +62,7 @@ const MENU_CONFIG = {
     ],
     admin: [
         { id: 'dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+        { id: 'executive-management', icon: BarChart3, labelKey: 'executive_analytics' },
         { id: 'major-management', icon: GraduationCap, labelKey: 'major_management' },
         { id: 'student-management', icon: Users, labelKey: 'student_management' },
         { id: 'competency-management', icon: ShieldCheck, labelKey: 'competency_management' },
@@ -69,6 +70,12 @@ const MENU_CONFIG = {
         { id: 'template-assignments', icon: Link2, labelKey: 'template_assignments' },
         { id: 'users', icon: Users, labelKey: 'users' },
         { id: 'settings', icon: Settings, labelKey: 'settings' },
+    ],
+    dean: [
+        { id: 'executive-management', icon: BarChart3, labelKey: 'executive_analytics' },
+        { id: 'executive-management/competencies', icon: ShieldCheck, labelKey: 'executive_competencies' },
+        { id: 'executive-management/comparison', icon: GitCompare, labelKey: 'executive_comparison' },
+        { id: 'executive-management/students', icon: UserRoundSearch, labelKey: 'executive_students' },
     ],
     lecturer: [
         { id: 'my-activity-sessions', icon: CalendarClock, label: 'รอบกิจกรรมของฉัน' },
@@ -108,7 +115,7 @@ export function AppLayout({
 
     const menuConfig = MENU_CONFIG[role] || MENU_CONFIG.user;
     const menuItems = resolveMenuItems(menuConfig, t);
-    const usesSidebarNavigation = role === 'officer' || role === 'admin';
+    const usesSidebarNavigation = role === 'officer' || role === 'admin' || role === 'dean';
     const shouldShowAnimatedBackground = showBackground && !usesSidebarNavigation;
 
     const displayName = user?.display_name || user?.username || 'Guest';
@@ -124,7 +131,7 @@ export function AppLayout({
         setSidebarCollapsedPreference(!sidebarCollapsed);
     };
 
-    const mainContentClass = role === 'officer' ? 'main-content-officer' : 'main-content';
+    const mainContentClass = role === 'officer' || role === 'dean' ? 'main-content-officer' : 'main-content';
 
     return (
         <ClickSpark sparkColor="#2563eb" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
@@ -186,7 +193,7 @@ export function AppLayout({
                             />
                             {children && (
                                 <main className={`${mainContentClass} main-content--sidebar`}>
-                                    <div className={role === 'officer' ? 'container-officer' : 'container'}>
+                                    <div className={role === 'officer' || role === 'dean' ? 'container-officer' : 'container'}>
                                         {children}
                                     </div>
                                 </main>
