@@ -452,9 +452,6 @@ func courseGradeResultWhere(filters models.CourseGradeFilters) string {
 	case "missing":
 		return " AND grade.course_student_id IS NULL"
 	}
-	if filters.AcademicYearBE != nil || filters.Semester != nil {
-		return " AND grade.course_student_id IS NOT NULL"
-	}
 	return ""
 }
 

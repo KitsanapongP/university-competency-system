@@ -17,12 +17,12 @@ func TestCourseGradeResultWhereFiltersSelectedAcademicPeriod(t *testing.T) {
 			want: "",
 		},
 		{
-			name: "academic year and semester require a matching grade",
+			name: "academic year and semester retain students without grades",
 			filters: models.CourseGradeFilters{
 				AcademicYearBE: uint64Ptr(2566),
 				Semester:       uint64Ptr(2),
 			},
-			want: " AND grade.course_student_id IS NOT NULL",
+			want: "",
 		},
 		{
 			name: "recorded status keeps matching grades",
