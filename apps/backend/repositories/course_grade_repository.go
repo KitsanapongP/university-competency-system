@@ -67,7 +67,7 @@ func (r *CourseGradeRepository) GetStudentGrades(ctx context.Context, cohortID, 
 		JOIN crs_courses course ON course.course_id = placement.course_id AND course.deleted_at IS NULL AND course.is_active = 1
 		LEFT JOIN crs_course_enrollment grade ON grade.student_curricula_id = roster.enrollment_curriculum_id
 			AND grade.enrollment_id = roster.enrollment_id AND grade.course_id = course.course_id AND grade.deleted_at IS NULL` + gradeFilter + `
-		WHERE cohort.cohort_id = ? AND roster.enrollment_id = ?` + searchWhere + courseGradeResultWhere(filters) + `
+		WHERE cohort.cohort_id = ? AND roster.enrollment_id = ?` + searchWhere + `
 		ORDER BY course.code, grade.academic_year_be DESC, grade.semester DESC`
 	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
