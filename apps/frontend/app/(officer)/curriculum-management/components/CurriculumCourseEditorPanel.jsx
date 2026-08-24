@@ -1,997 +1,1180 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import {
-    BookOpen,
-    ChevronFirst,
-    ChevronLast,
-    ChevronLeft,
-    ChevronRight,
-    Copy,
-    GripVertical,
-    LockKeyhole,
-    MoreHorizontal,
-    Pencil,
-    Plus,
-    Save,
-    Trash2,
-    X,
-} from 'lucide-react';
-import { useLanguage } from '../../../../providers/LanguageContext';
+  BookOpen,
+  ChevronFirst,
+  ChevronLast,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  GripVertical,
+  LockKeyhole,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useLanguage } from "../../../../providers/LanguageContext";
 
-const NEW_COURSE_ID = '__new_course__';
+const NEW_COURSE_ID = "__new_course__";
 
 function normalizeCourseId(course) {
-    return String(course?.id ?? course?.curriculumCourseId ?? course?.courseId ?? '');
+  return String(
+    course?.id ?? course?.curriculumCourseId ?? course?.courseId ?? "",
+  );
 }
 
 function CurriculumCourseRow({
-    course,
-    disabled = false,
-    isSelected = false,
-    isEditing = false,
-    isDragging = false,
-    isDropTarget = false,
-    isNew = false,
-    isLocked = false,
-    showCourseType = false,
-    showRowActionsColumn = true,
-    originBadge = '',
-    canDrag = true,
-    canSelect = true,
-    renderExtraCells,
-    onToggleSelect,
-    onStartEdit,
-    onDuplicate,
-    canDuplicate = false,
-    onCancelEdit,
-    onSave,
-    onDelete,
-    onDragStart,
-    onDragOver,
-    onDragLeave,
-    onDrop,
-    onDragEnd,
+  course,
+  disabled = false,
+  isSelected = false,
+  isEditing = false,
+  isDragging = false,
+  isDropTarget = false,
+  isNew = false,
+  isLocked = false,
+  showCourseType = false,
+  showRowActionsColumn = true,
+  originBadge = "",
+  canDrag = true,
+  canSelect = true,
+  renderExtraCells,
+  onToggleSelect,
+  onStartEdit,
+  onDuplicate,
+  canDuplicate = false,
+  onCancelEdit,
+  onSave,
+  onDelete,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
 }) {
-    const { t } = useLanguage();
-    const [form, setForm] = useState({
-        code: course.code || '',
-        nameTh: course.nameTh || '',
-        nameEn: course.nameEn || '',
-        credits: course.credits || 0,
-        isCoreCourse: course.isCoreCourse ?? true,
+  const { t } = useLanguage();
+  const [form, setForm] = useState({
+    code: course.code || "",
+    nameTh: course.nameTh || "",
+    nameEn: course.nameEn || "",
+    credits: course.credits || 0,
+    isCoreCourse: course.isCoreCourse ?? true,
+  });
+  const [actionMenuPosition, setActionMenuPosition] = useState(null);
+  const actionMenuRef = useRef(null);
+  const isActionMenuOpen = Boolean(actionMenuPosition);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    setForm({
+      code: course.code || "",
+      nameTh: course.nameTh || "",
+      nameEn: course.nameEn || "",
+      credits: course.credits || 0,
+      isCoreCourse: course.isCoreCourse ?? true,
     });
-    const [actionMenuPosition, setActionMenuPosition] = useState(null);
-    const actionMenuRef = useRef(null);
-    const isActionMenuOpen = Boolean(actionMenuPosition);
+  }, [
+    course.code,
+    course.nameTh,
+    course.nameEn,
+    course.credits,
+    course.isCoreCourse,
+    isEditing,
+  ]);
 
-    useEffect(() => {
-        if (!isEditing) return;
-        setForm({
-            code: course.code || '',
-            nameTh: course.nameTh || '',
-            nameEn: course.nameEn || '',
-            credits: course.credits || 0,
-            isCoreCourse: course.isCoreCourse ?? true,
-        });
-    }, [course.code, course.nameTh, course.nameEn, course.credits, course.isCoreCourse, isEditing]);
+  const rowDisabled = disabled || isLocked;
 
-    const rowDisabled = disabled || isLocked;
+  const handleSave = async () => {
+    if (
+      rowDisabled ||
+      !String(form.code || "").trim() ||
+      !String(form.nameTh || "").trim()
+    )
+      return;
+    const result = await onSave?.({
+      ...course,
+      code: String(form.code || "").trim(),
+      nameTh: String(form.nameTh || "").trim(),
+      nameEn: String(form.nameEn || "").trim(),
+      credits: Number(form.credits) || 0,
+      isCoreCourse: Boolean(form.isCoreCourse),
+    });
+    if (result !== false) {
+      onCancelEdit?.();
+    }
+  };
 
-    const handleSave = async () => {
-        if (rowDisabled || !String(form.code || '').trim() || !String(form.nameTh || '').trim()) return;
-        const result = await onSave?.({
-            ...course,
-            code: String(form.code || '').trim(),
-            nameTh: String(form.nameTh || '').trim(),
-            nameEn: String(form.nameEn || '').trim(),
-            credits: Number(form.credits) || 0,
-            isCoreCourse: Boolean(form.isCoreCourse),
-        });
-        if (result !== false) {
-            onCancelEdit?.();
-        }
+  const handleCancel = () => {
+    setForm({
+      code: course.code || "",
+      nameTh: course.nameTh || "",
+      nameEn: course.nameEn || "",
+      credits: course.credits || 0,
+      isCoreCourse: course.isCoreCourse ?? true,
+    });
+    onCancelEdit?.();
+  };
+
+  const handleKey = (event) => {
+    if (event.key === "Enter") handleSave();
+    if (event.key === "Escape") handleCancel();
+  };
+
+  useEffect(() => {
+    if (!isActionMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!actionMenuRef.current?.contains(event.target)) {
+        setActionMenuPosition(null);
+      }
     };
+    const closeActionMenu = () => setActionMenuPosition(null);
 
-    const handleCancel = () => {
-        setForm({
-            code: course.code || '',
-            nameTh: course.nameTh || '',
-            nameEn: course.nameEn || '',
-            credits: course.credits || 0,
-            isCoreCourse: course.isCoreCourse ?? true,
-        });
-        onCancelEdit?.();
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("scroll", closeActionMenu, true);
+    window.addEventListener("resize", closeActionMenu);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("scroll", closeActionMenu, true);
+      window.removeEventListener("resize", closeActionMenu);
     };
+  }, [isActionMenuOpen]);
 
-    const handleKey = (event) => {
-        if (event.key === 'Enter') handleSave();
-        if (event.key === 'Escape') handleCancel();
-    };
+  const handleStartEdit = () => {
+    setActionMenuPosition(null);
+    onStartEdit?.(course);
+  };
 
-    useEffect(() => {
-        if (!isActionMenuOpen) return undefined;
+  const handleDelete = () => {
+    setActionMenuPosition(null);
+    onDelete?.(course);
+  };
 
-        const handlePointerDown = (event) => {
-            if (!actionMenuRef.current?.contains(event.target)) {
-                setActionMenuPosition(null);
+  const handleDuplicate = () => {
+    setActionMenuPosition(null);
+    onDuplicate?.(course);
+  };
+
+  const toggleActionMenu = (event) => {
+    event.stopPropagation();
+    if (isActionMenuOpen) {
+      setActionMenuPosition(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 176;
+    const menuHeight = canDuplicate ? 118 : 82;
+    const preferredTop = rect.bottom + 4;
+    const top =
+      preferredTop + menuHeight > window.innerHeight
+        ? Math.max(8, rect.top - menuHeight - 4)
+        : preferredTop;
+
+    setActionMenuPosition({
+      top,
+      left: Math.max(
+        8,
+        Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8),
+      ),
+    });
+  };
+
+  return (
+    <tr
+      className={`ss-row ${isEditing ? "ss-row--editing" : ""} ${isSelected ? "ss-row--selected" : ""} ${isDragging ? "ss-row--dragging" : ""} ${isDropTarget ? "ss-row--drop-target" : ""}`}
+      draggable={!rowDisabled && canDrag && !isEditing && !isNew}
+      onDragStart={(event) => onDragStart?.(event, course)}
+      onDragOver={(event) => onDragOver?.(event, course)}
+      onDragLeave={(event) => onDragLeave?.(event, course)}
+      onDrop={(event) => onDrop?.(event, course)}
+      onDragEnd={onDragEnd}
+    >
+      <td className="ss-cell ss-cell--grip">
+        {!isLocked && canDrag && <GripVertical size={13} />}
+        {isLocked && <LockKeyhole size={12} />}
+      </td>
+      <td className="ss-cell ss-cell--checkbox">
+        {!isNew && !isLocked && canSelect && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            disabled={rowDisabled}
+            onChange={() => onToggleSelect?.(course)}
+            aria-label="เลือกวิชา"
+          />
+        )}
+      </td>
+      <td className="ss-cell ss-cell--text">
+        {isEditing ? (
+          <input
+            className="ss-input"
+            value={form.code}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, code: event.target.value }))
             }
-        };
-        const closeActionMenu = () => setActionMenuPosition(null);
-
-        window.addEventListener('pointerdown', handlePointerDown);
-        window.addEventListener('scroll', closeActionMenu, true);
-        window.addEventListener('resize', closeActionMenu);
-        return () => {
-            window.removeEventListener('pointerdown', handlePointerDown);
-            window.removeEventListener('scroll', closeActionMenu, true);
-            window.removeEventListener('resize', closeActionMenu);
-        };
-    }, [isActionMenuOpen]);
-
-    const handleStartEdit = () => {
-        setActionMenuPosition(null);
-        onStartEdit?.(course);
-    };
-
-    const handleDelete = () => {
-        setActionMenuPosition(null);
-        onDelete?.(course);
-    };
-
-    const handleDuplicate = () => {
-        setActionMenuPosition(null);
-        onDuplicate?.(course);
-    };
-
-    const toggleActionMenu = (event) => {
-        event.stopPropagation();
-        if (isActionMenuOpen) {
-            setActionMenuPosition(null);
-            return;
-        }
-
-        const rect = event.currentTarget.getBoundingClientRect();
-        const menuWidth = 176;
-        const menuHeight = canDuplicate ? 118 : 82;
-        const preferredTop = rect.bottom + 4;
-        const top = preferredTop + menuHeight > window.innerHeight
-            ? Math.max(8, rect.top - menuHeight - 4)
-            : preferredTop;
-
-        setActionMenuPosition({
-            top,
-            left: Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)),
-        });
-    };
-
-    return (
-        <tr
-            className={`ss-row ${isEditing ? 'ss-row--editing' : ''} ${isSelected ? 'ss-row--selected' : ''} ${isDragging ? 'ss-row--dragging' : ''} ${isDropTarget ? 'ss-row--drop-target' : ''}`}
-            draggable={!rowDisabled && canDrag && !isEditing && !isNew}
-            onDragStart={event => onDragStart?.(event, course)}
-            onDragOver={event => onDragOver?.(event, course)}
-            onDragLeave={event => onDragLeave?.(event, course)}
-            onDrop={event => onDrop?.(event, course)}
-            onDragEnd={onDragEnd}
-        >
-            <td className="ss-cell ss-cell--grip">
-                {!isLocked && canDrag && <GripVertical size={13} />}
-                {isLocked && <LockKeyhole size={12} />}
-            </td>
-            <td className="ss-cell ss-cell--checkbox">
-                {!isNew && !isLocked && canSelect && (
-                    <input
-                        type="checkbox"
-                        checked={isSelected}
-                        disabled={rowDisabled}
-                        onChange={() => onToggleSelect?.(course)}
-                        aria-label="เลือกวิชา"
-                    />
-                )}
-            </td>
-            <td className="ss-cell ss-cell--text">
-                {isEditing ? (
-                    <input
-                        className="ss-input"
-                        value={form.code}
-                        onChange={event => setForm(current => ({ ...current, code: event.target.value }))}
-                        onKeyDown={handleKey}
-                        placeholder="รหัสวิชา"
-                        disabled={rowDisabled}
-                        autoFocus={isNew}
-                    />
-                ) : (
-                    <span className="ss-code">
-                        {course.code || <span className="ss-placeholder">รหัสวิชา</span>}
-                        {originBadge && <span className="curriculum-course-origin-badge">{originBadge}</span>}
-                    </span>
-                )}
-            </td>
-            <td className="ss-cell ss-cell--text">
-                {isEditing ? (
-                    <input
-                        className="ss-input"
-                        value={form.nameTh}
-                        onChange={event => setForm(current => ({ ...current, nameTh: event.target.value }))}
-                        onKeyDown={handleKey}
-                        placeholder="ชื่อวิชาภาษาไทย"
-                        disabled={rowDisabled}
-                    />
-                ) : (
-                    <span>{course.nameTh || <span className="ss-placeholder">ชื่อภาษาไทย</span>}</span>
-                )}
-            </td>
-            <td className="ss-cell ss-cell--text">
-                {isEditing ? (
-                    <input
-                        className="ss-input"
-                        value={form.nameEn}
-                        onChange={event => setForm(current => ({ ...current, nameEn: event.target.value }))}
-                        onKeyDown={handleKey}
-                        placeholder="English Name"
-                        disabled={rowDisabled}
-                    />
-                ) : (
-                    <span>{course.nameEn || <span className="ss-placeholder">English Name</span>}</span>
-                )}
-            </td>
-            <td className="ss-cell ss-cell--num">
-                {isEditing ? (
-                    <input
-                        className="ss-input ss-input--num"
-                        type="text"
-                        inputMode="numeric"
-                        value={form.credits}
-                        onChange={event => {
-                            const value = event.target.value.replace(/[^0-9]/g, '');
-                            setForm(current => ({ ...current, credits: value }));
-                        }}
-                        onKeyDown={handleKey}
-                        placeholder="0"
-                        disabled={rowDisabled}
-                    />
-                ) : (
-                    <span>{course.credits || <span className="ss-placeholder">0</span>}</span>
-                )}
-            </td>
-            {showCourseType && (
-                <td className="ss-cell ss-cell--course-type">
-                    {isEditing ? (
-                        <select
-                            className="ss-input ss-input--select"
-                            value={form.isCoreCourse ? 'required' : 'elective'}
-                            onChange={event => setForm(current => ({
-                                ...current,
-                                isCoreCourse: event.target.value === 'required',
-                            }))}
-                            onKeyDown={handleKey}
-                            disabled={rowDisabled}
-                            aria-label={t('course_type')}
-                        >
-                            <option value="required">{t('course_type_required')}</option>
-                            <option value="elective">{t('course_type_elective')}</option>
-                        </select>
-                    ) : (
-                        <span className={`curriculum-course-type-badge ${course.isCoreCourse ? 'curriculum-course-type-badge--required' : 'curriculum-course-type-badge--elective'}`}>
-                            {course.isCoreCourse ? t('course_type_required') : t('course_type_elective')}
-                        </span>
-                    )}
-                </td>
+            onKeyDown={handleKey}
+            placeholder="รหัสวิชา"
+            disabled={rowDisabled}
+            autoFocus={isNew}
+          />
+        ) : (
+          <span className="ss-code">
+            {course.code || <span className="ss-placeholder">รหัสวิชา</span>}
+            {originBadge && (
+              <span className="curriculum-course-origin-badge">
+                {originBadge}
+              </span>
             )}
-            {renderExtraCells?.(course)}
-            {showRowActionsColumn && (
-            <td className="ss-cell ss-cell--actions">
-                {isEditing ? (
-                    <>
-                        <button
-                            type="button"
-                            className="icon-course-btn icon-course-btn--save icon-course-btn--xs"
-                            onClick={handleSave}
-                            disabled={disabled || !String(form.code || '').trim() || !String(form.nameTh || '').trim()}
-                            title={t('save_course_changes')}
-                            aria-label={t('save_course_changes')}
-                        >
-                            <Save size={14} />
-                        </button>
-                        <button
-                            type="button"
-                            className="icon-course-btn icon-course-btn--cancel icon-course-btn--xs"
-                            onClick={handleCancel}
-                            disabled={disabled}
-                            title={t('cancel_course_edit')}
-                            aria-label={t('cancel_course_edit')}
-                        >
-                            <X size={14} />
-                        </button>
-                    </>
-                ) : !rowDisabled && !isNew ? (
-                    <div className="curriculum-course-row-actions" ref={actionMenuRef}>
-                        <button
-                            type="button"
-                            className="curriculum-course-row-actions__trigger"
-                            onClick={toggleActionMenu}
-                            onPointerDown={event => event.stopPropagation()}
-                            aria-label={t('course_actions')}
-                            aria-haspopup="menu"
-                            aria-expanded={isActionMenuOpen}
-                            title={t('course_actions')}
-                        >
-                            <MoreHorizontal size={17} />
-                        </button>
-                    </div>
-                ) : null}
-                {isActionMenuOpen && createPortal(
-                    <div
-                        className="curriculum-course-row-actions__menu"
-                        ref={actionMenuRef}
-                        role="menu"
-                        style={{ top: actionMenuPosition.top, left: actionMenuPosition.left }}
-                    >
-                                <button
-                                    type="button"
-                                    className="curriculum-course-row-actions__item"
-                                    onClick={handleStartEdit}
-                                    role="menuitem"
-                                >
-                                    <Pencil size={15} />
-                                    {t('edit_course')}
-                                </button>
-                                {canDuplicate && (
-                                    <button
-                                        type="button"
-                                        className="curriculum-course-row-actions__item"
-                                        onClick={handleDuplicate}
-                                        role="menuitem"
-                                    >
-                                        <Copy size={15} />
-                                        {t('duplicate_course')}
-                                    </button>
-                                )}
-                                <button
-                                    type="button"
-                                    className="curriculum-course-row-actions__item curriculum-course-row-actions__item--danger"
-                                    onClick={handleDelete}
-                                    role="menuitem"
-                                >
-                                    <Trash2 size={15} />
-                                    {t('delete_course')}
-                                </button>
-                    </div>,
-                    document.body,
-                )}
-            </td>
+          </span>
+        )}
+      </td>
+      <td className="ss-cell ss-cell--text">
+        {isEditing ? (
+          <input
+            className="ss-input"
+            value={form.nameTh}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, nameTh: event.target.value }))
+            }
+            onKeyDown={handleKey}
+            placeholder="ชื่อวิชาภาษาไทย"
+            disabled={rowDisabled}
+          />
+        ) : (
+          <span>
+            {course.nameTh || (
+              <span className="ss-placeholder">ชื่อภาษาไทย</span>
             )}
-        </tr>
-    );
+          </span>
+        )}
+      </td>
+      <td className="ss-cell ss-cell--text">
+        {isEditing ? (
+          <input
+            className="ss-input"
+            value={form.nameEn}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, nameEn: event.target.value }))
+            }
+            onKeyDown={handleKey}
+            placeholder="English Name"
+            disabled={rowDisabled}
+          />
+        ) : (
+          <span>
+            {course.nameEn || (
+              <span className="ss-placeholder">English Name</span>
+            )}
+          </span>
+        )}
+      </td>
+      <td className="ss-cell ss-cell--num">
+        {isEditing ? (
+          <input
+            className="ss-input ss-input--num"
+            type="text"
+            inputMode="numeric"
+            value={form.credits}
+            onChange={(event) => {
+              const value = event.target.value.replace(/[^0-9]/g, "");
+              setForm((current) => ({ ...current, credits: value }));
+            }}
+            onKeyDown={handleKey}
+            placeholder="0"
+            disabled={rowDisabled}
+          />
+        ) : (
+          <span>
+            {course.credits || <span className="ss-placeholder">0</span>}
+          </span>
+        )}
+      </td>
+      {showCourseType && (
+        <td className="ss-cell ss-cell--course-type">
+          {isEditing ? (
+            <select
+              className="ss-input ss-input--select"
+              value={form.isCoreCourse ? "required" : "elective"}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  isCoreCourse: event.target.value === "required",
+                }))
+              }
+              onKeyDown={handleKey}
+              disabled={rowDisabled}
+              aria-label={t("course_type")}
+            >
+              <option value="required">{t("course_type_required")}</option>
+              <option value="elective">{t("course_type_elective")}</option>
+            </select>
+          ) : (
+            <span
+              className={`curriculum-course-type-badge ${course.isCoreCourse ? "curriculum-course-type-badge--required" : "curriculum-course-type-badge--elective"}`}
+            >
+              {course.isCoreCourse
+                ? t("course_type_required")
+                : t("course_type_elective")}
+            </span>
+          )}
+        </td>
+      )}
+      {renderExtraCells?.(course)}
+      {showRowActionsColumn && (
+        <td className="ss-cell ss-cell--actions">
+          {isEditing ? (
+            <>
+              <button
+                type="button"
+                className="icon-course-btn icon-course-btn--save icon-course-btn--xs"
+                onClick={handleSave}
+                disabled={
+                  disabled ||
+                  !String(form.code || "").trim() ||
+                  !String(form.nameTh || "").trim()
+                }
+                title={t("save_course_changes")}
+                aria-label={t("save_course_changes")}
+              >
+                <Save size={14} />
+              </button>
+              <button
+                type="button"
+                className="icon-course-btn icon-course-btn--cancel icon-course-btn--xs"
+                onClick={handleCancel}
+                disabled={disabled}
+                title={t("cancel_course_edit")}
+                aria-label={t("cancel_course_edit")}
+              >
+                <X size={14} />
+              </button>
+            </>
+          ) : !rowDisabled && !isNew ? (
+            <div className="curriculum-course-row-actions" ref={actionMenuRef}>
+              <button
+                type="button"
+                className="curriculum-course-row-actions__trigger"
+                onClick={toggleActionMenu}
+                onPointerDown={(event) => event.stopPropagation()}
+                aria-label={t("course_actions")}
+                aria-haspopup="menu"
+                aria-expanded={isActionMenuOpen}
+                title={t("course_actions")}
+              >
+                <MoreHorizontal size={17} />
+              </button>
+            </div>
+          ) : null}
+          {isActionMenuOpen &&
+            createPortal(
+              <div
+                className="curriculum-course-row-actions__menu"
+                ref={actionMenuRef}
+                role="menu"
+                style={{
+                  top: actionMenuPosition.top,
+                  left: actionMenuPosition.left,
+                }}
+              >
+                <button
+                  type="button"
+                  className="curriculum-course-row-actions__item"
+                  onClick={handleStartEdit}
+                  role="menuitem"
+                >
+                  <Pencil size={15} />
+                  {t("edit_course")}
+                </button>
+                {canDuplicate && (
+                  <button
+                    type="button"
+                    className="curriculum-course-row-actions__item"
+                    onClick={handleDuplicate}
+                    role="menuitem"
+                  >
+                    <Copy size={15} />
+                    {t("duplicate_course")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="curriculum-course-row-actions__item curriculum-course-row-actions__item--danger"
+                  onClick={handleDelete}
+                  role="menuitem"
+                >
+                  <Trash2 size={15} />
+                  {t("delete_course")}
+                </button>
+              </div>,
+              document.body,
+            )}
+        </td>
+      )}
+    </tr>
+  );
 }
 
 export default function CurriculumCourseEditorPanel({
-    category,
-    courses = [],
-    allCourses = [],
-    categoryTotalCredits = 0,
-    canEdit = false,
-    disabled = false,
-    isLeafCategory = false,
-    coursePlacementHint = '',
-    isAllCoursesView = false,
-    pageSize = 10,
-    draggedCourseId = null,
-    onRenameCategory,
-    onDeleteCategory,
-    onAddCourse,
-    onUpdateCourse,
-    onDeleteCourse,
-    onBulkDeleteCourses,
-    onMoveCourse,
-    onValidateCourse,
-    onCourseDragStart,
-    onCourseDragEnd,
-    onEditingStateChange,
-    canEditCategoryMetadata = canEdit,
-    allowCategoryCodeEdit = false,
-    canManageCourses = canEdit,
-    getCourseCapabilities,
-    allowExtraEditing = false,
-    allowSelection = true,
-    showCategoryToolbar = true,
-    showCourseActions = true,
-    showCourseSummary = true,
-    showAddCourseAction = true,
-    externalAddCourseRequestId = 0,
-    extraColumnHeaders = [],
-    renderExtraCells,
-    showCourseTypeColumn = false,
-    showRowActionsColumn = true,
-    tableVariant = '',
+  category,
+  courses = [],
+  allCourses = [],
+  categoryTotalCredits = 0,
+  canEdit = false,
+  disabled = false,
+  isLeafCategory = false,
+  coursePlacementHint = "",
+  isAllCoursesView = false,
+  pageSize = 10,
+  draggedCourseId = null,
+  onRenameCategory,
+  onDeleteCategory,
+  onAddCourse,
+  onUpdateCourse,
+  onDeleteCourse,
+  onBulkDeleteCourses,
+  onMoveCourse,
+  onValidateCourse,
+  onCourseDragStart,
+  onCourseDragEnd,
+  onEditingStateChange,
+  canEditCategoryMetadata = canEdit,
+  allowCategoryCodeEdit = false,
+  canManageCourses = canEdit,
+  getCourseCapabilities,
+  allowExtraEditing = false,
+  allowSelection = true,
+  showCategoryToolbar = true,
+  showCourseActions = true,
+  showCourseSummary = true,
+  showAddCourseAction = true,
+  externalAddCourseRequestId = 0,
+  extraColumnHeaders = [],
+  renderExtraCells,
+  showCourseTypeColumn = false,
+  showRowActionsColumn = true,
+  tableVariant = "",
 }) {
-    const { t } = useLanguage();
-    const [editingCategoryName, setEditingCategoryName] = useState(false);
-    const [categoryNameValue, setCategoryNameValue] = useState(category?.name || '');
-    const [categoryCodeValue, setCategoryCodeValue] = useState(category?.code || '');
-    const [categoryCreditsValue, setCategoryCreditsValue] = useState(category?.requiredCredits || 0);
-    const [draftCourse, setDraftCourse] = useState(null);
-    const [editingCourseId, setEditingCourseId] = useState(null);
-    const [showAddCourse, setShowAddCourse] = useState(false);
-    const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
-    const [currentPage, setCurrentPage] = useState(1);
-    const [dropTargetCourseId, setDropTargetCourseId] = useState(null);
-    const [isDropZoneActive, setIsDropZoneActive] = useState(false);
-    const handledExternalAddRequestRef = useRef(externalAddCourseRequestId);
+  const { t } = useLanguage();
+  const [editingCategoryName, setEditingCategoryName] = useState(false);
+  const [categoryNameValue, setCategoryNameValue] = useState(
+    category?.name || "",
+  );
+  const [categoryCodeValue, setCategoryCodeValue] = useState(
+    category?.code || "",
+  );
+  const [categoryCreditsValue, setCategoryCreditsValue] = useState(
+    category?.requiredCredits || 0,
+  );
+  const [draftCourse, setDraftCourse] = useState(null);
+  const [editingCourseId, setEditingCourseId] = useState(null);
+  const [showAddCourse, setShowAddCourse] = useState(false);
+  const [selectedCourseIds, setSelectedCourseIds] = useState(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [dropTargetCourseId, setDropTargetCourseId] = useState(null);
+  const [isDropZoneActive, setIsDropZoneActive] = useState(false);
+  const handledExternalAddRequestRef = useRef(externalAddCourseRequestId);
 
-    const categoryId = category?.id ?? null;
-    const isReadOnly = disabled || !category || isAllCoursesView || (!canEdit && !allowExtraEditing);
-    const canEditCategory = !isReadOnly && canEditCategoryMetadata;
-    const canMutateCourses = !isReadOnly && isLeafCategory && canManageCourses;
-    const hasActiveEdit = editingCategoryName || editingCourseId !== null || showAddCourse;
+  const categoryId = category?.id ?? null;
+  const isReadOnly =
+    disabled ||
+    !category ||
+    isAllCoursesView ||
+    (!canEdit && !allowExtraEditing);
+  const canEditCategory = !isReadOnly && canEditCategoryMetadata;
+  const canMutateCourses = !isReadOnly && isLeafCategory && canManageCourses;
+  const hasActiveEdit =
+    editingCategoryName || editingCourseId !== null || showAddCourse;
 
-    const startAddingCourse = useCallback(() => {
-        if (!canMutateCourses || showAddCourse) return;
-        setSelectedCourseIds(new Set());
-        setDraftCourse(null);
-        setShowAddCourse(true);
-        setEditingCourseId(NEW_COURSE_ID);
-    }, [canMutateCourses, showAddCourse]);
+  const startAddingCourse = useCallback(() => {
+    if (!canMutateCourses || showAddCourse) return;
+    setSelectedCourseIds(new Set());
+    setDraftCourse(null);
+    setShowAddCourse(true);
+    setEditingCourseId(NEW_COURSE_ID);
+  }, [canMutateCourses, showAddCourse]);
 
-    const startDuplicatingCourse = useCallback((course) => {
-        if (!canMutateCourses || showAddCourse || !course) return;
-        setSelectedCourseIds(new Set());
-        setDraftCourse({
-            code: course.code || '',
-            nameTh: course.nameTh ? `${course.nameTh} ${t('copy_course_suffix')}` : '',
-            nameEn: course.nameEn ? `${course.nameEn} ${t('copy_course_suffix')}` : '',
-            credits: Number(course.credits) || 0,
-            isCoreCourse: course.isCoreCourse ?? true,
-        });
-        setShowAddCourse(true);
-        setEditingCourseId(NEW_COURSE_ID);
-    }, [canMutateCourses, showAddCourse, t]);
+  const startDuplicatingCourse = useCallback(
+    (course) => {
+      if (!canMutateCourses || showAddCourse || !course) return;
+      setSelectedCourseIds(new Set());
+      setDraftCourse({
+        code: course.code || "",
+        nameTh: course.nameTh
+          ? `${course.nameTh} ${t("copy_course_suffix")}`
+          : "",
+        nameEn: course.nameEn
+          ? `${course.nameEn} ${t("copy_course_suffix")}`
+          : "",
+        credits: Number(course.credits) || 0,
+        isCoreCourse: course.isCoreCourse ?? true,
+      });
+      setShowAddCourse(true);
+      setEditingCourseId(NEW_COURSE_ID);
+    },
+    [canMutateCourses, showAddCourse, t],
+  );
 
-    useEffect(() => {
-        if (externalAddCourseRequestId === handledExternalAddRequestRef.current) return;
-        handledExternalAddRequestRef.current = externalAddCourseRequestId;
-        startAddingCourse();
-    }, [externalAddCourseRequestId, startAddingCourse]);
+  useEffect(() => {
+    if (externalAddCourseRequestId === handledExternalAddRequestRef.current)
+      return;
+    handledExternalAddRequestRef.current = externalAddCourseRequestId;
+    startAddingCourse();
+  }, [externalAddCourseRequestId, startAddingCourse]);
 
-    useEffect(() => {
-        setEditingCategoryName(false);
-        setCategoryNameValue(category?.name || '');
-        setCategoryCodeValue(category?.code || '');
-        setCategoryCreditsValue(category?.requiredCredits || 0);
-        setEditingCourseId(null);
-        setShowAddCourse(false);
-        setSelectedCourseIds(new Set());
-        setCurrentPage(1);
-        setDropTargetCourseId(null);
-        setIsDropZoneActive(false);
-    }, [categoryId, category?.code, category?.name, category?.requiredCredits]);
+  useEffect(() => {
+    setEditingCategoryName(false);
+    setCategoryNameValue(category?.name || "");
+    setCategoryCodeValue(category?.code || "");
+    setCategoryCreditsValue(category?.requiredCredits || 0);
+    setEditingCourseId(null);
+    setShowAddCourse(false);
+    setSelectedCourseIds(new Set());
+    setCurrentPage(1);
+    setDropTargetCourseId(null);
+    setIsDropZoneActive(false);
+  }, [categoryId, category?.code, category?.name, category?.requiredCredits]);
 
-    const resolveCourseCapabilities = (course) => getCourseCapabilities?.(course) || {};
-    const canSelectCourse = (course) => !isReadOnly && allowSelection && resolveCourseCapabilities(course).canSelect !== false;
+  const resolveCourseCapabilities = (course) =>
+    getCourseCapabilities?.(course) || {};
+  const canSelectCourse = (course) =>
+    !isReadOnly &&
+    allowSelection &&
+    resolveCourseCapabilities(course).canSelect !== false;
 
-    useEffect(() => {
-        setSelectedCourseIds(current => {
-            const validIds = new Set(courses.filter(canSelectCourse).map(normalizeCourseId));
-            const next = new Set([...current].filter(id => validIds.has(id)));
-            return next.size === current.size ? current : next;
-        });
-    }, [courses, getCourseCapabilities, isReadOnly]);
+  useEffect(() => {
+    setSelectedCourseIds((current) => {
+      const validIds = new Set(
+        courses.filter(canSelectCourse).map(normalizeCourseId),
+      );
+      const next = new Set([...current].filter((id) => validIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [courses, getCourseCapabilities, isReadOnly]);
 
-    useEffect(() => {
-        onEditingStateChange?.(hasActiveEdit);
-    }, [hasActiveEdit, onEditingStateChange]);
+  useEffect(() => {
+    onEditingStateChange?.(hasActiveEdit);
+  }, [hasActiveEdit, onEditingStateChange]);
 
-    useEffect(() => () => onEditingStateChange?.(false), [onEditingStateChange]);
+  useEffect(() => () => onEditingStateChange?.(false), [onEditingStateChange]);
 
-    const totalPages = Math.max(1, Math.ceil(courses.length / pageSize));
-    const safeCurrentPage = Math.min(currentPage, totalPages);
-    const startIndex = (safeCurrentPage - 1) * pageSize;
-    const paginatedCourses = courses.slice(startIndex, startIndex + pageSize);
-    const visibleCourseIds = useMemo(() => paginatedCourses
-        .filter(canSelectCourse)
-        .map(normalizeCourseId), [paginatedCourses, getCourseCapabilities, isReadOnly]);
-    const isCurrentPageSelected = visibleCourseIds.length > 0 && visibleCourseIds.every(id => selectedCourseIds.has(id));
-    const selectedCourses = courses.filter(course => canSelectCourse(course) && selectedCourseIds.has(normalizeCourseId(course)));
-    const hasSelectedCourses = selectedCourseIds.size > 0;
-    const shouldShowCourseActions = showCourseActions && (showCourseSummary || hasSelectedCourses || showAddCourseAction);
+  const totalPages = Math.max(1, Math.ceil(courses.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const paginatedCourses = courses.slice(startIndex, startIndex + pageSize);
+  const visibleCourseIds = useMemo(
+    () => paginatedCourses.filter(canSelectCourse).map(normalizeCourseId),
+    [paginatedCourses, getCourseCapabilities, isReadOnly],
+  );
+  const isCurrentPageSelected =
+    visibleCourseIds.length > 0 &&
+    visibleCourseIds.every((id) => selectedCourseIds.has(id));
+  const selectedCourses = courses.filter(
+    (course) =>
+      canSelectCourse(course) &&
+      selectedCourseIds.has(normalizeCourseId(course)),
+  );
+  const hasSelectedCourses = selectedCourseIds.size > 0;
+  const shouldShowCourseActions =
+    showCourseActions &&
+    (showCourseSummary || hasSelectedCourses || showAddCourseAction);
 
-    const saveCategoryName = () => {
-        if (!canEditCategory || !category?.id) return;
-        const nextName = categoryNameValue.trim() || 'หมวดวิชาใหม่';
-        const nextCode = categoryCodeValue.trim();
-        const codeChanged = allowCategoryCodeEdit && nextCode !== (category.code || '');
-        if (nextName === category.name && !codeChanged) {
-            setEditingCategoryName(false);
-            return;
-        }
-        onRenameCategory?.(category.id, {
-            nameTh: nextName,
-            ...(allowCategoryCodeEdit ? { code: nextCode } : {}),
-        });
-        setEditingCategoryName(false);
-    };
+  const saveCategoryName = () => {
+    if (!canEditCategory || !category?.id) return;
+    const nextName = categoryNameValue.trim() || "หมวดวิชาใหม่";
+    const nextCode = categoryCodeValue.trim();
+    const codeChanged =
+      allowCategoryCodeEdit && nextCode !== (category.code || "");
+    if (nextName === category.name && !codeChanged) {
+      setEditingCategoryName(false);
+      return;
+    }
+    onRenameCategory?.(category.id, {
+      nameTh: nextName,
+      ...(allowCategoryCodeEdit ? { code: nextCode } : {}),
+    });
+    setEditingCategoryName(false);
+  };
 
-    const cancelCategoryNameEdit = () => {
-        setCategoryNameValue(category?.name || '');
-        setCategoryCodeValue(category?.code || '');
-        setEditingCategoryName(false);
-    };
+  const cancelCategoryNameEdit = () => {
+    setCategoryNameValue(category?.name || "");
+    setCategoryCodeValue(category?.code || "");
+    setEditingCategoryName(false);
+  };
 
-    const handleCategoryEditKeyDown = (event) => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            saveCategoryName();
-            return;
-        }
+  const handleCategoryEditKeyDown = (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      saveCategoryName();
+      return;
+    }
 
-        if (event.key === 'Escape') {
-            event.preventDefault();
-            cancelCategoryNameEdit();
-        }
-    };
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelCategoryNameEdit();
+    }
+  };
 
-    const saveCategoryCredits = () => {
-        if (!canEditCategory || !category?.id) return;
-        const nextCredits = Number(categoryCreditsValue);
-        if (!Number.isFinite(nextCredits) || nextCredits < 0) {
-            setCategoryCreditsValue(category?.requiredCredits || 0);
-            return;
-        }
-        if (nextCredits === (category.requiredCredits || 0)) return;
-        onRenameCategory?.(category.id, { requiredCredits: nextCredits });
-    };
+  const saveCategoryCredits = () => {
+    if (!canEditCategory || !category?.id) return;
+    const nextCredits = Number(categoryCreditsValue);
+    if (!Number.isFinite(nextCredits) || nextCredits < 0) {
+      setCategoryCreditsValue(category?.requiredCredits || 0);
+      return;
+    }
+    if (nextCredits === (category.requiredCredits || 0)) return;
+    onRenameCategory?.(category.id, { requiredCredits: nextCredits });
+  };
 
-    const toggleCurrentPageSelection = () => {
-        if (isReadOnly) return;
-        setSelectedCourseIds(current => {
-            const next = new Set(current);
-            if (isCurrentPageSelected) {
-                visibleCourseIds.forEach(id => next.delete(id));
-            } else {
-                visibleCourseIds.forEach(id => next.add(id));
-            }
-            return next;
-        });
-    };
+  const toggleCurrentPageSelection = () => {
+    if (isReadOnly) return;
+    setSelectedCourseIds((current) => {
+      const next = new Set(current);
+      if (isCurrentPageSelected) {
+        visibleCourseIds.forEach((id) => next.delete(id));
+      } else {
+        visibleCourseIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
 
-    const toggleCourseSelection = (course) => {
-        if (isReadOnly) return;
-        const id = normalizeCourseId(course);
-        setSelectedCourseIds(current => {
-            const next = new Set(current);
-            if (next.has(id)) {
-                next.delete(id);
-            } else {
-                next.add(id);
-            }
-            return next;
-        });
-    };
+  const toggleCourseSelection = (course) => {
+    if (isReadOnly) return;
+    const id = normalizeCourseId(course);
+    setSelectedCourseIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
-    const handleSaveCourse = async (course) => {
-        if (onValidateCourse && !onValidateCourse(course, allCourses)) {
-            return false;
-        }
-        const result = course.id === NEW_COURSE_ID
-            ? await onAddCourse?.(course)
-            : await onUpdateCourse?.(course);
-        if (result !== false) {
-            setShowAddCourse(false);
-            setEditingCourseId(null);
-            setDraftCourse(null);
-        }
-        return result;
-    };
+  const handleSaveCourse = async (course) => {
+    if (onValidateCourse && !onValidateCourse(course, allCourses)) {
+      return false;
+    }
+    const result =
+      course.id === NEW_COURSE_ID
+        ? await onAddCourse?.(course)
+        : await onUpdateCourse?.(course);
+    if (result !== false) {
+      setShowAddCourse(false);
+      setEditingCourseId(null);
+      setDraftCourse(null);
+    }
+    return result;
+  };
 
-    const handleBulkDelete = async () => {
-        if (!selectedCourses.length || isReadOnly) return;
-        const result = await onBulkDeleteCourses?.(selectedCourses);
-        if (result !== false) {
-            setSelectedCourseIds(new Set());
-        }
-    };
+  const handleBulkDelete = async () => {
+    if (!selectedCourses.length || isReadOnly) return;
+    const result = await onBulkDeleteCourses?.(selectedCourses);
+    if (result !== false) {
+      setSelectedCourseIds(new Set());
+    }
+  };
 
-    const handleCourseDragOver = (event, targetCourse) => {
-        if (!draggedCourseId || isReadOnly || !isLeafCategory) return;
-        const targetCourseId = normalizeCourseId(targetCourse);
-        if (String(draggedCourseId) === targetCourseId) return;
-        event.preventDefault();
-        event.stopPropagation();
-        event.dataTransfer.dropEffect = 'move';
-        setDropTargetCourseId(targetCourseId);
-        setIsDropZoneActive(false);
-    };
+  const handleCourseDragOver = (event, targetCourse) => {
+    if (!draggedCourseId || isReadOnly || !isLeafCategory) return;
+    const targetCourseId = normalizeCourseId(targetCourse);
+    if (String(draggedCourseId) === targetCourseId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    setDropTargetCourseId(targetCourseId);
+    setIsDropZoneActive(false);
+  };
 
-    const handleCourseDragLeave = (event, targetCourse) => {
-        const targetCourseId = normalizeCourseId(targetCourse);
-        if (!targetCourseId || dropTargetCourseId !== targetCourseId) return;
-        const nextElement = event.relatedTarget;
-        if (nextElement instanceof Node && event.currentTarget.contains(nextElement)) return;
-        setDropTargetCourseId(null);
-    };
+  const handleCourseDragLeave = (event, targetCourse) => {
+    const targetCourseId = normalizeCourseId(targetCourse);
+    if (!targetCourseId || dropTargetCourseId !== targetCourseId) return;
+    const nextElement = event.relatedTarget;
+    if (
+      nextElement instanceof Node &&
+      event.currentTarget.contains(nextElement)
+    )
+      return;
+    setDropTargetCourseId(null);
+  };
 
-    const handleCourseDrop = (event, targetCourse) => {
-        if (!draggedCourseId || isReadOnly || !isLeafCategory) return;
-        event.preventDefault();
-        event.stopPropagation();
-        setDropTargetCourseId(null);
-        setIsDropZoneActive(false);
-        onMoveCourse?.({
-            draggedCourseId,
-            targetCourse,
-            targetCategory: category,
-            beforeCourseId: normalizeCourseId(targetCourse),
-        });
-    };
+  const handleCourseDrop = (event, targetCourse) => {
+    if (!draggedCourseId || isReadOnly || !isLeafCategory) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setDropTargetCourseId(null);
+    setIsDropZoneActive(false);
+    onMoveCourse?.({
+      draggedCourseId,
+      targetCourse,
+      targetCategory: category,
+      beforeCourseId: normalizeCourseId(targetCourse),
+    });
+  };
 
-    const handleDropZoneDragOver = (event) => {
-        if (!draggedCourseId || isReadOnly || !isLeafCategory || !category) return;
-        event.preventDefault();
-        event.stopPropagation();
-        event.dataTransfer.dropEffect = 'move';
-        setDropTargetCourseId(null);
-        setIsDropZoneActive(true);
-    };
+  const handleDropZoneDragOver = (event) => {
+    if (!draggedCourseId || isReadOnly || !isLeafCategory || !category) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    setDropTargetCourseId(null);
+    setIsDropZoneActive(true);
+  };
 
-    const handleDropToCategoryEnd = (event) => {
-        if (!draggedCourseId || isReadOnly || !isLeafCategory || !category) return;
-        event.preventDefault();
-        event.stopPropagation();
-        setDropTargetCourseId(null);
-        setIsDropZoneActive(false);
-        onMoveCourse?.({
-            draggedCourseId,
-            targetCourse: null,
-            targetCategory: category,
-            beforeCourseId: null,
-        });
-    };
+  const handleDropToCategoryEnd = (event) => {
+    if (!draggedCourseId || isReadOnly || !isLeafCategory || !category) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setDropTargetCourseId(null);
+    setIsDropZoneActive(false);
+    onMoveCourse?.({
+      draggedCourseId,
+      targetCourse: null,
+      targetCategory: category,
+      beforeCourseId: null,
+    });
+  };
 
-    const handleCourseDragEnd = () => {
-        setDropTargetCourseId(null);
-        setIsDropZoneActive(false);
-        onCourseDragEnd?.();
-    };
+  const handleCourseDragEnd = () => {
+    setDropTargetCourseId(null);
+    setIsDropZoneActive(false);
+    onCourseDragEnd?.();
+  };
 
-    const changePage = (page) => {
-        setCurrentPage(Math.min(Math.max(page, 1), totalPages));
-    };
+  const changePage = (page) => {
+    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+  };
 
-    const newCourse = {
-        id: NEW_COURSE_ID,
-        code: draftCourse?.code || '',
-        nameTh: draftCourse?.nameTh || '',
-        nameEn: draftCourse?.nameEn || '',
-        credits: draftCourse?.credits || 0,
-        isCoreCourse: draftCourse?.isCoreCourse ?? true,
-    };
+  const newCourse = {
+    id: NEW_COURSE_ID,
+    code: draftCourse?.code || "",
+    nameTh: draftCourse?.nameTh || "",
+    nameEn: draftCourse?.nameEn || "",
+    credits: draftCourse?.credits || 0,
+    isCoreCourse: draftCourse?.isCoreCourse ?? true,
+  };
 
-    const editorClassName = [
-        'course-two-panel__content',
-        'curriculum-course-editor',
-        extraColumnHeaders.length ? 'curriculum-course-editor--has-extra-columns' : '',
-        tableVariant ? `curriculum-course-editor--${tableVariant}` : '',
-    ].filter(Boolean).join(' ');
+  const editorClassName = [
+    "course-two-panel__content",
+    "curriculum-course-editor",
+    extraColumnHeaders.length
+      ? "curriculum-course-editor--has-extra-columns"
+      : "",
+    tableVariant ? `curriculum-course-editor--${tableVariant}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
-    return (
-        <div className={editorClassName}>
-            {showCategoryToolbar && (
-            <div className="course-detail-toolbar curriculum-course-editor__toolbar">
-                <div className="course-detail-toolbar__left">
-                    <span className="course-detail-toolbar__label">ชื่อหมวดวิชา</span>
-                    {category ? (
-                        <div className="course-detail-toolbar__name">
-                            {editingCategoryName ? (
-                                <form
-                                    className="course-detail-toolbar__edit-fields"
-                                    onSubmit={event => {
-                                        event.preventDefault();
-                                        saveCategoryName();
-                                    }}
-                                >
-                                    {allowCategoryCodeEdit && (
-                                        <input
-                                            autoFocus
-                                            className="course-detail-toolbar__code-input"
-                                            value={categoryCodeValue}
-                                            onChange={event => setCategoryCodeValue(event.target.value)}
+  return (
+    <div className={editorClassName}>
+      {showCategoryToolbar && (
+        <div className="course-detail-toolbar curriculum-course-editor__toolbar">
+          <div className="course-detail-toolbar__left">
+            <span className="course-detail-toolbar__label">ชื่อหมวดวิชา</span>
+            {category ? (
+              <div className="course-detail-toolbar__name">
+                {editingCategoryName ? (
+                  <form
+                    className="course-detail-toolbar__edit-fields"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      saveCategoryName();
+                    }}
+                  >
+                    {allowCategoryCodeEdit && (
+                      <input
+                        autoFocus
+                        className="course-detail-toolbar__code-input"
+                        value={categoryCodeValue}
+                        onChange={(event) =>
+                          setCategoryCodeValue(event.target.value)
+                        }
                         onKeyDown={handleCategoryEditKeyDown}
-                                            aria-label="Category code"
-                                            placeholder="1.1"
-                                            disabled={isReadOnly}
-                                        />
-                                    )}
-                                    <input
-                                        autoFocus={!allowCategoryCodeEdit}
-                                        className="course-detail-toolbar__name-input"
-                                        value={categoryNameValue}
-                                        onChange={event => setCategoryNameValue(event.target.value)}
-                    onKeyDown={handleCategoryEditKeyDown}
-                    disabled={isReadOnly}
-                />
-                <div className="course-detail-toolbar__edit-actions">
-                    <button
+                        aria-label="Category code"
+                        placeholder="1.1"
+                        disabled={isReadOnly}
+                      />
+                    )}
+                    <input
+                      autoFocus={!allowCategoryCodeEdit}
+                      className="course-detail-toolbar__name-input"
+                      value={categoryNameValue}
+                      onChange={(event) =>
+                        setCategoryNameValue(event.target.value)
+                      }
+                      onKeyDown={handleCategoryEditKeyDown}
+                      disabled={isReadOnly}
+                    />
+                    <div className="course-detail-toolbar__edit-actions">
+                      <button
                         type="submit"
                         className="course-detail-toolbar__save-btn"
                         title="บันทึกการแก้ไข"
                         aria-label="บันทึกการแก้ไข"
                         disabled={isReadOnly}
-                    >
+                      >
                         <Save size={15} />
-                    </button>
-                    <button
+                      </button>
+                      <button
                         type="button"
                         className="course-detail-toolbar__cancel-btn"
                         onClick={cancelCategoryNameEdit}
                         title="ยกเลิกการแก้ไข"
                         aria-label="ยกเลิกการแก้ไข"
                         disabled={isReadOnly}
-                    >
+                      >
                         <X size={16} />
-                    </button>
-                </div>
-            </form>
-                            ) : (
-                                <>
-                                    <span className="course-detail-toolbar__name-text">
-                                        {category.code ? `${category.code} ` : ''}{category.name || <em>ยังไม่ตั้งชื่อ</em>}
-                                    </span>
-                                    {canEditCategory && (
-                                        <button
-                                            type="button"
-                                            className="course-detail-toolbar__edit-btn"
-                                            onClick={() => {
-                                                setCategoryNameValue(category.name || '');
-                                                setCategoryCodeValue(category.code || '');
-                                                setEditingCategoryName(true);
-                                            }}
-                                            title="แก้ไขข้อมูลหมวดวิชา"
-                                        >
-                                            <Pencil size={14} />
-                                        </button>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    ) : (
-                        <span className="course-detail-toolbar__placeholder">เลือกหมวดวิชาเพื่อจัดการรายวิชา</span>
-                    )}
-                </div>
-                {category && (
-                    <div className="course-detail-toolbar__right">
-                        <div className="course-detail-toolbar__credits">
-                            <span className="course-detail-toolbar__credits-label">หน่วยกิตรวม</span>
-                            <span className="course-detail-toolbar__credits-value">{categoryTotalCredits}</span>
-                        </div>
-                        {canEditCategory && (
-                            <button
-                                type="button"
-                                className="course-detail-toolbar__delete-btn"
-                                onClick={() => onDeleteCategory?.(category)}
-                                title="ลบหมวดวิชา"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        )}
+                      </button>
                     </div>
+                  </form>
+                ) : (
+                  <>
+                    <span className="course-detail-toolbar__name-text">
+                      {category.code ? `${category.code} ` : ""}
+                      {category.name || <em>ยังไม่ตั้งชื่อ</em>}
+                    </span>
+                    {canEditCategory && (
+                      <button
+                        type="button"
+                        className="course-detail-toolbar__edit-btn"
+                        onClick={() => {
+                          setCategoryNameValue(category.name || "");
+                          setCategoryCodeValue(category.code || "");
+                          setEditingCategoryName(true);
+                        }}
+                        title="แก้ไขข้อมูลหมวดวิชา"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                  </>
                 )}
-            </div>
-            )}
-
-            {category ? (
-                <>
-                    {shouldShowCourseActions && (
-                    <div className="course-detail-courses curriculum-course-editor__actions">
-                        {showCourseSummary && (
-                        <div className="curriculum-course-editor__summary">
-                            <BookOpen size={14} />
-                            <span>รายวิชา {courses.length} วิชา</span>
-                            {hasSelectedCourses && <span className="curriculum-course-editor__selected">เลือกแล้ว {selectedCourseIds.size}</span>}
-                        </div>
-                        )}
-                        <div className="curriculum-course-editor__action-buttons">
-                            {hasSelectedCourses ? (
-                                <>
-                                    <button
-                                        type="button"
-                                        className="course-btn course-btn--ghost course-btn--sm"
-                                        onClick={() => setSelectedCourseIds(new Set())}
-                                        disabled={disabled}
-                                    >
-                                        ล้างการเลือก
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="course-btn course-btn--danger course-btn--sm"
-                                        onClick={handleBulkDelete}
-                                        disabled={isReadOnly}
-                                    >
-                                        <Trash2 size={13} /> ลบ ({selectedCourseIds.size})
-                                    </button>
-                                </>
-                            ) : showAddCourseAction ? (
-                                <button
-                                    type="button"
-                                    className="course-btn course-btn--primary course-btn--sm"
-                                    onClick={startAddingCourse}
-                                    disabled={!canMutateCourses || showAddCourse}
-                                    title={!isLeafCategory ? coursePlacementHint : ''}
-                                >
-                                    <Plus size={13} /> เพิ่มรายวิชา
-                                </button>
-                            ) : null}
-                        </div>
-                    </div>
-                    )}
-
-                    {!isLeafCategory && !isReadOnly && coursePlacementHint && (
-                        <p className="curriculum-course-editor__placement-hint" role="status">
-                            {coursePlacementHint}
-                        </p>
-                    )}
-
-                    <div className="course-two-panel__body curriculum-course-editor__body">
-                        <div className={`course-spreadsheet-scroll ss-wrapper ${isDropZoneActive ? 'ss-wrapper--drop-zone-active' : ''}`}>
-                            <div className="ss-scroll">
-                                <table className="course-spreadsheet-table ss-table">
-                                    <colgroup>
-                                        <col className="curriculum-course-editor__col--grip" />
-                                        <col className="curriculum-course-editor__col--checkbox" />
-                                        <col className="curriculum-course-editor__col--text curriculum-course-editor__col--code" />
-                                        <col className="curriculum-course-editor__col--text curriculum-course-editor__col--name-th" />
-                                        <col className="curriculum-course-editor__col--text curriculum-course-editor__col--name-en" />
-                                        <col className="curriculum-course-editor__col--credits" />
-                                        {showCourseTypeColumn && <col className="curriculum-course-editor__col--course-type" />}
-                                        {extraColumnHeaders.map((column, index) => (
-                                            <col key={column.key || index} className={column.colClassName || 'curriculum-course-editor__col--extra'} />
-                                        ))}
-                                        {showRowActionsColumn && <col className="curriculum-course-editor__col--actions" />}
-                                    </colgroup>
-                                    <thead>
-                                        <tr>
-                                            <th className="course-spreadsheet-th ss-th course-spreadsheet-th--grip ss-th--grip"></th>
-                                            <th className="course-spreadsheet-th ss-th course-spreadsheet-th--checkbox ss-th--checkbox">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isCurrentPageSelected}
-                                                    disabled={!visibleCourseIds.length || disabled || isReadOnly}
-                                                    onChange={toggleCurrentPageSelection}
-                                                    title="เลือกวิชาหน้านี้"
-                                                />
-                                            </th>
-                                            <th className="course-spreadsheet-th ss-th ss-th--text">รหัสวิชา</th>
-                                            <th className="course-spreadsheet-th ss-th ss-th--text">ชื่อวิชา (ไทย)</th>
-                                            <th className="course-spreadsheet-th ss-th ss-th--text">ชื่อวิชา (Eng)</th>
-                                            <th className="course-spreadsheet-th ss-th course-spreadsheet-th--num ss-th--num">หน่วยกิต</th>
-                                            {showCourseTypeColumn && (
-                                                <th className="course-spreadsheet-th ss-th ss-th--course-type">{t('course_type')}</th>
-                                            )}
-                                            {extraColumnHeaders.map((column, index) => (
-                                                <th
-                                                    key={column.key || index}
-                                                    className={`course-spreadsheet-th ss-th ${column.className || 'ss-th--text'}`}
-                                                >
-                                                    {column.label ?? column}
-                                                </th>
-                                            ))}
-                                            {showRowActionsColumn && <th className="course-spreadsheet-th ss-th course-spreadsheet-th--actions ss-th--actions"></th>}
-                                        </tr>
-                                    </thead>
-                                    <tbody
-                                        className={isDropZoneActive ? 'ss-tbody--drop-zone-active' : ''}
-                                        onDragOver={handleDropZoneDragOver}
-                                        onDrop={handleDropToCategoryEnd}
-                                        onDragLeave={event => {
-                                            const nextElement = event.relatedTarget;
-                                            if (nextElement instanceof Node && event.currentTarget.contains(nextElement)) return;
-                                            setIsDropZoneActive(false);
-                                        }}
-                                    >
-                                        {showAddCourse && (
-                                            <CurriculumCourseRow
-                                                course={newCourse}
-                                                isNew
-                                                isEditing
-                                                disabled={disabled}
-                                                showRowActionsColumn={showRowActionsColumn}
-                                                showCourseType={showCourseTypeColumn}
-                                                renderExtraCells={renderExtraCells}
-                                                onSave={handleSaveCourse}
-                                                onCancelEdit={() => {
-                                                    setShowAddCourse(false);
-                                                    setEditingCourseId(null);
-                                                    setDraftCourse(null);
-                                                }}
-                                            />
-                                        )}
-                                        {paginatedCourses.map(course => {
-                                            const courseId = normalizeCourseId(course);
-                                            const courseCapabilities = resolveCourseCapabilities(course);
-                                            const rowDisabled = disabled || isReadOnly || courseCapabilities.canEdit === false;
-                                            return (
-                                                <CurriculumCourseRow
-                                                    key={`${courseId}:${course.code}:${course.nameTh}:${course.nameEn}:${course.credits}:${course.isCoreCourse}`}
-                                                    course={course}
-                                                    disabled={rowDisabled}
-                                                    isLocked={Boolean(courseCapabilities.locked)}
-                                                    showCourseType={showCourseTypeColumn}
-                                                    originBadge={courseCapabilities.badge || ''}
-                                                    canDrag={courseCapabilities.canDrag !== false}
-                                                    canSelect={courseCapabilities.canSelect !== false}
-                                                    isSelected={courseCapabilities.canSelect !== false && selectedCourseIds.has(courseId)}
-                                                    isEditing={editingCourseId === courseId}
-                                                    showRowActionsColumn={showRowActionsColumn}
-                                                    isDragging={String(draggedCourseId) === courseId}
-                                                    isDropTarget={dropTargetCourseId === courseId}
-                                                    onToggleSelect={toggleCourseSelection}
-                                                    onStartEdit={() => setEditingCourseId(courseId)}
-                                                    onDuplicate={startDuplicatingCourse}
-                                                    canDuplicate={canMutateCourses}
-                                                    onCancelEdit={() => setEditingCourseId(null)}
-                                                    onSave={handleSaveCourse}
-                                                    onDelete={onDeleteCourse}
-                                                    onDragStart={onCourseDragStart}
-                                                    onDragOver={handleCourseDragOver}
-                                                    onDragLeave={handleCourseDragLeave}
-                                                    onDrop={handleCourseDrop}
-                                                    onDragEnd={handleCourseDragEnd}
-                                                    renderExtraCells={renderExtraCells}
-                                                />
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                                {draggedCourseId && canMutateCourses && (
-                                    <div
-                                        className={`ss-drop-end-zone ${isDropZoneActive ? 'ss-drop-end-zone--active' : ''}`}
-                                        onDragOver={handleDropZoneDragOver}
-                                        onDrop={handleDropToCategoryEnd}
-                                        onDragLeave={event => {
-                                            const nextElement = event.relatedTarget;
-                                            if (nextElement instanceof Node && event.currentTarget.contains(nextElement)) return;
-                                            setIsDropZoneActive(false);
-                                        }}
-                                    >
-                                        วางที่นี่เพื่อย้ายไปท้ายหมวดนี้
-                                    </div>
-                                )}
-                            </div>
-                            {courses.length === 0 && !showAddCourse && (
-                                <div className="course-spreadsheet-empty">
-                                    ยังไม่มีรายวิชา - กดปุ่ม "เพิ่มรายวิชา"
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="course-pagination curriculum-course-editor__pagination">
-                        <span className="course-pagination__info">
-                            หน้า {safeCurrentPage} / {totalPages}
-                        </span>
-                        <div className="course-pagination__buttons">
-                            <button type="button" className="course-btn course-btn--ghost course-btn--sm" onClick={() => changePage(1)} disabled={safeCurrentPage === 1}>
-                                <ChevronFirst size={14} />
-                            </button>
-                            <button type="button" className="course-btn course-btn--ghost course-btn--sm" onClick={() => changePage(safeCurrentPage - 1)} disabled={safeCurrentPage === 1}>
-                                <ChevronLeft size={14} /> ย้อนกลับ
-                            </button>
-                            <button type="button" className="course-btn course-btn--ghost course-btn--sm" onClick={() => changePage(safeCurrentPage + 1)} disabled={safeCurrentPage === totalPages}>
-                                ถัดไป <ChevronRight size={14} />
-                            </button>
-                            <button type="button" className="course-btn course-btn--ghost course-btn--sm" onClick={() => changePage(totalPages)} disabled={safeCurrentPage === totalPages}>
-                                <ChevronLast size={14} />
-                            </button>
-                        </div>
-                    </div>
-                </>
+              </div>
             ) : (
-                <div className="course-two-panel__empty">
-                    <BookOpen size={24} style={{ opacity: 0.3 }} />
-                    <div>เลือกหมวดวิชาเพื่อดูรายวิชา</div>
-                </div>
+              <span className="course-detail-toolbar__placeholder">
+                เลือกหมวดวิชาเพื่อจัดการรายวิชา
+              </span>
             )}
+          </div>
+          {category && (
+            <div className="course-detail-toolbar__right">
+              <div className="course-detail-toolbar__credits">
+                <span className="course-detail-toolbar__credits-label">
+                  หน่วยกิตรวม
+                </span>
+                <span className="course-detail-toolbar__credits-value">
+                  {categoryTotalCredits}
+                </span>
+              </div>
+              {canEditCategory && (
+                <button
+                  type="button"
+                  className="course-detail-toolbar__delete-btn"
+                  onClick={() => onDeleteCategory?.(category)}
+                  title="ลบหมวดวิชา"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
-    );
+      )}
+
+      {category ? (
+        <>
+          {shouldShowCourseActions && (
+            <div className="course-detail-courses curriculum-course-editor__actions">
+              {showCourseSummary && (
+                <div className="curriculum-course-editor__summary">
+                  <BookOpen size={14} />
+                  <span>รายวิชา {courses.length} วิชา</span>
+                  {hasSelectedCourses && (
+                    <span className="curriculum-course-editor__selected">
+                      เลือกแล้ว {selectedCourseIds.size}
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="curriculum-course-editor__action-buttons">
+                {hasSelectedCourses ? (
+                  <>
+                    <button
+                      type="button"
+                      className="course-btn course-btn--ghost course-btn--sm"
+                      onClick={() => setSelectedCourseIds(new Set())}
+                      disabled={disabled}
+                    >
+                      ล้างการเลือก
+                    </button>
+                    <button
+                      type="button"
+                      className="course-btn course-btn--danger course-btn--sm"
+                      onClick={handleBulkDelete}
+                      disabled={isReadOnly}
+                    >
+                      <Trash2 size={13} /> ลบ ({selectedCourseIds.size})
+                    </button>
+                  </>
+                ) : showAddCourseAction ? (
+                  <button
+                    type="button"
+                    className="course-btn course-btn--primary course-btn--sm"
+                    onClick={startAddingCourse}
+                    disabled={!canMutateCourses || showAddCourse}
+                    title={!isLeafCategory ? coursePlacementHint : ""}
+                  >
+                    <Plus size={13} /> เพิ่มรายวิชา
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          {!isLeafCategory && !isReadOnly && coursePlacementHint && (
+            <p
+              className="curriculum-course-editor__placement-hint"
+              role="status"
+            >
+              {coursePlacementHint}
+            </p>
+          )}
+
+          <div className="course-two-panel__body curriculum-course-editor__body">
+            <div
+              className={`course-spreadsheet-scroll ss-wrapper ${isDropZoneActive ? "ss-wrapper--drop-zone-active" : ""}`}
+            >
+              <div className="ss-scroll">
+                <table className="course-spreadsheet-table ss-table">
+                  <colgroup>
+                    <col className="curriculum-course-editor__col--grip" />
+                    <col className="curriculum-course-editor__col--checkbox" />
+                    <col className="curriculum-course-editor__col--text curriculum-course-editor__col--code" />
+                    <col className="curriculum-course-editor__col--text curriculum-course-editor__col--name-th" />
+                    <col className="curriculum-course-editor__col--text curriculum-course-editor__col--name-en" />
+                    <col className="curriculum-course-editor__col--credits" />
+                    {showCourseTypeColumn && (
+                      <col className="curriculum-course-editor__col--course-type" />
+                    )}
+                    {extraColumnHeaders.map((column, index) => (
+                      <col
+                        key={column.key || index}
+                        className={
+                          column.colClassName ||
+                          "curriculum-course-editor__col--extra"
+                        }
+                      />
+                    ))}
+                    {showRowActionsColumn && (
+                      <col className="curriculum-course-editor__col--actions" />
+                    )}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className="course-spreadsheet-th ss-th course-spreadsheet-th--grip ss-th--grip"></th>
+                      <th className="course-spreadsheet-th ss-th course-spreadsheet-th--checkbox ss-th--checkbox">
+                        <input
+                          type="checkbox"
+                          checked={isCurrentPageSelected}
+                          disabled={
+                            !visibleCourseIds.length || disabled || isReadOnly
+                          }
+                          onChange={toggleCurrentPageSelection}
+                          title="เลือกวิชาหน้านี้"
+                        />
+                      </th>
+                      <th className="course-spreadsheet-th ss-th ss-th--text">
+                        รหัสวิชา
+                      </th>
+                      <th className="course-spreadsheet-th ss-th ss-th--text">
+                        ชื่อวิชา (ไทย)
+                      </th>
+                      <th className="course-spreadsheet-th ss-th ss-th--text">
+                        ชื่อวิชา (Eng)
+                      </th>
+                      <th className="course-spreadsheet-th ss-th course-spreadsheet-th--num ss-th--num">
+                        หน่วยกิต
+                      </th>
+                      {showCourseTypeColumn && (
+                        <th className="course-spreadsheet-th ss-th ss-th--course-type">
+                          {t("course_type")}
+                        </th>
+                      )}
+                      {extraColumnHeaders.map((column, index) => (
+                        <th
+                          key={column.key || index}
+                          className={`course-spreadsheet-th ss-th ${column.className || "ss-th--text"}`}
+                        >
+                          {column.label ?? column}
+                        </th>
+                      ))}
+                      {showRowActionsColumn && (
+                        <th className="course-spreadsheet-th ss-th course-spreadsheet-th--actions ss-th--actions"></th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody
+                    className={
+                      isDropZoneActive ? "ss-tbody--drop-zone-active" : ""
+                    }
+                    onDragOver={handleDropZoneDragOver}
+                    onDrop={handleDropToCategoryEnd}
+                    onDragLeave={(event) => {
+                      const nextElement = event.relatedTarget;
+                      if (
+                        nextElement instanceof Node &&
+                        event.currentTarget.contains(nextElement)
+                      )
+                        return;
+                      setIsDropZoneActive(false);
+                    }}
+                  >
+                    {showAddCourse && (
+                      <CurriculumCourseRow
+                        course={newCourse}
+                        isNew
+                        isEditing
+                        disabled={disabled}
+                        showRowActionsColumn={showRowActionsColumn}
+                        showCourseType={showCourseTypeColumn}
+                        renderExtraCells={renderExtraCells}
+                        onSave={handleSaveCourse}
+                        onCancelEdit={() => {
+                          setShowAddCourse(false);
+                          setEditingCourseId(null);
+                          setDraftCourse(null);
+                        }}
+                      />
+                    )}
+                    {paginatedCourses.map((course) => {
+                      const courseId = normalizeCourseId(course);
+                      const courseCapabilities =
+                        resolveCourseCapabilities(course);
+                      const rowDisabled =
+                        disabled ||
+                        isReadOnly ||
+                        courseCapabilities.canEdit === false;
+                      return (
+                        <CurriculumCourseRow
+                          key={`${courseId}:${course.code}:${course.nameTh}:${course.nameEn}:${course.credits}:${course.isCoreCourse}`}
+                          course={course}
+                          disabled={rowDisabled}
+                          isLocked={Boolean(courseCapabilities.locked)}
+                          showCourseType={showCourseTypeColumn}
+                          originBadge={courseCapabilities.badge || ""}
+                          canDrag={courseCapabilities.canDrag !== false}
+                          canSelect={courseCapabilities.canSelect !== false}
+                          isSelected={
+                            courseCapabilities.canSelect !== false &&
+                            selectedCourseIds.has(courseId)
+                          }
+                          isEditing={editingCourseId === courseId}
+                          showRowActionsColumn={showRowActionsColumn}
+                          isDragging={String(draggedCourseId) === courseId}
+                          isDropTarget={dropTargetCourseId === courseId}
+                          onToggleSelect={toggleCourseSelection}
+                          onStartEdit={() => setEditingCourseId(courseId)}
+                          onDuplicate={startDuplicatingCourse}
+                          canDuplicate={canMutateCourses}
+                          onCancelEdit={() => setEditingCourseId(null)}
+                          onSave={handleSaveCourse}
+                          onDelete={onDeleteCourse}
+                          onDragStart={onCourseDragStart}
+                          onDragOver={handleCourseDragOver}
+                          onDragLeave={handleCourseDragLeave}
+                          onDrop={handleCourseDrop}
+                          onDragEnd={handleCourseDragEnd}
+                          renderExtraCells={renderExtraCells}
+                        />
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {draggedCourseId && canMutateCourses && (
+                  <div
+                    className={`ss-drop-end-zone ${isDropZoneActive ? "ss-drop-end-zone--active" : ""}`}
+                    onDragOver={handleDropZoneDragOver}
+                    onDrop={handleDropToCategoryEnd}
+                    onDragLeave={(event) => {
+                      const nextElement = event.relatedTarget;
+                      if (
+                        nextElement instanceof Node &&
+                        event.currentTarget.contains(nextElement)
+                      )
+                        return;
+                      setIsDropZoneActive(false);
+                    }}
+                  >
+                    วางที่นี่เพื่อย้ายไปท้ายหมวดนี้
+                  </div>
+                )}
+              </div>
+              {courses.length === 0 && !showAddCourse && (
+                <div className="course-spreadsheet-empty">
+                  ยังไม่มีรายวิชา - กดปุ่ม "เพิ่มรายวิชา"
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="course-pagination curriculum-course-editor__pagination">
+            <span className="course-pagination__info">
+              หน้า {safeCurrentPage} / {totalPages}
+            </span>
+            <div className="course-pagination__buttons">
+              <button
+                type="button"
+                className="course-btn course-btn--ghost course-btn--sm"
+                onClick={() => changePage(1)}
+                disabled={safeCurrentPage === 1}
+              >
+                <ChevronFirst size={14} />
+              </button>
+              <button
+                type="button"
+                className="course-btn course-btn--ghost course-btn--sm"
+                onClick={() => changePage(safeCurrentPage - 1)}
+                disabled={safeCurrentPage === 1}
+              >
+                <ChevronLeft size={14} /> ย้อนกลับ
+              </button>
+              <button
+                type="button"
+                className="course-btn course-btn--ghost course-btn--sm"
+                onClick={() => changePage(safeCurrentPage + 1)}
+                disabled={safeCurrentPage === totalPages}
+              >
+                ถัดไป <ChevronRight size={14} />
+              </button>
+              <button
+                type="button"
+                className="course-btn course-btn--ghost course-btn--sm"
+                onClick={() => changePage(totalPages)}
+                disabled={safeCurrentPage === totalPages}
+              >
+                <ChevronLast size={14} />
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="course-two-panel__empty">
+          <BookOpen size={24} style={{ opacity: 0.3 }} />
+          <div>เลือกหมวดวิชาเพื่อดูรายวิชา</div>
+        </div>
+      )}
+    </div>
+  );
 }
