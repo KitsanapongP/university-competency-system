@@ -1738,9 +1738,6 @@ export default function CurriculumManagementPage() {
               </p>
             </div>
             <div className="course-list-header__actions">
-              <button className="course-btn course-btn--ghost">
-                <Upload size={16} /> Import
-              </button>
               <button
                 className="course-btn course-btn--primary"
                 onClick={handleCreateCourse}
