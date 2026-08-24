@@ -29,15 +29,19 @@ func (r *CourseGradeRepository) GetOverview(ctx context.Context, cohortID uint64
 	if err != nil {
 		return nil, err
 	}
-	students, err := r.getStudentSummaries(ctx, cohortID, filters)
+	students, err := r.getStudentSummaries(ctx, cohortID, filters, courses)
 	if err != nil {
+		return nil, err
+	}
+	if err := r.DB.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM kku_enrollment_curricula
+		WHERE cohort_id = ? AND deleted_at IS NULL`, cohortID).Scan(&overview.TotalStudents); err != nil {
 		return nil, err
 	}
 	overview.Courses = courses
 	overview.Students = students
 	overview.TotalCourses = len(courses)
 	for _, course := range courses {
-		overview.TotalStudents = maxInt(overview.TotalStudents, course.TotalStudents)
 		overview.RecordedGrades += course.RecordedStudents
 	}
 	return overview, nil
@@ -91,6 +95,7 @@ func (r *CourseGradeRepository) GetStudentGrades(ctx context.Context, cohortID, 
 		item.EnrollmentID = detail.EnrollmentID
 		item.StudentCode = detail.StudentCode
 		item.StudentNameTH = detail.StudentNameTH
+		item.Credits = credits
 		item.CourseStudentID = uint64OrZero(courseStudentID)
 		item.EnrollmentCurriculumID = uint64OrZero(studentCurriculumID)
 		item.Grade = grade.String
@@ -110,6 +115,101 @@ func (r *CourseGradeRepository) GetStudentGrades(ctx context.Context, cohortID, 
 	}
 	if len(detail.Grades) == 0 {
 		return nil, sql.ErrNoRows
+	}
+	return detail, nil
+}
+
+func (r *CourseGradeRepository) GetCourseGrades(ctx context.Context, cohortID, courseID uint64, filters models.CourseGradeFilters) (*models.CourseGradeCourseDetail, error) {
+	detail := &models.CourseGradeCourseDetail{Students: make([]models.CourseGradeCourseRosterStudent, 0)}
+	if err := r.DB.QueryRowContext(ctx, `
+		SELECT course.course_id, course.code, course.name_th, COALESCE(course.name_en, ''),
+			CASE WHEN placement.is_required = 1 THEN 'core' ELSE 'bonus' END, course.credits,
+			cohort.course_scores_recalculation_required
+		FROM edu_student_cohorts cohort
+		JOIN crs_course_categories category ON category.curriculum_id = cohort.curriculum_id AND category.deleted_at IS NULL
+		JOIN crs_curriculum_courses placement ON placement.category_id = category.category_id AND placement.deleted_at IS NULL AND placement.is_active = 1
+		JOIN crs_courses course ON course.course_id = placement.course_id AND course.deleted_at IS NULL AND course.is_active = 1
+		WHERE cohort.cohort_id = ? AND course.course_id = ?`, cohortID, courseID).Scan(
+		&detail.Course.CourseID, &detail.Course.CourseCode, &detail.Course.CourseNameTH, &detail.Course.CourseNameEN,
+		&detail.Course.CourseType, &detail.Course.Credits, &detail.CourseScoresRecalculationRequired); err != nil {
+		return nil, err
+	}
+
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT roster.enrollment_id, student.student_code, CONCAT_WS(' ', person.first_name_th, person.last_name_th)
+		FROM kku_enrollment_curricula roster
+		JOIN kku_enrollments student ON student.enrollment_id = roster.enrollment_id AND student.deleted_at IS NULL
+		JOIN persons person ON person.person_id = student.person_id AND person.deleted_at IS NULL
+		WHERE roster.cohort_id = ? AND roster.deleted_at IS NULL
+		ORDER BY student.student_code`, cohortID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	studentIndex := make(map[uint64]int)
+	for rows.Next() {
+		var item models.CourseGradeCourseRosterStudent
+		item.OtherGrades = make([]models.CourseGrade, 0)
+		if err := rows.Scan(&item.EnrollmentID, &item.StudentCode, &item.StudentNameTH); err != nil {
+			return nil, err
+		}
+		studentIndex[item.EnrollmentID] = len(detail.Students)
+		detail.Students = append(detail.Students, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	gradeRows, err := r.DB.QueryContext(ctx, `
+		SELECT grade.course_student_id, grade.enrollment_id, grade.student_curricula_id,
+			grade.academic_year_be, grade.semester, COALESCE(grade.grade, ''),
+			COALESCE(grade.grade_source, 'manual'), grade.source_reference,
+			COALESCE(grade.is_best_grade, 0), grade.updated_at
+		FROM kku_enrollment_curricula roster
+		JOIN crs_course_enrollment grade ON grade.student_curricula_id = roster.enrollment_curriculum_id
+			AND grade.enrollment_id = roster.enrollment_id AND grade.deleted_at IS NULL
+		WHERE roster.cohort_id = ? AND roster.deleted_at IS NULL AND grade.course_id = ?
+		ORDER BY grade.enrollment_id, grade.academic_year_be DESC, grade.semester DESC, grade.course_student_id DESC`, cohortID, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer gradeRows.Close()
+	for gradeRows.Next() {
+		var item models.CourseGrade
+		var sourceReference sql.NullString
+		var updatedAt sql.NullTime
+		if err := gradeRows.Scan(&item.CourseStudentID, &item.EnrollmentID, &item.EnrollmentCurriculumID,
+			&item.AcademicYearBE, &item.Semester, &item.Grade, &item.GradeSource, &sourceReference,
+			&item.IsBestGrade, &updatedAt); err != nil {
+			return nil, err
+		}
+		item.CourseID = detail.Course.CourseID
+		item.CourseCode = detail.Course.CourseCode
+		item.CourseNameTH = detail.Course.CourseNameTH
+		item.CourseNameEN = detail.Course.CourseNameEN
+		item.CourseType = detail.Course.CourseType
+		item.Credits = detail.Course.Credits
+		if sourceReference.Valid {
+			value := sourceReference.String
+			item.SourceReference = &value
+		}
+		if updatedAt.Valid {
+			item.UpdatedAt = updatedAt.Time
+		}
+		index, found := studentIndex[item.EnrollmentID]
+		if !found {
+			continue
+		}
+		student := &detail.Students[index]
+		if student.SelectedGrade == nil && courseGradeMatchesPeriod(item, filters) {
+			selected := item
+			student.SelectedGrade = &selected
+			continue
+		}
+		student.OtherGrades = append(student.OtherGrades, item)
+	}
+	if err := gradeRows.Err(); err != nil {
+		return nil, err
 	}
 	return detail, nil
 }
@@ -342,10 +442,26 @@ func (r *CourseGradeRepository) getCourseSummaries(ctx context.Context, cohortID
 	args = append(args, cohortID)
 	searchWhere, searchArgs := courseGradeSearchWhereWithArgs(filters, "course")
 	args = append(args, searchArgs...)
+	totalStudents := "COUNT(DISTINCT grade.enrollment_id)"
+	missingWhere := ""
+	having := "HAVING COUNT(DISTINCT grade.course_student_id) > 0"
+	if filters.Status == "missing" {
+		totalStudents = "COUNT(DISTINCT roster.enrollment_id)"
+		missingWhere = ` AND NOT EXISTS (
+			SELECT 1
+			FROM crs_course_enrollment any_grade
+			JOIN kku_enrollment_curricula any_roster ON any_roster.enrollment_curriculum_id = any_grade.student_curricula_id
+				AND any_roster.enrollment_id = any_grade.enrollment_id
+				AND any_roster.cohort_id = cohort.cohort_id
+				AND any_roster.deleted_at IS NULL
+			WHERE any_grade.course_id = course.course_id AND any_grade.deleted_at IS NULL
+		)`
+		having = ""
+	}
 	query := `
 		SELECT course.course_id, course.code, course.name_th, COALESCE(course.name_en, ''),
 			CASE WHEN placement.is_required = 1 THEN 'core' ELSE 'bonus' END, course.credits,
-			COUNT(DISTINCT roster.enrollment_id),
+			` + totalStudents + `,
 			COUNT(DISTINCT CASE WHEN grade.course_student_id IS NOT NULL THEN roster.enrollment_id END)
 		FROM edu_student_cohorts cohort
 		JOIN crs_course_categories category ON category.curriculum_id = cohort.curriculum_id AND category.deleted_at IS NULL
@@ -354,8 +470,9 @@ func (r *CourseGradeRepository) getCourseSummaries(ctx context.Context, cohortID
 		LEFT JOIN kku_enrollment_curricula roster ON roster.cohort_id = cohort.cohort_id AND roster.deleted_at IS NULL
 		LEFT JOIN crs_course_enrollment grade ON grade.student_curricula_id = roster.enrollment_curriculum_id
 			AND grade.enrollment_id = roster.enrollment_id AND grade.course_id = course.course_id AND grade.deleted_at IS NULL` + gradeFilter + `
-		WHERE cohort.cohort_id = ?` + searchWhere + courseGradeResultWhere(filters) + `
+		WHERE cohort.cohort_id = ?` + searchWhere + missingWhere + `
 		GROUP BY course.course_id, course.code, course.name_th, course.name_en, placement.is_required, course.credits
+		` + having + `
 		ORDER BY course.code`
 	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -373,25 +490,49 @@ func (r *CourseGradeRepository) getCourseSummaries(ctx context.Context, cohortID
 	return items, rows.Err()
 }
 
-func (r *CourseGradeRepository) getStudentSummaries(ctx context.Context, cohortID uint64, filters models.CourseGradeFilters) ([]models.CourseGradeStudentSummary, error) {
-	gradeFilter, args := buildCourseGradeFilter(filters, "grade")
+func (r *CourseGradeRepository) getStudentSummaries(ctx context.Context, cohortID uint64, filters models.CourseGradeFilters, courses []models.CourseGradeCourseSummary) ([]models.CourseGradeStudentSummary, error) {
+	items := make([]models.CourseGradeStudentSummary, 0)
+	if len(courses) == 0 {
+		rows, err := r.DB.QueryContext(ctx, `
+			SELECT roster.enrollment_id, student.student_code, CONCAT_WS(' ', person.first_name_th, person.last_name_th), 0, 0
+			FROM kku_enrollment_curricula roster
+			JOIN kku_enrollments student ON student.enrollment_id = roster.enrollment_id AND student.deleted_at IS NULL
+			JOIN persons person ON person.person_id = student.person_id AND person.deleted_at IS NULL
+			WHERE roster.cohort_id = ? AND roster.deleted_at IS NULL
+			ORDER BY student.student_code`, cohortID)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var item models.CourseGradeStudentSummary
+			if err := rows.Scan(&item.EnrollmentID, &item.StudentCode, &item.StudentNameTH, &item.TotalCourses, &item.RecordedCourses); err != nil {
+				return nil, err
+			}
+			items = append(items, item)
+		}
+		return items, rows.Err()
+	}
+
+	placeholders := make([]string, 0, len(courses))
+	args := []any{len(courses)}
+	for _, course := range courses {
+		placeholders = append(placeholders, "?")
+		args = append(args, course.CourseID)
+	}
+	gradeFilter, gradeArgs := buildCourseGradeFilter(filters, "grade")
+	args = append(args, gradeArgs...)
 	args = append(args, cohortID)
-	searchWhere, searchArgs := courseGradeSearchWhereWithArgs(filters, "course")
-	args = append(args, searchArgs...)
 	query := `
 		SELECT roster.enrollment_id, student.student_code, CONCAT_WS(' ', person.first_name_th, person.last_name_th),
-			COUNT(DISTINCT course.course_id),
-			COUNT(DISTINCT CASE WHEN grade.course_student_id IS NOT NULL THEN course.course_id END)
-		FROM edu_student_cohorts cohort
-		JOIN kku_enrollment_curricula roster ON roster.cohort_id = cohort.cohort_id AND roster.deleted_at IS NULL
+			?, COUNT(DISTINCT grade.course_id)
+		FROM kku_enrollment_curricula roster
 		JOIN kku_enrollments student ON student.enrollment_id = roster.enrollment_id AND student.deleted_at IS NULL
 		JOIN persons person ON person.person_id = student.person_id AND person.deleted_at IS NULL
-		JOIN crs_course_categories category ON category.curriculum_id = cohort.curriculum_id AND category.deleted_at IS NULL
-		JOIN crs_curriculum_courses placement ON placement.category_id = category.category_id AND placement.deleted_at IS NULL AND placement.is_active = 1
-		JOIN crs_courses course ON course.course_id = placement.course_id AND course.deleted_at IS NULL AND course.is_active = 1
 		LEFT JOIN crs_course_enrollment grade ON grade.student_curricula_id = roster.enrollment_curriculum_id
-			AND grade.enrollment_id = roster.enrollment_id AND grade.course_id = course.course_id AND grade.deleted_at IS NULL` + gradeFilter + `
-		WHERE cohort.cohort_id = ?` + searchWhere + courseGradeResultWhere(filters) + `
+			AND grade.enrollment_id = roster.enrollment_id AND grade.course_id IN (` + strings.Join(placeholders, ",") + `)
+			AND grade.deleted_at IS NULL` + gradeFilter + `
+		WHERE roster.cohort_id = ? AND roster.deleted_at IS NULL
 		GROUP BY roster.enrollment_id, student.student_code, person.first_name_th, person.last_name_th
 		ORDER BY student.student_code`
 	rows, err := r.DB.QueryContext(ctx, query, args...)
@@ -399,7 +540,6 @@ func (r *CourseGradeRepository) getStudentSummaries(ctx context.Context, cohortI
 		return nil, err
 	}
 	defer rows.Close()
-	items := make([]models.CourseGradeStudentSummary, 0)
 	for rows.Next() {
 		var item models.CourseGradeStudentSummary
 		if err := rows.Scan(&item.EnrollmentID, &item.StudentCode, &item.StudentNameTH, &item.TotalCourses, &item.RecordedCourses); err != nil {
@@ -425,6 +565,16 @@ func buildCourseGradeFilter(filters models.CourseGradeFilters, alias string) (st
 		return "", args
 	}
 	return " AND " + strings.Join(conditions, " AND "), args
+}
+
+func courseGradeMatchesPeriod(grade models.CourseGrade, filters models.CourseGradeFilters) bool {
+	if filters.AcademicYearBE != nil && grade.AcademicYearBE != *filters.AcademicYearBE {
+		return false
+	}
+	if filters.Semester != nil && grade.Semester != *filters.Semester {
+		return false
+	}
+	return true
 }
 
 func courseGradeSearchWhereWithArgs(filters models.CourseGradeFilters, alias string) (string, []any) {
@@ -460,11 +610,4 @@ func uint64OrZero(value sql.NullInt64) uint64 {
 		return 0
 	}
 	return uint64(value.Int64)
-}
-
-func maxInt(left, right int) int {
-	if left > right {
-		return left
-	}
-	return right
 }

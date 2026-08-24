@@ -59,6 +59,31 @@ func (c *CourseGradeController) GetStudent(w http.ResponseWriter, r *http.Reques
 	utils.OK(w, item)
 }
 
+func (c *CourseGradeController) GetCourse(w http.ResponseWriter, r *http.Request) {
+	cohortID, ok := parseStudentCohortID(w, r, "cohort_id")
+	if !ok {
+		return
+	}
+	courseID, ok := parseStudentCohortID(w, r, "course_id")
+	if !ok {
+		return
+	}
+	claims, ok := studentCohortClaims(w, r)
+	if !ok {
+		return
+	}
+	filters, ok := courseGradeFiltersFromQuery(w, r)
+	if !ok {
+		return
+	}
+	item, err := c.Service.GetCourseGrades(r.Context(), cohortID, courseID, filters, claims.Roles, claims.FacultyID)
+	if err != nil {
+		writeStudentCohortError(w, err)
+		return
+	}
+	utils.OK(w, item)
+}
+
 func (c *CourseGradeController) Put(w http.ResponseWriter, r *http.Request) {
 	cohortID, ok := parseStudentCohortID(w, r, "cohort_id")
 	if !ok {

@@ -196,6 +196,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 					cor.Post("/course-competency-scores/recalculate", studentCohortHandler.RecalculateCourseCompetencyScores)
 					cor.Get("/course-competency-scores/summary", studentCohortHandler.GetCourseCompetencyScoreSummary)
 					cor.Get("/course-grades", courseGradeHandler.GetOverview)
+					cor.Get("/course-grades/courses/{course_id}", courseGradeHandler.GetCourse)
 					cor.Get("/course-grades/students/{enrollment_id}", courseGradeHandler.GetStudent)
 					cor.Put("/course-grades", courseGradeHandler.Put)
 					cor.Post("/course-grade-imports/preview", courseGradeHandler.PreviewImport)

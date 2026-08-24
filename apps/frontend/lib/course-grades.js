@@ -83,6 +83,20 @@ export function mapCourseGradeStudentDetail(item) {
     };
 }
 
+export function mapCourseGradeCourseDetail(item) {
+    return {
+        course: mapCourse(item?.course || {}),
+        courseScoresRecalculationRequired: Boolean(item?.course_scores_recalculation_required),
+        students: (item?.students || []).map(student => ({
+            enrollmentId: student.enrollment_id || 0,
+            studentCode: student.student_code || '',
+            studentNameTh: student.student_name_th || '',
+            selectedGrade: student.selected_grade ? mapGrade(student.selected_grade) : null,
+            otherGrades: (student.other_grades || []).map(mapGrade),
+        })),
+    };
+}
+
 function gradeRowPayload(row) {
     return {
         course_student_id: Number(row.courseStudentId || 0),
@@ -119,6 +133,14 @@ export async function fetchStudentCourseGrades(cohortId, enrollmentId, filters =
         status: filters.status,
     })}`);
     return mapCourseGradeStudentDetail(unwrapData(response, {}));
+}
+
+export async function fetchCourseGradeCourseRoster(cohortId, courseId, filters = {}) {
+    const response = await apiFetch(`/api/v1/student-cohorts/${cohortId}/course-grades/courses/${courseId}${queryString({
+        academic_year_be: filters.academicYearBe,
+        semester: filters.semester,
+    })}`);
+    return mapCourseGradeCourseDetail(unwrapData(response, {}));
 }
 
 export async function saveCourseGrades(cohortId, rows) {

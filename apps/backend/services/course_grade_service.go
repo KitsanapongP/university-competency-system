@@ -42,6 +42,14 @@ func (s *CourseGradeService) GetStudentGrades(ctx context.Context, cohortID, enr
 	return s.Repo.GetStudentGrades(ctx, cohortID, enrollmentID, filters)
 }
 
+func (s *CourseGradeService) GetCourseGrades(ctx context.Context, cohortID, courseID uint64, filters models.CourseGradeFilters, roles []string, facultyID *int64) (*models.CourseGradeCourseDetail, error) {
+	if _, err := s.Cohorts.GetCohort(ctx, cohortID, roles, facultyID); err != nil {
+		return nil, err
+	}
+	filters = normalizeCourseGradeFilters(filters)
+	return s.Repo.GetCourseGrades(ctx, cohortID, courseID, filters)
+}
+
 func (s *CourseGradeService) PutGrades(ctx context.Context, cohortID uint64, payload models.PutCourseGradesRequest, roles []string, facultyID *int64) (*models.CourseGradeImportCommitResult, error) {
 	cohort, err := s.Cohorts.GetCohort(ctx, cohortID, roles, facultyID)
 	if err != nil {
@@ -159,6 +167,9 @@ func (s *CourseGradeService) CommitImport(ctx context.Context, cohortID uint64, 
 
 func normalizeCourseGradeFilters(filters models.CourseGradeFilters) models.CourseGradeFilters {
 	filters.Search = strings.TrimSpace(filters.Search)
+	if filters.Status == "" {
+		filters.Status = "recorded"
+	}
 	return filters
 }
 

@@ -21,6 +21,7 @@ type CourseGrade struct {
 	CourseNameTH           string    `json:"course_name_th"`
 	CourseNameEN           string    `json:"course_name_en"`
 	CourseType             string    `json:"course_type"`
+	Credits                int       `json:"credits"`
 	AcademicYearBE         uint64    `json:"academic_year_be"`
 	Semester               uint64    `json:"semester"`
 	Grade                  string    `json:"grade"`
@@ -66,6 +67,20 @@ type CourseGradeStudentDetail struct {
 	StudentNameTH                     string        `json:"student_name_th"`
 	Grades                            []CourseGrade `json:"grades"`
 	CourseScoresRecalculationRequired bool          `json:"course_scores_recalculation_required"`
+}
+
+type CourseGradeCourseRosterStudent struct {
+	EnrollmentID  uint64        `json:"enrollment_id"`
+	StudentCode   string        `json:"student_code"`
+	StudentNameTH string        `json:"student_name_th"`
+	SelectedGrade *CourseGrade  `json:"selected_grade"`
+	OtherGrades   []CourseGrade `json:"other_grades"`
+}
+
+type CourseGradeCourseDetail struct {
+	Course                            CourseGradeCourseSummary         `json:"course"`
+	Students                          []CourseGradeCourseRosterStudent `json:"students"`
+	CourseScoresRecalculationRequired bool                             `json:"course_scores_recalculation_required"`
 }
 
 type UpsertCourseGradeRow struct {
