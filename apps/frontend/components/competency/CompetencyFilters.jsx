@@ -14,6 +14,8 @@ const CompetencyFilters = ({
     months,
     selectedYears,
     onToggleYear,
+    onShowAllScores,
+    showAllScores,
     dateRange,
     setDateRange,
     showRequirement,
@@ -23,7 +25,6 @@ const CompetencyFilters = ({
     setCategory,
 }) => {
     const { t } = useLanguage();
-
     return (
         <div className="filter-section card">
             <div className="card-header">
@@ -108,6 +109,15 @@ const CompetencyFilters = ({
                         {t('academic_year')}
                     </label>
                     <div className="year-buttons">
+                        {category === 'course' && (
+                            <button
+                                type="button"
+                                className={`year-btn year-btn--all ${showAllScores ? 'selected' : ''}`}
+                                onClick={onShowAllScores}
+                            >
+                                {t('view_all_scores')}
+                            </button>
+                        )}
                         {years.map(year => (
                             <button
                                 key={year}

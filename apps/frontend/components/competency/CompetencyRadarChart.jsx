@@ -35,6 +35,7 @@ const CompetencyRadarChart = ({
   dateRange,
   months,
   showRequirement,
+  showAllScores,
 }) => {
   const chartRef = useRef(null);
   const [chartLabelRadius, setChartLabelRadius] = useState(165);
@@ -210,7 +211,9 @@ const CompetencyRadarChart = ({
         </h2>
         <span className="year-badge">
           {filterMode === "year"
-            ? `${t("year") || "ปี"} ${selectedYears.join(", ")}`
+            ? showAllScores
+              ? t("all_years_total")
+              : `${t("year") || "ปี"} ${selectedYears.join(", ")}`
             : `${months[dateRange.startMonth - 1] ? t(months[dateRange.startMonth - 1].id + "_short") : ""} ${dateRange.startYear} - ${months[dateRange.endMonth - 1] ? t(months[dateRange.endMonth - 1].id + "_short") : ""} ${dateRange.endYear}`}
         </span>
       </div>

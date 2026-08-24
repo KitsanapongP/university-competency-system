@@ -13,7 +13,8 @@ const ActivityDetailPanel = ({
     activitiesByCompetency,
     filterMode,
     selectedYears,
-    dateRange
+    dateRange,
+    showAllScores
 }) => {
     const { t } = useLanguage();
 
@@ -21,10 +22,13 @@ const ActivityDetailPanel = ({
 
     const comp = competencies.find(c => c.id === activeCompetency);
     const Icon = comp?.icon;
+    const isAllYears = filterMode === 'year' && showAllScores;
     const displayYear = activeDetailYear || (filterMode === 'year' ? selectedYears[0] : dateRange.endYear);
     const activities = activitiesByCompetency[activeCompetency] || [];
 
-    const completedActivities = activities.filter(a => a.status === 'completed' && a.year === displayYear);
+    const completedActivities = activities.filter(a => (
+        a.status === 'completed' && (isAllYears || a.year === displayYear)
+    ));
     const totalEarned = completedActivities.reduce((sum, a) => sum + a.score, 0);
 
     return (
@@ -43,7 +47,7 @@ const ActivityDetailPanel = ({
             </div>
 
             {/* Year Tabs */}
-            {filterMode === 'year' && selectedYears.length > 1 && (
+            {filterMode === 'year' && !isAllYears && selectedYears.length > 1 && (
                 <div className="detail-year-tabs">
                     {selectedYears.map(year => (
                         <button

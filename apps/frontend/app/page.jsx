@@ -54,6 +54,7 @@ export default function CompetencyPage() {
     // Filter Mode: 'year' | 'range'
     const [filterMode, setFilterMode] = useState('year');
     const [selectedYears, setSelectedYears] = useState([]);
+    const [showAllCourseScores, setShowAllCourseScores] = useState(false);
     const [dateRange, setDateRange] = useState({
         startYear: '', startMonth: 1,
         endYear: '', endMonth: 1
@@ -131,8 +132,9 @@ export default function CompetencyPage() {
                     historyMap[Number(key)] = value || [];
                 });
 
-                // The current Cohort score is the source for the radar chart.
-                // Course mode uses Course Total; activity mode uses Activity Score.
+                // Activity mode uses the current accumulated activity score. Course
+                // mode must retain the course history so its Radar can be filtered
+                // by the academic year selected by the learner.
                 const progress = payload.progress || {};
                 const progressYear = [...(payload.available_years || [])]
                     .map(String)
@@ -168,7 +170,9 @@ export default function CompetencyPage() {
                         target_score: Number(value.target_score || 0),
                     }];
                 });
-                setRadarChartByCompetency(radarMap);
+                setRadarChartByCompetency(
+                    category === 'course' ? historyMap : radarMap
+                );
 
                 const years = normalizeYears(payload.available_years || [], historyMap);
                 if (category === 'activity') {
@@ -238,18 +242,29 @@ export default function CompetencyPage() {
     };
 
     const toggleYear = (year) => {
+        setShowAllCourseScores(false);
         if (selectedYears.includes(year)) {
             if (selectedYears.length > 1) {
                 setSelectedYears(selectedYears.filter(y => y !== year));
             }
-        } else if (selectedYears.length < 4) {
+        } else {
             setSelectedYears([...selectedYears, year]);
         }
+    };
+
+    const showAllAcademicScores = () => {
+        setShowAllCourseScores(true);
+        setSelectedYears([]);
+        setActiveCompetency(null);
+        setActiveDetailYear(null);
     };
 
     // Get Data Helper
     const getScoresForCurrentFilter = () => {
         if (category === 'activity') {
+            return getAccumulatedScores(radarChartByCompetency);
+        }
+        if (showAllCourseScores) {
             return getAccumulatedScores(radarChartByCompetency);
         }
         if (filterMode === 'year') {
@@ -271,6 +286,21 @@ export default function CompetencyPage() {
             datasets.push({
                 label: t('activity_accumulated_score'),
                 data: selectedCompetencies.map(id => accumulatedScores[id] || 0),
+                backgroundColor: CHART_COLORS[0].bg,
+                borderColor: CHART_COLORS[0].border,
+                borderWidth: 2,
+                pointBackgroundColor: CHART_COLORS[0].border,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 6,
+                pointHoverRadius: 10,
+                pointHitRadius: 20,
+            });
+        } else if (filterMode === 'year' && showAllCourseScores) {
+            const allScores = getAccumulatedScores(radarChartByCompetency);
+            datasets.push({
+                label: t('all_years_total'),
+                data: selectedCompetencies.map(id => allScores[id] || 0),
                 backgroundColor: CHART_COLORS[0].bg,
                 borderColor: CHART_COLORS[0].border,
                 borderWidth: 2,
@@ -354,8 +384,10 @@ export default function CompetencyPage() {
 
     const handleChartPointClick = (compId, datasetIndex) => {
         let clickedYear;
-        if (filterMode === 'year') {
+        if (filterMode === 'year' && !showAllCourseScores) {
             clickedYear = selectedYears[datasetIndex];
+        } else if (filterMode === 'year') {
+            clickedYear = null;
         } else {
             clickedYear = dateRange.endYear;
         }
@@ -403,7 +435,14 @@ export default function CompetencyPage() {
 
     const scoresForFilters = useMemo(
         () => getScoresForCurrentFilter(),
-        [filterMode, selectedYears, dateRange, radarChartByCompetency]
+        [
+            category,
+            filterMode,
+            selectedYears,
+            dateRange,
+            radarChartByCompetency,
+            showAllCourseScores,
+        ]
     );
 
     const dashboardStatusMessage = (() => {
@@ -461,6 +500,7 @@ export default function CompetencyPage() {
                             dateRange={dateRange}
                             months={MONTHS}
                             showRequirement={showRequirement}
+                            showAllScores={category === 'course' && showAllCourseScores}
                         />
 
                         {/* Filter Section */}
@@ -474,6 +514,8 @@ export default function CompetencyPage() {
                             months={MONTHS}
                             selectedYears={selectedYears}
                             onToggleYear={toggleYear}
+                            onShowAllScores={showAllAcademicScores}
+                            showAllScores={category === 'course' && showAllCourseScores}
                             dateRange={dateRange}
                             setDateRange={setDateRange}
                             showRequirement={showRequirement}
@@ -494,6 +536,7 @@ export default function CompetencyPage() {
                         filterMode={filterMode}
                         selectedYears={selectedYears}
                         dateRange={dateRange}
+                        showAllScores={category === 'course' && showAllCourseScores}
                     />
 
                     {/* Stats Cards */}

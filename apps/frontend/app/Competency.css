@@ -688,12 +688,13 @@ body:has(.competency-app) {
 
 /* Year Buttons */
 .year-buttons {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
   gap: 8px;
 }
 
 .year-btn {
-  flex: 1;
+  width: 100%;
   padding: 10px;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -708,6 +709,10 @@ body:has(.competency-app) {
   align-items: center;
   justify-content: center;
   gap: 4px;
+}
+
+.year-btn--all {
+  min-width: 0;
 }
 
 .year-btn:hover {
