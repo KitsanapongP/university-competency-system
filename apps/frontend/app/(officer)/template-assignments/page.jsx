@@ -764,8 +764,7 @@ export default function TemplateAssignmentsPage() {
                       <span>{assignment.cohortStatus}</span>
                     </td>
                     <td>
-                      <strong>{assignment.curriculumCode}</strong>
-                      <span>{assignment.curriculumNameTh}</span>
+                      <strong>{assignment.curriculumNameTh}</strong>
                     </td>
                     <td>
                       <strong>{assignment.templateName}</strong>
