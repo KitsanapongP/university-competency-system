@@ -390,7 +390,7 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
                 : "ข้อมูลภายในคณะของคุณ"
               : t("executive_analytics") || "วิเคราะห์ข้อมูลผู้บริหาร"}
           </p>
-          <h1>
+          <h1 className="executive-page-header__title">
             {isEnglish
               ? "Faculty Competency Analytics"
               : "ภาพรวมสมรรถนะระดับคณะ"}

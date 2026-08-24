@@ -22,11 +22,18 @@
     margin-bottom: 6px;
 }
 
-.executive-page-header h1 {
-    color: var(--text);
-    font-size: clamp(1.65rem, 3vw, 2.35rem);
+.executive-page-header__title {
+    color: #1d4ed8;
+    font-family: 'Sarabun', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
     line-height: 1.2;
+    margin: 0;
     margin-bottom: 8px;
+}
+
+.dark .executive-page-header__title {
+    color: #7dd3fc;
 }
 
 .executive-page-header > div:first-child > p:last-child {
