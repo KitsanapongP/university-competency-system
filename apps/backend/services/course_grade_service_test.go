@@ -66,3 +66,13 @@ func TestEnsureUniqueGradeRowsAllowsRetakeInDifferentSemester(t *testing.T) {
 		t.Fatalf("ensureUniqueGradeRows() error = %v, want different semesters to be allowed", err)
 	}
 }
+
+func TestEnsureCourseGradeChangeSetRejectsEditAndDeleteTogether(t *testing.T) {
+	err := ensureCourseGradeChangeSet(
+		[]models.UpsertCourseGradeRow{{CourseStudentID: 42}},
+		[]uint64{42},
+	)
+	if err == nil {
+		t.Fatal("ensureCourseGradeChangeSet() = nil, want edit/delete conflict")
+	}
+}

@@ -65,6 +65,9 @@ func (s *CourseGradeService) PutGrades(ctx context.Context, cohortID uint64, pay
 	if err := ensureUniqueGradeRows(rows); err != nil {
 		return nil, err
 	}
+	if err := ensureCourseGradeChangeSet(rows, payload.DeletedCourseStudentIDs); err != nil {
+		return nil, err
+	}
 	imported, replaced, deleted, err := s.Repo.UpsertGrades(ctx, cohortID, rows, payload.DeletedCourseStudentIDs, "manual")
 	if err != nil {
 		if errors.Is(err, repositories.ErrCourseGradePeriodConflict) {
@@ -239,6 +242,21 @@ func ensureUniqueGradeRows(rows []models.UpsertCourseGradeRow) error {
 			return StudentCohortValidationError{Message: "duplicate grade row"}
 		}
 		seen[key] = true
+	}
+	return nil
+}
+
+func ensureCourseGradeChangeSet(rows []models.UpsertCourseGradeRow, deletedIDs []uint64) error {
+	deleted := make(map[uint64]struct{}, len(deletedIDs))
+	for _, id := range deletedIDs {
+		if id > 0 {
+			deleted[id] = struct{}{}
+		}
+	}
+	for _, row := range rows {
+		if _, exists := deleted[row.CourseStudentID]; row.CourseStudentID > 0 && exists {
+			return StudentCohortValidationError{Message: "a course grade cannot be edited and deleted at the same time"}
+		}
 	}
 	return nil
 }
