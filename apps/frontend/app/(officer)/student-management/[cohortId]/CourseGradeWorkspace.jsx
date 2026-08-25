@@ -5,6 +5,7 @@ import {
   BookOpen,
   Database,
   Edit3,
+  MoreHorizontal,
   FileSpreadsheet,
   Plus,
   RefreshCw,
@@ -13,6 +14,7 @@ import {
   Trash2,
   Upload,
   Users,
+  X,
 } from "lucide-react";
 import BaseModal from "../../../../components/ui/BaseModal";
 import ConfirmActionModal from "../../../../components/ui/ConfirmActionModal";
@@ -145,29 +147,122 @@ function GradeEditorTable({
   setRows,
   readOnly,
   submitting,
-  showHistory = false,
   editableRowKeys,
+  savingRowKeys,
+  studentOptions,
+  courseOptions,
+  focusRowKey,
   onDirty,
   onEditRow,
+  onCancelRow,
+  onSaveRow,
   onRequestDelete,
-  onAddRetake,
   scrollRef,
   onScroll,
 }) {
-  const lastRowByCourse = new Map();
-  rows.forEach((row) => {
-    lastRowByCourse.set(row.courseId, rowEditorKey(row));
-  });
+  const [openActionKey, setOpenActionKey] = useState(null);
+  const focusedRowRef = useRef(null);
+
+  useEffect(() => {
+    if (focusRowKey && rows.some((row) => rowEditorKey(row) === focusRowKey)) {
+      focusedRowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [focusRowKey, rows]);
+
   const updateRow = (row, field, value) => {
-    onDirty?.(rowEditorKey(row));
+    const key = rowEditorKey(row);
+    onDirty?.(key);
     setRows((current) =>
-      current.map((item) =>
-        rowEditorKey(item) === rowEditorKey(row)
-          ? { ...item, [field]: value }
-          : item,
-      ),
+      current.map((item) => {
+        if (rowEditorKey(item) !== key) return item;
+        if (field === "enrollmentId") {
+          const student = studentOptions.find(
+            (option) => String(option.enrollmentId) === String(value),
+          );
+          return {
+            ...item,
+            enrollmentId: Number(value),
+            studentCode: student?.studentCode || "",
+            studentNameTh: student?.studentNameTh || "",
+          };
+        }
+        if (field === "courseId") {
+          const course = courseOptions.find(
+            (option) => String(option.courseId) === String(value),
+          );
+          return {
+            ...item,
+            courseId: Number(value),
+            courseCode: course?.courseCode || "",
+            courseNameTh: course?.courseNameTh || "",
+            courseNameEn: course?.courseNameEn || "",
+            courseType: course?.courseType || "core",
+            credits: course?.credits || 0,
+          };
+        }
+        return { ...item, [field]: value };
+      }),
     );
   };
+
+  const renderStudentCell = (row, editable) => {
+    if (row.isNewRecord && editor?.mode === "course") {
+      return (
+        <select
+          className="course-input course-grade-student-select"
+          value={row.enrollmentId || ""}
+          disabled={!editable}
+          onChange={(event) =>
+            updateRow(row, "enrollmentId", event.target.value)
+          }
+        >
+          <option value="">
+            {label(language, "เลือกผู้เรียน", "Select student")}
+          </option>
+          {studentOptions.map((student) => (
+            <option key={student.enrollmentId} value={student.enrollmentId}>
+              {student.studentCode} · {student.studentNameTh}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    return (
+      <div className="student-cohort-cell">
+        <strong>{row.studentCode || "-"}</strong>
+        <span>{row.studentNameTh || "-"}</span>
+      </div>
+    );
+  };
+
+  const renderCourseCell = (row, editable) => {
+    if (row.isNewRecord && editor?.mode === "student") {
+      return (
+        <select
+          className="course-input course-grade-course-select"
+          value={row.courseId || ""}
+          disabled={!editable}
+          onChange={(event) => updateRow(row, "courseId", event.target.value)}
+        >
+          <option value="">
+            {label(language, "เลือกวิชา", "Select course")}
+          </option>
+          {courseOptions.map((course) => (
+            <option key={course.courseId} value={course.courseId}>
+              {course.courseCode} · {courseName(course, language)}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    return (
+      <div className="student-cohort-cell">
+        <strong>{row.courseCode || "-"}</strong>
+        <span>{courseName(row, language) || "-"}</span>
+      </div>
+    );
+  };
+
   return (
     <div
       ref={scrollRef}
@@ -195,173 +290,160 @@ function GradeEditorTable({
               const editable =
                 !readOnly &&
                 !submitting &&
-                (row.isNewRecord || editableRowKeys?.has(key));
-              const canAddRetake = showHistory
-                ? row.isPrimaryRecord !== false
-                : lastRowByCourse.get(row.courseId) === key;
+                !saving &&
+                editableRowKeys?.has(key);
+              const saving = savingRowKeys?.has(key);
               const status = row.isNewRecord
                 ? label(language, "รายการใหม่", "New record")
                 : row.isPlaceholder
                   ? label(language, "ยังไม่มีผลการเรียน", "No grade")
-                  : showHistory && !row.hasSelectedGrade
-                    ? label(language, "ประวัติเดิม", "History")
-                    : label(language, "รายการเดิม", "Existing record");
+                  : label(language, "รายการเดิม", "Existing record");
               return (
-              <tr
-                key={key}
-                className={row.isNewRecord ? "course-grade-draft-row" : ""}
-              >
-                <td>
-                  <div className="student-cohort-cell">
-                    <strong>
-                      {row.studentCode || editor?.student?.studentCode}
-                    </strong>
-                    <span>
-                      {row.studentNameTh ||
-                        editor?.student?.studentNameTh ||
-                        "-"}
+                <tr
+                  key={key}
+                  ref={focusRowKey === key ? focusedRowRef : null}
+                  data-row-key={key}
+                  className={row.isNewRecord ? "course-grade-draft-row" : ""}
+                >
+                  <td>{renderStudentCell(row, editable)}</td>
+                  <td>{renderCourseCell(row, editable)}</td>
+                  <td>
+                    <span
+                      className={`course-grade-record-status ${row.isNewRecord ? "course-grade-record-status--new" : ""}`}
+                    >
+                      {status}
                     </span>
-                  </div>
-                </td>
-                <td>
-                  <div className="student-cohort-cell">
-                    <strong>{row.courseCode}</strong>
-                    <span>{courseName(row, language)}</span>
-                  </div>
-                </td>
-                <td>
-                  <span
-                    className={`course-grade-record-status ${row.isNewRecord ? "course-grade-record-status--new" : ""}`}
-                  >
-                    {status}
-                  </span>
-                </td>
-                <td>
-                  <input
-                    className="course-input course-grade-number"
-                    type="number"
-                    min="2000"
-                    value={row.academicYearBe || ""}
-                    disabled={!editable}
-                    onChange={(event) =>
-                      updateRow(row, "academicYearBe", event.target.value)
-                    }
-                  />
-                </td>
-                <td>
-                  <select
-                    className="course-input course-grade-term"
-                    value={row.semester || ""}
-                    disabled={!editable}
-                    onChange={(event) =>
-                      updateRow(row, "semester", event.target.value)
-                    }
-                  >
-                    <option value="">-</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                  </select>
-                </td>
-                <td>
-                  <select
-                    className="course-input course-grade-value"
-                    value={row.grade || ""}
-                    disabled={!editable}
-                    onChange={(event) =>
-                      updateRow(row, "grade", event.target.value)
-                    }
-                  >
-                    {GRADE_OPTIONS.map((grade) => (
-                      <option key={grade} value={grade}>
-                        {grade ||
-                          label(language, "ยังไม่บันทึก", "Not recorded")}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <span className="course-grade-source">
-                    {sourceLabel(row.gradeSource || "manual", language)}
-                  </span>
-                </td>
-                <td>
-                  {row.isBestGrade ? (
-                    <span className="course-grade-best">
-                      {label(language, "ใช่", "Yes")}
+                  </td>
+                  <td>
+                    <input
+                      className="course-input course-grade-number"
+                      type="number"
+                      min="2000"
+                      value={row.academicYearBe || ""}
+                      disabled={!editable}
+                      onChange={(event) =>
+                        updateRow(row, "academicYearBe", event.target.value)
+                      }
+                    />
+                  </td>
+                  <td>
+                    <select
+                      className="course-input course-grade-term"
+                      value={row.semester || ""}
+                      disabled={!editable}
+                      onChange={(event) =>
+                        updateRow(row, "semester", event.target.value)
+                      }
+                    >
+                      <option value="">-</option>
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      className="course-input course-grade-value"
+                      value={row.grade || ""}
+                      disabled={!editable}
+                      onChange={(event) =>
+                        updateRow(row, "grade", event.target.value)
+                      }
+                    >
+                      {GRADE_OPTIONS.map((grade) => (
+                        <option key={grade} value={grade}>
+                          {grade ||
+                            label(language, "ยังไม่บันทึก", "Not recorded")}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <span className="course-grade-source">
+                      {sourceLabel(row.gradeSource || "manual", language)}
                     </span>
-                  ) : (
+                  </td>
+                  <td>
+                    {row.isBestGrade ? (
+                      <span className="course-grade-best">
+                        {label(language, "ใช่", "Yes")}
+                      </span>
+                    ) : (
                       "-"
-                  )}
-                </td>
-                <td>
-                  <div className="course-grade-record-actions">
-                    {!readOnly &&
-                      !row.isPlaceholder &&
-                      !row.isNewRecord &&
-                      !editable && (
-                        <button
-                          type="button"
-                          className="course-grade-record-action"
-                          onClick={() => onEditRow?.(row)}
-                          disabled={submitting}
-                          title={label(
-                            language,
-                            "แก้ไขผลการเรียน",
-                            "Edit grade",
-                          )}
-                          aria-label={label(
-                            language,
-                            "แก้ไขผลการเรียน",
-                            "Edit grade",
-                          )}
-                        >
-                          <Edit3 size={15} />
-                        </button>
-                      )}
-                    {!readOnly && !row.isPlaceholder && (
-                      <button
-                        type="button"
-                        className="course-grade-record-action course-grade-record-action--danger"
-                        onClick={() => onRequestDelete?.(row)}
-                        disabled={submitting}
-                        title={label(
-                          language,
-                          "ลบผลการเรียน",
-                          "Delete grade",
-                        )}
-                        aria-label={label(
-                          language,
-                          "ลบผลการเรียน",
-                          "Delete grade",
-                        )}
-                      >
-                        <Trash2 size={15} />
-                      </button>
                     )}
-                    {!readOnly && canAddRetake && (
-                      <button
-                        type="button"
-                        className="course-grade-record-action course-grade-record-action--add"
-                        onClick={() => onAddRetake?.(row)}
-                        disabled={submitting}
-                        title={label(
-                          language,
-                          "เพิ่มผลการเรียนซ้ำ",
-                          "Add retake grade",
-                        )}
-                        aria-label={label(
-                          language,
-                          "เพิ่มผลการเรียนซ้ำ",
-                          "Add retake grade",
-                        )}
-                      >
-                        <Plus size={15} />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
+                  </td>
+                  <td>
+                    <div className="course-grade-record-actions">
+                      {editable || row.isNewRecord ? (
+                        <>
+                          <button
+                            type="button"
+                            className="course-grade-record-action course-grade-record-action--danger"
+                            onClick={() => onCancelRow?.(row)}
+                            disabled={saving}
+                            title={label(language, "ยกเลิก", "Cancel")}
+                            aria-label={label(language, "ยกเลิก", "Cancel")}
+                          >
+                            <X size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className="course-grade-record-action course-grade-record-action--save"
+                            onClick={() => onSaveRow?.(row)}
+                            disabled={saving}
+                            title={label(language, "บันทึกผลการเรียน", "Save grade")}
+                            aria-label={label(language, "บันทึกผลการเรียน", "Save grade")}
+                          >
+                            <Save size={15} />
+                          </button>
+                        </>
+                      ) : !readOnly && !row.isPlaceholder ? (
+                        <div className="course-grade-action-menu">
+                          <button
+                            type="button"
+                            className="course-grade-record-action"
+                            onClick={() =>
+                              setOpenActionKey((current) =>
+                                current === key ? null : key,
+                              )
+                            }
+                            disabled={submitting}
+                            title={label(language, "การจัดการ", "Actions")}
+                            aria-label={label(language, "การจัดการ", "Actions")}
+                            aria-expanded={openActionKey === key}
+                          >
+                            <MoreHorizontal size={16} />
+                          </button>
+                          {openActionKey === key && (
+                            <div className="course-grade-action-menu__list">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionKey(null);
+                                  onEditRow?.(row);
+                                }}
+                              >
+                                <Edit3 size={14} />
+                                {label(language, "แก้ไขผลการเรียน", "Edit grade")}
+                              </button>
+                              <button
+                                type="button"
+                                className="is-danger"
+                                onClick={() => {
+                                  setOpenActionKey(null);
+                                  onRequestDelete?.(row);
+                                }}
+                              >
+                                <Trash2 size={14} />
+                                {label(language, "ลบผลการเรียน", "Delete grade")}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
               );
             })
           ) : (
@@ -369,8 +451,8 @@ function GradeEditorTable({
               <td colSpan={9} className="student-empty">
                 {label(
                   language,
-                  "ไม่พบรายวิชาในหลักสูตรนี้",
-                  "No curriculum courses found.",
+                  "ไม่พบรายการผลการเรียน",
+                  "No grade records found.",
                 )}
               </td>
             </tr>
@@ -389,11 +471,15 @@ function GradeEditorModal({
   submitting,
   readOnly,
   onClose,
-  onSave,
-  canSave,
   editableRowKeys,
+  savingRowKeys,
+  studentOptions,
+  courseOptions,
+  focusRowKey,
   onDirty,
   onEditRow,
+  onCancelRow,
+  onSaveRow,
   onDeleteRow,
   onAddRetake,
 }) {
@@ -402,6 +488,7 @@ function GradeEditorModal({
   const syncingScroll = useRef(false);
   const [scrollContentWidth, setScrollContentWidth] = useState(0);
   const [deleteCandidate, setDeleteCandidate] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const title =
     editor?.mode === "course"
       ? label(
@@ -414,14 +501,6 @@ function GradeEditorModal({
           `แก้ผลการเรียนของ ${editor?.student?.studentCode || ""}`,
           `Edit grades for ${editor?.student?.studentCode || ""}`,
         );
-  const selectedRows =
-    editor?.mode === "course"
-      ? rows.filter((row) => row.hasSelectedGrade || row.isNewRecord)
-      : rows;
-  const otherPeriodRows =
-    editor?.mode === "course"
-      ? rows.filter((row) => !row.hasSelectedGrade && !row.isNewRecord)
-      : [];
   const syncScrollPosition = useCallback((source) => {
     if (syncingScroll.current) return;
     syncingScroll.current = true;
@@ -452,159 +531,157 @@ function GradeEditorModal({
       .forEach((element) => observer.observe(element));
     return () => observer.disconnect();
   }, [editor?.mode, rows.length, syncScrollWidth]);
+  useEffect(() => {
+    if (!focusRowKey) return;
+    requestAnimationFrame(() => {
+      tableScrollRefs.current.filter(Boolean).forEach((element) => {
+        element.scrollLeft = element.scrollWidth;
+      });
+      if (bottomScrollRef.current) {
+        bottomScrollRef.current.scrollLeft = bottomScrollRef.current.scrollWidth;
+      }
+    });
+  }, [focusRowKey, rows.length]);
   const tableProps = (index) => ({
     scrollRef: (element) => {
       tableScrollRefs.current[index] = element;
     },
     onScroll: (event) => syncScrollPosition(event.currentTarget),
   });
+  const sortedRows = [...rows].sort((left, right) => {
+    const leftYear = Number(left.academicYearBe || 0);
+    const rightYear = Number(right.academicYearBe || 0);
+    if (leftYear !== rightYear) return leftYear - rightYear;
+    const leftSemester = Number(left.semester || 0);
+    const rightSemester = Number(right.semester || 0);
+    if (leftSemester !== rightSemester) return leftSemester - rightSemester;
+    return String(left.courseCode || "").localeCompare(
+      String(right.courseCode || ""),
+    );
+  });
+  const termGroups = useMemo(() => {
+    if (editor?.mode !== "student") return [];
+    const groups = new Map();
+    sortedRows.forEach((row) => {
+      const key = row.isNewRecord || !row.academicYearBe || !row.semester
+        ? "new"
+        : `${row.academicYearBe}-${row.semester}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    });
+    return [...groups.entries()];
+  }, [editor?.mode, sortedRows]);
+  const renderTermHeading = (key) => {
+    if (key === "new") {
+      return label(language, "รายการใหม่", "New record");
+    }
+    const [year, semester] = key.split("-");
+    return label(
+      language,
+      `ปีการศึกษา ${year} · ภาคเรียนที่ ${semester}`,
+      `Academic year ${year} · Semester ${semester}`,
+    );
+  };
   const footer = (
-    <div className="course-grade-editor-footer">
-      <div
-        ref={bottomScrollRef}
-        className="course-grade-editor-horizontal-scroll"
-        onScroll={(event) => syncScrollPosition(event.currentTarget)}
-        aria-label={label(
-          language,
-          "เลื่อนตารางเกรดในแนวนอน",
-          "Scroll grade table horizontally",
-        )}
-      >
-        <div style={{ width: scrollContentWidth }} />
-      </div>
-      <div className="course-grade-editor-actions">
-        <button
-          className="course-btn course-btn--ghost"
-          onClick={onClose}
-          disabled={submitting}
-        >
-          {label(language, "ยกเลิก", "Cancel")}
-        </button>
-        <button
-          className="course-btn course-btn--primary"
-          onClick={onSave}
-          disabled={
-            submitting ||
-            readOnly ||
-            !canSave
-          }
-        >
-          <Save size={16} />
-          {submitting
-            ? label(language, "กำลังบันทึก...", "Saving...")
-            : label(language, "บันทึกการเปลี่ยนแปลง", "Save changes")}
-        </button>
-      </div>
+    <div
+      ref={bottomScrollRef}
+      className="course-grade-editor-horizontal-scroll"
+      onScroll={(event) => syncScrollPosition(event.currentTarget)}
+      aria-label={label(
+        language,
+        "เลื่อนตารางเกรดในแนวนอน",
+        "Scroll grade table horizontally",
+      )}
+    >
+      <div style={{ width: `${Math.max(scrollContentWidth, 1320)}px` }} />
     </div>
   );
   return (
     <>
       <BaseModal
-      open={Boolean(editor)}
-      title={title}
-      size="xl"
-      onClose={onClose}
-      closeDisabled={submitting}
-      footer={footer}
-    >
-      <div className="course-grade-editor-note">
-        {label(
-          language,
-          "การบันทึกจะทำให้รุ่นต้องคำนวณคะแนนใหม่ ระบบจะเลือกเกรดที่ดีที่สุดให้อัตโนมัติ",
-          "Saving changes marks the cohort for recalculation. The system selects the best grade automatically.",
-        )}
-      </div>
-      {editor?.mode === "course" ? (
-        <div className="course-grade-editor-groups">
-          <section>
-            <div className="course-grade-editor-group-heading">
-              <div>
-                <strong>
-                  {label(
-                    language,
-                    "มีผลการเรียนในช่วงที่เลือก",
-                    "Has grades in the selected period",
-                  )}
-                </strong>
-                <span>
-                  {label(
-                    language,
-                    "แก้ไขข้อมูลของช่วงเวลานี้ได้",
-                    "You can edit records for this period.",
-                  )}
-                </span>
-              </div>
-              <b>{selectedRows.length}</b>
-            </div>
-            <GradeEditorTable
-              language={language}
-              editor={editor}
-              rows={selectedRows}
-              setRows={setRows}
-              readOnly={readOnly}
-              submitting={submitting}
-              showHistory
-              editableRowKeys={editableRowKeys}
-              onDirty={onDirty}
-              onEditRow={onEditRow}
-              onRequestDelete={setDeleteCandidate}
-              onAddRetake={onAddRetake}
-              {...tableProps(0)}
-            />
-          </section>
-          <section>
-            <div className="course-grade-editor-group-heading">
-              <div>
-                <strong>
-                  {label(
-                    language,
-                    "ไม่มีผลการเรียนในช่วงนี้",
-                    "No grades in this period",
-                  )}
-                </strong>
-                <span>
-                  {label(
-                    language,
-                    "ข้อมูลปีหรือภาคอื่นถูกเก็บไว้ และสามารถเพิ่มข้อมูลช่วงใหม่นี้ได้",
-                    "Other-period records are retained. Add a grade for this selected period when needed.",
-                  )}
-                </span>
-              </div>
-              <b>{otherPeriodRows.length}</b>
-            </div>
-            <GradeEditorTable
-              language={language}
-              editor={editor}
-              rows={otherPeriodRows}
-              setRows={setRows}
-              readOnly={readOnly}
-              submitting={submitting}
-              showHistory
-              editableRowKeys={editableRowKeys}
-              onDirty={onDirty}
-              onEditRow={onEditRow}
-              onRequestDelete={setDeleteCandidate}
-              onAddRetake={onAddRetake}
-              {...tableProps(1)}
-            />
-          </section>
+        open={Boolean(editor)}
+        title={title}
+        size="xl"
+        onClose={onClose}
+        closeDisabled={submitting}
+        footer={footer}
+      >
+        <div className="course-grade-editor-toolbar">
+          <div className="course-grade-editor-note">
+            {label(
+              language,
+              "แก้ไขหรือเพิ่มผลการเรียนแล้วกดบันทึกที่แถวนั้น ระบบจะเลือกเกรดที่ดีที่สุดให้อัตโนมัติ",
+              "Edit or add a grade and save it on that row. The system selects the best grade automatically.",
+            )}
+          </div>
+          {!readOnly && (
+            <button
+              type="button"
+              className="course-btn course-btn--primary"
+              onClick={onAddRetake}
+              disabled={submitting}
+            >
+              <Plus size={16} />
+              {label(language, "เพิ่มผลการเรียนซ้ำ", "Add retake grade")}
+            </button>
+          )}
         </div>
-      ) : (
-        <GradeEditorTable
-          language={language}
-          editor={editor}
-          rows={rows}
-          setRows={setRows}
-          readOnly={readOnly}
-          submitting={submitting}
-          editableRowKeys={editableRowKeys}
-          onDirty={onDirty}
-          onEditRow={onEditRow}
-          onRequestDelete={setDeleteCandidate}
-          onAddRetake={onAddRetake}
-          {...tableProps(0)}
-        />
-      )}
+        {editor?.mode === "course" ? (
+          <GradeEditorTable
+            language={language}
+            editor={editor}
+            rows={sortedRows}
+            setRows={setRows}
+            readOnly={readOnly}
+            submitting={submitting}
+            editableRowKeys={editableRowKeys}
+            savingRowKeys={savingRowKeys}
+            studentOptions={studentOptions}
+            courseOptions={courseOptions}
+            focusRowKey={focusRowKey}
+            onDirty={onDirty}
+            onEditRow={onEditRow}
+            onCancelRow={onCancelRow}
+            onSaveRow={onSaveRow}
+            onRequestDelete={setDeleteCandidate}
+            {...tableProps(0)}
+          />
+        ) : (
+          <div className="course-grade-editor-groups">
+            {termGroups.map(([key, groupRows], index) => (
+              <section key={key}>
+                <div className="course-grade-editor-group-heading">
+                  <div>
+                    <strong>{renderTermHeading(key)}</strong>
+                    <span>
+                      {groupRows.length} {label(language, "รายการ", "records")}
+                    </span>
+                  </div>
+                  <b>{groupRows.length}</b>
+                </div>
+                <GradeEditorTable
+                  language={language}
+                  editor={editor}
+                  rows={groupRows}
+                  setRows={setRows}
+                  readOnly={readOnly}
+                  submitting={submitting}
+                  editableRowKeys={editableRowKeys}
+                  savingRowKeys={savingRowKeys}
+                  studentOptions={studentOptions}
+                  courseOptions={courseOptions}
+                  focusRowKey={focusRowKey}
+                  onDirty={onDirty}
+                  onEditRow={onEditRow}
+                  onCancelRow={onCancelRow}
+                  onSaveRow={onSaveRow}
+                  onRequestDelete={setDeleteCandidate}
+                  {...tableProps(index)}
+                />
+              </section>
+            ))}
+          </div>
+        )}
       </BaseModal>
       <ConfirmActionModal
         open={Boolean(deleteCandidate)}
@@ -638,9 +715,15 @@ function GradeEditorModal({
         confirmLabel={label(language, "ลบผลการเรียน", "Delete grade")}
         cancelLabel={label(language, "ยกเลิก", "Cancel")}
         variant="danger"
-        onConfirm={() => {
-          onDeleteRow?.(deleteCandidate);
-          setDeleteCandidate(null);
+        loading={deleting}
+        onConfirm={async () => {
+          setDeleting(true);
+          try {
+            await onDeleteRow?.(deleteCandidate);
+            setDeleteCandidate(null);
+          } finally {
+            setDeleting(false);
+          }
         }}
         onCancel={() => setDeleteCandidate(null)}
       />
@@ -927,10 +1010,10 @@ export default function CourseGradeWorkspace({
   const [editor, setEditor] = useState(null);
   const [editorRows, setEditorRows] = useState([]);
   const [editorLoading, setEditorLoading] = useState(false);
-  const [savingEditor, setSavingEditor] = useState(false);
   const [editableRowKeys, setEditableRowKeys] = useState(new Set());
-  const [dirtyRowKeys, setDirtyRowKeys] = useState(new Set());
-  const [deletedCourseStudentIds, setDeletedCourseStudentIds] = useState([]);
+  const [rowSnapshots, setRowSnapshots] = useState(new Map());
+  const [savingRowKeys, setSavingRowKeys] = useState(new Set());
+  const [focusRowKey, setFocusRowKey] = useState("");
   const [importOpen, setImportOpen] = useState(false);
   const [regOpen, setRegOpen] = useState(false);
 
@@ -951,138 +1034,155 @@ export default function CourseGradeWorkspace({
 
   const resetEditorChanges = () => {
     setEditableRowKeys(new Set());
-    setDirtyRowKeys(new Set());
-    setDeletedCourseStudentIds([]);
+    setRowSnapshots(new Map());
+    setSavingRowKeys(new Set());
+    setFocusRowKey("");
+  };
+
+  const buildCourseEditorRows = (detail) =>
+    detail.students.flatMap((student) => {
+      const base = {
+        enrollmentId: student.enrollmentId,
+        studentCode: student.studentCode,
+        studentNameTh: student.studentNameTh,
+        courseId: detail.course.courseId,
+        courseCode: detail.course.courseCode,
+        courseNameTh: detail.course.courseNameTh,
+        courseNameEn: detail.course.courseNameEn,
+        courseType: detail.course.courseType,
+        credits: detail.course.credits,
+      };
+      const grades = [
+        ...(student.selectedGrade ? [student.selectedGrade] : []),
+        ...(student.otherGrades || []),
+      ];
+      if (!grades.length) {
+        return [
+          makePlaceholderRow({
+            ...base,
+            editorKey: `course-${detail.course.courseId}-${student.enrollmentId}-placeholder`,
+          }),
+        ];
+      }
+      return grades.map((grade, index) => ({
+        ...base,
+        ...grade,
+        editorKey: `course-${detail.course.courseId}-${student.enrollmentId}-${grade.courseStudentId}`,
+        isPlaceholder: false,
+        isNewRecord: false,
+        isHistoryRecord: index > 0,
+        isPrimaryRecord: index === 0,
+        hasSelectedGrade: index === 0,
+      }));
+    });
+
+  const buildStudentEditorRows = (detail, student) =>
+    detail.grades.map((row) => ({
+      ...row,
+      editorKey: `student-${student.enrollmentId}-${row.courseId}-${row.courseStudentId || "placeholder"}`,
+      studentCode: student.studentCode,
+      studentNameTh: student.studentNameTh,
+      isPlaceholder: !row.courseStudentId,
+      isNewRecord: false,
+      isHistoryRecord: Boolean(row.courseStudentId),
+      isPrimaryRecord: false,
+      hasSelectedGrade: Boolean(row.courseStudentId),
+    }));
+
+  const loadEditorData = async (currentEditor, nextFocusRowKey = "") => {
+    if (!currentEditor) return;
+    setEditorLoading(true);
+    try {
+      if (currentEditor.mode === "course") {
+        const detail = await fetchCourseGradeCourseRoster(
+          cohortId,
+          currentEditor.course.courseId,
+          { ...filters, academicYearBe: "", semester: "" },
+        );
+        setEditor({ mode: "course", course: detail.course });
+        setEditorRows(buildCourseEditorRows(detail));
+      } else {
+        const detail = await fetchStudentCourseGrades(
+          cohortId,
+          currentEditor.student.enrollmentId,
+          { ...filters, academicYearBe: "", semester: "" },
+        );
+        setEditorRows(buildStudentEditorRows(detail, currentEditor.student));
+      }
+      setFocusRowKey(nextFocusRowKey);
+    } catch (error) {
+      notify(onFeedback, "error", gradeError(error, language));
+    } finally {
+      setEditorLoading(false);
+    }
   };
 
   const openCourseEditor = async (course) => {
-    setEditor({ mode: "course", course });
+    const nextEditor = { mode: "course", course };
+    setEditor(nextEditor);
     setEditorRows([]);
     resetEditorChanges();
-    setEditorLoading(true);
-    try {
-      const detail = await fetchCourseGradeCourseRoster(
-        cohortId,
-        course.courseId,
-        filters,
-      );
-      const rows = detail.students.map((student) => {
-        const existing = student.selectedGrade;
-        const base = {
-          editorKey: `course-${course.courseId}-${student.enrollmentId}`,
-          enrollmentId: student.enrollmentId,
-          studentCode: student.studentCode,
-          studentNameTh: student.studentNameTh,
-          courseId: detail.course.courseId,
-          courseCode: detail.course.courseCode,
-          courseNameTh: detail.course.courseNameTh,
-          courseNameEn: detail.course.courseNameEn,
-          courseType: detail.course.courseType,
-          credits: detail.course.credits,
-        };
-        const primary = existing
-          ? {
-              ...base,
-              ...existing,
-              editorKey: `course-${course.courseId}-${student.enrollmentId}-primary`,
-              isPlaceholder: false,
-              isNewRecord: false,
-              isHistoryRecord: false,
-              isPrimaryRecord: true,
-              hasSelectedGrade: true,
-            }
-          : {
-              ...makePlaceholderRow({
-                ...base,
-                academicYearBe: filters.academicYearBe || "",
-                semester: filters.semester || "",
-              }),
-              editorKey: `course-${course.courseId}-${student.enrollmentId}-primary`,
-              isPrimaryRecord: true,
-            };
-        const history = (student.otherGrades || []).map((item) => ({
-          ...base,
-          ...item,
-          editorKey: `course-${course.courseId}-${student.enrollmentId}-history-${item.courseStudentId}`,
-          isPlaceholder: false,
-          isNewRecord: false,
-          isHistoryRecord: true,
-          isPrimaryRecord: false,
-          hasSelectedGrade: false,
-        }));
-        return [primary, ...history];
-      });
-      setEditor({ mode: "course", course: detail.course });
-      setEditorRows(rows.flat());
-    } catch (error) {
-      setEditor(null);
-      notify(onFeedback, "error", gradeError(error, language));
-    } finally {
-      setEditorLoading(false);
-    }
+    await loadEditorData(nextEditor);
   };
 
   const openStudentEditor = async (student) => {
-    setEditor({ mode: "student", student });
+    const nextEditor = { mode: "student", student };
+    setEditor(nextEditor);
     setEditorRows([]);
     resetEditorChanges();
-    setEditorLoading(true);
-    try {
-      const detail = await fetchStudentCourseGrades(
-        cohortId,
-        student.enrollmentId,
-        { ...filters, academicYearBe: "", semester: "" },
-      );
-      const seenCourseIds = new Set();
-      setEditorRows(
-        detail.grades.map((row) => {
-          const isPrimaryRecord = !seenCourseIds.has(row.courseId);
-          seenCourseIds.add(row.courseId);
-          return {
-            ...row,
-            editorKey: `student-${student.enrollmentId}-${row.courseId}-${row.courseStudentId || "placeholder"}`,
-            academicYearBe: row.courseStudentId
-              ? row.academicYearBe || ""
-              : filters.academicYearBe || "",
-            semester: row.courseStudentId
-              ? row.semester || ""
-              : filters.semester || "",
-            studentCode: student.studentCode,
-            studentNameTh: student.studentNameTh,
-            isPlaceholder: !row.courseStudentId,
-            isNewRecord: false,
-            isHistoryRecord: Boolean(row.courseStudentId),
-            isPrimaryRecord,
-            hasSelectedGrade: Boolean(row.courseStudentId),
-          };
-        }),
-      );
-    } catch (error) {
-      setEditor(null);
-      notify(onFeedback, "error", gradeError(error, language));
-    } finally {
-      setEditorLoading(false);
-    }
+    await loadEditorData(nextEditor);
   };
 
   const markRowEditable = (row) => {
-    setEditableRowKeys((current) => {
-      const next = new Set(current);
-      next.add(rowEditorKey(row));
+    const key = rowEditorKey(row);
+    setRowSnapshots((current) => {
+      if (current.has(key)) return current;
+      const next = new Map(current);
+      next.set(key, { ...row });
       return next;
     });
-  };
-
-  const markRowDirty = (key) => {
-    setDirtyRowKeys((current) => {
+    setEditableRowKeys((current) => {
       const next = new Set(current);
       next.add(key);
       return next;
     });
   };
 
-  const addRetakeRow = (sourceRow) => {
-    const draftKey = `retake-${sourceRow.enrollmentId}-${sourceRow.courseId}-${Date.now()}-${editorRows.length}`;
+  const markRowDirty = (key) => {
+    return key;
+  };
+
+  const cancelRow = (row) => {
+    const key = rowEditorKey(row);
+    if (row.isNewRecord) {
+      setEditorRows((current) => current.filter((item) => rowEditorKey(item) !== key));
+    } else {
+      const snapshot = rowSnapshots.get(key);
+      if (snapshot) {
+        setEditorRows((current) =>
+          current.map((item) =>
+            rowEditorKey(item) === key ? { ...snapshot } : item,
+          ),
+        );
+      }
+    }
+    setEditableRowKeys((current) => {
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
+    setRowSnapshots((current) => {
+      const next = new Map(current);
+      next.delete(key);
+      return next;
+    });
+  };
+
+  const addRetakeRow = () => {
+    const sourceRow = editor?.mode === "course"
+      ? editorRows[0] || { courseId: editor.course.courseId, courseCode: editor.course.courseCode }
+      : editor?.student || {};
+    const draftKey = `retake-${Date.now()}-${editorRows.length}`;
     const draft = {
       ...sourceRow,
       courseStudentId: 0,
@@ -1097,93 +1197,109 @@ export default function CourseGradeWorkspace({
       isNewRecord: true,
       isHistoryRecord: false,
       isPrimaryRecord: false,
-      hasSelectedGrade: editor?.mode === "course",
+      hasSelectedGrade: false,
     };
+    if (editor?.mode === "course") {
+      draft.courseId = editor.course.courseId;
+      draft.courseCode = editor.course.courseCode;
+      draft.courseNameTh = editor.course.courseNameTh;
+      draft.courseNameEn = editor.course.courseNameEn;
+      draft.courseType = editor.course.courseType;
+      draft.credits = editor.course.credits;
+      draft.enrollmentId = 0;
+      draft.studentCode = "";
+      draft.studentNameTh = "";
+    } else {
+      draft.enrollmentId = editor.student.enrollmentId;
+      draft.studentCode = editor.student.studentCode;
+      draft.studentNameTh = editor.student.studentNameTh;
+      draft.courseId = 0;
+      draft.courseCode = "";
+      draft.courseNameTh = "";
+      draft.courseNameEn = "";
+    }
     setEditorRows((current) => [...current, draft]);
     setEditableRowKeys((current) => new Set(current).add(draftKey));
-    setDirtyRowKeys((current) => new Set(current).add(draftKey));
+    setFocusRowKey(draftKey);
   };
 
-  const deleteRow = (row) => {
+  const saveRow = async (row) => {
     const key = rowEditorKey(row);
-    if (row.courseStudentId) {
-      setDeletedCourseStudentIds((current) =>
-        current.includes(row.courseStudentId)
-          ? current
-          : [...current, row.courseStudentId],
+    if (!row.enrollmentId || !row.studentCode || !row.courseId ||
+      !row.academicYearBe || !row.semester || !String(row.grade || "").trim()) {
+      notify(
+        onFeedback,
+        "error",
+        label(
+          language,
+          "กรุณาเลือกผู้เรียน วิชา ปีการศึกษา ภาคเรียน และเกรดให้ครบ",
+          "Select a student, course, academic year, semester, and grade.",
+        ),
       );
+      return;
     }
-    setEditableRowKeys((current) => {
-      const next = new Set(current);
-      next.delete(key);
-      return next;
-    });
-    setDirtyRowKeys((current) => {
-      const next = new Set(current);
-      next.delete(key);
-      return next;
-    });
-    setEditorRows((current) => {
-      const remaining = current.filter((item) => rowEditorKey(item) !== key);
-      const hasAnotherRecord = remaining.some(
-        (item) =>
-          item.enrollmentId === row.enrollmentId &&
-          item.courseId === row.courseId &&
-          !item.isPlaceholder,
-      );
-      if (hasAnotherRecord && !row.isPrimaryRecord) return remaining;
-      return [
-        ...remaining,
-        makePlaceholderRow({
-          ...row,
-          editorKey: `placeholder-${row.enrollmentId}-${row.courseId}-${Date.now()}`,
-        }),
-      ];
-    });
-  };
-
-  const saveEditor = async () => {
-    if (savingEditor || submitting) return;
-    const rows = editorRows
-      .filter(
-        (row) =>
-          dirtyRowKeys.has(rowEditorKey(row)) &&
-          !row.isPlaceholder &&
-          !deletedCourseStudentIds.includes(row.courseStudentId) &&
-          String(row.grade || "").trim(),
-      )
-      .map((row) => ({ ...row, rowNumber: 0 }));
-    if (!rows.length && !deletedCourseStudentIds.length) return;
-    setSavingEditor(true);
+    setSavingRowKeys((current) => new Set(current).add(key));
     try {
-      await saveCourseGrades(cohortId, rows, deletedCourseStudentIds);
-      setEditor(null);
-      resetEditorChanges();
+      await saveCourseGrades(cohortId, [{ ...row, rowNumber: 0 }]);
       await loadOverview();
+      await loadEditorData(editor, key);
+      setEditableRowKeys((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+      setRowSnapshots((current) => {
+        const next = new Map(current);
+        next.delete(key);
+        return next;
+      });
       notify(
         onFeedback,
         "success",
         label(
           language,
-          "บันทึกการเปลี่ยนแปลงแล้ว ต้องคำนวณคะแนนใหม่เพื่ออัปเดต Dashboard",
-          "Changes saved. Recalculate to update the dashboard.",
+          "บันทึกผลการเรียนแล้ว ต้องคำนวณคะแนนใหม่เพื่ออัปเดต Dashboard",
+          "Grade saved. Recalculate to update the dashboard.",
         ),
       );
     } catch (error) {
       notify(onFeedback, "error", gradeError(error, language));
     } finally {
-      setSavingEditor(false);
+      setSavingRowKeys((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
     }
   };
 
-  const canSaveEditor =
-    deletedCourseStudentIds.length > 0 ||
-    editorRows.some(
-      (row) =>
-        dirtyRowKeys.has(rowEditorKey(row)) &&
-        !row.isPlaceholder &&
-        String(row.grade || "").trim(),
-    );
+  const deleteRow = async (row) => {
+    const key = rowEditorKey(row);
+    if (!row.courseStudentId) return;
+    setSavingRowKeys((current) => new Set(current).add(key));
+    try {
+      await saveCourseGrades(cohortId, [], [row.courseStudentId]);
+      await loadOverview();
+      await loadEditorData(editor);
+      notify(
+        onFeedback,
+        "success",
+        label(
+          language,
+          "ลบผลการเรียนแล้ว ต้องคำนวณคะแนนใหม่เพื่ออัปเดต Dashboard",
+          "Grade deleted. Recalculate to update the dashboard.",
+        ),
+      );
+    } catch (error) {
+      notify(onFeedback, "error", gradeError(error, language));
+    } finally {
+      setSavingRowKeys((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
 
   const statusText = overview?.courseScoresRecalculationRequired
     ? label(
@@ -1194,6 +1310,14 @@ export default function CourseGradeWorkspace({
     : label(language, "ข้อมูลคะแนนเป็นปัจจุบัน", "Scores are up to date");
   const students = useMemo(() => overview?.students || [], [overview]);
   const courses = useMemo(() => overview?.courses || [], [overview]);
+  const editorCourseOptions = useMemo(() => {
+    if (editor?.mode !== "student") return courses;
+    const uniqueCourses = new Map();
+    editorRows.forEach((row) => {
+      if (row.courseId) uniqueCourses.set(row.courseId, row);
+    });
+    return [...uniqueCourses.values()];
+  }, [courses, editor?.mode, editorRows]);
   const totalGradeSlots = courses.reduce(
     (total, course) => total + course.totalStudents,
     0,
@@ -1506,20 +1630,24 @@ export default function CourseGradeWorkspace({
         editor={editor}
         rows={editorLoading ? [] : editorRows}
         setRows={setEditorRows}
-        submitting={submitting || editorLoading || savingEditor}
+        submitting={submitting || editorLoading}
         readOnly={readOnly}
-        canSave={canSaveEditor}
         editableRowKeys={editableRowKeys}
+        savingRowKeys={savingRowKeys}
+        studentOptions={students}
+        courseOptions={editorCourseOptions}
+        focusRowKey={focusRowKey}
         onDirty={markRowDirty}
         onEditRow={markRowEditable}
+        onCancelRow={cancelRow}
+        onSaveRow={saveRow}
         onDeleteRow={deleteRow}
         onAddRetake={addRetakeRow}
         onClose={() => {
-          if (submitting || savingEditor) return;
+          if (submitting || savingRowKeys.size > 0) return;
           setEditor(null);
           resetEditorChanges();
         }}
-        onSave={saveEditor}
       />
       <GradeImportModal
         language={language}
