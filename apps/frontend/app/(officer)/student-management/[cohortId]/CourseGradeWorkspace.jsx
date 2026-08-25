@@ -1066,8 +1066,9 @@ export default function CourseGradeWorkspace({
         ];
       }
       return grades.map((grade, index) => ({
-        ...base,
         ...grade,
+        // Grade rows omit roster identity, so retain it from the course roster.
+        ...base,
         editorKey: `course-${detail.course.courseId}-${student.enrollmentId}-${grade.courseStudentId}`,
         isPlaceholder: false,
         isNewRecord: false,
