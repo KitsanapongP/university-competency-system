@@ -98,7 +98,8 @@ type UpsertCourseGradeRow struct {
 }
 
 type PutCourseGradesRequest struct {
-	Rows []UpsertCourseGradeRow `json:"rows"`
+	Rows                    []UpsertCourseGradeRow `json:"rows"`
+	DeletedCourseStudentIDs []uint64               `json:"deleted_course_student_ids"`
 }
 
 type CourseGradeImportIssue struct {
@@ -130,5 +131,6 @@ type CourseGradeImportCommitResult struct {
 	ImportedRows                      int  `json:"imported_rows"`
 	SkippedConflicts                  int  `json:"skipped_conflicts"`
 	ReplacedRows                      int  `json:"replaced_rows"`
+	DeletedRows                       int  `json:"deleted_rows"`
 	CourseScoresRecalculationRequired bool `json:"course_scores_recalculation_required"`
 }

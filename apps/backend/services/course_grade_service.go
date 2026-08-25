@@ -65,11 +65,20 @@ func (s *CourseGradeService) PutGrades(ctx context.Context, cohortID uint64, pay
 	if err := ensureUniqueGradeRows(rows); err != nil {
 		return nil, err
 	}
-	imported, replaced, err := s.Repo.UpsertGrades(ctx, cohortID, rows, "manual")
+	imported, replaced, deleted, err := s.Repo.UpsertGrades(ctx, cohortID, rows, payload.DeletedCourseStudentIDs, "manual")
 	if err != nil {
+		if errors.Is(err, repositories.ErrCourseGradePeriodConflict) {
+			return nil, StudentCohortValidationError{Message: "a course grade already exists for this student, course, academic year, and semester"}
+		}
+		if errors.Is(err, repositories.ErrCourseGradeNotFound) {
+			return nil, StudentCohortValidationError{Message: "the selected course grade record was not found in this cohort"}
+		}
+		if errors.Is(err, repositories.ErrCourseGradeDeleteUpdate) {
+			return nil, StudentCohortValidationError{Message: "a course grade cannot be edited and deleted at the same time"}
+		}
 		return nil, err
 	}
-	return &models.CourseGradeImportCommitResult{ImportedRows: imported, ReplacedRows: replaced, CourseScoresRecalculationRequired: true}, nil
+	return &models.CourseGradeImportCommitResult{ImportedRows: imported, ReplacedRows: replaced, DeletedRows: deleted, CourseScoresRecalculationRequired: true}, nil
 }
 
 func (s *CourseGradeService) PreviewImport(ctx context.Context, cohortID uint64, payload models.PutCourseGradesRequest, roles []string, facultyID *int64) (*models.CourseGradeImportPreview, error) {
@@ -158,7 +167,7 @@ func (s *CourseGradeService) CommitImport(ctx context.Context, cohortID uint64, 
 	if len(rows) == 0 {
 		return &models.CourseGradeImportCommitResult{SkippedConflicts: skipped}, nil
 	}
-	imported, replaced, err := s.Repo.UpsertGrades(ctx, cohortID, rows, "excel")
+	imported, replaced, _, err := s.Repo.UpsertGrades(ctx, cohortID, rows, nil, "excel")
 	if err != nil {
 		return nil, err
 	}

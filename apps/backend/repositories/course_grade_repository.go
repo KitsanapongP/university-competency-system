@@ -13,6 +13,12 @@ import (
 
 type CourseGradeRepository struct{ DB *sql.DB }
 
+var (
+	ErrCourseGradePeriodConflict = errors.New("course grade period already exists")
+	ErrCourseGradeNotFound       = errors.New("course grade record not found")
+	ErrCourseGradeDeleteUpdate   = errors.New("course grade cannot be updated and deleted together")
+)
+
 func NewCourseGradeRepository(db *sql.DB) *CourseGradeRepository {
 	return &CourseGradeRepository{DB: db}
 }
@@ -286,17 +292,47 @@ type resolvedCourseGrade struct {
 	EnrollmentCurriculumID uint64
 }
 
-func (r *CourseGradeRepository) UpsertGrades(ctx context.Context, cohortID uint64, rows []models.UpsertCourseGradeRow, source string) (int, int, error) {
+func (r *CourseGradeRepository) UpsertGrades(ctx context.Context, cohortID uint64, rows []models.UpsertCourseGradeRow, deletedIDs []uint64, source string) (int, int, int, error) {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, `SELECT cohort_id FROM edu_student_cohorts WHERE cohort_id = ? AND deleted_at IS NULL FOR UPDATE`, cohortID); err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
+	}
+	deletedSet := make(map[uint64]struct{}, len(deletedIDs))
+	for _, courseStudentID := range deletedIDs {
+		if courseStudentID == 0 {
+			return 0, 0, 0, ErrCourseGradeNotFound
+		}
+		if _, exists := deletedSet[courseStudentID]; exists {
+			continue
+		}
+		var foundID uint64
+		err := tx.QueryRowContext(ctx, `
+			SELECT grade.course_student_id
+			FROM crs_course_enrollment grade
+			JOIN kku_enrollment_curricula roster
+			  ON roster.enrollment_curriculum_id = grade.student_curricula_id
+			 AND roster.enrollment_id = grade.enrollment_id
+			 AND roster.cohort_id = ?
+			 AND roster.deleted_at IS NULL
+			WHERE grade.course_student_id = ? AND grade.deleted_at IS NULL
+			FOR UPDATE`, cohortID, courseStudentID).Scan(&foundID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, 0, 0, ErrCourseGradeNotFound
+		}
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		deletedSet[foundID] = struct{}{}
 	}
 	resolved := make([]resolvedCourseGrade, 0, len(rows))
 	for _, row := range rows {
+		if _, deleting := deletedSet[row.CourseStudentID]; row.CourseStudentID > 0 && deleting {
+			return 0, 0, 0, ErrCourseGradeDeleteUpdate
+		}
 		var enrollmentCurriculumID, courseID uint64
 		query := `
 			SELECT roster.enrollment_curriculum_id, course.course_id
@@ -316,10 +352,29 @@ func (r *CourseGradeRepository) UpsertGrades(ctx context.Context, cohortID uint6
 			args = append(args, strings.TrimSpace(row.CourseCode))
 		}
 		if err := tx.QueryRowContext(ctx, query+" LIMIT 1", args...).Scan(&enrollmentCurriculumID, &courseID); err != nil {
-			return 0, 0, err
+			return 0, 0, 0, err
 		}
 		row.CourseID = courseID
 		resolved = append(resolved, resolvedCourseGrade{Row: row, EnrollmentCurriculumID: enrollmentCurriculumID})
+	}
+	if err := r.validateCourseGradePeriods(ctx, tx, resolved, deletedSet); err != nil {
+		return 0, 0, 0, err
+	}
+
+	deleted := 0
+	for courseStudentID := range deletedSet {
+		result, err := tx.ExecContext(ctx, `
+			UPDATE crs_course_enrollment
+			SET deleted_at = NOW(), updated_at = NOW()
+			WHERE course_student_id = ? AND deleted_at IS NULL`, courseStudentID)
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		count, err := result.RowsAffected()
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		deleted += int(count)
 	}
 	imported, replaced := 0, 0
 	for _, item := range resolved {
@@ -336,13 +391,13 @@ func (r *CourseGradeRepository) UpsertGrades(ctx context.Context, cohortID uint6
 					UPDATE crs_course_enrollment
 					SET course_id = ?, academic_year_be = ?, semester = ?, grade = ?, grade_source = ?, source_reference = ?, updated_at = NOW()
 					WHERE course_student_id = ?`, item.Row.CourseID, item.Row.AcademicYearBE, item.Row.Semester, item.Row.Grade, source, item.Row.SourceReference, courseStudentID); err != nil {
-					return 0, 0, err
+					return 0, 0, 0, err
 				}
 				replaced++
 				continue
 			}
 			if !errors.Is(existingErr, sql.ErrNoRows) {
-				return 0, 0, existingErr
+				return 0, 0, 0, existingErr
 			}
 		}
 		existingErr := tx.QueryRowContext(ctx, `
@@ -355,13 +410,13 @@ func (r *CourseGradeRepository) UpsertGrades(ctx context.Context, cohortID uint6
 				UPDATE crs_course_enrollment
 				SET grade = ?, grade_source = ?, source_reference = ?, updated_at = NOW()
 				WHERE course_student_id = ?`, item.Row.Grade, source, item.Row.SourceReference, courseStudentID); err != nil {
-				return 0, 0, err
+				return 0, 0, 0, err
 			}
 			replaced++
 			continue
 		}
 		if !errors.Is(existingErr, sql.ErrNoRows) {
-			return 0, 0, existingErr
+			return 0, 0, 0, existingErr
 		}
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO crs_course_enrollment
@@ -369,20 +424,59 @@ func (r *CourseGradeRepository) UpsertGrades(ctx context.Context, cohortID uint6
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), NOW())`,
 			item.Row.CourseID, item.Row.EnrollmentID, item.EnrollmentCurriculumID, item.Row.AcademicYearBE, item.Row.Semester,
 			item.Row.Grade, source, item.Row.SourceReference); err != nil {
-			return 0, 0, err
+			return 0, 0, 0, err
 		}
 		imported++
 	}
 	if err := r.recomputeBestGrades(ctx, tx, cohortID); err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE edu_student_cohorts SET course_scores_recalculation_required = 1, updated_at = NOW() WHERE cohort_id = ? AND deleted_at IS NULL`, cohortID); err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
-	return imported, replaced, nil
+	return imported, replaced, deleted, nil
+}
+
+func (r *CourseGradeRepository) validateCourseGradePeriods(ctx context.Context, tx *sql.Tx, rows []resolvedCourseGrade, deletedSet map[uint64]struct{}) error {
+	seen := make(map[string]struct{}, len(rows))
+	for _, item := range rows {
+		row := item.Row
+		key := fmt.Sprintf("%d:%d:%d:%d", row.EnrollmentID, row.CourseID, row.AcademicYearBE, row.Semester)
+		if _, exists := seen[key]; exists {
+			return ErrCourseGradePeriodConflict
+		}
+		seen[key] = struct{}{}
+
+		var currentID uint64
+		if row.CourseStudentID > 0 {
+			currentID = row.CourseStudentID
+		}
+		var conflictingID uint64
+		err := tx.QueryRowContext(ctx, `
+			SELECT grade.course_student_id
+			FROM crs_course_enrollment grade
+			WHERE grade.enrollment_id = ?
+			  AND grade.student_curricula_id = ?
+			  AND grade.course_id = ?
+			  AND grade.academic_year_be = ?
+			  AND grade.semester = ?
+			  AND grade.deleted_at IS NULL
+			  AND grade.course_student_id <> ?
+			FOR UPDATE`, row.EnrollmentID, item.EnrollmentCurriculumID, row.CourseID, row.AcademicYearBE, row.Semester, currentID).Scan(&conflictingID)
+		if err == nil {
+			if _, deleting := deletedSet[conflictingID]; !deleting {
+				return ErrCourseGradePeriodConflict
+			}
+			continue
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *CourseGradeRepository) recomputeBestGrades(ctx context.Context, tx *sql.Tx, cohortID uint64) error {
