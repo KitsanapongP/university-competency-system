@@ -76,6 +76,9 @@ func (s *CourseGradeService) PutGrades(ctx context.Context, cohortID uint64, pay
 		if errors.Is(err, repositories.ErrCourseGradeDeleteUpdate) {
 			return nil, StudentCohortValidationError{Message: "a course grade cannot be edited and deleted at the same time"}
 		}
+		if errors.Is(err, repositories.ErrCourseGradeIdentity) {
+			return nil, StudentCohortValidationError{Message: "the selected course grade record does not match the selected student and course"}
+		}
 		return nil, err
 	}
 	return &models.CourseGradeImportCommitResult{ImportedRows: imported, ReplacedRows: replaced, DeletedRows: deleted, CourseScoresRecalculationRequired: true}, nil

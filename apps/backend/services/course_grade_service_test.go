@@ -36,3 +36,33 @@ func TestGradeRowKeyKeepsRetakeTermsSeparate(t *testing.T) {
 		t.Fatalf("grade row keys are equal for different academic years: %q", first)
 	}
 }
+
+func TestNormalizeCourseGradeRowsPreservesExistingRecordIdentity(t *testing.T) {
+	rows, err := normalizeCourseGradeRows([]models.UpsertCourseGradeRow{
+		{
+			CourseStudentID: 42,
+			EnrollmentID:    7,
+			StudentCode:     "S1",
+			CourseCode:      "CP101",
+			AcademicYearBE:  2565,
+			Semester:        1,
+			Grade:           "C+",
+		},
+	}, false)
+	if err != nil {
+		t.Fatalf("normalizeCourseGradeRows() error = %v", err)
+	}
+	if len(rows) != 1 || rows[0].CourseStudentID != 42 {
+		t.Fatalf("normalized rows = %#v, want existing course_student_id 42", rows)
+	}
+}
+
+func TestEnsureUniqueGradeRowsAllowsRetakeInDifferentSemester(t *testing.T) {
+	rows := []models.UpsertCourseGradeRow{
+		{StudentCode: "S1", CourseCode: "CP101", AcademicYearBE: 2565, Semester: 1},
+		{StudentCode: "S1", CourseCode: "CP101", AcademicYearBE: 2565, Semester: 2},
+	}
+	if err := ensureUniqueGradeRows(rows); err != nil {
+		t.Fatalf("ensureUniqueGradeRows() error = %v, want different semesters to be allowed", err)
+	}
+}

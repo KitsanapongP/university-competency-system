@@ -143,10 +143,17 @@ export async function fetchCourseGradeCourseRoster(cohortId, courseId, filters =
     return mapCourseGradeCourseDetail(unwrapData(response, {}));
 }
 
-export async function saveCourseGrades(cohortId, rows) {
+export async function saveCourseGrades(
+    cohortId,
+    rows,
+    deletedCourseStudentIds = [],
+) {
     const response = await apiFetch(`/api/v1/student-cohorts/${cohortId}/course-grades`, {
         method: 'PUT',
-        body: JSON.stringify({ rows: rows.map(gradeRowPayload) }),
+        body: JSON.stringify({
+            rows: rows.map(gradeRowPayload),
+            deleted_course_student_ids: deletedCourseStudentIds,
+        }),
     });
     return unwrapData(response, null);
 }

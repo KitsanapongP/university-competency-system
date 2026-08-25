@@ -17,6 +17,7 @@ var (
 	ErrCourseGradePeriodConflict = errors.New("course grade period already exists")
 	ErrCourseGradeNotFound       = errors.New("course grade record not found")
 	ErrCourseGradeDeleteUpdate   = errors.New("course grade cannot be updated and deleted together")
+	ErrCourseGradeIdentity       = errors.New("course grade record identity does not match")
 )
 
 func NewCourseGradeRepository(db *sql.DB) *CourseGradeRepository {
@@ -380,13 +381,20 @@ func (r *CourseGradeRepository) UpsertGrades(ctx context.Context, cohortID uint6
 	for _, item := range resolved {
 		var courseStudentID uint64
 		if item.Row.CourseStudentID > 0 {
+			var existingEnrollmentID, existingCurriculumID, existingCourseID uint64
 			existingErr := tx.QueryRowContext(ctx, `
-				SELECT grade.course_student_id
+				SELECT grade.course_student_id, grade.enrollment_id, grade.student_curricula_id, grade.course_id
 				FROM crs_course_enrollment grade
 				JOIN kku_enrollment_curricula roster ON roster.enrollment_curriculum_id = grade.student_curricula_id
 					AND roster.enrollment_id = grade.enrollment_id AND roster.cohort_id = ? AND roster.deleted_at IS NULL
-				WHERE grade.course_student_id = ? AND grade.deleted_at IS NULL FOR UPDATE`, cohortID, item.Row.CourseStudentID).Scan(&courseStudentID)
+				WHERE grade.course_student_id = ? AND grade.deleted_at IS NULL FOR UPDATE`, cohortID, item.Row.CourseStudentID).Scan(
+				&courseStudentID, &existingEnrollmentID, &existingCurriculumID, &existingCourseID)
 			if existingErr == nil {
+				if existingEnrollmentID != item.Row.EnrollmentID ||
+					existingCurriculumID != item.EnrollmentCurriculumID ||
+					existingCourseID != item.Row.CourseID {
+					return 0, 0, 0, ErrCourseGradeIdentity
+				}
 				if _, err := tx.ExecContext(ctx, `
 					UPDATE crs_course_enrollment
 					SET course_id = ?, academic_year_be = ?, semester = ?, grade = ?, grade_source = ?, source_reference = ?, updated_at = NOW()
