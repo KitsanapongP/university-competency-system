@@ -40,7 +40,9 @@
 .course-grade-editor-horizontal-scroll { overflow-x: auto; overflow-y: hidden; height: 16px; border: 1px solid var(--course-border); border-radius: 999px; scrollbar-color: var(--course-accent) var(--course-ss-header-bg); }
 .course-grade-editor-horizontal-scroll > div { height: 1px; min-width: 100%; }
 .course-grade-editor-actions { display: flex; justify-content: flex-end; gap: .75rem; }
-.course-grade-record-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: .35rem; min-width: 112px; }
+.course-grade-modal-table th:last-child,
+.course-grade-modal-table td:last-child { text-align: center; }
+.course-grade-record-actions { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-width: 112px; }
 .course-grade-record-action { display: inline-grid; width: 32px; height: 32px; place-items: center; padding: 0; border: 1px solid var(--course-border); border-radius: 6px; color: var(--course-text-muted); background: transparent; cursor: pointer; }
 .course-grade-record-action:hover:not(:disabled), .course-grade-record-action:focus-visible { color: var(--course-accent-light); border-color: var(--course-accent); background: color-mix(in srgb, var(--course-accent) 10%, transparent); outline: none; }
 .course-grade-record-action--danger:hover:not(:disabled), .course-grade-record-action--danger:focus-visible { color: #dc2626; border-color: rgba(220, 38, 38, .55); background: rgba(220, 38, 38, .08); }
