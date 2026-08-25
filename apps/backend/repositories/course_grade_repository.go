@@ -143,7 +143,8 @@ func (r *CourseGradeRepository) GetCourseGrades(ctx context.Context, cohortID, c
 	}
 
 	rows, err := r.DB.QueryContext(ctx, `
-		SELECT roster.enrollment_id, student.student_code, CONCAT_WS(' ', person.first_name_th, person.last_name_th)
+		SELECT roster.enrollment_id, student.student_code,
+			COALESCE(NULLIF(TRIM(CONCAT_WS(' ', person.first_name_th, person.last_name_th)), ''), student.student_code)
 		FROM kku_enrollment_curricula roster
 		JOIN kku_enrollments student ON student.enrollment_id = roster.enrollment_id AND student.deleted_at IS NULL
 		JOIN persons person ON person.person_id = student.person_id AND person.deleted_at IS NULL
