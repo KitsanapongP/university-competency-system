@@ -57,6 +57,39 @@ func TestNormalizeCourseGradeRowsPreservesExistingRecordIdentity(t *testing.T) {
 	}
 }
 
+func TestNormalizeCourseGradeRowsRequiresIdentityForManualEdit(t *testing.T) {
+	_, err := normalizeCourseGradeRows([]models.UpsertCourseGradeRow{
+		{
+			CourseStudentID: 42,
+			CourseCode:      "CP101",
+			AcademicYearBE:  2565,
+			Semester:        1,
+			Grade:           "B",
+		},
+	}, false)
+	if err == nil {
+		t.Fatal("normalizeCourseGradeRows() = nil, want missing enrollment identity error")
+	}
+}
+
+func TestNormalizeCourseGradeRowsAcceptsNewRecordBeforeIdentityResolution(t *testing.T) {
+	rows, err := normalizeCourseGradeRows([]models.UpsertCourseGradeRow{
+		{
+			StudentCode:    "S1",
+			CourseCode:     "CP101",
+			AcademicYearBE: 2566,
+			Semester:       1,
+			Grade:          "A",
+		},
+	}, true)
+	if err != nil {
+		t.Fatalf("normalizeCourseGradeRows() error = %v, want new row to be accepted", err)
+	}
+	if len(rows) != 1 || rows[0].Grade != "A" {
+		t.Fatalf("normalized rows = %#v, want one new A row", rows)
+	}
+}
+
 func TestEnsureUniqueGradeRowsAllowsRetakeInDifferentSemester(t *testing.T) {
 	rows := []models.UpsertCourseGradeRow{
 		{StudentCode: "S1", CourseCode: "CP101", AcademicYearBE: 2565, Semester: 1},
