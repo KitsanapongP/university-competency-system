@@ -6,9 +6,11 @@ import {
   Database,
   Edit3,
   FileSpreadsheet,
+  Plus,
   RefreshCw,
   Save,
   Search,
+  Trash2,
   Upload,
   Users,
 } from "lucide-react";
@@ -74,6 +76,22 @@ function gradeError(error, language) {
       "คำนวณคะแนนได้เฉพาะรุ่นที่ใช้งานอยู่",
       "Scores can only be recalculated for an active cohort.",
     ],
+    "a course grade already exists for this student, course, academic year, and semester": [
+      "มีผลการเรียนของวิชานี้ในปีการศึกษาและภาคเรียนนี้อยู่แล้ว",
+      "A grade already exists for this student, course, academic year, and semester.",
+    ],
+    "the selected course grade record was not found in this cohort": [
+      "ไม่พบรายการผลการเรียนที่เลือกในรุ่นนี้",
+      "The selected grade record was not found in this cohort.",
+    ],
+    "a course grade cannot be edited and deleted at the same time": [
+      "รายการผลการเรียนเดียวกันไม่สามารถแก้ไขและลบพร้อมกันได้",
+      "A course grade cannot be edited and deleted at the same time.",
+    ],
+    "the selected course grade record does not match the selected student and course": [
+      "รายการผลการเรียนไม่ตรงกับผู้เรียนหรือวิชาที่เลือก",
+      "The selected grade record does not match the selected student and course.",
+    ],
   };
   return messages[message]
     ? label(language, ...messages[message])
@@ -95,6 +113,31 @@ function periodLabel(row, language) {
   return `${row.academicYearBe}/${row.semester}${row.grade ? ` · ${row.grade}` : ""}`;
 }
 
+function rowEditorKey(row) {
+  return (
+    row.editorKey ||
+    `${row.enrollmentId}-${row.courseId}-${row.courseStudentId || "draft"}`
+  );
+}
+
+function makePlaceholderRow(row) {
+  return {
+    ...row,
+    courseStudentId: 0,
+    academicYearBe: "",
+    semester: "",
+    grade: "",
+    gradeSource: "manual",
+    sourceReference: "",
+    isBestGrade: false,
+    isPlaceholder: true,
+    isNewRecord: false,
+    isHistoryRecord: false,
+    hasSelectedGrade: false,
+    editorKey: `placeholder-${row.enrollmentId}-${row.courseId}`,
+  };
+}
+
 function GradeEditorTable({
   language,
   editor,
@@ -103,18 +146,28 @@ function GradeEditorTable({
   readOnly,
   submitting,
   showHistory = false,
+  editableRowKeys,
+  onDirty,
+  onEditRow,
+  onRequestDelete,
+  onAddRetake,
   scrollRef,
   onScroll,
 }) {
-  const rowKey = (row) =>
-    row.editorKey ||
-    `${row.enrollmentId}-${row.courseId}-${row.courseStudentId || "draft"}`;
-  const updateRow = (row, field, value) =>
+  const lastRowByCourse = new Map();
+  rows.forEach((row) => {
+    lastRowByCourse.set(row.courseId, rowEditorKey(row));
+  });
+  const updateRow = (row, field, value) => {
+    onDirty?.(rowEditorKey(row));
     setRows((current) =>
       current.map((item) =>
-        rowKey(item) === rowKey(row) ? { ...item, [field]: value } : item,
+        rowEditorKey(item) === rowEditorKey(row)
+          ? { ...item, [field]: value }
+          : item,
       ),
     );
+  };
   return (
     <div
       ref={scrollRef}
@@ -126,20 +179,38 @@ function GradeEditorTable({
           <tr>
             <th>{label(language, "ผู้เรียน", "Student")}</th>
             <th>{label(language, "รายวิชา", "Course")}</th>
-            {showHistory && (
-              <th>{label(language, "ข้อมูลปี/ภาคอื่น", "Other periods")}</th>
-            )}
+            <th>{label(language, "สถานะรายการ", "Record status")}</th>
             <th>{label(language, "ปีการศึกษา", "Academic year")}</th>
             <th>{label(language, "ภาคเรียน", "Semester")}</th>
             <th>{label(language, "เกรด", "Grade")}</th>
             <th>{label(language, "แหล่งข้อมูล", "Source")}</th>
             <th>{label(language, "เกรดที่ดีที่สุด", "Best")}</th>
+            <th>{label(language, "การจัดการ", "Actions")}</th>
           </tr>
         </thead>
         <tbody>
           {rows.length ? (
-            rows.map((row) => (
-              <tr key={rowKey(row)}>
+            rows.map((row) => {
+              const key = rowEditorKey(row);
+              const editable =
+                !readOnly &&
+                !submitting &&
+                (row.isNewRecord || editableRowKeys?.has(key));
+              const canAddRetake = showHistory
+                ? row.isPrimaryRecord !== false
+                : lastRowByCourse.get(row.courseId) === key;
+              const status = row.isNewRecord
+                ? label(language, "รายการใหม่", "New record")
+                : row.isPlaceholder
+                  ? label(language, "ยังไม่มีผลการเรียน", "No grade")
+                  : showHistory && !row.hasSelectedGrade
+                    ? label(language, "ประวัติเดิม", "History")
+                    : label(language, "รายการเดิม", "Existing record");
+              return (
+              <tr
+                key={key}
+                className={row.isNewRecord ? "course-grade-draft-row" : ""}
+              >
                 <td>
                   <div className="student-cohort-cell">
                     <strong>
@@ -158,37 +229,20 @@ function GradeEditorTable({
                     <span>{courseName(row, language)}</span>
                   </div>
                 </td>
-                {showHistory && (
-                  <td>
-                    {row.otherGrades?.length ? (
-                      <div className="course-grade-history-list">
-                        {row.otherGrades.map((item) => (
-                          <span
-                            key={item.courseStudentId}
-                            className="course-grade-history-chip"
-                          >
-                            {periodLabel(item, language)}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="course-grade-history-empty">
-                        {label(
-                          language,
-                          "ไม่มีข้อมูลช่วงอื่น",
-                          "No other records",
-                        )}
-                      </span>
-                    )}
-                  </td>
-                )}
+                <td>
+                  <span
+                    className={`course-grade-record-status ${row.isNewRecord ? "course-grade-record-status--new" : ""}`}
+                  >
+                    {status}
+                  </span>
+                </td>
                 <td>
                   <input
                     className="course-input course-grade-number"
                     type="number"
                     min="2000"
                     value={row.academicYearBe || ""}
-                    disabled={readOnly || submitting}
+                    disabled={!editable}
                     onChange={(event) =>
                       updateRow(row, "academicYearBe", event.target.value)
                     }
@@ -198,7 +252,7 @@ function GradeEditorTable({
                   <select
                     className="course-input course-grade-term"
                     value={row.semester || ""}
-                    disabled={readOnly || submitting}
+                    disabled={!editable}
                     onChange={(event) =>
                       updateRow(row, "semester", event.target.value)
                     }
@@ -213,7 +267,7 @@ function GradeEditorTable({
                   <select
                     className="course-input course-grade-value"
                     value={row.grade || ""}
-                    disabled={readOnly || submitting}
+                    disabled={!editable}
                     onChange={(event) =>
                       updateRow(row, "grade", event.target.value)
                     }
@@ -237,14 +291,82 @@ function GradeEditorTable({
                       {label(language, "ใช่", "Yes")}
                     </span>
                   ) : (
-                    "-"
+                      "-"
                   )}
                 </td>
+                <td>
+                  <div className="course-grade-record-actions">
+                    {!readOnly &&
+                      !row.isPlaceholder &&
+                      !row.isNewRecord &&
+                      !editable && (
+                        <button
+                          type="button"
+                          className="course-grade-record-action"
+                          onClick={() => onEditRow?.(row)}
+                          disabled={submitting}
+                          title={label(
+                            language,
+                            "แก้ไขผลการเรียน",
+                            "Edit grade",
+                          )}
+                          aria-label={label(
+                            language,
+                            "แก้ไขผลการเรียน",
+                            "Edit grade",
+                          )}
+                        >
+                          <Edit3 size={15} />
+                        </button>
+                      )}
+                    {!readOnly && !row.isPlaceholder && (
+                      <button
+                        type="button"
+                        className="course-grade-record-action course-grade-record-action--danger"
+                        onClick={() => onRequestDelete?.(row)}
+                        disabled={submitting}
+                        title={label(
+                          language,
+                          "ลบผลการเรียน",
+                          "Delete grade",
+                        )}
+                        aria-label={label(
+                          language,
+                          "ลบผลการเรียน",
+                          "Delete grade",
+                        )}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                    {!readOnly && canAddRetake && (
+                      <button
+                        type="button"
+                        className="course-grade-record-action course-grade-record-action--add"
+                        onClick={() => onAddRetake?.(row)}
+                        disabled={submitting}
+                        title={label(
+                          language,
+                          "เพิ่มผลการเรียนซ้ำ",
+                          "Add retake grade",
+                        )}
+                        aria-label={label(
+                          language,
+                          "เพิ่มผลการเรียนซ้ำ",
+                          "Add retake grade",
+                        )}
+                      >
+                        <Plus size={15} />
+                      </button>
+                    )}
+                  </div>
+                </td>
               </tr>
-            ))
+              );
+            })
           ) : (
             <tr>
-              <td colSpan={showHistory ? 8 : 7} className="student-empty">
+              <td colSpan={9} className="student-empty">
                 {label(
                   language,
                   "ไม่พบรายวิชาในหลักสูตรนี้",
@@ -268,11 +390,18 @@ function GradeEditorModal({
   readOnly,
   onClose,
   onSave,
+  canSave,
+  editableRowKeys,
+  onDirty,
+  onEditRow,
+  onDeleteRow,
+  onAddRetake,
 }) {
   const tableScrollRefs = useRef([]);
   const bottomScrollRef = useRef(null);
   const syncingScroll = useRef(false);
   const [scrollContentWidth, setScrollContentWidth] = useState(0);
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
   const title =
     editor?.mode === "course"
       ? label(
@@ -287,11 +416,11 @@ function GradeEditorModal({
         );
   const selectedRows =
     editor?.mode === "course"
-      ? rows.filter((row) => row.hasSelectedGrade)
+      ? rows.filter((row) => row.hasSelectedGrade || row.isNewRecord)
       : rows;
   const otherPeriodRows =
     editor?.mode === "course"
-      ? rows.filter((row) => !row.hasSelectedGrade)
+      ? rows.filter((row) => !row.hasSelectedGrade && !row.isNewRecord)
       : [];
   const syncScrollPosition = useCallback((source) => {
     if (syncingScroll.current) return;
@@ -357,19 +486,20 @@ function GradeEditorModal({
           disabled={
             submitting ||
             readOnly ||
-            !rows.some((row) => String(row.grade || "").trim())
+            !canSave
           }
         >
           <Save size={16} />
           {submitting
             ? label(language, "กำลังบันทึก...", "Saving...")
-            : label(language, "บันทึกผลการเรียน", "Save grades")}
+            : label(language, "บันทึกการเปลี่ยนแปลง", "Save changes")}
         </button>
       </div>
     </div>
   );
   return (
-    <BaseModal
+    <>
+      <BaseModal
       open={Boolean(editor)}
       title={title}
       size="xl"
@@ -380,8 +510,8 @@ function GradeEditorModal({
       <div className="course-grade-editor-note">
         {label(
           language,
-          "เกรดที่บันทึกจะทำให้สถานะต้องคำนวณคะแนนใหม่ ระบบจะเลือกเกรดที่ดีที่สุดให้อัตโนมัติ",
-          "Saving grades marks the cohort for recalculation. The system selects the best grade automatically.",
+          "การบันทึกจะทำให้รุ่นต้องคำนวณคะแนนใหม่ ระบบจะเลือกเกรดที่ดีที่สุดให้อัตโนมัติ",
+          "Saving changes marks the cohort for recalculation. The system selects the best grade automatically.",
         )}
       </div>
       {editor?.mode === "course" ? (
@@ -414,6 +544,11 @@ function GradeEditorModal({
               readOnly={readOnly}
               submitting={submitting}
               showHistory
+              editableRowKeys={editableRowKeys}
+              onDirty={onDirty}
+              onEditRow={onEditRow}
+              onRequestDelete={setDeleteCandidate}
+              onAddRetake={onAddRetake}
               {...tableProps(0)}
             />
           </section>
@@ -445,6 +580,11 @@ function GradeEditorModal({
               readOnly={readOnly}
               submitting={submitting}
               showHistory
+              editableRowKeys={editableRowKeys}
+              onDirty={onDirty}
+              onEditRow={onEditRow}
+              onRequestDelete={setDeleteCandidate}
+              onAddRetake={onAddRetake}
               {...tableProps(1)}
             />
           </section>
@@ -457,10 +597,54 @@ function GradeEditorModal({
           setRows={setRows}
           readOnly={readOnly}
           submitting={submitting}
+          editableRowKeys={editableRowKeys}
+          onDirty={onDirty}
+          onEditRow={onEditRow}
+          onRequestDelete={setDeleteCandidate}
+          onAddRetake={onAddRetake}
           {...tableProps(0)}
         />
       )}
-    </BaseModal>
+      </BaseModal>
+      <ConfirmActionModal
+        open={Boolean(deleteCandidate)}
+        title={label(
+          language,
+          "ยืนยันการลบผลการเรียน",
+          "Confirm grade deletion",
+        )}
+        message={label(
+          language,
+          "รายการนี้จะถูกลบออกจากผลการเรียนที่ใช้งาน และยังเก็บประวัติไว้ในระบบ",
+          "This record will be removed from active grades while its history is retained.",
+        )}
+        impact={
+          deleteCandidate && (
+            <div className="course-grade-delete-impact">
+              <strong>
+                {deleteCandidate.courseCode} · {periodLabel(deleteCandidate, language)}
+              </strong>
+              <span>
+                {deleteCandidate.studentCode || editor?.student?.studentCode || "-"}
+              </span>
+            </div>
+          )
+        }
+        hint={label(
+          language,
+          "ระบบจะคำนวณเกรดที่ดีที่สุดใหม่หลังบันทึกการเปลี่ยนแปลง",
+          "The best grade will be recalculated after saving the changes.",
+        )}
+        confirmLabel={label(language, "ลบผลการเรียน", "Delete grade")}
+        cancelLabel={label(language, "ยกเลิก", "Cancel")}
+        variant="danger"
+        onConfirm={() => {
+          onDeleteRow?.(deleteCandidate);
+          setDeleteCandidate(null);
+        }}
+        onCancel={() => setDeleteCandidate(null)}
+      />
+    </>
   );
 }
 
@@ -724,7 +908,6 @@ function GradeImportModal({
 
 export default function CourseGradeWorkspace({
   language,
-  cohort,
   cohortId,
   readOnly,
   submitting,
@@ -745,6 +928,9 @@ export default function CourseGradeWorkspace({
   const [editorRows, setEditorRows] = useState([]);
   const [editorLoading, setEditorLoading] = useState(false);
   const [savingEditor, setSavingEditor] = useState(false);
+  const [editableRowKeys, setEditableRowKeys] = useState(new Set());
+  const [dirtyRowKeys, setDirtyRowKeys] = useState(new Set());
+  const [deletedCourseStudentIds, setDeletedCourseStudentIds] = useState([]);
   const [importOpen, setImportOpen] = useState(false);
   const [regOpen, setRegOpen] = useState(false);
 
@@ -763,9 +949,16 @@ export default function CourseGradeWorkspace({
     loadOverview();
   }, [loadOverview, reloadToken]);
 
+  const resetEditorChanges = () => {
+    setEditableRowKeys(new Set());
+    setDirtyRowKeys(new Set());
+    setDeletedCourseStudentIds([]);
+  };
+
   const openCourseEditor = async (course) => {
     setEditor({ mode: "course", course });
     setEditorRows([]);
+    resetEditorChanges();
     setEditorLoading(true);
     try {
       const detail = await fetchCourseGradeCourseRoster(
@@ -775,8 +968,7 @@ export default function CourseGradeWorkspace({
       );
       const rows = detail.students.map((student) => {
         const existing = student.selectedGrade;
-        return {
-          ...(existing || {}),
+        const base = {
           editorKey: `course-${course.courseId}-${student.enrollmentId}`,
           enrollmentId: student.enrollmentId,
           studentCode: student.studentCode,
@@ -787,18 +979,41 @@ export default function CourseGradeWorkspace({
           courseNameEn: detail.course.courseNameEn,
           courseType: detail.course.courseType,
           credits: detail.course.credits,
-          academicYearBe:
-            existing?.academicYearBe || filters.academicYearBe || "",
-          semester: existing?.semester || filters.semester || "",
-          grade: existing?.grade || "",
-          gradeSource: existing?.gradeSource || "manual",
-          isBestGrade: Boolean(existing?.isBestGrade),
-          otherGrades: student.otherGrades,
-          hasSelectedGrade: Boolean(existing),
         };
+        const primary = existing
+          ? {
+              ...base,
+              ...existing,
+              editorKey: `course-${course.courseId}-${student.enrollmentId}-primary`,
+              isPlaceholder: false,
+              isNewRecord: false,
+              isHistoryRecord: false,
+              isPrimaryRecord: true,
+              hasSelectedGrade: true,
+            }
+          : {
+              ...makePlaceholderRow({
+                ...base,
+                academicYearBe: filters.academicYearBe || "",
+                semester: filters.semester || "",
+              }),
+              editorKey: `course-${course.courseId}-${student.enrollmentId}-primary`,
+              isPrimaryRecord: true,
+            };
+        const history = (student.otherGrades || []).map((item) => ({
+          ...base,
+          ...item,
+          editorKey: `course-${course.courseId}-${student.enrollmentId}-history-${item.courseStudentId}`,
+          isPlaceholder: false,
+          isNewRecord: false,
+          isHistoryRecord: true,
+          isPrimaryRecord: false,
+          hasSelectedGrade: false,
+        }));
+        return [primary, ...history];
       });
       setEditor({ mode: "course", course: detail.course });
-      setEditorRows(rows);
+      setEditorRows(rows.flat());
     } catch (error) {
       setEditor(null);
       notify(onFeedback, "error", gradeError(error, language));
@@ -810,25 +1025,37 @@ export default function CourseGradeWorkspace({
   const openStudentEditor = async (student) => {
     setEditor({ mode: "student", student });
     setEditorRows([]);
+    resetEditorChanges();
     setEditorLoading(true);
     try {
       const detail = await fetchStudentCourseGrades(
         cohortId,
         student.enrollmentId,
-        filters,
+        { ...filters, academicYearBe: "", semester: "" },
       );
+      const seenCourseIds = new Set();
       setEditorRows(
-        detail.grades.map((row) => ({
-          ...row,
-          academicYearBe:
-            row.academicYearBe ||
-            filters.academicYearBe ||
-            cohort?.entryYearBe ||
-            "",
-          semester: row.semester || filters.semester || 1,
-          studentCode: student.studentCode,
-          studentNameTh: student.studentNameTh,
-        })),
+        detail.grades.map((row) => {
+          const isPrimaryRecord = !seenCourseIds.has(row.courseId);
+          seenCourseIds.add(row.courseId);
+          return {
+            ...row,
+            editorKey: `student-${student.enrollmentId}-${row.courseId}-${row.courseStudentId || "placeholder"}`,
+            academicYearBe: row.courseStudentId
+              ? row.academicYearBe || ""
+              : filters.academicYearBe || "",
+            semester: row.courseStudentId
+              ? row.semester || ""
+              : filters.semester || "",
+            studentCode: student.studentCode,
+            studentNameTh: student.studentNameTh,
+            isPlaceholder: !row.courseStudentId,
+            isNewRecord: false,
+            isHistoryRecord: Boolean(row.courseStudentId),
+            isPrimaryRecord,
+            hasSelectedGrade: Boolean(row.courseStudentId),
+          };
+        }),
       );
     } catch (error) {
       setEditor(null);
@@ -838,23 +1065,108 @@ export default function CourseGradeWorkspace({
     }
   };
 
+  const markRowEditable = (row) => {
+    setEditableRowKeys((current) => {
+      const next = new Set(current);
+      next.add(rowEditorKey(row));
+      return next;
+    });
+  };
+
+  const markRowDirty = (key) => {
+    setDirtyRowKeys((current) => {
+      const next = new Set(current);
+      next.add(key);
+      return next;
+    });
+  };
+
+  const addRetakeRow = (sourceRow) => {
+    const draftKey = `retake-${sourceRow.enrollmentId}-${sourceRow.courseId}-${Date.now()}-${editorRows.length}`;
+    const draft = {
+      ...sourceRow,
+      courseStudentId: 0,
+      editorKey: draftKey,
+      academicYearBe: "",
+      semester: "",
+      grade: "",
+      gradeSource: "manual",
+      sourceReference: "",
+      isBestGrade: false,
+      isPlaceholder: false,
+      isNewRecord: true,
+      isHistoryRecord: false,
+      isPrimaryRecord: false,
+      hasSelectedGrade: editor?.mode === "course",
+    };
+    setEditorRows((current) => [...current, draft]);
+    setEditableRowKeys((current) => new Set(current).add(draftKey));
+    setDirtyRowKeys((current) => new Set(current).add(draftKey));
+  };
+
+  const deleteRow = (row) => {
+    const key = rowEditorKey(row);
+    if (row.courseStudentId) {
+      setDeletedCourseStudentIds((current) =>
+        current.includes(row.courseStudentId)
+          ? current
+          : [...current, row.courseStudentId],
+      );
+    }
+    setEditableRowKeys((current) => {
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
+    setDirtyRowKeys((current) => {
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
+    setEditorRows((current) => {
+      const remaining = current.filter((item) => rowEditorKey(item) !== key);
+      const hasAnotherRecord = remaining.some(
+        (item) =>
+          item.enrollmentId === row.enrollmentId &&
+          item.courseId === row.courseId &&
+          !item.isPlaceholder,
+      );
+      if (hasAnotherRecord && !row.isPrimaryRecord) return remaining;
+      return [
+        ...remaining,
+        makePlaceholderRow({
+          ...row,
+          editorKey: `placeholder-${row.enrollmentId}-${row.courseId}-${Date.now()}`,
+        }),
+      ];
+    });
+  };
+
   const saveEditor = async () => {
     if (savingEditor || submitting) return;
     const rows = editorRows
-      .filter((row) => String(row.grade || "").trim())
+      .filter(
+        (row) =>
+          dirtyRowKeys.has(rowEditorKey(row)) &&
+          !row.isPlaceholder &&
+          !deletedCourseStudentIds.includes(row.courseStudentId) &&
+          String(row.grade || "").trim(),
+      )
       .map((row) => ({ ...row, rowNumber: 0 }));
+    if (!rows.length && !deletedCourseStudentIds.length) return;
     setSavingEditor(true);
     try {
-      await saveCourseGrades(cohortId, rows);
+      await saveCourseGrades(cohortId, rows, deletedCourseStudentIds);
       setEditor(null);
+      resetEditorChanges();
       await loadOverview();
       notify(
         onFeedback,
         "success",
         label(
           language,
-          "บันทึกผลการเรียนแล้ว ระบบจะคำนวณคะแนนเมื่อกดคำนวณใหม่",
-          "Grades saved. Recalculate scores when ready.",
+          "บันทึกการเปลี่ยนแปลงแล้ว ต้องคำนวณคะแนนใหม่เพื่ออัปเดต Dashboard",
+          "Changes saved. Recalculate to update the dashboard.",
         ),
       );
     } catch (error) {
@@ -863,6 +1175,15 @@ export default function CourseGradeWorkspace({
       setSavingEditor(false);
     }
   };
+
+  const canSaveEditor =
+    deletedCourseStudentIds.length > 0 ||
+    editorRows.some(
+      (row) =>
+        dirtyRowKeys.has(rowEditorKey(row)) &&
+        !row.isPlaceholder &&
+        String(row.grade || "").trim(),
+    );
 
   const statusText = overview?.courseScoresRecalculationRequired
     ? label(
@@ -1187,7 +1508,17 @@ export default function CourseGradeWorkspace({
         setRows={setEditorRows}
         submitting={submitting || editorLoading || savingEditor}
         readOnly={readOnly}
-        onClose={() => !(submitting || savingEditor) && setEditor(null)}
+        canSave={canSaveEditor}
+        editableRowKeys={editableRowKeys}
+        onDirty={markRowDirty}
+        onEditRow={markRowEditable}
+        onDeleteRow={deleteRow}
+        onAddRetake={addRetakeRow}
+        onClose={() => {
+          if (submitting || savingEditor) return;
+          setEditor(null);
+          resetEditorChanges();
+        }}
         onSave={saveEditor}
       />
       <GradeImportModal
