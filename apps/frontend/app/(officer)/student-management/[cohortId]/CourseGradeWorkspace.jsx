@@ -288,12 +288,12 @@ function GradeEditorTable({
           {rows.length ? (
             rows.map((row) => {
               const key = rowEditorKey(row);
+              const saving = savingRowKeys?.has(key);
               const editable =
                 !readOnly &&
                 !submitting &&
                 !saving &&
                 editableRowKeys?.has(key);
-              const saving = savingRowKeys?.has(key);
               const status = row.isNewRecord
                 ? label(language, "รายการใหม่", "New record")
                 : row.isPlaceholder
