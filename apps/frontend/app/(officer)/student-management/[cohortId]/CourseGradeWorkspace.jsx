@@ -204,6 +204,7 @@ function GradeEditorTable({
       }),
     );
   };
+  const hasActiveEdit = editableRowKeys?.size > 0;
 
   const renderStudentCell = (row, editable) => {
     if (row.isNewRecord && editor?.mode === "course") {
@@ -407,7 +408,7 @@ function GradeEditorTable({
                                 current === key ? null : key,
                               )
                             }
-                            disabled={submitting}
+                            disabled={submitting || (hasActiveEdit && !editable)}
                             title={label(language, "การจัดการ", "Actions")}
                             aria-label={label(language, "การจัดการ", "Actions")}
                             aria-expanded={openActionKey === key}
@@ -619,7 +620,7 @@ function GradeEditorModal({
               type="button"
               className="course-btn course-btn--primary"
               onClick={onAddRetake}
-              disabled={submitting}
+              disabled={submitting || editableRowKeys?.size > 0}
             >
               <Plus size={16} />
               {label(language, "เพิ่มผลการเรียนซ้ำ", "Add retake grade")}
