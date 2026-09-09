@@ -140,6 +140,7 @@ type CurriculumCourseRow struct {
 	NameEN             *string    `json:"name_en"`
 	Credits            int        `json:"credits"`
 	Description        *string    `json:"description"`
+	GradeScheme        string     `json:"grade_scheme"`
 	IsRequired         bool       `json:"is_required"`
 	IsLocked           bool       `json:"is_locked"`
 	DisplayOrder       int        `json:"display_order"`
@@ -215,6 +216,7 @@ type CreateCourseInCatPayload struct {
 	NameEN       *string `json:"name_en"`
 	Credits      int     `json:"credits"`
 	Description  *string `json:"description"`
+	GradeScheme  string  `json:"grade_scheme"`
 	IsRequired   bool    `json:"is_required"`
 	DisplayOrder int     `json:"display_order"`
 }
@@ -284,6 +286,7 @@ type UpdateCurriculumCourseDetailPayload struct {
 	NameEN        *string `json:"name_en"`
 	Credits       *int    `json:"credits"`
 	Description   *string `json:"description"`
+	GradeScheme   *string `json:"grade_scheme"`
 	IsRequired    *bool   `json:"is_required"`
 	ConfirmImpact bool    `json:"confirm_impact"`
 }
@@ -294,6 +297,7 @@ type CreateCurriculumCoursePayload struct {
 	NameEN        *string `json:"name_en"`
 	Credits       int     `json:"credits"`
 	Description   *string `json:"description"`
+	GradeScheme   string  `json:"grade_scheme"`
 	IsRequired    bool    `json:"is_required"`
 	DisplayOrder  int     `json:"display_order"`
 	ConfirmImpact bool    `json:"confirm_impact"`
@@ -320,6 +324,7 @@ type CurriculumStructureImportRow struct {
 	CourseNameEN *string                             `json:"course_name_en"`
 	Credits      int                                 `json:"credits"`
 	IsRequired   *bool                               `json:"is_required"`
+	GradeScheme  string                              `json:"grade_scheme"`
 }
 
 type CurriculumStructureImportPayload struct {
@@ -357,6 +362,16 @@ type CurriculumStructureImportCoursePlan struct {
 	NameEN       *string
 	Credits      int
 	IsRequired   bool
+	GradeScheme  string
+}
+
+type CourseGradeSchemeImpact struct {
+	CourseID         uint64 `json:"course_id"`
+	PreviousScheme   string `json:"previous_scheme"`
+	NextScheme       string `json:"next_scheme"`
+	GradeRecordCount int    `json:"grade_record_count"`
+	LearnerCount     int    `json:"learner_count"`
+	CohortCount      int    `json:"cohort_count"`
 }
 
 type CurriculumStructureImportPlan struct {

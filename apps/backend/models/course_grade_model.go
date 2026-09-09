@@ -21,6 +21,7 @@ type CourseGrade struct {
 	CourseNameTH           string    `json:"course_name_th"`
 	CourseNameEN           string    `json:"course_name_en"`
 	CourseType             string    `json:"course_type"`
+	GradeScheme            string    `json:"grade_scheme"`
 	Credits                int       `json:"credits"`
 	AcademicYearBE         uint64    `json:"academic_year_be"`
 	Semester               uint64    `json:"semester"`
@@ -37,6 +38,7 @@ type CourseGradeCourseSummary struct {
 	CourseNameTH     string `json:"course_name_th"`
 	CourseNameEN     string `json:"course_name_en"`
 	CourseType       string `json:"course_type"`
+	GradeScheme      string `json:"grade_scheme"`
 	Credits          int    `json:"credits"`
 	TotalStudents    int    `json:"total_students"`
 	RecordedStudents int    `json:"recorded_students"`
