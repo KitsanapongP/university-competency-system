@@ -731,7 +731,8 @@ func (r *CurriculumRepository) UpdateCourseForCurriculum(ctx context.Context, cu
 			name_en = COALESCE(?, name_en),
 			credits = COALESCE(?, credits),
 			description = COALESCE(?, description),
-			grade_scheme = COALESCE(?, grade_scheme)
+			grade_scheme = COALESCE(?, grade_scheme),
+			updated_at = NOW()
 		WHERE curriculum_id = ?
 			AND course_id = ?
 			AND deleted_at IS NULL
