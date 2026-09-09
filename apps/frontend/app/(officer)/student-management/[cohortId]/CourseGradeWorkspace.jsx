@@ -28,22 +28,10 @@ import {
   previewCourseGradeImport,
   saveCourseGrades,
 } from "../../../../lib/course-grades";
-
-const GRADE_OPTIONS = [
-  "",
-  "A",
-  "B+",
-  "B",
-  "C+",
-  "C",
-  "D+",
-  "D",
-  "F",
-  "S",
-  "U",
-  "W",
-  "I",
-];
+import {
+  getGradeOptions,
+  isGradeAllowed,
+} from "../../../../lib/grade-schemes";
 
 function label(language, th, en) {
   return language === "en" ? en : th;
@@ -190,6 +178,7 @@ function GradeEditorTable({
           const course = courseOptions.find(
             (option) => String(option.courseId) === String(value),
           );
+          const gradeScheme = course?.gradeScheme || "letter";
           return {
             ...item,
             courseId: Number(value),
@@ -198,6 +187,8 @@ function GradeEditorTable({
             courseNameEn: course?.courseNameEn || "",
             courseType: course?.courseType || "core",
             credits: course?.credits || 0,
+            gradeScheme,
+            grade: isGradeAllowed(item.grade, gradeScheme) ? item.grade : "",
           };
         }
         return { ...item, [field]: value };
@@ -351,7 +342,7 @@ function GradeEditorTable({
                         updateRow(row, "grade", event.target.value)
                       }
                     >
-                      {GRADE_OPTIONS.map((grade) => (
+                      {getGradeOptions(row.gradeScheme).map((grade) => (
                         <option key={grade} value={grade}>
                           {grade ||
                             label(language, "ยังไม่บันทึก", "Not recorded")}
@@ -1051,6 +1042,7 @@ export default function CourseGradeWorkspace({
         courseNameTh: detail.course.courseNameTh,
         courseNameEn: detail.course.courseNameEn,
         courseType: detail.course.courseType,
+        gradeScheme: detail.course.gradeScheme,
         credits: detail.course.credits,
       };
       const grades = [
@@ -1181,9 +1173,13 @@ export default function CourseGradeWorkspace({
   };
 
   const addRetakeRow = () => {
-    const sourceRow = editor?.mode === "course"
-      ? editorRows[0] || { courseId: editor.course.courseId, courseCode: editor.course.courseCode }
-      : editor?.student || {};
+    const sourceRow =
+      editor?.mode === "course"
+        ? editorRows[0] || {
+            courseId: editor.course.courseId,
+            courseCode: editor.course.courseCode,
+          }
+        : editor?.student || {};
     const draftKey = `retake-${Date.now()}-${editorRows.length}`;
     const draft = {
       ...sourceRow,
@@ -1207,6 +1203,7 @@ export default function CourseGradeWorkspace({
       draft.courseNameTh = editor.course.courseNameTh;
       draft.courseNameEn = editor.course.courseNameEn;
       draft.courseType = editor.course.courseType;
+      draft.gradeScheme = editor.course.gradeScheme;
       draft.credits = editor.course.credits;
       draft.enrollmentId = 0;
       draft.studentCode = "";
@@ -1219,6 +1216,7 @@ export default function CourseGradeWorkspace({
       draft.courseCode = "";
       draft.courseNameTh = "";
       draft.courseNameEn = "";
+      draft.gradeScheme = "";
     }
     setEditorRows((current) => [...current, draft]);
     setEditableRowKeys((current) => new Set(current).add(draftKey));
@@ -1227,8 +1225,14 @@ export default function CourseGradeWorkspace({
 
   const saveRow = async (row) => {
     const key = rowEditorKey(row);
-    if (!row.enrollmentId || !row.studentCode || !row.courseId ||
-      !row.academicYearBe || !row.semester || !String(row.grade || "").trim()) {
+    if (
+      !row.enrollmentId ||
+      !row.studentCode ||
+      !row.courseId ||
+      !row.academicYearBe ||
+      !row.semester ||
+      !String(row.grade || "").trim()
+    ) {
       notify(
         onFeedback,
         "error",
@@ -1236,6 +1240,18 @@ export default function CourseGradeWorkspace({
           language,
           "กรุณาเลือกผู้เรียน วิชา ปีการศึกษา ภาคเรียน และเกรดให้ครบ",
           "Select a student, course, academic year, semester, and grade.",
+        ),
+      );
+      return;
+    }
+    if (!isGradeAllowed(row.grade, row.gradeScheme)) {
+      notify(
+        onFeedback,
+        "error",
+        label(
+          language,
+          "เกรดนี้ไม่ตรงกับรูปแบบเกรดของรายวิชา",
+          "This grade is not allowed for the selected course.",
         ),
       );
       return;
