@@ -218,7 +218,7 @@ func (s *CurriculumService) analyzeStructureImport(ctx context.Context, curricul
 				NameEN:       nameEN,
 				Credits:      row.Credits,
 				IsRequired:   *row.IsRequired,
-				GradeScheme:  strings.TrimSpace(row.GradeScheme),
+				GradeScheme:  grading.NormalizeScheme(row.GradeScheme),
 			})
 		}
 	}

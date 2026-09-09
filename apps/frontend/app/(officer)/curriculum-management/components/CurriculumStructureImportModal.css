@@ -246,6 +246,17 @@
     background: rgba(245, 158, 11, 0.14);
 }
 
+.curriculum-import-preview__grade-scheme {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.4rem;
+    border-radius: 999px;
+    color: var(--course-text-muted);
+    background: var(--course-surface-muted, rgba(148, 163, 184, 0.14));
+    font-size: 0.68rem;
+    white-space: nowrap;
+}
+
 .curriculum-import-preview__warning-icon {
     flex: 0 0 auto;
     color: #f87171;

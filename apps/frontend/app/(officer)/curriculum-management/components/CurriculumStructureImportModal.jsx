@@ -38,6 +38,9 @@ const copy = {
     creditUnit: "หน่วยกิต",
     requiredCourse: "วิชาบังคับ",
     electiveCourse: "วิชาเลือก",
+    gradeScheme: "รูปแบบเกรด",
+    gradeSchemeLetter: "เกรดตัวอักษร",
+    gradeSchemeSatisfactory: "ผ่าน/ไม่ผ่าน",
     issues: "รายการที่ต้องแก้ไข",
     warnings: "รายการที่จะไม่ถูกนำเข้า",
     warningHint: "รายวิชาที่มีรหัสซ้ำจะถูกข้าม และรายวิชาอื่นจะยังนำเข้าได้",
@@ -72,6 +75,9 @@ const copy = {
     creditUnit: "credits",
     requiredCourse: "Required",
     electiveCourse: "Elective",
+    gradeScheme: "Grade scheme",
+    gradeSchemeLetter: "Letter grades",
+    gradeSchemeSatisfactory: "Satisfactory / Unsatisfactory",
     issues: "Items to fix",
     warnings: "Items that will be skipped",
     warningHint:
@@ -116,6 +122,11 @@ const importIssueMessages = {
     "course type is required": "ต้องระบุประเภทวิชา",
     "course type must be required or elective":
       "ประเภทวิชาต้องเป็นวิชาบังคับหรือวิชาเลือก",
+    "course grade_scheme must be letter or satisfactory":
+      "รูปแบบเกรดต้องเป็นเกรดตัวอักษรหรือผ่าน/ไม่ผ่าน",
+    "ต้องระบุรูปแบบเกรด": "ต้องระบุรูปแบบเกรด",
+    "รูปแบบเกรดต้องเป็นเกรดตัวอักษรหรือผ่าน/ไม่ผ่าน":
+      "รูปแบบเกรดต้องเป็นเกรดตัวอักษรหรือผ่าน/ไม่ผ่าน",
     "course code already exists in this curriculum":
       "รหัสวิชานี้มีอยู่แล้วในหลักสูตร",
     "courses can only be placed in leaf categories":
@@ -167,6 +178,11 @@ const importIssueMessages = {
     "course type is required": "Course type is required",
     "course type must be required or elective":
       "Course type must be Required or Elective",
+    "course grade_scheme must be letter or satisfactory":
+      "Grade scheme must be Letter grades or Satisfactory / Unsatisfactory",
+    "ต้องระบุรูปแบบเกรด": "Grade scheme is required",
+    "รูปแบบเกรดต้องเป็นเกรดตัวอักษรหรือผ่าน/ไม่ผ่าน":
+      "Grade scheme must be Letter grades or Satisfactory / Unsatisfactory",
     ประเภทวิชาต้องเป็นวิชาบังคับหรือวิชาเลือก:
       "Course type must be Required or Elective",
     รหัสวิชานี้มีอยู่แล้วในหลักสูตร:
@@ -196,6 +212,12 @@ function issueLabel(issue, language) {
         ? "File"
         : "ไฟล์";
   return `${prefix}: ${localizeImportIssueMessage(issue?.message, language)}`;
+}
+
+function gradeSchemeLabel(scheme, labels) {
+  if (scheme === "satisfactory") return labels.gradeSchemeSatisfactory;
+  if (scheme === "letter") return labels.gradeSchemeLetter;
+  return "-";
 }
 
 function countPreviewCourses(category) {
@@ -314,7 +336,13 @@ function ImportPreviewNode({ category, depth, labels, issuesByRow, language }) {
             const courseIssues = getPreviewIssues(
               issuesByRow,
               [course.rowNumber],
-              ["course_code", "course_name_th", "credits", "course_type"],
+              [
+                "course_code",
+                "course_name_th",
+                "credits",
+                "course_type",
+                "grade_scheme",
+              ],
             );
             const courseHasErrors = courseIssues.some(
               (issue) => issue.severity !== "warning",
@@ -336,6 +364,9 @@ function ImportPreviewNode({ category, depth, labels, issuesByRow, language }) {
                   {course.isRequired
                     ? labels.requiredCourse
                     : labels.electiveCourse}
+                </span>
+                <span className="curriculum-import-preview__grade-scheme">
+                  {labels.gradeScheme}: {gradeSchemeLabel(course.gradeScheme, labels)}
                 </span>
                 <span>
                   {course.credits} {labels.creditUnit}

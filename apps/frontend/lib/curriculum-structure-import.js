@@ -10,6 +10,7 @@ export const CURRICULUM_STRUCTURE_IMPORT_HEADERS = [
     'ชื่อวิชา (อังกฤษ)',
     'หน่วยกิต',
     'ประเภทวิชา',
+    'รูปแบบเกรด',
 ];
 
 const categoryCodePattern = /^\d+(?:\.\d+){0,3}$/;
@@ -20,6 +21,13 @@ function normalize(value) {
 
 function key(value) {
     return normalize(value).toLocaleLowerCase();
+}
+
+function normalizeGradeScheme(value) {
+    const normalized = key(value);
+    if (['letter', 'เกรดตัวอักษร', 'เกรด a-f', 'a-f'].includes(normalized)) return 'letter';
+    if (['satisfactory', 'ผ่าน/ไม่ผ่าน', 'ผ่านไม่ผ่าน', 's/u', 's-u'].includes(normalized)) return 'satisfactory';
+    return '';
 }
 
 function issue(rowNumber, field, message, severity = 'error') {
@@ -37,7 +45,7 @@ export async function downloadCurriculumStructureTemplate() {
         '1.1', 'หมวดภาษา',
         '', '',
         '', '',
-        'EX1001', 'ตัวอย่างรายวิชา', 'Sample Course', 3, 'วิชาบังคับ',
+        'EX1001', 'ตัวอย่างรายวิชา', 'Sample Course', 3, 'วิชาบังคับ', 'เกรดตัวอักษร',
     ];
     const worksheet = XLSX.utils.aoa_to_sheet([CURRICULUM_STRUCTURE_IMPORT_HEADERS, sample]);
     const workbook = XLSX.utils.book_new();
@@ -79,7 +87,8 @@ export async function parseCurriculumStructureWorkbook(file) {
         const courseNameEn = getCell('ชื่อวิชา (อังกฤษ)');
         const creditValue = getCell('หน่วยกิต');
         const courseType = getCell('ประเภทวิชา');
-        const hasValue = [...categories.flatMap(category => [category.code, category.name_th]), courseCode, courseNameTh, courseNameEn, creditValue, courseType]
+        const gradeSchemeValue = getCell('รูปแบบเกรด');
+        const hasValue = [...categories.flatMap(category => [category.code, category.name_th]), courseCode, courseNameTh, courseNameEn, creditValue, courseType, gradeSchemeValue]
             .some(Boolean);
         if (!hasValue) return;
 
@@ -98,6 +107,12 @@ export async function parseCurriculumStructureWorkbook(file) {
         } else {
             issues.push(issue(rowNumber, 'course_type', 'ประเภทวิชาต้องเป็นวิชาบังคับหรือวิชาเลือก'));
         }
+        const gradeScheme = normalizeGradeScheme(gradeSchemeValue);
+        if (!gradeSchemeValue) {
+            issues.push(issue(rowNumber, 'grade_scheme', 'ต้องระบุรูปแบบเกรด'));
+        } else if (!gradeScheme) {
+            issues.push(issue(rowNumber, 'grade_scheme', 'รูปแบบเกรดต้องเป็นเกรดตัวอักษรหรือผ่าน/ไม่ผ่าน'));
+        }
         rows.push({
             row_number: rowNumber,
             categories,
@@ -106,6 +121,7 @@ export async function parseCurriculumStructureWorkbook(file) {
             course_name_en: courseNameEn || null,
             credits: Number.isFinite(credits) ? credits : -1,
             is_required: isRequired,
+            grade_scheme: gradeScheme,
         });
     });
 
@@ -159,6 +175,7 @@ export function buildCurriculumStructureImportTree(rows) {
             nameTh: normalize(row.course_name_th),
             credits: Number(row.credits) || 0,
             isRequired: row.is_required === true,
+            gradeScheme: normalizeGradeScheme(row.grade_scheme),
             rowNumber: Number(row.row_number) || 0,
         });
     });
@@ -282,6 +299,10 @@ function analyzeRows(rows, existingCategories, existingCourseCodes) {
             issues.push(issue(rowNumber, 'course_type', 'ประเภทวิชาต้องเป็นวิชาบังคับหรือวิชาเลือก'));
             valid = false;
         }
+        if (!['letter', 'satisfactory'].includes(normalizeGradeScheme(row.grade_scheme))) {
+            issues.push(issue(rowNumber, 'grade_scheme', 'รูปแบบเกรดต้องเป็นเกรดตัวอักษรหรือผ่าน/ไม่ผ่าน'));
+            valid = false;
+        }
         const courseKey = key(courseCode);
         const duplicateCourse = courseCode && (existingCourseCodes.has(courseKey) || importedCourseCodes.has(courseKey));
         if (duplicateCourse) {
@@ -383,6 +404,7 @@ export function applyDraftCurriculumStructureImport(categories, coursesByCategor
                 nameEn: normalize(row.course_name_en),
                 credits: Number(row.credits),
                 isCoreCourse: row.is_required === true,
+                gradeScheme: normalizeGradeScheme(row.grade_scheme),
             },
         ];
     });
