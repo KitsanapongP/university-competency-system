@@ -173,6 +173,21 @@ function getDuplicateCourseIssues(nextCourse, allCourses) {
   return issues;
 }
 
+function getGradeSchemeLabel(scheme, language = "th") {
+  const labels = {
+    letter: {
+      th: "เกรดตัวอักษร",
+      en: "Letter grades",
+    },
+    satisfactory: {
+      th: "ผ่าน/ไม่ผ่าน",
+      en: "Satisfactory / Unsatisfactory",
+    },
+  };
+
+  return labels[scheme]?.[language] || scheme || "-";
+}
+
 const STATUS_LABELS = {
   draft: "กำลังสร้าง",
   active: "พร้อมใช้งาน",
@@ -186,7 +201,11 @@ function getStatusAction(status) {
   return { nextStatus: "active", label: "เปิดใช้งาน" };
 }
 
-function buildConfirmationMessage(error, language = "th") {
+function buildConfirmationMessage(
+  error,
+  language = "th",
+  { includeQuestion = true } = {},
+) {
   const templates = error?.payload?.data?.affected_templates || [];
   const impact = error?.payload?.data || {};
   const message = translateBackendMessage(error?.message, language);
@@ -213,6 +232,19 @@ function buildConfirmationMessage(error, language = "th") {
         : `- รุ่นที่ได้รับผลกระทบ: ${impact.cohort_count} รุ่น`,
     );
   }
+  if (
+    impact.previous_scheme !== undefined &&
+    impact.next_scheme !== undefined
+  ) {
+    impactLines.push(
+      language === "en"
+        ? `- Current scheme: ${getGradeSchemeLabel(impact.previous_scheme, language)}`
+        : `- รูปแบบเกรดเดิม: ${getGradeSchemeLabel(impact.previous_scheme, language)}`,
+      language === "en"
+        ? `- New scheme: ${getGradeSchemeLabel(impact.next_scheme, language)}`
+        : `- รูปแบบเกรดใหม่: ${getGradeSchemeLabel(impact.next_scheme, language)}`,
+    );
+  }
 
   const impactSummary = impactLines.length
     ? `${
@@ -226,11 +258,15 @@ function buildConfirmationMessage(error, language = "th") {
       }`
     : "";
 
+  const confirmationPrompt = includeQuestion
+    ? language === "en"
+      ? "Do you want to continue?"
+      : "ยืนยันดำเนินการต่อหรือไม่?"
+    : "";
+
   if (!templates.length) {
-    return `${message}${impactSummary ? `\n\n${impactSummary}` : ""}\n\n${
-      language === "en"
-        ? "Do you want to continue?"
-        : "ยืนยันดำเนินการต่อหรือไม่?"
+    return `${message}${impactSummary ? `\n\n${impactSummary}` : ""}${
+      confirmationPrompt ? `\n\n${confirmationPrompt}` : ""
     }`;
   }
 
@@ -252,8 +288,8 @@ function buildConfirmationMessage(error, language = "th") {
         : `\n- และอีก ${templates.length - 8} รายการ`
       : "";
 
-  return `${message}${impactSummary ? `\n\n${impactSummary}` : ""}\n\n${templateHeading}\n${templateList}${moreTemplates}\n\n${
-    language === "en" ? "Do you want to continue?" : "ยืนยันดำเนินการต่อหรือไม่?"
+  return `${message}${impactSummary ? `\n\n${impactSummary}` : ""}\n\n${templateHeading}\n${templateList}${moreTemplates}${
+    confirmationPrompt ? `\n\n${confirmationPrompt}` : ""
   }`;
 }
 
@@ -957,6 +993,8 @@ export default function CurriculumManagementPage() {
     useState(null);
   const [courseDeleteImpactConfirmation, setCourseDeleteImpactConfirmation] =
     useState(null);
+  const [curriculumMutationConfirmation, setCurriculumMutationConfirmation] =
+    useState(null);
   const [courseDuplicateWarning, setCourseDuplicateWarning] = useState(null);
   const [draggedCategoryId, setDraggedCategoryId] = useState(null);
   const [draggedCourseId, setDraggedCourseId] = useState(null);
@@ -975,47 +1013,67 @@ export default function CurriculumManagementPage() {
     }
   }, [selectedCourse]);
 
-  const commitCurriculumMutation = useCallback(
-    async (operation, successMessage) => {
-      let confirmImpact = false;
+  const executeCurriculumMutation = useCallback(
+    async (operation, successMessage, confirmImpact = false) => {
+      setOperationLoading(true);
+      setError("");
+      setErrorDebug("");
+      setSuccess("");
 
-      for (;;) {
-        setOperationLoading(true);
-        setError("");
-        setErrorDebug("");
-        setSuccess("");
+      try {
+        const detail = await operation(confirmImpact);
+        setSelectedCourse(detail);
+        setSuccess(successMessage);
+        await loadCurriculums();
+        return detail;
+      } catch (err) {
+        const needsConfirmation =
+          err?.status === 409 &&
+          err?.code === "CONFIRMATION_REQUIRED" &&
+          !confirmImpact;
 
-        try {
-          const detail = await operation(confirmImpact);
-          setSelectedCourse(detail);
-          setSuccess(successMessage);
-          await loadCurriculums();
-          return detail;
-        } catch (err) {
-          const needsConfirmation =
-            err?.status === 409 &&
-            err?.code === "CONFIRMATION_REQUIRED" &&
-            !confirmImpact;
-          if (
-            needsConfirmation &&
-            window.confirm(buildConfirmationMessage(err, language))
-          ) {
-            confirmImpact = true;
-            continue;
-          }
-
-          const mapped = mapCurriculumError(err);
-          setError(mapped.userMessage);
-          setErrorDebug(mapped.debugMessage);
-          console.debug("Curriculum mutation error:", err);
+        if (needsConfirmation) {
+          setCurriculumMutationConfirmation({
+            operation,
+            successMessage,
+            error: err,
+          });
           return null;
-        } finally {
-          setOperationLoading(false);
         }
+
+        const mapped = mapCurriculumError(err);
+        setError(mapped.userMessage);
+        setErrorDebug(mapped.debugMessage);
+        console.debug("Curriculum mutation error:", err);
+        return null;
+      } finally {
+        setOperationLoading(false);
       }
     },
-    [language, loadCurriculums],
+    [loadCurriculums],
   );
+
+  const commitCurriculumMutation = useCallback(
+    (operation, successMessage) =>
+      executeCurriculumMutation(operation, successMessage),
+    [executeCurriculumMutation],
+  );
+
+  const handleConfirmCurriculumMutation = useCallback(async () => {
+    if (!curriculumMutationConfirmation || operationLoading) return;
+
+    const pending = curriculumMutationConfirmation;
+    setCurriculumMutationConfirmation(null);
+    await executeCurriculumMutation(
+      pending.operation,
+      pending.successMessage,
+      true,
+    );
+  }, [
+    curriculumMutationConfirmation,
+    executeCurriculumMutation,
+    operationLoading,
+  ]);
 
   const handleCommitStructureImport = useCallback(
     async (rows, confirmImpact) => {
@@ -2177,6 +2235,40 @@ export default function CurriculumManagementPage() {
         }}
         onCancel={() =>
           !operationLoading && setCourseDeleteImpactConfirmation(null)
+        }
+      />
+
+      <ConfirmActionModal
+        open={Boolean(curriculumMutationConfirmation)}
+        title={
+          language === "en"
+            ? "Confirm grade scheme change"
+            : "ยืนยันการเปลี่ยนรูปแบบเกรด"
+        }
+        message={
+          curriculumMutationConfirmation?.error
+            ? buildConfirmationMessage(
+                curriculumMutationConfirmation.error,
+                language,
+                { includeQuestion: false },
+              )
+            : ""
+        }
+        hint={
+          language === "en"
+            ? "The system will update the course only after you confirm."
+            : "ระบบจะเปลี่ยนรูปแบบเกรดเมื่อคุณกดยืนยันเท่านั้น"
+        }
+        confirmLabel={
+          language === "en" ? "Confirm change" : "ยืนยันการเปลี่ยนแปลง"
+        }
+        cancelLabel={language === "en" ? "Cancel" : "ยกเลิก"}
+        variant="warning"
+        size="md"
+        loading={operationLoading}
+        onConfirm={handleConfirmCurriculumMutation}
+        onCancel={() =>
+          !operationLoading && setCurriculumMutationConfirmation(null)
         }
       />
 
