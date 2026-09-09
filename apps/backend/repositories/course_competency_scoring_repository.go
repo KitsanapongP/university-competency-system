@@ -219,7 +219,7 @@ func (r *CourseCompetencyScoringRepository) Recalculate(ctx context.Context, coh
 			}
 			continue
 		}
-		if !evaluation.HasScore || (grading.NormalizeScheme(grade.GradeScheme) == grading.SchemeLetter && normalizedGrade == "F") {
+		if !evaluation.HasScore {
 			continue
 		}
 		if len(mappingByCourse[grade.CourseID]) == 0 {

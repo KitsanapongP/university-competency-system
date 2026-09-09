@@ -26,6 +26,7 @@ func TestEvaluateCourseGradeScheme(t *testing.T) {
 		hasScore  bool
 	}{
 		{name: "letter grade", scheme: SchemeLetter, grade: " b+ ", wantScore: 85, hasScore: true},
+		{name: "letter fail", scheme: SchemeLetter, grade: "F", wantScore: 0, hasScore: true},
 		{name: "satisfactory pass", scheme: SchemeSatisfactory, grade: "S", wantScore: 100, hasScore: true},
 		{name: "satisfactory fail", scheme: SchemeSatisfactory, grade: "U", hasScore: false},
 		{name: "letter withdrawal", scheme: SchemeLetter, grade: "W", hasScore: false},
