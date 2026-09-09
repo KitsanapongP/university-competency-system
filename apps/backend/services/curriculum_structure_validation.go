@@ -3,6 +3,7 @@ package services
 import (
 	"strings"
 
+	"github.com/spw32767/university-competency-system-backend/grading"
 	"github.com/spw32767/university-competency-system-backend/models"
 )
 
@@ -57,6 +58,9 @@ func validateCreateCategoryLevel(categories []models.CreateCategoryPayload, seen
 			}
 			if strings.TrimSpace(course.NameTH) == "" {
 				return CurriculumValidationError{Message: "course name_th is required"}
+			}
+			if !grading.IsValidScheme(course.GradeScheme) {
+				return CurriculumValidationError{Message: "course grade_scheme must be letter or satisfactory"}
 			}
 
 			normalizedCode := strings.ToLower(code)

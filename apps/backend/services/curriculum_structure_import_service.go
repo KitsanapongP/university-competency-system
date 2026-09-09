@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/spw32767/university-competency-system-backend/grading"
 	"github.com/spw32767/university-competency-system-backend/models"
 	"github.com/spw32767/university-competency-system-backend/repositories"
 )
@@ -195,6 +196,10 @@ func (s *CurriculumService) analyzeStructureImport(ctx context.Context, curricul
 			preview.Issues = append(preview.Issues, importIssue(rowNumber, "course_type", "course type is required"))
 			rowValid = false
 		}
+		if !grading.IsValidScheme(strings.TrimSpace(row.GradeScheme)) {
+			preview.Issues = append(preview.Issues, importIssue(rowNumber, "grade_scheme", "course grade_scheme must be letter or satisfactory"))
+			rowValid = false
+		}
 		courseKey := strings.ToLower(courseCode)
 		if courseCode != "" && (existingCourseCodes[courseKey] || importedCourseCodes[courseKey]) {
 			preview.Issues = append(preview.Issues, importWarning(rowNumber, "course_code", "course code already exists in this curriculum"))
@@ -213,6 +218,7 @@ func (s *CurriculumService) analyzeStructureImport(ctx context.Context, curricul
 				NameEN:       nameEN,
 				Credits:      row.Credits,
 				IsRequired:   *row.IsRequired,
+				GradeScheme:  strings.TrimSpace(row.GradeScheme),
 			})
 		}
 	}

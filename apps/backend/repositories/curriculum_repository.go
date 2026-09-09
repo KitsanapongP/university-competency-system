@@ -54,6 +54,7 @@ type duplicateCourseRow struct {
 	NameEN             *string
 	Credits            int
 	Description        *string
+	GradeScheme        string
 	IsRequired         bool
 	IsLocked           bool
 	DisplayOrder       int
@@ -798,6 +799,7 @@ func (r *CurriculumRepository) getCurriculumCoursesByCategory(ctx context.Contex
 			course.name_en,
 			course.credits,
 			course.description,
+			course.grade_scheme,
 			cc.is_required,
 			cc.is_locked,
 			cc.display_order,
@@ -854,6 +856,7 @@ func scanCurriculumCourseRow(scanner rowScanner) (*models.CurriculumCourseRow, e
 		&nameEn,
 		&course.Credits,
 		&description,
+		&course.GradeScheme,
 		&course.IsRequired,
 		&course.IsLocked,
 		&course.DisplayOrder,
@@ -1190,6 +1193,7 @@ func (r *CurriculumRepository) getDuplicateCourseRows(ctx context.Context, tx *s
 			course.name_en,
 			course.credits,
 			course.description,
+			course.grade_scheme,
 			cc.is_required,
 			cc.is_locked,
 			cc.display_order
@@ -1222,6 +1226,7 @@ func (r *CurriculumRepository) getDuplicateCourseRows(ctx context.Context, tx *s
 			&course.NameEN,
 			&course.Credits,
 			&course.Description,
+			&course.GradeScheme,
 			&course.IsRequired,
 			&course.IsLocked,
 			&course.DisplayOrder,
@@ -1255,6 +1260,7 @@ func (r *CurriculumRepository) duplicateCurriculumCourses(ctx context.Context, t
 				NameEN:      course.NameEN,
 				Credits:     course.Credits,
 				Description: course.Description,
+				GradeScheme: course.GradeScheme,
 			}, opts)
 			if err != nil {
 				return err
@@ -1325,9 +1331,9 @@ func (r *CurriculumRepository) createCourse(ctx context.Context, tx *sql.Tx, cur
 	}
 
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO crs_courses (curriculum_id, faculty_id, degree_level, code, name_th, name_en, credits, description, created_by, status, is_active)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1)
-	`, curriculumID, opts.FacultyID, degreeLevel, payload.Code, payload.NameTH, payload.NameEN, payload.Credits, payload.Description, createdBy)
+		INSERT INTO crs_courses (curriculum_id, faculty_id, degree_level, code, name_th, name_en, credits, description, grade_scheme, created_by, status, is_active)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1)
+	`, curriculumID, opts.FacultyID, degreeLevel, payload.Code, payload.NameTH, payload.NameEN, payload.Credits, payload.Description, payload.GradeScheme, createdBy)
 	if err != nil {
 		return 0, fmt.Errorf("insert course %q: %w", payload.Code, err)
 	}

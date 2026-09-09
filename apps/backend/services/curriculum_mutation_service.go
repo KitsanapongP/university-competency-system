@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spw32767/university-competency-system-backend/grading"
 	"github.com/spw32767/university-competency-system-backend/models"
 	"github.com/spw32767/university-competency-system-backend/repositories"
 )
@@ -653,6 +654,9 @@ func validateCreateCourseMutation(payload models.CreateCurriculumCoursePayload) 
 	if payload.DisplayOrder < 0 {
 		return CurriculumValidationError{Message: "course display_order must be zero or greater"}
 	}
+	if !grading.IsValidScheme(payload.GradeScheme) {
+		return CurriculumValidationError{Message: "course grade_scheme must be letter or satisfactory"}
+	}
 	return nil
 }
 
@@ -665,6 +669,9 @@ func validateUpdateCourseMutation(payload models.UpdateCurriculumCourseDetailPay
 	}
 	if payload.Credits != nil && *payload.Credits < 0 {
 		return CurriculumValidationError{Message: "course credits must be zero or greater"}
+	}
+	if payload.GradeScheme != nil && !grading.IsValidScheme(*payload.GradeScheme) {
+		return CurriculumValidationError{Message: "course grade_scheme must be letter or satisfactory"}
 	}
 	return nil
 }
@@ -680,6 +687,7 @@ func normalizeCreateCoursePayload(payload *models.CreateCurriculumCoursePayload)
 	payload.NameTH = strings.TrimSpace(payload.NameTH)
 	payload.NameEN = trimStringPointer(payload.NameEN)
 	payload.Description = trimStringPointer(payload.Description)
+	payload.GradeScheme = grading.NormalizeScheme(strings.TrimSpace(payload.GradeScheme))
 }
 
 func normalizeUpdateCoursePayload(payload *models.UpdateCurriculumCourseDetailPayload) {
@@ -687,6 +695,10 @@ func normalizeUpdateCoursePayload(payload *models.UpdateCurriculumCourseDetailPa
 	payload.NameTH = trimStringPointer(payload.NameTH)
 	payload.NameEN = trimStringPointer(payload.NameEN)
 	payload.Description = trimStringPointer(payload.Description)
+	if payload.GradeScheme != nil {
+		normalized := grading.NormalizeScheme(strings.TrimSpace(*payload.GradeScheme))
+		payload.GradeScheme = &normalized
+	}
 }
 
 func trimStringPointer(value *string) *string {

@@ -52,7 +52,7 @@ func TestValidateCreateCategories(t *testing.T) {
 			categories: []models.CreateCategoryPayload{{
 				Code:    stringPointer("1"),
 				NameTH:  "Leaf",
-				Courses: []models.CreateCourseInCatPayload{{Code: "CS101", NameTH: "Course"}},
+				Courses: []models.CreateCourseInCatPayload{{Code: "CS101", NameTH: "Course", GradeScheme: "letter"}},
 			}},
 		},
 		{

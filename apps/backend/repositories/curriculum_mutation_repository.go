@@ -97,6 +97,7 @@ func (r *CurriculumRepository) GetCurriculumCourseForCurriculum(ctx context.Cont
 			course.name_en,
 			course.credits,
 			course.description,
+			course.grade_scheme,
 			cc.is_required,
 			cc.is_locked,
 			cc.display_order,
@@ -429,6 +430,7 @@ func (r *CurriculumRepository) CreateCourseInCategoryTx(ctx context.Context, cur
 		NameEN:      payload.NameEN,
 		Credits:     payload.Credits,
 		Description: payload.Description,
+		GradeScheme: payload.GradeScheme,
 	}
 	courseID, err := r.createCourse(ctx, tx, curriculumID, coursePayload, opts)
 	if err != nil {
@@ -538,7 +540,7 @@ func (r *CurriculumRepository) CommitCurriculumStructureImport(ctx context.Conte
 		}
 		nextCourseOrder[categoryID]++
 		courseID, err := r.findOrCreateImportedCourse(ctx, tx, curriculumID, models.CreateCourseInCatPayload{
-			Code: course.Code, NameTH: course.NameTH, NameEN: course.NameEN, Credits: course.Credits,
+			Code: course.Code, NameTH: course.NameTH, NameEN: course.NameEN, Credits: course.Credits, GradeScheme: course.GradeScheme,
 		}, opts)
 		if err != nil {
 			return err
@@ -601,12 +603,13 @@ func (r *CurriculumRepository) findOrCreateImportedCourse(ctx context.Context, t
 			name_th = ?,
 			name_en = ?,
 			credits = ?,
+			grade_scheme = ?,
 			is_active = 1,
 			updated_at = NOW()
 		WHERE course_id = ?
 			AND curriculum_id = ?
 			AND deleted_at IS NULL
-	`, payload.Code, payload.NameTH, nameEN, payload.Credits, courseID, curriculumID); err != nil {
+	`, payload.Code, payload.NameTH, nameEN, payload.Credits, payload.GradeScheme, courseID, curriculumID); err != nil {
 		return 0, err
 	}
 
@@ -626,11 +629,12 @@ func (r *CurriculumRepository) UpdateCourseForCurriculum(ctx context.Context, cu
 			name_th = COALESCE(?, name_th),
 			name_en = COALESCE(?, name_en),
 			credits = COALESCE(?, credits),
-			description = COALESCE(?, description)
+			description = COALESCE(?, description),
+			grade_scheme = COALESCE(?, grade_scheme)
 		WHERE curriculum_id = ?
 			AND course_id = ?
 			AND deleted_at IS NULL
-	`, payload.Code, payload.NameTH, payload.NameEN, payload.Credits, payload.Description, curriculumID, courseID)
+	`, payload.Code, payload.NameTH, payload.NameEN, payload.Credits, payload.Description, payload.GradeScheme, curriculumID, courseID)
 	if err != nil {
 		return err
 	}
