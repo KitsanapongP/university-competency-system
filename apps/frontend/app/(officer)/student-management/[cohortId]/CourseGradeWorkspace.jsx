@@ -82,6 +82,14 @@ function gradeError(error, language) {
       "รายการผลการเรียนไม่ตรงกับผู้เรียนหรือวิชาที่เลือก",
       "The selected grade record does not match the selected student and course.",
     ],
+    "the selected grade is not allowed for this course's grade scheme": [
+      "เกรดที่เลือกไม่ตรงกับรูปแบบเกรดของรายวิชานี้",
+      "The selected grade is not allowed for this course's grade scheme.",
+    ],
+    "grade is not allowed for this course's grade scheme": [
+      "เกรดที่เลือกไม่ตรงกับรูปแบบเกรดของรายวิชานี้",
+      "The selected grade is not allowed for this course's grade scheme.",
+    ],
   };
   return messages[message]
     ? label(language, ...messages[message])
@@ -927,7 +935,7 @@ function GradeImportModal({
                       : ""}
                     {issue.student_code || ""}
                     {issue.course_code ? ` · ${issue.course_code}` : ""} —{" "}
-                    {issue.message}
+                    {gradeError({ message: issue.message }, language)}
                   </div>
                 ))}
               </section>
