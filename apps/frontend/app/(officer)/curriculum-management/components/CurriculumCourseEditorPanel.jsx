@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { useLanguage } from "../../../../providers/LanguageContext";
+import GradeSchemeField from "./GradeSchemeField";
 
 const NEW_COURSE_ID = "__new_course__";
 
@@ -44,6 +45,7 @@ function CurriculumCourseRow({
   isNew = false,
   isLocked = false,
   showCourseType = false,
+  showGradeScheme = false,
   showRowActionsColumn = true,
   originBadge = "",
   canDrag = true,
@@ -68,6 +70,7 @@ function CurriculumCourseRow({
     nameTh: course.nameTh || "",
     nameEn: course.nameEn || "",
     credits: course.credits || 0,
+    gradeScheme: course.gradeScheme || "",
     isCoreCourse: course.isCoreCourse ?? true,
   });
   const [actionMenuPosition, setActionMenuPosition] = useState(null);
@@ -81,6 +84,7 @@ function CurriculumCourseRow({
       nameTh: course.nameTh || "",
       nameEn: course.nameEn || "",
       credits: course.credits || 0,
+      gradeScheme: course.gradeScheme || "",
       isCoreCourse: course.isCoreCourse ?? true,
     });
   }, [
@@ -88,6 +92,7 @@ function CurriculumCourseRow({
     course.nameTh,
     course.nameEn,
     course.credits,
+    course.gradeScheme,
     course.isCoreCourse,
     isEditing,
   ]);
@@ -98,7 +103,8 @@ function CurriculumCourseRow({
     if (
       rowDisabled ||
       !String(form.code || "").trim() ||
-      !String(form.nameTh || "").trim()
+      !String(form.nameTh || "").trim() ||
+      !String(form.gradeScheme || "").trim()
     )
       return;
     const result = await onSave?.({
@@ -107,6 +113,7 @@ function CurriculumCourseRow({
       nameTh: String(form.nameTh || "").trim(),
       nameEn: String(form.nameEn || "").trim(),
       credits: Number(form.credits) || 0,
+      gradeScheme: form.gradeScheme,
       isCoreCourse: Boolean(form.isCoreCourse),
     });
     if (result !== false) {
@@ -120,6 +127,7 @@ function CurriculumCourseRow({
       nameTh: course.nameTh || "",
       nameEn: course.nameEn || "",
       credits: course.credits || 0,
+      gradeScheme: course.gradeScheme || "",
       isCoreCourse: course.isCoreCourse ?? true,
     });
     onCancelEdit?.();
@@ -330,6 +338,28 @@ function CurriculumCourseRow({
           )}
         </td>
       )}
+      {showGradeScheme && (
+        <td className="ss-cell ss-cell--grade-scheme">
+          {isEditing ? (
+            <GradeSchemeField
+              value={form.gradeScheme}
+              onChange={(value) =>
+                setForm((current) => ({ ...current, gradeScheme: value }))
+              }
+              disabled={rowDisabled}
+              compact
+            />
+          ) : (
+            <span className="curriculum-grade-scheme-badge">
+              {course.gradeScheme === "satisfactory"
+                ? t("grade_scheme_satisfactory")
+                : course.gradeScheme === "letter"
+                  ? t("grade_scheme_letter")
+                  : t("select_grade_scheme")}
+            </span>
+          )}
+        </td>
+      )}
       {renderExtraCells?.(course)}
       {showRowActionsColumn && (
         <td className="ss-cell ss-cell--actions">
@@ -342,7 +372,8 @@ function CurriculumCourseRow({
                 disabled={
                   disabled ||
                   !String(form.code || "").trim() ||
-                  !String(form.nameTh || "").trim()
+                  !String(form.nameTh || "").trim() ||
+                  !String(form.gradeScheme || "").trim()
                 }
                 title={t("save_course_changes")}
                 aria-label={t("save_course_changes")}
@@ -462,6 +493,7 @@ export default function CurriculumCourseEditorPanel({
   extraColumnHeaders = [],
   renderExtraCells,
   showCourseTypeColumn = false,
+  showGradeSchemeColumn = false,
   showRowActionsColumn = true,
   tableVariant = "",
 }) {
@@ -517,6 +549,7 @@ export default function CurriculumCourseEditorPanel({
           ? `${course.nameEn} ${t("copy_course_suffix")}`
           : "",
         credits: Number(course.credits) || 0,
+        gradeScheme: course.gradeScheme || "",
         isCoreCourse: course.isCoreCourse ?? true,
       });
       setShowAddCourse(true);
@@ -763,6 +796,7 @@ export default function CurriculumCourseEditorPanel({
     nameTh: draftCourse?.nameTh || "",
     nameEn: draftCourse?.nameEn || "",
     credits: draftCourse?.credits || 0,
+    gradeScheme: draftCourse?.gradeScheme || "",
     isCoreCourse: draftCourse?.isCoreCourse ?? true,
   };
 
@@ -968,6 +1002,9 @@ export default function CurriculumCourseEditorPanel({
                     {showCourseTypeColumn && (
                       <col className="curriculum-course-editor__col--course-type" />
                     )}
+                    {showGradeSchemeColumn && (
+                      <col className="curriculum-course-editor__col--grade-scheme" />
+                    )}
                     {extraColumnHeaders.map((column, index) => (
                       <col
                         key={column.key || index}
@@ -1012,6 +1049,11 @@ export default function CurriculumCourseEditorPanel({
                           {t("course_type")}
                         </th>
                       )}
+                      {showGradeSchemeColumn && (
+                        <th className="course-spreadsheet-th ss-th ss-th--grade-scheme">
+                          {t("grade_scheme")}
+                        </th>
+                      )}
                       {extraColumnHeaders.map((column, index) => (
                         <th
                           key={column.key || index}
@@ -1049,6 +1091,7 @@ export default function CurriculumCourseEditorPanel({
                         disabled={disabled}
                         showRowActionsColumn={showRowActionsColumn}
                         showCourseType={showCourseTypeColumn}
+                        showGradeScheme={showGradeSchemeColumn}
                         renderExtraCells={renderExtraCells}
                         onSave={handleSaveCourse}
                         onCancelEdit={() => {
@@ -1068,11 +1111,12 @@ export default function CurriculumCourseEditorPanel({
                         courseCapabilities.canEdit === false;
                       return (
                         <CurriculumCourseRow
-                          key={`${courseId}:${course.code}:${course.nameTh}:${course.nameEn}:${course.credits}:${course.isCoreCourse}`}
+                          key={`${courseId}:${course.code}:${course.nameTh}:${course.nameEn}:${course.credits}:${course.isCoreCourse}:${course.gradeScheme}`}
                           course={course}
                           disabled={rowDisabled}
                           isLocked={Boolean(courseCapabilities.locked)}
                           showCourseType={showCourseTypeColumn}
+                          showGradeScheme={showGradeSchemeColumn}
                           originBadge={courseCapabilities.badge || ""}
                           canDrag={courseCapabilities.canDrag !== false}
                           canSelect={courseCapabilities.canSelect !== false}

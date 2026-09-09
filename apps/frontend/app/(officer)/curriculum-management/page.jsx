@@ -186,11 +186,52 @@ function getStatusAction(status) {
   return { nextStatus: "active", label: "เปิดใช้งาน" };
 }
 
-function buildConfirmationMessage(error) {
+function buildConfirmationMessage(error, language = "th") {
   const templates = error?.payload?.data?.affected_templates || [];
-  const message = translateBackendMessage(error?.message);
+  const impact = error?.payload?.data || {};
+  const message = translateBackendMessage(error?.message, language);
+  const impactLines = [];
+
+  if (impact.grade_record_count !== undefined) {
+    impactLines.push(
+      language === "en"
+        ? `- Grade records to be cleared (history retained): ${impact.grade_record_count}`
+        : `- ผลการเรียนที่จะถูกล้างแบบเก็บประวัติ: ${impact.grade_record_count} รายการ`,
+    );
+  }
+  if (impact.learner_count !== undefined) {
+    impactLines.push(
+      language === "en"
+        ? `- Learners affected: ${impact.learner_count}`
+        : `- นักศึกษาที่ได้รับผลกระทบ: ${impact.learner_count} คน`,
+    );
+  }
+  if (impact.cohort_count !== undefined) {
+    impactLines.push(
+      language === "en"
+        ? `- Cohorts affected: ${impact.cohort_count}`
+        : `- รุ่นที่ได้รับผลกระทบ: ${impact.cohort_count} รุ่น`,
+    );
+  }
+
+  const impactSummary = impactLines.length
+    ? `${
+        language === "en"
+          ? "Impact of this change:"
+          : "ผลกระทบจากการเปลี่ยนแปลงนี้:"
+      }\n${impactLines.join("\n")}\n${
+        language === "en"
+          ? "Course competency scores will be removed immediately. Activity scores will remain."
+          : "คะแนนสมรรถนะจากวิชานี้จะถูกนำออกทันที แต่คะแนนกิจกรรมจะยังคงอยู่"
+      }`
+    : "";
+
   if (!templates.length) {
-    return `${message}\n\nยืนยันดำเนินการต่อหรือไม่?`;
+    return `${message}${impactSummary ? `\n\n${impactSummary}` : ""}\n\n${
+      language === "en"
+        ? "Do you want to continue?"
+        : "ยืนยันดำเนินการต่อหรือไม่?"
+    }`;
   }
 
   const templateList = templates
@@ -200,10 +241,20 @@ function buildConfirmationMessage(error) {
         `- ${template.name || template.code || "Template"}${template.cohort_year_be ? ` (${template.cohort_year_be})` : ""}`,
     )
     .join("\n");
-  const more =
-    templates.length > 8 ? `\n- และอีก ${templates.length - 8} รายการ` : "";
+  const templateHeading =
+    language === "en"
+      ? "Templates that may be affected:"
+      : "Template ที่อาจได้รับผลกระทบ:";
+  const moreTemplates =
+    templates.length > 8
+      ? language === "en"
+        ? `\n- and ${templates.length - 8} more`
+        : `\n- และอีก ${templates.length - 8} รายการ`
+      : "";
 
-  return `${message}\n\nTemplate ที่อาจได้รับผลกระทบ:\n${templateList}${more}\n\nยืนยันดำเนินการต่อหรือไม่?`;
+  return `${message}${impactSummary ? `\n\n${impactSummary}` : ""}\n\n${templateHeading}\n${templateList}${moreTemplates}\n\n${
+    language === "en" ? "Do you want to continue?" : "ยืนยันดำเนินการต่อหรือไม่?"
+  }`;
 }
 
 const BACKEND_MESSAGE_TH = {
@@ -275,6 +326,13 @@ const BACKEND_MESSAGE_TH = {
   "insufficient curriculum scope": "คุณไม่มีสิทธิ์จัดการหลักสูตรนี้",
   "curriculum not found": "ไม่พบหลักสูตร",
   "curriculum operation failed": "ไม่สามารถดำเนินการกับหลักสูตรได้",
+  "changing the course grade scheme requires confirmation":
+    "การเปลี่ยนรูปแบบเกรดของวิชาต้องได้รับการยืนยันก่อน",
+};
+
+const BACKEND_MESSAGE_EN = {
+  "changing the course grade scheme requires confirmation":
+    "Changing the course grade scheme requires confirmation.",
 };
 
 const CURRICULUM_VIOLATION_TH = {
@@ -288,8 +346,11 @@ const CURRICULUM_VIOLATION_TH = {
     "รหัสวิชาต้องไม่ซ้ำกันภายในหลักสูตร",
 };
 
-function translateBackendMessage(message) {
-  if (!message) return "ไม่สามารถดำเนินการได้";
+function translateBackendMessage(message, language = "th") {
+  if (!message) {
+    return language === "en" ? "Unable to complete the operation." : "ไม่สามารถดำเนินการได้";
+  }
+  if (language === "en") return BACKEND_MESSAGE_EN[message] || message;
   return BACKEND_MESSAGE_TH[message] || message;
 }
 
@@ -937,7 +998,7 @@ export default function CurriculumManagementPage() {
             !confirmImpact;
           if (
             needsConfirmation &&
-            window.confirm(buildConfirmationMessage(err))
+            window.confirm(buildConfirmationMessage(err, language))
           ) {
             confirmImpact = true;
             continue;
@@ -953,7 +1014,7 @@ export default function CurriculumManagementPage() {
         }
       }
     },
-    [loadCurriculums],
+    [language, loadCurriculums],
   );
 
   const handleCommitStructureImport = useCallback(
@@ -1143,6 +1204,7 @@ export default function CurriculumManagementPage() {
               nameEn: updatedCourse.nameEn,
               credits: updatedCourse.credits,
               description: updatedCourse.description,
+              gradeScheme: updatedCourse.gradeScheme,
               isCoreCourse: updatedCourse.isCoreCourse,
             },
             confirmImpact,
@@ -1997,6 +2059,7 @@ export default function CurriculumManagementPage() {
                     onCourseDragEnd={handleCourseDragEnd}
                     onEditingStateChange={setIsCourseEditorEditing}
                     showCourseTypeColumn
+                    showGradeSchemeColumn
                     canEdit={Boolean(selectedCategory) && !showAllCourses}
                     disabled={operationLoading}
                   />
@@ -2091,7 +2154,7 @@ export default function CurriculumManagementPage() {
         title={t("course_delete_impact_title")}
         message={
           courseDeleteImpactConfirmation?.error
-            ? buildConfirmationMessage(courseDeleteImpactConfirmation.error)
+            ? buildConfirmationMessage(courseDeleteImpactConfirmation.error, language)
             : ""
         }
         hint={t("course_delete_impact_hint")}

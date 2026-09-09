@@ -291,6 +291,11 @@
     min-width: 130px;
 }
 
+.curriculum-course-editor__col--grade-scheme {
+    width: 178px;
+    min-width: 178px;
+}
+
 .curriculum-course-editor__col--extra {
     width: 112px;
 }
@@ -424,6 +429,56 @@
 .curriculum-course-editor .ss-cell--course-type .ss-input--select {
     width: 100%;
     min-width: 0;
+}
+
+.curriculum-course-editor .ss-th--grade-scheme,
+.curriculum-course-editor .ss-cell--grade-scheme {
+    width: 178px;
+    min-width: 178px;
+    text-align: center;
+}
+
+.grade-scheme-field {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.grade-scheme-field--compact {
+    display: block;
+}
+
+.grade-scheme-field__select {
+    width: 100%;
+    min-width: 0;
+}
+
+.grade-scheme-field__label {
+    color: var(--course-text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.grade-scheme-field__hint {
+    margin: 0;
+    color: var(--course-text-muted);
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
+.curriculum-grade-scheme-badge {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    justify-content: center;
+    padding: 0.28rem 0.5rem;
+    border: 1px solid color-mix(in srgb, var(--course-accent) 28%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--course-accent) 12%, transparent);
+    color: var(--course-text);
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.25;
+    text-align: center;
 }
 
 .curriculum-course-type-badge {

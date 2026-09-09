@@ -25,6 +25,7 @@ function mapCourseRow(course) {
         nameEn: course.name_en || '',
         credits: course.credits || 0,
         description: course.description || '',
+        gradeScheme: course.grade_scheme || 'letter',
         isCoreCourse: course.is_required ?? true,
         isLocked: course.is_locked ?? false,
         isActive: course.is_active ?? true,
@@ -181,6 +182,7 @@ function categoryPayload(category, coursesByCategory, index = 0) {
                 name_en: toNullableString(course.nameEn),
                 credits: toNumber(course.credits, 0),
                 description: toNullableString(course.description),
+                grade_scheme: course.gradeScheme || '',
                 is_required: course.isCoreCourse ?? true,
                 display_order: courseIndex + 1,
             };
@@ -373,6 +375,7 @@ export async function createCurriculumCourse(curriculumId, categoryId, course, c
         name_en: toNullableString(course.nameEn),
         credits: toNumber(course.credits, 0),
         description: toNullableString(course.description),
+        grade_scheme: course.gradeScheme || '',
         is_required: boolValue(course.isCoreCourse, true),
         display_order: toNumber(course.displayOrder, 0),
         confirm_impact: confirmImpact,
@@ -405,6 +408,9 @@ export async function updateCurriculumCourseDetail(curriculumId, courseId, cours
     }
     if (Object.prototype.hasOwnProperty.call(course, 'description')) {
         payload.description = toNullableString(course.description);
+    }
+    if (Object.prototype.hasOwnProperty.call(course, 'gradeScheme')) {
+        payload.grade_scheme = toNullableString(course.gradeScheme);
     }
     if (Object.prototype.hasOwnProperty.call(course, 'isCoreCourse')) {
         payload.is_required = boolValue(course.isCoreCourse, true);

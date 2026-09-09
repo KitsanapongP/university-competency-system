@@ -952,6 +952,7 @@ function Step2({
       nameTh: courseData?.nameTh || "",
       nameEn: courseData?.nameEn || "",
       credits: Number(courseData?.credits) || 0,
+      gradeScheme: courseData?.gradeScheme || "",
       isCoreCourse: courseData?.isCoreCourse ?? true,
     };
     setForm((p) => ({
@@ -1429,6 +1430,7 @@ function Step2({
           onCourseDragEnd={handleCourseDragEnd}
           onEditingStateChange={setIsCourseEditorEditing}
           showCourseTypeColumn
+          showGradeSchemeColumn
         />
       </div>
 
