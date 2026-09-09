@@ -12,6 +12,14 @@ import (
 
 var ErrCurriculumCourseCodeAlreadyPlaced = errors.New("course code already has an active placement in this curriculum")
 
+type CourseGradeSchemeConfirmationError struct {
+	Impact models.CourseGradeSchemeImpact
+}
+
+func (e CourseGradeSchemeConfirmationError) Error() string {
+	return "changing a course grade scheme requires confirmation"
+}
+
 type importedCourseAction uint8
 
 const (
@@ -622,6 +630,99 @@ func (r *CurriculumRepository) UpdateCourseForCurriculum(ctx context.Context, cu
 		return err
 	}
 	defer tx.Rollback()
+
+	var previousScheme string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(grade_scheme, 'letter')
+		FROM crs_courses
+		WHERE curriculum_id = ? AND course_id = ? AND deleted_at IS NULL
+		FOR UPDATE`, curriculumID, courseID).Scan(&previousScheme); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.ErrNoRows
+		}
+		return err
+	}
+
+	nextScheme := previousScheme
+	if payload.GradeScheme != nil {
+		nextScheme = strings.ToLower(strings.TrimSpace(*payload.GradeScheme))
+	}
+	if nextScheme != previousScheme {
+		var impact models.CourseGradeSchemeImpact
+		impact.CourseID = courseID
+		impact.PreviousScheme = previousScheme
+		impact.NextScheme = nextScheme
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COUNT(*), COUNT(DISTINCT grade.enrollment_id), COUNT(DISTINCT roster.cohort_id)
+			FROM crs_course_enrollment grade
+			JOIN kku_enrollment_curricula roster
+				ON roster.enrollment_curriculum_id = grade.student_curricula_id
+				AND roster.enrollment_id = grade.enrollment_id
+				AND roster.deleted_at IS NULL
+			WHERE grade.course_id = ? AND grade.deleted_at IS NULL`, courseID).Scan(
+			&impact.GradeRecordCount, &impact.LearnerCount, &impact.CohortCount); err != nil {
+			return err
+		}
+		if impact.GradeRecordCount > 0 && !payload.ConfirmImpact {
+			return CourseGradeSchemeConfirmationError{Impact: impact}
+		}
+		if impact.GradeRecordCount > 0 {
+			cohortRows, err := tx.QueryContext(ctx, `
+				SELECT DISTINCT roster.cohort_id
+				FROM crs_course_enrollment grade
+				JOIN kku_enrollment_curricula roster
+					ON roster.enrollment_curriculum_id = grade.student_curricula_id
+					AND roster.enrollment_id = grade.enrollment_id
+					AND roster.deleted_at IS NULL
+				WHERE grade.course_id = ? AND grade.deleted_at IS NULL`, courseID)
+			if err != nil {
+				return err
+			}
+			cohortIDs := make([]uint64, 0, impact.CohortCount)
+			for cohortRows.Next() {
+				var cohortID uint64
+				if err := cohortRows.Scan(&cohortID); err != nil {
+					cohortRows.Close()
+					return err
+				}
+				cohortIDs = append(cohortIDs, cohortID)
+			}
+			if err := cohortRows.Close(); err != nil {
+				return err
+			}
+
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE score_course_competency_scores score
+				JOIN crs_course_enrollment grade ON grade.course_student_id = score.course_student_id
+				JOIN kku_enrollment_curricula roster
+					ON roster.enrollment_curriculum_id = grade.student_curricula_id
+					AND roster.enrollment_id = grade.enrollment_id
+					AND roster.deleted_at IS NULL
+				SET score.deleted_at = NOW(), score.updated_at = NOW()
+				WHERE grade.course_id = ? AND score.deleted_at IS NULL`, courseID); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE crs_course_enrollment
+				SET deleted_at = NOW(), updated_at = NOW()
+				WHERE course_id = ? AND deleted_at IS NULL`, courseID); err != nil {
+				return err
+			}
+			for _, cohortID := range cohortIDs {
+				if err := recomputeCompetencyResultsTx(ctx, tx, cohortID); err != nil {
+					return err
+				}
+				if _, err := tx.ExecContext(ctx, `
+					UPDATE edu_student_cohorts
+					SET course_scores_recalculation_required = 1,
+						course_scores_recalculated_at = NULL,
+						updated_at = NOW()
+					WHERE cohort_id = ? AND deleted_at IS NULL`, cohortID); err != nil {
+					return err
+				}
+			}
+		}
+	}
 
 	res, err := tx.ExecContext(ctx, `
 		UPDATE crs_courses

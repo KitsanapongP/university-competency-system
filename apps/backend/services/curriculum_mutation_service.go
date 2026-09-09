@@ -356,6 +356,13 @@ func (s *CurriculumService) UpdateCourse(ctx context.Context, curriculumID uint6
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCurriculumNotFound
 		}
+		var schemeImpactErr repositories.CourseGradeSchemeConfirmationError
+		if errors.As(err, &schemeImpactErr) {
+			return nil, CurriculumConfirmationRequiredError{
+				Message: "changing the course grade scheme requires confirmation",
+				Data:    schemeImpactErr.Impact,
+			}
+		}
 		return nil, err
 	}
 
