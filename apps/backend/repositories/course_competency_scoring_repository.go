@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spw32767/university-competency-system-backend/grading"
 	"github.com/spw32767/university-competency-system-backend/models"
 )
 
@@ -30,6 +31,7 @@ type courseGrade struct {
 	StudentCode     string
 	CourseID        uint64
 	CourseCode      string
+	GradeScheme     string
 	Grade           string
 }
 
@@ -153,7 +155,8 @@ func (r *CourseCompetencyScoringRepository) getMappings(ctx context.Context, tx 
 
 func (r *CourseCompetencyScoringRepository) getGrades(ctx context.Context, tx *sql.Tx, cohortID uint64) ([]courseGrade, error) {
 	rows, err := tx.QueryContext(ctx, `
-		SELECT enrollment.course_student_id, enrollment.enrollment_id, student.student_code, enrollment.course_id, course.code, COALESCE(enrollment.grade, '')
+		SELECT enrollment.course_student_id, enrollment.enrollment_id, student.student_code, enrollment.course_id, course.code,
+			COALESCE(course.grade_scheme, 'letter'), COALESCE(enrollment.grade, '')
 		FROM kku_enrollment_curricula cohortEnrollment
 		JOIN kku_enrollments student ON student.enrollment_id = cohortEnrollment.enrollment_id AND student.deleted_at IS NULL
 		JOIN crs_course_enrollment enrollment ON enrollment.student_curricula_id = cohortEnrollment.enrollment_curriculum_id
@@ -167,7 +170,7 @@ func (r *CourseCompetencyScoringRepository) getGrades(ctx context.Context, tx *s
 	grades := make([]courseGrade, 0)
 	for rows.Next() {
 		var grade courseGrade
-		if err := rows.Scan(&grade.CourseStudentID, &grade.EnrollmentID, &grade.StudentCode, &grade.CourseID, &grade.CourseCode, &grade.Grade); err != nil {
+		if err := rows.Scan(&grade.CourseStudentID, &grade.EnrollmentID, &grade.StudentCode, &grade.CourseID, &grade.CourseCode, &grade.GradeScheme, &grade.Grade); err != nil {
 			return nil, err
 		}
 		grades = append(grades, grade)
@@ -175,7 +178,7 @@ func (r *CourseCompetencyScoringRepository) getGrades(ctx context.Context, tx *s
 	return grades, rows.Err()
 }
 
-func (r *CourseCompetencyScoringRepository) Recalculate(ctx context.Context, cohortID uint64, gradeScores map[string]float64) (*models.CourseCompetencyRecalculationResult, error) {
+func (r *CourseCompetencyScoringRepository) Recalculate(ctx context.Context, cohortID uint64) (*models.CourseCompetencyRecalculationResult, error) {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -210,12 +213,14 @@ func (r *CourseCompetencyScoringRepository) Recalculate(ctx context.Context, coh
 	for _, grade := range grades {
 		students[grade.EnrollmentID] = struct{}{}
 		normalizedGrade := strings.ToUpper(strings.TrimSpace(grade.Grade))
-		score, known := gradeScores[normalizedGrade]
-		if normalizedGrade == "" || normalizedGrade == "S" || normalizedGrade == "U" || normalizedGrade == "W" || normalizedGrade == "I" || normalizedGrade == "F" {
+		evaluation := grading.Evaluate(grade.GradeScheme, normalizedGrade)
+		if normalizedGrade == "" || !evaluation.Recognized {
+			if normalizedGrade != "" {
+				result.Warnings = append(result.Warnings, models.CourseCompetencyScoreWarning{Code: "GRADE_NOT_MAPPED", Message: "grade is not allowed for the course grade scheme", StudentCode: grade.StudentCode, CourseCode: grade.CourseCode})
+			}
 			continue
 		}
-		if !known {
-			result.Warnings = append(result.Warnings, models.CourseCompetencyScoreWarning{Code: "GRADE_NOT_MAPPED", Message: "grade is not in the fixed grade map", StudentCode: grade.StudentCode, CourseCode: grade.CourseCode})
+		if !evaluation.HasScore || (grading.NormalizeScheme(grade.GradeScheme) == grading.SchemeLetter && normalizedGrade == "F") {
 			continue
 		}
 		if len(mappingByCourse[grade.CourseID]) == 0 {
@@ -227,12 +232,12 @@ func (r *CourseCompetencyScoringRepository) Recalculate(ctx context.Context, coh
 			if mapping.IsCore {
 				scoreType = "core"
 			}
-			weighted := score * mapping.Weight / 100
+			weighted := evaluation.Score * mapping.Weight / 100
 			if _, err := tx.ExecContext(ctx, `
 				INSERT INTO score_course_competency_scores (course_student_id, competency_id, template_id, template_item_id, raw_score, weighted_score, weight_snapshot, grade_snapshot, score_type_snapshot, calculated_at, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
 				ON DUPLICATE KEY UPDATE template_id=VALUES(template_id), template_item_id=VALUES(template_item_id), raw_score=VALUES(raw_score), weighted_score=VALUES(weighted_score), weight_snapshot=VALUES(weight_snapshot), grade_snapshot=VALUES(grade_snapshot), score_type_snapshot=VALUES(score_type_snapshot), calculated_at=NOW(), deleted_at=NULL, updated_at=NOW()`,
-				grade.CourseStudentID, mapping.CompetencyID, templateID, mapping.TemplateItemID, score, weighted, mapping.Weight, normalizedGrade, scoreType); err != nil {
+				grade.CourseStudentID, mapping.CompetencyID, templateID, mapping.TemplateItemID, evaluation.Score, weighted, mapping.Weight, normalizedGrade, scoreType); err != nil {
 				return nil, err
 			}
 			result.CourseScores++

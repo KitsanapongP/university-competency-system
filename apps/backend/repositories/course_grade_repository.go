@@ -18,6 +18,7 @@ var (
 	ErrCourseGradeNotFound       = errors.New("course grade record not found")
 	ErrCourseGradeDeleteUpdate   = errors.New("course grade cannot be updated and deleted together")
 	ErrCourseGradeIdentity       = errors.New("course grade record identity does not match")
+	ErrCourseGradeSchemeMismatch = errors.New("grade is not allowed for this course grade scheme")
 )
 
 func NewCourseGradeRepository(db *sql.DB) *CourseGradeRepository {
@@ -64,7 +65,7 @@ func (r *CourseGradeRepository) GetStudentGrades(ctx context.Context, cohortID, 
 			CONCAT_WS(' ', person.first_name_th, person.last_name_th),
 			course.course_id, course.code, course.name_th, COALESCE(course.name_en, ''),
 			CASE WHEN placement.is_required = 1 THEN 'core' ELSE 'bonus' END,
-			course.credits, grade.course_student_id, grade.student_curricula_id,
+			course.credits, COALESCE(course.grade_scheme, 'letter'), grade.course_student_id, grade.student_curricula_id,
 			COALESCE(grade.academic_year_be, 0), COALESCE(grade.semester, 0), COALESCE(grade.grade, ''),
 			COALESCE(grade.grade_source, 'manual'), grade.source_reference,
 			COALESCE(grade.is_best_grade, 0), grade.updated_at,
@@ -95,7 +96,7 @@ func (r *CourseGradeRepository) GetStudentGrades(ctx context.Context, cohortID, 
 		var credits int
 		if err := rows.Scan(&detail.EnrollmentID, &detail.StudentCode, &detail.StudentNameTH,
 			&item.CourseID, &item.CourseCode, &item.CourseNameTH, &item.CourseNameEN, &item.CourseType,
-			&credits, &courseStudentID, &studentCurriculumID, &item.AcademicYearBE, &item.Semester,
+			&credits, &item.GradeScheme, &courseStudentID, &studentCurriculumID, &item.AcademicYearBE, &item.Semester,
 			&grade, &source, &sourceReference, &item.IsBestGrade, &updatedAt, &recalc); err != nil {
 			return nil, err
 		}
@@ -131,6 +132,7 @@ func (r *CourseGradeRepository) GetCourseGrades(ctx context.Context, cohortID, c
 	if err := r.DB.QueryRowContext(ctx, `
 		SELECT course.course_id, course.code, course.name_th, COALESCE(course.name_en, ''),
 			CASE WHEN placement.is_required = 1 THEN 'core' ELSE 'bonus' END, course.credits,
+			COALESCE(course.grade_scheme, 'letter'),
 			cohort.course_scores_recalculation_required
 		FROM edu_student_cohorts cohort
 		JOIN crs_course_categories category ON category.curriculum_id = cohort.curriculum_id AND category.deleted_at IS NULL
@@ -138,7 +140,7 @@ func (r *CourseGradeRepository) GetCourseGrades(ctx context.Context, cohortID, c
 		JOIN crs_courses course ON course.course_id = placement.course_id AND course.deleted_at IS NULL AND course.is_active = 1
 		WHERE cohort.cohort_id = ? AND course.course_id = ?`, cohortID, courseID).Scan(
 		&detail.Course.CourseID, &detail.Course.CourseCode, &detail.Course.CourseNameTH, &detail.Course.CourseNameEN,
-		&detail.Course.CourseType, &detail.Course.Credits, &detail.CourseScoresRecalculationRequired); err != nil {
+		&detail.Course.CourseType, &detail.Course.Credits, &detail.Course.GradeScheme, &detail.CourseScoresRecalculationRequired); err != nil {
 		return nil, err
 	}
 
@@ -196,6 +198,7 @@ func (r *CourseGradeRepository) GetCourseGrades(ctx context.Context, cohortID, c
 		item.CourseNameTH = detail.Course.CourseNameTH
 		item.CourseNameEN = detail.Course.CourseNameEN
 		item.CourseType = detail.Course.CourseType
+		item.GradeScheme = detail.Course.GradeScheme
 		item.Credits = detail.Course.Credits
 		if sourceReference.Valid {
 			value := sourceReference.String
@@ -229,7 +232,7 @@ func (r *CourseGradeRepository) GetExistingGrade(ctx context.Context, cohortID u
 	err := r.DB.QueryRowContext(ctx, `
 		SELECT grade.course_student_id, grade.enrollment_id, grade.student_curricula_id,
 			student.student_code, CONCAT_WS(' ', person.first_name_th, person.last_name_th),
-			grade.course_id, course.code, course.name_th, COALESCE(course.name_en, ''),
+			grade.course_id, course.code, course.name_th, COALESCE(course.name_en, ''), COALESCE(course.grade_scheme, 'letter'),
 			grade.academic_year_be, grade.semester, COALESCE(grade.grade, ''),
 			COALESCE(grade.grade_source, 'manual'), grade.source_reference,
 			grade.is_best_grade, grade.updated_at
@@ -245,7 +248,7 @@ func (r *CourseGradeRepository) GetExistingGrade(ctx context.Context, cohortID u
 		row.CourseID, row.AcademicYearBE, row.Semester, cohortID, row.EnrollmentID).Scan(
 		&item.CourseStudentID, &item.EnrollmentID, &item.EnrollmentCurriculumID, &item.StudentCode,
 		&item.StudentNameTH, &item.CourseID, &item.CourseCode, &item.CourseNameTH, &item.CourseNameEN,
-		&item.AcademicYearBE, &item.Semester, &item.Grade, &item.GradeSource, &sourceReference,
+		&item.GradeScheme, &item.AcademicYearBE, &item.Semester, &item.Grade, &item.GradeSource, &sourceReference,
 		&item.IsBestGrade, &updatedAt)
 	if err != nil {
 		return nil, err
@@ -287,6 +290,19 @@ func (r *CourseGradeRepository) ResolveRow(ctx context.Context, cohortID uint64,
 	query += " LIMIT 1"
 	err := r.DB.QueryRowContext(ctx, query, args...).Scan(&enrollmentID, &enrollmentCurriculumID, &courseID)
 	return enrollmentID, enrollmentCurriculumID, courseID, err
+}
+
+func (r *CourseGradeRepository) GetCourseGradeScheme(ctx context.Context, cohortID, courseID uint64) (string, error) {
+	var scheme string
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT COALESCE(course.grade_scheme, 'letter')
+		FROM edu_student_cohorts cohort
+		JOIN crs_course_categories category ON category.curriculum_id = cohort.curriculum_id AND category.deleted_at IS NULL
+		JOIN crs_curriculum_courses placement ON placement.category_id = category.category_id AND placement.deleted_at IS NULL AND placement.is_active = 1
+		JOIN crs_courses course ON course.course_id = placement.course_id AND course.deleted_at IS NULL AND course.is_active = 1
+		WHERE cohort.cohort_id = ? AND course.course_id = ?
+		LIMIT 1`, cohortID, courseID).Scan(&scheme)
+	return scheme, err
 }
 
 type resolvedCourseGrade struct {
@@ -336,8 +352,9 @@ func (r *CourseGradeRepository) UpsertGrades(ctx context.Context, cohortID uint6
 			return 0, 0, 0, ErrCourseGradeDeleteUpdate
 		}
 		var enrollmentCurriculumID, courseID uint64
+		var gradeScheme string
 		query := `
-			SELECT roster.enrollment_curriculum_id, course.course_id
+			SELECT roster.enrollment_curriculum_id, course.course_id, COALESCE(course.grade_scheme, 'letter')
 			FROM edu_student_cohorts cohort
 			JOIN kku_enrollment_curricula roster ON roster.cohort_id = cohort.cohort_id AND roster.deleted_at IS NULL
 			JOIN kku_enrollments student ON student.enrollment_id = roster.enrollment_id AND student.deleted_at IS NULL
@@ -353,8 +370,11 @@ func (r *CourseGradeRepository) UpsertGrades(ctx context.Context, cohortID uint6
 			query += " AND course.code = ?"
 			args = append(args, strings.TrimSpace(row.CourseCode))
 		}
-		if err := tx.QueryRowContext(ctx, query+" LIMIT 1", args...).Scan(&enrollmentCurriculumID, &courseID); err != nil {
+		if err := tx.QueryRowContext(ctx, query+" LIMIT 1", args...).Scan(&enrollmentCurriculumID, &courseID, &gradeScheme); err != nil {
 			return 0, 0, 0, err
+		}
+		if !grading.IsRecognizedForScheme(gradeScheme, row.Grade) {
+			return 0, 0, 0, ErrCourseGradeSchemeMismatch
 		}
 		row.CourseID = courseID
 		resolved = append(resolved, resolvedCourseGrade{Row: row, EnrollmentCurriculumID: enrollmentCurriculumID})
@@ -491,10 +511,11 @@ func (r *CourseGradeRepository) validateCourseGradePeriods(ctx context.Context, 
 func (r *CourseGradeRepository) recomputeBestGrades(ctx context.Context, tx *sql.Tx, cohortID uint64) error {
 	rows, err := tx.QueryContext(ctx, `
 		SELECT grade.course_student_id, grade.enrollment_id, grade.course_id,
-			grade.academic_year_be, grade.semester, COALESCE(grade.grade, '')
+			grade.academic_year_be, grade.semester, COALESCE(grade.grade, ''), COALESCE(course.grade_scheme, 'letter')
 		FROM crs_course_enrollment grade
 		JOIN kku_enrollment_curricula roster ON roster.enrollment_curriculum_id = grade.student_curricula_id
 			AND roster.enrollment_id = grade.enrollment_id AND roster.cohort_id = ? AND roster.deleted_at IS NULL
+		JOIN crs_courses course ON course.course_id = grade.course_id AND course.deleted_at IS NULL
 		WHERE grade.deleted_at IS NULL`, cohortID)
 	if err != nil {
 		return err
@@ -502,23 +523,32 @@ func (r *CourseGradeRepository) recomputeBestGrades(ctx context.Context, tx *sql
 	defer rows.Close()
 	type bestRow struct {
 		id, year, semester uint64
-		score              float64
+		evaluation         grading.Evaluation
 	}
 	best := make(map[string]bestRow)
 	for rows.Next() {
 		var id, enrollmentID, courseID, year, semester uint64
-		var value string
-		if err := rows.Scan(&id, &enrollmentID, &courseID, &year, &semester, &value); err != nil {
+		var value, scheme string
+		if err := rows.Scan(&id, &enrollmentID, &courseID, &year, &semester, &value, &scheme); err != nil {
 			return err
 		}
-		score, ok := grading.Score(value)
-		if !ok {
+		evaluation := grading.Evaluate(scheme, value)
+		if !evaluation.Recognized {
 			continue
 		}
 		key := fmt.Sprintf("%d:%d", enrollmentID, courseID)
 		current, exists := best[key]
-		if !exists || score > current.score || (score == current.score && (year > current.year || (year == current.year && semester > current.semester))) {
-			best[key] = bestRow{id: id, year: year, semester: semester, score: score}
+		isLater := year > current.year || (year == current.year && semester > current.semester)
+		isBetter := !exists || evaluation.HasScore != current.evaluation.HasScore && evaluation.HasScore
+		if exists && evaluation.HasScore == current.evaluation.HasScore && evaluation.HasScore && evaluation.Score > current.evaluation.Score {
+			isBetter = true
+		}
+		if exists && evaluation.HasScore == current.evaluation.HasScore &&
+			((evaluation.HasScore && evaluation.Score == current.evaluation.Score) || !evaluation.HasScore) && isLater {
+			isBetter = true
+		}
+		if isBetter {
+			best[key] = bestRow{id: id, year: year, semester: semester, evaluation: evaluation}
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -564,6 +594,7 @@ func (r *CourseGradeRepository) getCourseSummaries(ctx context.Context, cohortID
 	query := `
 		SELECT course.course_id, course.code, course.name_th, COALESCE(course.name_en, ''),
 			CASE WHEN placement.is_required = 1 THEN 'core' ELSE 'bonus' END, course.credits,
+			COALESCE(course.grade_scheme, 'letter'),
 			` + totalStudents + `,
 			COUNT(DISTINCT CASE WHEN grade.course_student_id IS NOT NULL THEN roster.enrollment_id END)
 		FROM edu_student_cohorts cohort
@@ -574,7 +605,7 @@ func (r *CourseGradeRepository) getCourseSummaries(ctx context.Context, cohortID
 		LEFT JOIN crs_course_enrollment grade ON grade.student_curricula_id = roster.enrollment_curriculum_id
 			AND grade.enrollment_id = roster.enrollment_id AND grade.course_id = course.course_id AND grade.deleted_at IS NULL` + gradeFilter + `
 		WHERE cohort.cohort_id = ?` + searchWhere + missingWhere + `
-		GROUP BY course.course_id, course.code, course.name_th, course.name_en, placement.is_required, course.credits
+		GROUP BY course.course_id, course.code, course.name_th, course.name_en, placement.is_required, course.credits, course.grade_scheme
 		` + having + `
 		ORDER BY course.code`
 	rows, err := r.DB.QueryContext(ctx, query, args...)
@@ -585,7 +616,7 @@ func (r *CourseGradeRepository) getCourseSummaries(ctx context.Context, cohortID
 	items := make([]models.CourseGradeCourseSummary, 0)
 	for rows.Next() {
 		var item models.CourseGradeCourseSummary
-		if err := rows.Scan(&item.CourseID, &item.CourseCode, &item.CourseNameTH, &item.CourseNameEN, &item.CourseType, &item.Credits, &item.TotalStudents, &item.RecordedStudents); err != nil {
+		if err := rows.Scan(&item.CourseID, &item.CourseCode, &item.CourseNameTH, &item.CourseNameEN, &item.CourseType, &item.Credits, &item.GradeScheme, &item.TotalStudents, &item.RecordedStudents); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

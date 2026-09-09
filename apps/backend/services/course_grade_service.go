@@ -82,6 +82,9 @@ func (s *CourseGradeService) PutGrades(ctx context.Context, cohortID uint64, pay
 		if errors.Is(err, repositories.ErrCourseGradeIdentity) {
 			return nil, StudentCohortValidationError{Message: "the selected course grade record does not match the selected student and course"}
 		}
+		if errors.Is(err, repositories.ErrCourseGradeSchemeMismatch) {
+			return nil, StudentCohortValidationError{Message: "the selected grade is not allowed for this course's grade scheme"}
+		}
 		return nil, err
 	}
 	return &models.CourseGradeImportCommitResult{ImportedRows: imported, ReplacedRows: replaced, DeletedRows: deleted, CourseScoresRecalculationRequired: true}, nil
@@ -130,6 +133,19 @@ func (s *CourseGradeService) PreviewImport(ctx context.Context, cohortID uint64,
 		row.CourseID = courseID
 		if row.CourseCode == "" {
 			row.CourseCode = fmt.Sprintf("course-%d", courseID)
+		}
+		gradeScheme, schemeErr := s.Repo.GetCourseGradeScheme(ctx, cohortID, courseID)
+		if schemeErr != nil {
+			return nil, schemeErr
+		}
+		if !grading.IsRecognizedForScheme(gradeScheme, row.Grade) {
+			preview.Errors = append(preview.Errors, models.CourseGradeImportIssue{
+				RowNumber:   row.RowNumber,
+				StudentCode: row.StudentCode,
+				CourseCode:  row.CourseCode,
+				Message:     "grade is not allowed for this course's grade scheme",
+			})
+			continue
 		}
 		preview.ValidRows = append(preview.ValidRows, row)
 		existing, existingErr := s.Repo.GetExistingGrade(ctx, cohortID, row)

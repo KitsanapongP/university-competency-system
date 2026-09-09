@@ -10,8 +10,6 @@ import (
 	"github.com/spw32767/university-competency-system-backend/repositories"
 )
 
-var fixedCourseGradeMap = grading.FixedCourseGradeMap
-
 type CourseCompetencyScoringService struct {
 	Cohorts *StudentCohortService
 	Repo    *repositories.CourseCompetencyScoringRepository
@@ -69,7 +67,7 @@ func (s *CourseCompetencyScoringService) Recalculate(ctx context.Context, cohort
 	if cohort.Status != "active" {
 		return nil, StudentCohortConflictError{Code: "COHORT_NOT_ACTIVE", Message: "course scores can only be calculated for an active cohort"}
 	}
-	result, err := s.Repo.Recalculate(ctx, cohortID, fixedCourseGradeMap)
+	result, err := s.Repo.Recalculate(ctx, cohortID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, StudentCohortConflictError{Code: "TEMPLATE_ASSIGNMENT_REQUIRED", Message: "an active assigned template is required before calculating course scores"}
 	}
