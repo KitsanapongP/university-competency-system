@@ -53,6 +53,33 @@ type Evaluation struct {
 	Recognized bool
 }
 
+type GradeAttempt struct {
+	Evaluation     Evaluation
+	AcademicYearBE uint64
+	Semester       uint64
+}
+
+// IsBetterAttempt applies the single best-grade rule used by grade history
+// updates and competency-score recalculation.
+func IsBetterAttempt(candidate, current GradeAttempt) bool {
+	if !candidate.Evaluation.Recognized {
+		return false
+	}
+	if !current.Evaluation.Recognized {
+		return true
+	}
+	if candidate.Evaluation.HasScore != current.Evaluation.HasScore {
+		return candidate.Evaluation.HasScore
+	}
+	if candidate.Evaluation.HasScore && candidate.Evaluation.Score != current.Evaluation.Score {
+		return candidate.Evaluation.Score > current.Evaluation.Score
+	}
+	if candidate.AcademicYearBE != current.AcademicYearBE {
+		return candidate.AcademicYearBE > current.AcademicYearBE
+	}
+	return candidate.Semester > current.Semester
+}
+
 func Evaluate(scheme, value string) Evaluation {
 	normalizedScheme := NormalizeScheme(scheme)
 	normalizedGrade := Normalize(value)

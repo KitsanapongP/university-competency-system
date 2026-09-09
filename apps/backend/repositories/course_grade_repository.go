@@ -538,15 +538,17 @@ func (r *CourseGradeRepository) recomputeBestGrades(ctx context.Context, tx *sql
 		}
 		key := fmt.Sprintf("%d:%d", enrollmentID, courseID)
 		current, exists := best[key]
-		isLater := year > current.year || (year == current.year && semester > current.semester)
-		isBetter := !exists || evaluation.HasScore != current.evaluation.HasScore && evaluation.HasScore
-		if exists && evaluation.HasScore == current.evaluation.HasScore && evaluation.HasScore && evaluation.Score > current.evaluation.Score {
-			isBetter = true
+		candidate := grading.GradeAttempt{
+			Evaluation:     evaluation,
+			AcademicYearBE: year,
+			Semester:       semester,
 		}
-		if exists && evaluation.HasScore == current.evaluation.HasScore &&
-			((evaluation.HasScore && evaluation.Score == current.evaluation.Score) || !evaluation.HasScore) && isLater {
-			isBetter = true
+		currentAttempt := grading.GradeAttempt{
+			Evaluation:     current.evaluation,
+			AcademicYearBE: current.year,
+			Semester:       current.semester,
 		}
+		isBetter := !exists || grading.IsBetterAttempt(candidate, currentAttempt)
 		if isBetter {
 			best[key] = bestRow{id: id, year: year, semester: semester, evaluation: evaluation}
 		}

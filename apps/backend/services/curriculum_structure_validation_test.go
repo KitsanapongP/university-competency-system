@@ -56,6 +56,24 @@ func TestValidateCreateCategories(t *testing.T) {
 			}},
 		},
 		{
+			name: "requires a course grade scheme",
+			categories: []models.CreateCategoryPayload{{
+				Code:    stringPointer("1"),
+				NameTH:  "Leaf",
+				Courses: []models.CreateCourseInCatPayload{{Code: "CS101", NameTH: "Course"}},
+			}},
+			wantErr: "course grade_scheme must be letter or satisfactory",
+		},
+		{
+			name: "rejects an unknown course grade scheme",
+			categories: []models.CreateCategoryPayload{{
+				Code:    stringPointer("1"),
+				NameTH:  "Leaf",
+				Courses: []models.CreateCourseInCatPayload{{Code: "CS101", NameTH: "Course", GradeScheme: "numeric"}},
+			}},
+			wantErr: "course grade_scheme must be letter or satisfactory",
+		},
+		{
 			name:       "rejects a course in a parent category",
 			categories: []models.CreateCategoryPayload{categoryWithDepth(2, true)},
 			wantErr:    "courses can only be placed in leaf categories",
