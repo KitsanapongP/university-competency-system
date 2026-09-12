@@ -157,7 +157,7 @@
 .app-sidebar-shell {
     --app-sidebar-width: 270px;
     min-height: 100vh;
-    background: #0b0f17;
+    background: var(--course-bg, var(--bg));
 }
 
 .app-sidebar-shell--collapsed {
@@ -400,6 +400,8 @@
 }
 
 .competency-app--sidebar .main-content-officer.main-content--sidebar {
+    min-height: 100vh;
+    background: var(--course-bg, var(--bg));
     padding: 0;
 }
 
