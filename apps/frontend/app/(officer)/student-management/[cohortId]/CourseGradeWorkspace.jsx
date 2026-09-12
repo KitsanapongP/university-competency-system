@@ -388,16 +388,6 @@ function GradeEditorTable({
                         <>
                           <button
                             type="button"
-                            className="course-grade-record-action course-grade-record-action--danger"
-                            onClick={() => onCancelRow?.(row)}
-                            disabled={saving}
-                            title={label(language, "ยกเลิก", "Cancel")}
-                            aria-label={label(language, "ยกเลิก", "Cancel")}
-                          >
-                            <X size={15} />
-                          </button>
-                          <button
-                            type="button"
                             className="course-grade-record-action course-grade-record-action--save"
                             onClick={() => onSaveRow?.(row)}
                             disabled={saving}
@@ -405,6 +395,16 @@ function GradeEditorTable({
                             aria-label={label(language, "บันทึกผลการเรียน", "Save grade")}
                           >
                             <Save size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className="course-grade-record-action course-grade-record-action--danger"
+                            onClick={() => onCancelRow?.(row)}
+                            disabled={saving}
+                            title={label(language, "ยกเลิก", "Cancel")}
+                            aria-label={label(language, "ยกเลิก", "Cancel")}
+                          >
+                            <X size={15} />
                           </button>
                         </>
                       ) : !readOnly ? (
@@ -587,29 +587,75 @@ function GradeEditorModal({
     },
     onScroll: (event) => syncScrollPosition(event.currentTarget),
   });
-  const sortedRows = [...rows].sort((left, right) => {
-    const leftYear = Number(left.academicYearBe || 0);
-    const rightYear = Number(right.academicYearBe || 0);
-    if (leftYear !== rightYear) return leftYear - rightYear;
-    const leftSemester = Number(left.semester || 0);
-    const rightSemester = Number(right.semester || 0);
-    if (leftSemester !== rightSemester) return leftSemester - rightSemester;
-    return String(left.courseCode || "").localeCompare(
-      String(right.courseCode || ""),
+  const rowOrderRef = useRef([]);
+  const rowOrderContextRef = useRef("");
+  const termGroupKeyRef = useRef(new Map());
+  const editorContextKey =
+    editor?.mode === "course"
+      ? `course-${editor.course?.courseId || ""}`
+      : `student-${editor?.student?.enrollmentId || ""}`;
+  const hasActiveEdit = editableRowKeys?.size > 0;
+
+  // Keep the visible row order stable while a grade is being edited.
+  const sortedRows = useMemo(() => {
+    if (rowOrderContextRef.current !== editorContextKey) {
+      rowOrderContextRef.current = editorContextKey;
+      rowOrderRef.current = [];
+      termGroupKeyRef.current = new Map();
+    }
+
+    const sorted = [...rows].sort((left, right) => {
+      const leftYear = Number(left.academicYearBe || 0);
+      const rightYear = Number(right.academicYearBe || 0);
+      if (leftYear !== rightYear) return leftYear - rightYear;
+      const leftSemester = Number(left.semester || 0);
+      const rightSemester = Number(right.semester || 0);
+      if (leftSemester !== rightSemester) return leftSemester - rightSemester;
+      return String(left.courseCode || "").localeCompare(
+        String(right.courseCode || ""),
+      );
+    });
+
+    if (!hasActiveEdit || rowOrderRef.current.length === 0) {
+      rowOrderRef.current = sorted.map((row) => rowEditorKey(row));
+      return sorted;
+    }
+
+    const rowsByKey = new Map(
+      rows.map((row) => [rowEditorKey(row), row]),
     );
-  });
+    const orderedRows = rowOrderRef.current
+      .map((key) => rowsByKey.get(key))
+      .filter(Boolean);
+    const orderedKeys = new Set(orderedRows.map((row) => rowEditorKey(row)));
+    const newRows = rows.filter(
+      (row) => !orderedKeys.has(rowEditorKey(row)),
+    );
+
+    return [...orderedRows, ...newRows];
+  }, [editorContextKey, hasActiveEdit, rows]);
+
   const termGroups = useMemo(() => {
     if (editor?.mode !== "student") return [];
     const groups = new Map();
     sortedRows.forEach((row) => {
-      const key = row.isNewRecord || !row.academicYearBe || !row.semester
-        ? "new"
-        : `${row.academicYearBe}-${row.semester}`;
+      const rowKey = rowEditorKey(row);
+      const currentTermKey =
+        row.isNewRecord || !row.academicYearBe || !row.semester
+          ? "new"
+          : `${row.academicYearBe}-${row.semester}`;
+      const isEditing = editableRowKeys?.has(rowKey);
+      if (!termGroupKeyRef.current.has(rowKey) || !isEditing) {
+        termGroupKeyRef.current.set(rowKey, currentTermKey);
+      }
+      const key = isEditing
+        ? termGroupKeyRef.current.get(rowKey)
+        : currentTermKey;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(row);
     });
     return [...groups.entries()];
-  }, [editor?.mode, sortedRows]);
+  }, [editor?.mode, editableRowKeys, sortedRows]);
   const renderTermHeading = (key) => {
     if (key === "new") {
       return label(language, "รายการใหม่", "New record");
