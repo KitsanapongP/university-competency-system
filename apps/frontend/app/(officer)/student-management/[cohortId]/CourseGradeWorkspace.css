@@ -166,6 +166,10 @@
     color: #dc2626;
 }
 
+.course-grade-action-menu__list button.is-add {
+    color: #16a34a;
+}
+
 @media (max-width: 700px) {
     .course-grade-editor-toolbar {
         align-items: stretch;

@@ -150,6 +150,7 @@ function GradeEditorTable({
   focusRowKey,
   onDirty,
   onEditRow,
+  onAddMissingGrade,
   onCancelRow,
   onSaveRow,
   onRequestDelete,
@@ -206,7 +207,11 @@ function GradeEditorTable({
   const hasActiveEdit = editableRowKeys?.size > 0;
 
   const renderStudentCell = (row, editable) => {
-    if (row.isNewRecord && editor?.mode === "course") {
+    if (
+      row.isNewRecord &&
+      !row.isMissingGradeDraft &&
+      editor?.mode === "course"
+    ) {
       return (
         <select
           className="course-input course-grade-student-select"
@@ -236,7 +241,11 @@ function GradeEditorTable({
   };
 
   const renderCourseCell = (row, editable) => {
-    if (row.isNewRecord && editor?.mode === "student") {
+    if (
+      row.isNewRecord &&
+      !row.isMissingGradeDraft &&
+      editor?.mode === "student"
+    ) {
       return (
         <select
           className="course-input course-grade-course-select"
@@ -397,7 +406,7 @@ function GradeEditorTable({
                             <Save size={15} />
                           </button>
                         </>
-                      ) : !readOnly && !row.isPlaceholder ? (
+                      ) : !readOnly ? (
                         <div className="course-grade-action-menu">
                           <button
                             type="button"
@@ -416,27 +425,55 @@ function GradeEditorTable({
                           </button>
                           {openActionKey === key && (
                             <div className="course-grade-action-menu__list">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenActionKey(null);
-                                  onEditRow?.(row);
-                                }}
-                              >
-                                <Edit3 size={14} />
-                                {label(language, "แก้ไขผลการเรียน", "Edit grade")}
-                              </button>
-                              <button
-                                type="button"
-                                className="is-danger"
-                                onClick={() => {
-                                  setOpenActionKey(null);
-                                  onRequestDelete?.(row);
-                                }}
-                              >
-                                <Trash2 size={14} />
-                                {label(language, "ลบผลการเรียน", "Delete grade")}
-                              </button>
+                              {row.isPlaceholder ? (
+                                <button
+                                  type="button"
+                                  className="is-add"
+                                  onClick={() => {
+                                    setOpenActionKey(null);
+                                    onAddMissingGrade?.(row);
+                                  }}
+                                >
+                                  <Plus size={14} />
+                                  {label(
+                                    language,
+                                    "เพิ่มผลการเรียน",
+                                    "Add grade",
+                                  )}
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionKey(null);
+                                      onEditRow?.(row);
+                                    }}
+                                  >
+                                    <Edit3 size={14} />
+                                    {label(
+                                      language,
+                                      "แก้ไขผลการเรียน",
+                                      "Edit grade",
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="is-danger"
+                                    onClick={() => {
+                                      setOpenActionKey(null);
+                                      onRequestDelete?.(row);
+                                    }}
+                                  >
+                                    <Trash2 size={14} />
+                                    {label(
+                                      language,
+                                      "ลบผลการเรียน",
+                                      "Delete grade",
+                                    )}
+                                  </button>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
@@ -478,6 +515,7 @@ function GradeEditorModal({
   focusRowKey,
   onDirty,
   onEditRow,
+  onAddMissingGrade,
   onCancelRow,
   onSaveRow,
   onDeleteRow,
@@ -641,6 +679,7 @@ function GradeEditorModal({
             focusRowKey={focusRowKey}
             onDirty={onDirty}
             onEditRow={onEditRow}
+            onAddMissingGrade={onAddMissingGrade}
             onCancelRow={onCancelRow}
             onSaveRow={onSaveRow}
             onRequestDelete={setDeleteCandidate}
@@ -673,6 +712,7 @@ function GradeEditorModal({
                   focusRowKey={focusRowKey}
                   onDirty={onDirty}
                   onEditRow={onEditRow}
+                  onAddMissingGrade={onAddMissingGrade}
                   onCancelRow={onCancelRow}
                   onSaveRow={onSaveRow}
                   onRequestDelete={setDeleteCandidate}
@@ -1154,9 +1194,42 @@ export default function CourseGradeWorkspace({
     return key;
   };
 
+  const addMissingGradeRow = (row) => {
+    const key = rowEditorKey(row);
+    setRowSnapshots((current) => {
+      if (current.has(key)) return current;
+      const next = new Map(current);
+      next.set(key, { ...row });
+      return next;
+    });
+    setEditorRows((current) =>
+      current.map((item) =>
+        rowEditorKey(item) === key
+          ? {
+              ...item,
+              courseStudentId: 0,
+              academicYearBe: filters.academicYearBe || "",
+              semester: filters.semester || "",
+              grade: "",
+              gradeSource: "manual",
+              sourceReference: "",
+              isPlaceholder: false,
+              isNewRecord: true,
+              isHistoryRecord: false,
+              isPrimaryRecord: false,
+              hasSelectedGrade: false,
+              isMissingGradeDraft: true,
+            }
+          : item,
+      ),
+    );
+    setEditableRowKeys((current) => new Set(current).add(key));
+    setFocusRowKey(key);
+  };
+
   const cancelRow = (row) => {
     const key = rowEditorKey(row);
-    if (row.isNewRecord) {
+    if (row.isNewRecord && !row.isMissingGradeDraft) {
       setEditorRows((current) => current.filter((item) => rowEditorKey(item) !== key));
     } else {
       const snapshot = rowSnapshots.get(key);
@@ -1665,6 +1738,7 @@ export default function CourseGradeWorkspace({
         focusRowKey={focusRowKey}
         onDirty={markRowDirty}
         onEditRow={markRowEditable}
+        onAddMissingGrade={addMissingGradeRow}
         onCancelRow={cancelRow}
         onSaveRow={saveRow}
         onDeleteRow={deleteRow}
