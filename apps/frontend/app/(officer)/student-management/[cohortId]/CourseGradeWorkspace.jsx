@@ -130,6 +130,7 @@ function makePlaceholderRow(row) {
     isBestGrade: false,
     isPlaceholder: true,
     isNewRecord: false,
+    isMissingGradeDraft: false,
     isHistoryRecord: false,
     hasSelectedGrade: false,
     editorKey: `placeholder-${row.enrollmentId}-${row.courseId}`,
@@ -1112,6 +1113,7 @@ export default function CourseGradeWorkspace({
         editorKey: `course-${detail.course.courseId}-${student.enrollmentId}-${grade.courseStudentId}`,
         isPlaceholder: false,
         isNewRecord: false,
+        isMissingGradeDraft: false,
         isHistoryRecord: index > 0,
         isPrimaryRecord: index === 0,
         hasSelectedGrade: index === 0,
@@ -1126,6 +1128,7 @@ export default function CourseGradeWorkspace({
       studentNameTh: student.studentNameTh,
       isPlaceholder: !row.courseStudentId,
       isNewRecord: false,
+      isMissingGradeDraft: false,
       isHistoryRecord: Boolean(row.courseStudentId),
       isPrimaryRecord: false,
       hasSelectedGrade: Boolean(row.courseStudentId),
@@ -1196,6 +1199,7 @@ export default function CourseGradeWorkspace({
 
   const addMissingGradeRow = (row) => {
     const key = rowEditorKey(row);
+    if (editableRowKeys.size > 0 && !editableRowKeys.has(key)) return;
     setRowSnapshots((current) => {
       if (current.has(key)) return current;
       const next = new Map(current);
@@ -1227,20 +1231,16 @@ export default function CourseGradeWorkspace({
     setFocusRowKey(key);
   };
 
-  const cancelRow = (row) => {
-    const key = rowEditorKey(row);
-    if (row.isNewRecord && !row.isMissingGradeDraft) {
-      setEditorRows((current) => current.filter((item) => rowEditorKey(item) !== key));
-    } else {
-      const snapshot = rowSnapshots.get(key);
-      if (snapshot) {
-        setEditorRows((current) =>
-          current.map((item) =>
-            rowEditorKey(item) === key ? { ...snapshot } : item,
-          ),
-        );
-      }
-    }
+  const restoreRowSnapshot = (key, snapshot) => {
+    if (!snapshot) return;
+    setEditorRows((current) =>
+      current.map((item) =>
+        rowEditorKey(item) === key ? { ...snapshot } : item,
+      ),
+    );
+  };
+
+  const clearRowEditingState = (key) => {
     setEditableRowKeys((current) => {
       const next = new Set(current);
       next.delete(key);
@@ -1251,6 +1251,19 @@ export default function CourseGradeWorkspace({
       next.delete(key);
       return next;
     });
+    setFocusRowKey((current) => (current === key ? "" : current));
+  };
+
+  const cancelRow = (row) => {
+    const key = rowEditorKey(row);
+    if (row.isNewRecord && !row.isMissingGradeDraft) {
+      setEditorRows((current) =>
+        current.filter((item) => rowEditorKey(item) !== key),
+      );
+    } else {
+      restoreRowSnapshot(key, rowSnapshots.get(key));
+    }
+    clearRowEditingState(key);
   };
 
   const addRetakeRow = () => {
@@ -1274,6 +1287,7 @@ export default function CourseGradeWorkspace({
       isBestGrade: false,
       isPlaceholder: false,
       isNewRecord: true,
+      isMissingGradeDraft: false,
       isHistoryRecord: false,
       isPrimaryRecord: false,
       hasSelectedGrade: false,
@@ -1342,16 +1356,7 @@ export default function CourseGradeWorkspace({
       await saveCourseGrades(cohortId, [{ ...row, rowNumber: 0 }]);
       await loadOverview();
       await loadEditorData(editor, key);
-      setEditableRowKeys((current) => {
-        const next = new Set(current);
-        next.delete(key);
-        return next;
-      });
-      setRowSnapshots((current) => {
-        const next = new Map(current);
-        next.delete(key);
-        return next;
-      });
+      clearRowEditingState(key);
       notify(
         onFeedback,
         "success",
