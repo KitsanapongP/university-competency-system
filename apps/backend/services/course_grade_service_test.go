@@ -90,6 +90,27 @@ func TestNormalizeCourseGradeRowsAcceptsNewRecordBeforeIdentityResolution(t *tes
 	}
 }
 
+func TestNormalizeCourseGradeRowsAcceptsMissingGradePlaceholderPayload(t *testing.T) {
+	rows, err := normalizeCourseGradeRows([]models.UpsertCourseGradeRow{
+		{
+			CourseStudentID: 0,
+			EnrollmentID:    7,
+			StudentCode:     "S1",
+			CourseID:        101,
+			CourseCode:      "CP101",
+			AcademicYearBE:  2566,
+			Semester:        2,
+			Grade:           "B+",
+		},
+	}, false)
+	if err != nil {
+		t.Fatalf("normalizeCourseGradeRows() error = %v, want placeholder payload to be accepted", err)
+	}
+	if len(rows) != 1 || rows[0].CourseStudentID != 0 || rows[0].EnrollmentID != 7 {
+		t.Fatalf("normalized rows = %#v, want new record with roster identity", rows)
+	}
+}
+
 func TestEnsureUniqueGradeRowsAllowsRetakeInDifferentSemester(t *testing.T) {
 	rows := []models.UpsertCourseGradeRow{
 		{StudentCode: "S1", CourseCode: "CP101", AcademicYearBE: 2565, Semester: 1},
