@@ -76,16 +76,41 @@ func (c *ExecutiveAnalyticsController) Comparison(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	filters, ok := executiveFilters(w, r)
+	leftCohortID, rightCohortID, ok := executiveComparisonCohortIDs(w, r)
 	if !ok {
 		return
 	}
-	data, err := c.Service.Comparison(r.Context(), claims, filters)
+	data, err := c.Service.Comparison(r.Context(), claims, leftCohortID, rightCohortID)
 	if err != nil {
 		writeExecutiveError(w, err)
 		return
 	}
 	utils.OK(w, data)
+}
+
+func executiveComparisonCohortIDs(w http.ResponseWriter, r *http.Request) (uint64, uint64, bool) {
+	parse := func(name string) (uint64, bool) {
+		value := r.URL.Query().Get(name)
+		parsed, err := strconv.ParseUint(value, 10, 64)
+		if err != nil || parsed == 0 {
+			utils.Error(w, http.StatusBadRequest, "COMPARISON_COHORT_REQUIRED", "both comparison cohorts are required")
+			return 0, false
+		}
+		return parsed, true
+	}
+	left, ok := parse("left_cohort_id")
+	if !ok {
+		return 0, 0, false
+	}
+	right, ok := parse("right_cohort_id")
+	if !ok {
+		return 0, 0, false
+	}
+	if left == right {
+		utils.Error(w, http.StatusBadRequest, "COMPARISON_COHORTS_MUST_DIFFER", "comparison cohorts must be different")
+		return 0, 0, false
+	}
+	return left, right, true
 }
 
 func (c *ExecutiveAnalyticsController) Students(w http.ResponseWriter, r *http.Request) {
@@ -175,6 +200,14 @@ func executiveFilters(w http.ResponseWriter, r *http.Request) (models.ExecutiveA
 func writeExecutiveError(w http.ResponseWriter, err error) {
 	if errors.Is(err, services.ErrExecutiveForbidden) {
 		utils.Error(w, http.StatusForbidden, "FACULTY_SCOPE_FORBIDDEN", err.Error())
+		return
+	}
+	if errors.Is(err, services.ErrExecutiveComparisonCohortsMustDiffer) {
+		utils.Error(w, http.StatusBadRequest, "COMPARISON_COHORTS_MUST_DIFFER", err.Error())
+		return
+	}
+	if errors.Is(err, services.ErrExecutiveComparisonCohortNotFound) {
+		utils.Error(w, http.StatusNotFound, "COMPARISON_COHORT_NOT_FOUND", err.Error())
 		return
 	}
 	if err.Error() == "student not found in executive scope" {

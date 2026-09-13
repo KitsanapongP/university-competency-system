@@ -11,6 +11,8 @@ import (
 )
 
 var ErrExecutiveForbidden = errors.New("insufficient executive analytics scope")
+var ErrExecutiveComparisonCohortsMustDiffer = errors.New("comparison cohorts must be different")
+var ErrExecutiveComparisonCohortNotFound = errors.New("comparison cohort not found in executive scope")
 
 type ExecutiveAnalyticsService struct {
 	Repo *repositories.ExecutiveAnalyticsRepository
@@ -347,67 +349,61 @@ func (s *ExecutiveAnalyticsService) StudentDetail(ctx context.Context, claims *u
 	return &models.ExecutiveStudentDetail{Student: students[0], Competencies: competencies, Courses: courses}, nil
 }
 
-func (s *ExecutiveAnalyticsService) Comparison(ctx context.Context, claims *utils.Claims, f models.ExecutiveAnalyticsFilters) ([]models.ExecutiveComparisonRow, error) {
-	f, err := s.scopedFilters(claims, f)
+func (s *ExecutiveAnalyticsService) Comparison(ctx context.Context, claims *utils.Claims, leftCohortID, rightCohortID uint64) (*models.ExecutiveComparisonResponse, error) {
+	if leftCohortID == rightCohortID {
+		return nil, ErrExecutiveComparisonCohortsMustDiffer
+	}
+
+	left, err := s.comparisonCohort(ctx, claims, leftCohortID)
 	if err != nil {
 		return nil, err
 	}
-	cohorts, err := s.Repo.GetCohortSummaries(ctx, f)
+	right, err := s.comparisonCohort(ctx, claims, rightCohortID)
 	if err != nil {
 		return nil, err
 	}
-	ids := readyCohortIDs(cohorts)
-	aggregates, err := s.Repo.GetAggregates(ctx, ids)
+
+	response := &models.ExecutiveComparisonResponse{
+		Left: models.ExecutiveComparisonSide{
+			Cohort:       *left,
+			Competencies: []models.ExecutiveCompetencyAggregate{},
+		},
+		Right: models.ExecutiveComparisonSide{
+			Cohort:       *right,
+			Competencies: []models.ExecutiveCompetencyAggregate{},
+		},
+	}
+	if !left.Ready || !right.Ready {
+		return response, nil
+	}
+
+	aggregates, err := s.Repo.GetAggregates(ctx, []uint64{leftCohortID, rightCohortID})
 	if err != nil {
 		return nil, err
 	}
-	if len(ids) == 0 {
-		return []models.ExecutiveComparisonRow{}, nil
-	}
-	coverage := map[uint64]map[uint64]bool{}
 	for _, item := range aggregates {
-		if coverage[item.CompetencyID] == nil {
-			coverage[item.CompetencyID] = map[uint64]bool{}
-		}
-		coverage[item.CompetencyID][item.CohortID] = true
-	}
-	result := make([]models.ExecutiveComparisonRow, 0)
-	for _, item := range summarizeCompetencies(aggregates) {
-		if len(coverage[item.CompetencyID]) != len(ids) {
-			continue
-		}
-		years := map[uint64]bool{}
-		for _, cohort := range cohorts {
-			if cohort.Ready && coverage[item.CompetencyID][cohort.CohortID] {
-				years[cohort.EntryYearBE] = true
-			}
-		}
-		for year := range years {
-			var scoreSum float64
-			evaluated, passed, count := 0, 0, 0
-			for _, agg := range aggregates {
-				for _, cohort := range cohorts {
-					if cohort.Ready && cohort.EntryYearBE == year && agg.CohortID == cohort.CohortID && agg.CompetencyID == item.CompetencyID {
-						scoreSum += agg.AverageScore * float64(agg.EvaluatedCount)
-						evaluated += agg.EvaluatedCount
-						passed += agg.PassedCount
-						count++
-					}
-				}
-			}
-			row := models.ExecutiveComparisonRow{EntryYearBE: year, CohortCount: count, CompetencyID: item.CompetencyID, Code: item.Code, NameTH: item.NameTH, NameEN: item.NameEN, EvaluatedCount: evaluated}
-			if evaluated > 0 {
-				row.AverageScore = scoreSum / float64(evaluated)
-				row.PassRate = float64(passed) * 100 / float64(evaluated)
-			}
-			result = append(result, row)
+		switch item.CohortID {
+		case leftCohortID:
+			response.Left.Competencies = append(response.Left.Competencies, item)
+		case rightCohortID:
+			response.Right.Competencies = append(response.Right.Competencies, item)
 		}
 	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].EntryYearBE == result[j].EntryYearBE {
-			return result[i].NameTH < result[j].NameTH
-		}
-		return result[i].EntryYearBE < result[j].EntryYearBE
-	})
-	return result, nil
+	return response, nil
+}
+
+func (s *ExecutiveAnalyticsService) comparisonCohort(ctx context.Context, claims *utils.Claims, cohortID uint64) (*models.ExecutiveCohortSummary, error) {
+	filters := models.ExecutiveAnalyticsFilters{CohortID: &cohortID}
+	filters, err := s.scopedFilters(claims, filters)
+	if err != nil {
+		return nil, err
+	}
+	cohorts, err := s.Repo.GetCohortSummaries(ctx, filters)
+	if err != nil {
+		return nil, err
+	}
+	if len(cohorts) != 1 {
+		return nil, ErrExecutiveComparisonCohortNotFound
+	}
+	return &cohorts[0], nil
 }

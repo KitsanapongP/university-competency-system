@@ -195,6 +195,16 @@ type ExecutiveComparisonRow struct {
 	EvaluatedCount int     `json:"evaluated_count"`
 }
 
+type ExecutiveComparisonSide struct {
+	Cohort       ExecutiveCohortSummary         `json:"cohort"`
+	Competencies []ExecutiveCompetencyAggregate `json:"competencies"`
+}
+
+type ExecutiveComparisonResponse struct {
+	Left  ExecutiveComparisonSide `json:"left"`
+	Right ExecutiveComparisonSide `json:"right"`
+}
+
 type ExecutiveStudentFact struct {
 	EnrollmentID     uint64
 	StudentCode      string
