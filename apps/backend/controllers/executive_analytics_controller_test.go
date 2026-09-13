@@ -38,3 +38,48 @@ func TestExecutiveFiltersRejectInvalidScopeValue(t *testing.T) {
 		t.Fatalf("expected HTTP 400, got %d", recorder.Code)
 	}
 }
+
+func TestExecutiveComparisonCohortIDsParsePair(t *testing.T) {
+	request := httptest.NewRequest(
+		"GET",
+		"/api/v1/executive-analytics/comparison?left_cohort_id=11&right_cohort_id=12",
+		nil,
+	)
+	recorder := httptest.NewRecorder()
+	left, right, ok := executiveComparisonCohortIDs(recorder, request)
+	if !ok || left != 11 || right != 12 {
+		t.Fatalf("unexpected comparison cohorts: left=%d right=%d ok=%t", left, right, ok)
+	}
+}
+
+func TestExecutiveComparisonCohortIDsRejectMissingPair(t *testing.T) {
+	request := httptest.NewRequest(
+		"GET",
+		"/api/v1/executive-analytics/comparison?left_cohort_id=11",
+		nil,
+	)
+	recorder := httptest.NewRecorder()
+	_, _, ok := executiveComparisonCohortIDs(recorder, request)
+	if ok {
+		t.Fatal("expected missing right cohort to be rejected")
+	}
+	if recorder.Code != 400 {
+		t.Fatalf("expected HTTP 400, got %d", recorder.Code)
+	}
+}
+
+func TestExecutiveComparisonCohortIDsRejectSameCohort(t *testing.T) {
+	request := httptest.NewRequest(
+		"GET",
+		"/api/v1/executive-analytics/comparison?left_cohort_id=11&right_cohort_id=11",
+		nil,
+	)
+	recorder := httptest.NewRecorder()
+	_, _, ok := executiveComparisonCohortIDs(recorder, request)
+	if ok {
+		t.Fatal("expected the same cohort on both sides to be rejected")
+	}
+	if recorder.Code != 400 {
+		t.Fatalf("expected HTTP 400, got %d", recorder.Code)
+	}
+}

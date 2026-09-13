@@ -44,6 +44,53 @@ func TestExecutiveScopeAllowsAdminFacultySelection(t *testing.T) {
 	}
 }
 
+func TestExecutiveComparisonResponseKeepsReadinessAndSkipsUnavailableScores(t *testing.T) {
+	left := models.ExecutiveCohortSummary{CohortID: 11, Ready: true, EntryYearBE: 2565}
+	right := models.ExecutiveCohortSummary{
+		CohortID:           12,
+		Ready:              false,
+		ReadinessCode:      "RECALCULATION_REQUIRED",
+		ReadinessMessageTH: "มีการเปลี่ยนแปลงและยังไม่ได้คำนวณคะแนนใหม่",
+	}
+	aggregates := []models.ExecutiveCompetencyAggregate{
+		{CohortID: 11, CompetencyID: 1, AverageScore: 82, EvaluatedCount: 20},
+		{CohortID: 12, CompetencyID: 1, AverageScore: 91, EvaluatedCount: 20},
+	}
+
+	response := buildComparisonResponse(left, right, aggregates)
+	if response.Left.Cohort.CohortID != left.CohortID || response.Right.Cohort.ReadinessCode != right.ReadinessCode {
+		t.Fatalf("comparison response lost cohort readiness data: %#v", response)
+	}
+	if len(response.Left.Competencies) != 0 || len(response.Right.Competencies) != 0 {
+		t.Fatal("unavailable comparison must not expose score aggregates")
+	}
+}
+
+func TestExecutiveComparisonResponseSeparatesScoresByCohort(t *testing.T) {
+	left := models.ExecutiveCohortSummary{CohortID: 11, Ready: true}
+	right := models.ExecutiveCohortSummary{CohortID: 12, Ready: true}
+	aggregates := []models.ExecutiveCompetencyAggregate{
+		{CohortID: 12, CompetencyID: 2, NameTH: "การสื่อสาร"},
+		{CohortID: 11, CompetencyID: 1, NameTH: "การพัฒนาระบบ"},
+	}
+
+	response := buildComparisonResponse(left, right, aggregates)
+	if len(response.Left.Competencies) != 1 || response.Left.Competencies[0].CompetencyID != 1 {
+		t.Fatalf("left cohort scores were not separated: %#v", response.Left.Competencies)
+	}
+	if len(response.Right.Competencies) != 1 || response.Right.Competencies[0].CompetencyID != 2 {
+		t.Fatalf("right cohort scores were not separated: %#v", response.Right.Competencies)
+	}
+}
+
+func TestExecutiveComparisonRejectsSameCohort(t *testing.T) {
+	service := &ExecutiveAnalyticsService{}
+	_, err := service.Comparison(nil, &utils.Claims{Roles: []string{"admin"}}, 11, 11)
+	if !errors.Is(err, ErrExecutiveComparisonCohortsMustDiffer) {
+		t.Fatalf("expected same cohort comparison to be rejected, got %v", err)
+	}
+}
+
 func TestExecutiveScopeOptionFiltersKeepCohortChoicesVisible(t *testing.T) {
 	cohortID := uint64(12)
 	entryYear := uint64(2566)

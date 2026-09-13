@@ -363,16 +363,7 @@ func (s *ExecutiveAnalyticsService) Comparison(ctx context.Context, claims *util
 		return nil, err
 	}
 
-	response := &models.ExecutiveComparisonResponse{
-		Left: models.ExecutiveComparisonSide{
-			Cohort:       *left,
-			Competencies: []models.ExecutiveCompetencyAggregate{},
-		},
-		Right: models.ExecutiveComparisonSide{
-			Cohort:       *right,
-			Competencies: []models.ExecutiveCompetencyAggregate{},
-		},
-	}
+	response := buildComparisonResponse(*left, *right, nil)
 	if !left.Ready || !right.Ready {
 		return response, nil
 	}
@@ -381,15 +372,32 @@ func (s *ExecutiveAnalyticsService) Comparison(ctx context.Context, claims *util
 	if err != nil {
 		return nil, err
 	}
+	return buildComparisonResponse(*left, *right, aggregates), nil
+}
+
+func buildComparisonResponse(left, right models.ExecutiveCohortSummary, aggregates []models.ExecutiveCompetencyAggregate) *models.ExecutiveComparisonResponse {
+	response := &models.ExecutiveComparisonResponse{
+		Left: models.ExecutiveComparisonSide{
+			Cohort:       left,
+			Competencies: []models.ExecutiveCompetencyAggregate{},
+		},
+		Right: models.ExecutiveComparisonSide{
+			Cohort:       right,
+			Competencies: []models.ExecutiveCompetencyAggregate{},
+		},
+	}
+	if !left.Ready || !right.Ready {
+		return response
+	}
 	for _, item := range aggregates {
 		switch item.CohortID {
-		case leftCohortID:
+		case left.CohortID:
 			response.Left.Competencies = append(response.Left.Competencies, item)
-		case rightCohortID:
+		case right.CohortID:
 			response.Right.Competencies = append(response.Right.Competencies, item)
 		}
 	}
-	return response, nil
+	return response
 }
 
 func (s *ExecutiveAnalyticsService) comparisonCohort(ctx context.Context, claims *utils.Claims, cohortID uint64) (*models.ExecutiveCohortSummary, error) {
