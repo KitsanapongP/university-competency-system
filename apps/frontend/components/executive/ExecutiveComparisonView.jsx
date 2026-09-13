@@ -7,7 +7,6 @@ import {
   Check,
   Info,
   Loader2,
-  RefreshCw,
 } from "lucide-react";
 import {
   Chart as ChartJS,
@@ -751,10 +750,6 @@ export default function ExecutiveComparisonView({
           {isEnglish ? "Choose one cohort on each side to start comparing." : "เลือก Cohort ให้ครบทั้งสองฝั่งเพื่อเริ่มเปรียบเทียบ"}
         </div>
       )}
-      <button type="button" className="executive-paired-refresh" onClick={() => window.location.reload()}>
-        <RefreshCw size={14} />
-        {isEnglish ? "Refresh preview" : "โหลดข้อมูลใหม่"}
-      </button>
     </div>
   );
 }

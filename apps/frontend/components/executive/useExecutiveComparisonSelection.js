@@ -204,9 +204,11 @@ export function useExecutiveComparisonSelection({ scope, scopeLoading, user }) {
   const selection = useMemo(() => {
     const requested = normalizeComparisonSelection(urlSelection, scope, isDean);
     const defaults = selectionFromCohorts(chooseDefaultCohorts(scope, user));
+    const hasSelection = (side) =>
+      Object.values(side || {}).some((value) => Boolean(value));
     return {
-      left: requested.left.cohort_id ? requested.left : defaults.left,
-      right: requested.right.cohort_id ? requested.right : defaults.right,
+      left: hasSelection(requested.left) ? requested.left : defaults.left,
+      right: hasSelection(requested.right) ? requested.right : defaults.right,
     };
   }, [isDean, scope, urlSelection, user]);
 

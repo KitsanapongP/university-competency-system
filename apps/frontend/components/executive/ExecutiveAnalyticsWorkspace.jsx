@@ -101,10 +101,6 @@ function studentCompetencyOutcome(item, isEnglish) {
       };
 }
 
-function dateLabel(value) {
-  return value || "-";
-}
-
 function metricValue(metrics, key) {
   return Number(metrics?.[key] || 0).toLocaleString();
 }
@@ -583,7 +579,6 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
           ) : competencyDetail ? (
             <CompetencyDrawer
               detail={competencyDetail}
-              language={language}
               t={t}
               isEnglish={isEnglish}
             />
@@ -605,7 +600,6 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
             <StudentDrawer
               detail={studentDetail}
               language={language}
-              t={t}
               isEnglish={isEnglish}
             />
           )}
@@ -953,7 +947,7 @@ function StudentsView({
   );
 }
 
-function CompetencyDrawer({ detail, language, t, isEnglish }) {
+function CompetencyDrawer({ detail, t, isEnglish }) {
   return (
     <>
       <div className="executive-detail-summary">
@@ -1060,7 +1054,7 @@ function CompetencyDrawer({ detail, language, t, isEnglish }) {
   );
 }
 
-function StudentDrawer({ detail, language, t, isEnglish }) {
+function StudentDrawer({ detail, language, isEnglish }) {
   const student = detail.student || {};
   const curriculumName =
     language === "en"
