@@ -83,6 +83,41 @@ func TestExecutiveComparisonResponseSeparatesScoresByCohort(t *testing.T) {
 	}
 }
 
+func TestExecutiveComparisonResponseKeepsCompetencyIdentityPerSide(t *testing.T) {
+	left := models.ExecutiveCohortSummary{CohortID: 11, Ready: true}
+	right := models.ExecutiveCohortSummary{CohortID: 12, Ready: true}
+	aggregates := []models.ExecutiveCompetencyAggregate{
+		{
+			CohortID:     11,
+			CompetencyID: 5,
+			NameTH:       "ชื่อเดิม",
+			TargetScore:  80,
+			AverageScore: 72,
+		},
+		{
+			CohortID:     12,
+			CompetencyID: 5,
+			NameTH:       "ชื่อที่แก้ไขแล้ว",
+			TargetScore:  75,
+			AverageScore: 84,
+		},
+	}
+
+	response := buildComparisonResponse(left, right, aggregates)
+	if len(response.Left.Competencies) != 1 || len(response.Right.Competencies) != 1 {
+		t.Fatalf("expected one competency on each side: %#v", response)
+	}
+	if response.Left.Competencies[0].CompetencyID != response.Right.Competencies[0].CompetencyID {
+		t.Fatal("the same competency master should be present on both sides")
+	}
+	if response.Left.Competencies[0].NameTH == response.Right.Competencies[0].NameTH {
+		t.Fatal("the response must preserve each side's competency metadata")
+	}
+	if response.Left.Competencies[0].TargetScore != 80 || response.Right.Competencies[0].TargetScore != 75 {
+		t.Fatal("each cohort must keep its own competency target")
+	}
+}
+
 func TestExecutiveComparisonRejectsSameCohort(t *testing.T) {
 	service := &ExecutiveAnalyticsService{}
 	_, err := service.Comparison(nil, &utils.Claims{Roles: []string{"admin"}}, 11, 11)

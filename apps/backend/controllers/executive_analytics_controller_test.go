@@ -68,6 +68,22 @@ func TestExecutiveComparisonCohortIDsRejectMissingPair(t *testing.T) {
 	}
 }
 
+func TestExecutiveComparisonCohortIDsRejectInvalidPair(t *testing.T) {
+	request := httptest.NewRequest(
+		"GET",
+		"/api/v1/executive-analytics/comparison?left_cohort_id=not-a-number&right_cohort_id=12",
+		nil,
+	)
+	recorder := httptest.NewRecorder()
+	_, _, ok := executiveComparisonCohortIDs(recorder, request)
+	if ok {
+		t.Fatal("expected an invalid cohort id to be rejected")
+	}
+	if recorder.Code != 400 {
+		t.Fatalf("expected HTTP 400, got %d", recorder.Code)
+	}
+}
+
 func TestExecutiveComparisonCohortIDsRejectSameCohort(t *testing.T) {
 	request := httptest.NewRequest(
 		"GET",
