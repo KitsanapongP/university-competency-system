@@ -949,6 +949,71 @@
     text-align: right;
 }
 
+.executive-detail-source-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 1.45fr);
+    gap: 16px;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.executive-detail-source-course {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+}
+
+.executive-detail-source-course strong,
+.executive-detail-source-course span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.executive-detail-source-course strong {
+    color: var(--text);
+    font-size: 0.8rem;
+}
+
+.executive-detail-source-course span {
+    color: var(--text-muted);
+    font-size: 0.74rem;
+    line-height: 1.45;
+}
+
+.executive-detail-source-course small {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.executive-detail-source-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    min-width: 0;
+}
+
+.executive-detail-source-metric {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+}
+
+.executive-detail-source-metric small {
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    line-height: 1.35;
+}
+
+.executive-detail-source-metric b {
+    color: var(--primary);
+    font-size: 0.82rem;
+}
+
 .executive-student-outcome.passed {
     color: var(--accent-green);
 }
@@ -1622,6 +1687,15 @@
 
     .executive-comparison-choice--competencies {
         grid-column: auto;
+    }
+
+    .executive-detail-source-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .executive-detail-source-metrics {
+        grid-template-columns: 1fr;
     }
 
     .executive-course-competencies {

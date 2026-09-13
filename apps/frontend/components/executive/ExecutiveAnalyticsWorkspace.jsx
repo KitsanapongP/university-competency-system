@@ -1304,19 +1304,73 @@ function CompetencyDrawer({ detail, language, t, isEnglish }) {
           </div>
         ))}
       </div>
-      <h3>{isEnglish ? "Course sources" : "วิชาที่สร้างคะแนน"}</h3>
+      <h3>
+        {isEnglish
+          ? "Courses contributing to this competency"
+          : "รายวิชาที่มีส่วนต่อสมรรถนะ"}
+      </h3>
       <div className="executive-detail-list">
         {(detail.sources || []).map((item, index) => (
           <div
-            className="executive-detail-row"
-            key={item.course_id + "-" + index}
+            className="executive-detail-source-row"
+            key={
+              item.cohort_id +
+              "-" +
+              item.course_id +
+              "-" +
+              item.template_id +
+              "-" +
+              item.weight +
+              "-" +
+              index
+            }
           >
-            <span>{item.course_code}</span>
-            <strong>{item.course_name_th}</strong>
-            <small>
-              {score(item.contribution)} · {item.student_count}{" "}
-              {isEnglish ? "students" : "คน"}
-            </small>
+            <span className="executive-detail-source-course">
+              <strong>{item.course_code}</strong>
+              <span>
+                {isEnglish
+                  ? item.course_name_en || item.course_name_th
+                  : item.course_name_th || item.course_name_en}
+              </span>
+              <small>
+                {isEnglish ? "Cohort " : "รุ่น "}
+                {item.entry_year_be || "-"}
+                {item.template_name
+                  ? " · " +
+                    " " +
+                    item.template_name
+                  : ""}
+              </small>
+            </span>
+            <span className="executive-detail-source-metrics">
+              <span className="executive-detail-source-metric">
+                <small>
+                  {isEnglish
+                    ? "Weight used for this competency"
+                    : "น้ำหนักที่ใช้คำนวณสมรรถนะ"}
+                </small>
+                <b>{score(item.weight)}%</b>
+              </span>
+              <span className="executive-detail-source-metric">
+                <small>
+                  {isEnglish
+                    ? "Average contribution"
+                    : "คะแนนเฉลี่ยที่มีส่วนช่วย"}
+                </small>
+                <b>
+                  {score(item.average_contribution)}{" "}
+                  {isEnglish ? "points" : "คะแนน"}
+                </b>
+              </span>
+              <span className="executive-detail-source-metric">
+                <small>
+                  {isEnglish ? "Learners with scores" : "นักศึกษาที่มีคะแนน"}
+                </small>
+                <b>
+                  {item.student_count} {isEnglish ? "learners" : "คน"}
+                </b>
+              </span>
+            </span>
           </div>
         ))}
         {!detail.sources?.length && (

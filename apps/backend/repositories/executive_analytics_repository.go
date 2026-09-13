@@ -462,19 +462,27 @@ func (r *ExecutiveAnalyticsRepository) GetCourseSources(ctx context.Context, coh
 		studentFilter = " AND roster.enrollment_id = ?"
 		args = append(args, *enrollmentID)
 	}
-	query := `SELECT roster.cohort_id, cce.course_id, course.code, course.name_th, COALESCE(course.name_en, ''),
-			COALESCE(score.template_id, 0), COALESCE(tpl.name, ''), COALESCE(SUM(score.weighted_score), 0),
+	query := `SELECT roster.cohort_id, cohort.entry_year_be, cce.course_id, course.code, course.name_th, COALESCE(course.name_en, ''),
+			COALESCE(score.template_id, 0), COALESCE(tpl.name, ''),
+			COALESCE(score.weight_snapshot, mapping.weight, 0),
+			COALESCE(SUM(score.weighted_score), 0), COALESCE(AVG(score.weighted_score), 0),
 			COUNT(DISTINCT roster.enrollment_id)
 		FROM score_course_competency_scores score
 		JOIN crs_course_enrollment cce ON cce.course_student_id = score.course_student_id AND cce.deleted_at IS NULL
 		JOIN kku_enrollment_curricula roster ON roster.enrollment_curriculum_id = cce.student_curricula_id AND roster.deleted_at IS NULL
+		JOIN edu_student_cohorts cohort ON cohort.cohort_id = roster.cohort_id AND cohort.deleted_at IS NULL
 		JOIN kku_enrollments student ON student.enrollment_id = roster.enrollment_id
 			AND student.enrollment_status = 'student' AND student.deleted_at IS NULL
 		JOIN crs_courses course ON course.course_id = cce.course_id AND course.deleted_at IS NULL
 		LEFT JOIN comp_templates tpl ON tpl.template_id = score.template_id AND tpl.deleted_at IS NULL
+		LEFT JOIN comp_template_items mapping ON mapping.template_id = score.template_id
+			AND mapping.competency_id = score.competency_id AND mapping.course_id = cce.course_id
+			AND mapping.deleted_at IS NULL
+			AND (score.template_item_id IS NULL OR mapping.template_item_id = score.template_item_id)
 		WHERE roster.cohort_id IN (` + executivePlaceholders(len(cohortIDs)) + `)
 			AND score.competency_id = ? AND score.deleted_at IS NULL` + studentFilter + `
-		GROUP BY roster.cohort_id, cce.course_id, course.code, course.name_th, course.name_en, score.template_id, tpl.name
+		GROUP BY roster.cohort_id, cohort.entry_year_be, cce.course_id, course.code, course.name_th, course.name_en,
+			score.template_id, tpl.name, COALESCE(score.weight_snapshot, mapping.weight, 0)
 		ORDER BY roster.cohort_id, course.code`
 	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -484,8 +492,9 @@ func (r *ExecutiveAnalyticsRepository) GetCourseSources(ctx context.Context, coh
 	items := make([]models.ExecutiveCourseSource, 0)
 	for rows.Next() {
 		var item models.ExecutiveCourseSource
-		if err := rows.Scan(&item.CohortID, &item.CourseID, &item.CourseCode, &item.CourseNameTH, &item.CourseNameEN,
-			&item.TemplateID, &item.TemplateName, &item.Contribution, &item.StudentCount); err != nil {
+		if err := rows.Scan(&item.CohortID, &item.EntryYearBE, &item.CourseID, &item.CourseCode, &item.CourseNameTH, &item.CourseNameEN,
+			&item.TemplateID, &item.TemplateName, &item.Weight, &item.Contribution,
+			&item.AverageContribution, &item.StudentCount); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

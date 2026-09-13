@@ -101,15 +101,18 @@ type ExecutiveCompetencySummary struct {
 }
 
 type ExecutiveCourseSource struct {
-	CohortID     uint64  `json:"cohort_id"`
-	CourseID     uint64  `json:"course_id"`
-	CourseCode   string  `json:"course_code"`
-	CourseNameTH string  `json:"course_name_th"`
-	CourseNameEN string  `json:"course_name_en,omitempty"`
-	TemplateID   uint64  `json:"template_id"`
-	TemplateName string  `json:"template_name"`
-	Contribution float64 `json:"contribution"`
-	StudentCount int     `json:"student_count"`
+	CohortID            uint64  `json:"cohort_id"`
+	EntryYearBE         uint64  `json:"entry_year_be"`
+	CourseID            uint64  `json:"course_id"`
+	CourseCode          string  `json:"course_code"`
+	CourseNameTH        string  `json:"course_name_th"`
+	CourseNameEN        string  `json:"course_name_en,omitempty"`
+	TemplateID          uint64  `json:"template_id"`
+	TemplateName        string  `json:"template_name"`
+	Weight              float64 `json:"weight"`
+	Contribution        float64 `json:"contribution"`
+	AverageContribution float64 `json:"average_contribution"`
+	StudentCount        int     `json:"student_count"`
 }
 
 type ExecutiveStudentSummary struct {
