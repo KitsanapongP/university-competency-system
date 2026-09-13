@@ -299,6 +299,13 @@
     z-index: 2;
 }
 
+.app-sidebar__quick-controls .lang-switcher-wrapper .lang-dropdown {
+    top: auto;
+    right: auto;
+    bottom: 0;
+    left: calc(100% + 8px);
+}
+
 .app-sidebar__user {
     display: grid;
     grid-template-columns: 40px minmax(0, 1fr) auto;
