@@ -54,7 +54,9 @@ function idOf(value) {
 }
 
 function readinessMessage(cohort, language) {
-  if (!cohort) return language === "en" ? "Choose a cohort" : "กรุณาเลือกรุ่นนักศึกษา";
+  if (!cohort) {
+    return language === "en" ? "Choose a cohort" : "กรุณาเลือกรุ่นนักศึกษา";
+  }
   return language === "en"
     ? cohort.readiness_message_en || "This cohort is not ready for comparison"
     : cohort.readiness_message_th || "รุ่นนี้ยังไม่พร้อมสำหรับการเปรียบเทียบ";
@@ -66,7 +68,11 @@ function readinessLabel(cohort, language) {
 }
 
 function sideTitle(cohort, language) {
-  if (!cohort) return language === "en" ? "No cohort selected" : "ยังไม่ได้เลือกรุ่นนักศึกษา";
+  if (!cohort) {
+    return language === "en"
+      ? "No cohort selected"
+      : "ยังไม่ได้เลือกรุ่นนักศึกษา";
+  }
   return `${displayName(cohort, language)} ${
     language === "en" ? "cohort" : "รุ่น"
   } ${cohort.entry_year_be}`;
@@ -96,7 +102,7 @@ function ComparisonRadarChart({ competencies, left, right, language }) {
     labels,
     datasets: [
       {
-        label: "ชุดข้อมูลที่ 1",
+        label: language === "en" ? "Comparison set 1" : "ชุดข้อมูลที่ 1",
         data: leftValues,
         borderColor: "#5b9dff",
         backgroundColor: "rgba(91, 157, 255, 0.2)",
@@ -106,7 +112,7 @@ function ComparisonRadarChart({ competencies, left, right, language }) {
         borderWidth: 2,
       },
       {
-        label: "ชุดข้อมูลที่ 2",
+        label: language === "en" ? "Comparison set 2" : "ชุดข้อมูลที่ 2",
         data: rightValues,
         borderColor: "#28c5d7",
         backgroundColor: "rgba(40, 197, 215, 0.15)",
@@ -135,10 +141,14 @@ function ComparisonRadarChart({ competencies, left, right, language }) {
           font: { size: 10 },
         },
         grid: {
-          color: dark ? "rgba(158, 176, 205, .23)" : "rgba(102, 119, 149, .2)",
+          color: dark
+            ? "rgba(158, 176, 205, .23)"
+            : "rgba(102, 119, 149, .2)",
         },
         angleLines: {
-          color: dark ? "rgba(158, 176, 205, .23)" : "rgba(102, 119, 149, .2)",
+          color: dark
+            ? "rgba(158, 176, 205, .23)"
+            : "rgba(102, 119, 149, .2)",
         },
         pointLabels: {
           color: dark ? "#edf4ff" : "#14213a",
@@ -156,7 +166,9 @@ function ComparisonRadarChart({ competencies, left, right, language }) {
       tooltip: {
         callbacks: {
           label: (context) =>
-            `${context.dataset.label}: ${score(context.raw)} คะแนน`,
+            language === "en"
+              ? `${context.dataset.label}: ${score(context.raw)} points`
+              : `${context.dataset.label}: ${score(context.raw)} คะแนน`,
         },
       },
     },
@@ -165,7 +177,14 @@ function ComparisonRadarChart({ competencies, left, right, language }) {
   return <Radar data={data} options={options} />;
 }
 
-function FilterSelect({ label, value, options, placeholder, onChange, disabled }) {
+function FilterSelect({
+  label,
+  value,
+  options,
+  placeholder,
+  onChange,
+  disabled,
+}) {
   return (
     <label className="executive-paired-filter">
       <span>{label}</span>
@@ -278,7 +297,15 @@ function ScopeSelector({
   );
 }
 
-function CompetencyPicker({ competencies, selected, onToggle, language, isEnglish, onSelectAll, onClear }) {
+function CompetencyPicker({
+  competencies,
+  selected,
+  onToggle,
+  language,
+  isEnglish,
+  onSelectAll,
+  onClear,
+}) {
   return (
     <section className="executive-paired-picker">
       <div className="executive-paired-picker__top">
@@ -321,6 +348,20 @@ function CompetencyPicker({ competencies, selected, onToggle, language, isEnglis
                 className={active ? "active" : ""}
                 aria-pressed={active}
                 onClick={() => onToggle(id)}
+                disabled={!active && selected.length >= MAX_SELECTED_COMPETENCIES}
+                title={
+                  active
+                    ? isEnglish
+                      ? "Remove this competency"
+                      : "เอาสมรรถนะนี้ออก"
+                    : selected.length >= MAX_SELECTED_COMPETENCIES
+                      ? isEnglish
+                        ? "You can select up to 8 competencies"
+                        : "เลือกได้ไม่เกิน 8 สมรรถนะ"
+                      : isEnglish
+                        ? "Add this competency"
+                        : "เพิ่มสมรรถนะนี้"
+                }
               >
                 {active && <Check size={13} />}
                 {displayName(item, language)}
@@ -340,20 +381,40 @@ function CompetencyPicker({ competencies, selected, onToggle, language, isEnglis
 
 function ScoreCell({ item, language }) {
   if (!item) {
-    return <span className="executive-paired-no-score">{language === "en" ? "Not in this curriculum" : "ไม่มีในหลักสูตรนี้"}</span>;
+    return (
+      <span className="executive-paired-no-score">
+        {language === "en" ? "Not in this curriculum" : "ไม่มีในหลักสูตรนี้"}
+      </span>
+    );
   }
   const hasScore = Number(item.evaluated_count || 0) > 0;
   return (
     <div className="executive-paired-score-cell">
       <strong>{hasScore ? score(item.average_score) : "-"}</strong>
-      {hasScore ? (
+      {item.is_required ? (
         <small>
           {language === "en" ? "Target " : "เป้าหมาย "}
           {score(item.target_score)}
-          {language === "en" ? ` · ${formatPercent(item.pass_rate)} reached` : ` · ถึงเป้าหมาย ${formatPercent(item.pass_rate)}`}
+          {hasScore
+            ? language === "en"
+              ? ` · ${formatPercent(item.pass_rate)} reached`
+              : ` · ถึงเป้าหมาย ${formatPercent(item.pass_rate)}`
+            : language === "en"
+              ? " · No calculated learners"
+              : " · ยังไม่มีนักศึกษาที่มีผลคำนวณ"}
+        </small>
+      ) : hasScore ? (
+        <small>
+          {language === "en"
+            ? `${item.evaluated_count} learners with a score`
+            : `มีคะแนนจากนักศึกษา ${item.evaluated_count} คน`}
         </small>
       ) : (
-        <small>{language === "en" ? "No calculated score" : "ยังไม่มีผลคะแนนที่คำนวณแล้ว"}</small>
+        <small>
+          {language === "en"
+            ? "No calculated score"
+            : "ยังไม่มีผลคะแนนที่คำนวณแล้ว"}
+        </small>
       )}
       <span className={!item.is_required ? "tracking" : "required"}>
         {!item.is_required
@@ -381,9 +442,11 @@ function ComparisonTable({ left, right, language, isEnglish }) {
     const leftItem = leftMap.get(id);
     const rightItem = rightMap.get(id);
     const item = leftItem || rightItem;
-    const delta = leftItem && rightItem
-      ? Number(rightItem.average_score || 0) - Number(leftItem.average_score || 0)
-      : null;
+    const delta =
+      leftItem && rightItem
+        ? Number(rightItem.average_score || 0) -
+          Number(leftItem.average_score || 0)
+        : null;
     return { id, item, leftItem, rightItem, delta };
   });
 
@@ -411,12 +474,35 @@ function ComparisonTable({ left, right, language, isEnglish }) {
             </tr>
           </thead>
           <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan="5" className="executive-paired-table__empty">
+                  {isEnglish
+                    ? "No competency results are available for these cohorts."
+                    : "ยังไม่มีผลสมรรถนะสำหรับสองรุ่นนี้"}
+                </td>
+              </tr>
+            )}
             {rows.map(({ id, item, leftItem, rightItem, delta }) => (
               <tr key={id}>
-                <td className="executive-paired-table__name">{displayName(item, language)}</td>
-                <td><ScoreCell item={leftItem} language={language} /></td>
-                <td><ScoreCell item={rightItem} language={language} /></td>
-                <td className={delta > 0 ? "positive" : delta < 0 ? "negative" : "neutral"}>
+                <td className="executive-paired-table__name">
+                  {displayName(item, language)}
+                </td>
+                <td>
+                  <ScoreCell item={leftItem} language={language} />
+                </td>
+                <td>
+                  <ScoreCell item={rightItem} language={language} />
+                </td>
+                <td
+                  className={
+                    delta > 0
+                      ? "positive"
+                      : delta < 0
+                        ? "negative"
+                        : "neutral"
+                  }
+                >
                   {delta === null ? "-" : `${delta > 0 ? "+" : ""}${score(delta)}`}
                 </td>
                 <td>
@@ -468,10 +554,22 @@ function ComparisonSummary({ selectedCompetencies, left, right, language, isEngl
         <strong>{title}</strong>
         {item ? (
           <small>
-            {displayName(item.item, language)} · {isEnglish ? "set 1" : "ชุดข้อมูลที่ 1"} {score(leftMap.get(idOf(item.item.competency_id))?.average_score)} · {isEnglish ? "set 2" : "ชุดข้อมูลที่ 2"} {score(rightMap.get(idOf(item.item.competency_id))?.average_score)}
+            {displayName(item.item, language)} ·{" "}
+            {isEnglish ? "set 1" : "ชุดข้อมูลที่ 1"}{" "}
+            {score(
+              leftMap.get(idOf(item.item.competency_id))?.average_score,
+            )}{" "}
+            · {isEnglish ? "set 2" : "ชุดข้อมูลที่ 2"}{" "}
+            {score(
+              rightMap.get(idOf(item.item.competency_id))?.average_score,
+            )}
           </small>
         ) : (
-          <small>{isEnglish ? "No selected competency to compare" : "ยังไม่มีสมรรถนะที่เลือกเพื่อเปรียบเทียบ"}</small>
+          <small>
+            {isEnglish
+              ? "No selected competency to compare"
+              : "ยังไม่มีสมรรถนะที่เลือกเพื่อเปรียบเทียบ"}
+          </small>
         )}
       </div>
       <b className={item?.delta > 0 ? "positive" : item?.delta < 0 ? "negative" : "neutral"}>
@@ -485,12 +583,24 @@ function ComparisonSummary({ selectedCompetencies, left, right, language, isEngl
       <header className="executive-paired-card-heading">
         <div>
           <h2>{isEnglish ? "What the comparison shows" : "สรุปสิ่งที่เห็นจากข้อมูล"}</h2>
-          <p>{isEnglish ? "Use these differences as a starting point for review." : "ใช้ส่วนต่างนี้เป็นจุดเริ่มต้นในการตรวจสอบข้อมูลต่อ"}</p>
+          <p>
+            {isEnglish
+              ? "Use these differences as a starting point for review."
+              : "ใช้ส่วนต่างนี้เป็นจุดเริ่มต้นในการตรวจสอบข้อมูลต่อ"}
+          </p>
         </div>
       </header>
       <div className="executive-paired-summary-list">
-        {summary(increase, isEnglish ? "Largest increase in set 2" : "ด้านที่ชุดข้อมูลที่ 2 มีคะแนนสูงขึ้นมากที่สุด")}
-        {summary(review, isEnglish ? "Largest decrease in set 2" : "ด้านที่ควรตรวจสอบเพิ่มเติม")}
+        {summary(
+          increase,
+          isEnglish
+            ? "Largest increase in set 2"
+            : "ด้านที่ชุดข้อมูลที่ 2 มีคะแนนสูงขึ้นมากที่สุด",
+        )}
+        {summary(
+          review,
+          isEnglish ? "Largest decrease in set 2" : "ด้านที่ควรตรวจสอบเพิ่มเติม",
+        )}
         <div className="executive-paired-summary-row">
           <div>
             <strong>{isEnglish ? "Shared competencies" : "สมรรถนะที่มีร่วมกัน"}</strong>
@@ -501,7 +611,11 @@ function ComparisonSummary({ selectedCompetencies, left, right, language, isEngl
         <div className="executive-paired-summary-row">
           <div>
             <strong>{isEnglish ? "Read separately" : "สมรรถนะที่ต้องอ่านแยก"}</strong>
-            <small>{isEnglish ? `${leftOnly + rightOnly} competencies exist in one curriculum only` : `มี ${leftOnly + rightOnly} ด้านที่อยู่ในหลักสูตรเพียงฝั่งเดียว`}</small>
+            <small>
+              {isEnglish
+                ? `${leftOnly + rightOnly} competencies exist in one curriculum only`
+                : `มี ${leftOnly + rightOnly} ด้านที่อยู่ในหลักสูตรเพียงฝั่งเดียว`}
+            </small>
           </div>
           <b className="neutral">{leftOnly + rightOnly}</b>
         </div>
@@ -513,7 +627,11 @@ function ComparisonSummary({ selectedCompetencies, left, right, language, isEngl
 function ReadinessCard({ side, language }) {
   const cohort = side?.cohort;
   return (
-    <div className={`executive-paired-readiness ${cohort?.ready ? "ready" : "not-ready"}`}>
+    <div
+      className={`executive-paired-readiness ${
+        cohort?.ready ? "ready" : "not-ready"
+      }`}
+    >
       <div>
         <strong>{sideTitle(cohort, language)}</strong>
         <small>{readinessMessage(cohort, language)}</small>
@@ -558,14 +676,24 @@ export default function ExecutiveComparisonView({
       right_cohort_id: rightCohortID,
     })
       .then((data) => {
-        if (alive) setRequestState({ key: requestKey, data: data || null, error: "" });
+        if (alive) {
+          setRequestState({
+            key: requestKey,
+            data: data || null,
+            error: "",
+          });
+        }
       })
       .catch((requestError) => {
         if (!alive) return;
         setRequestState({
           key: requestKey,
           data: null,
-          error: requestError?.message || (isEnglish ? "Unable to load comparison data" : "ไม่สามารถโหลดข้อมูลเปรียบเทียบได้"),
+          error:
+            requestError?.message ||
+            (isEnglish
+              ? "Unable to load comparison data"
+              : "ไม่สามารถโหลดข้อมูลเปรียบเทียบได้"),
         });
       });
     return () => {
@@ -628,8 +756,11 @@ export default function ExecutiveComparisonView({
         <Info size={16} />
         <span>
           {isEnglish
-            ? "The radar chart compares only shared competencies. A competency that exists in one curriculum only is shown separately and is never treated as zero."
-            : "กราฟเรดาร์จะแสดงเฉพาะสมรรถนะที่ทั้งสองรุ่นมีร่วมกัน ส่วนสมรรถนะที่มีเพียงหลักสูตรเดียวจะแสดงแยก และไม่ถือเป็นคะแนนศูนย์"}
+            ? "The radar chart compares only shared competencies. " +
+              "A competency that exists in one curriculum only is shown separately " +
+              "and is never treated as zero."
+            : "กราฟเรดาร์จะแสดงเฉพาะสมรรถนะที่ทั้งสองรุ่นมีร่วมกัน " +
+              "ส่วนสมรรถนะที่มีเพียงหลักสูตรเดียวจะแสดงแยก และไม่ถือเป็นคะแนนศูนย์"}
         </span>
       </div>
 
@@ -637,7 +768,11 @@ export default function ExecutiveComparisonView({
         <header className="executive-paired-card-heading executive-paired-selection__heading">
           <div>
             <h2>{isEnglish ? "Choose two comparison sets" : "เลือกชุดข้อมูลที่ต้องการเปรียบเทียบ"}</h2>
-            <p>{isEnglish ? "Each side can use a different faculty, major, curriculum, and student cohort." : "แต่ละฝั่งเลือกคณะ สาขา หลักสูตร และรุ่นนักศึกษาได้อย่างอิสระ"}</p>
+            <p>
+              {isEnglish
+                ? "Each side can use a different faculty, major, curriculum, and student cohort."
+                : "แต่ละฝั่งเลือกคณะ สาขา หลักสูตร และรุ่นนักศึกษาได้อย่างอิสระ"}
+            </p>
           </div>
           <button type="button" className="executive-paired-swap" onClick={swap}>
             <ArrowLeftRight size={16} />
@@ -655,7 +790,9 @@ export default function ExecutiveComparisonView({
             isEnglish={isEnglish}
             onChange={updateSide}
           />
-          <div className="executive-paired-versus">เทียบ</div>
+          <div className="executive-paired-versus">
+            {isEnglish ? "vs." : "เทียบ"}
+          </div>
           <ScopeSelector
             side="right"
             selection={selection}
@@ -690,7 +827,11 @@ export default function ExecutiveComparisonView({
       {isLoading && (
         <div className="executive-paired-loading" role="status">
           <Loader2 size={20} className="executive-spin" />
-          <span>{isEnglish ? "Loading comparison data..." : "กำลังโหลดข้อมูลเปรียบเทียบ..."}</span>
+          <span>
+            {isEnglish
+              ? "Loading comparison data..."
+              : "กำลังโหลดข้อมูลเปรียบเทียบ..."}
+          </span>
         </div>
       )}
       {error && <div className="executive-paired-error">{error}</div>}
@@ -702,7 +843,11 @@ export default function ExecutiveComparisonView({
               <header className="executive-paired-card-heading">
                 <div>
                   <h2>{isEnglish ? "Comparison is not ready" : "ยังเปรียบเทียบข้อมูลไม่ได้"}</h2>
-                  <p>{isEnglish ? "Both cohorts must have calculated course results before the comparison can be read." : "ทั้งสองรุ่นต้องมีผลคะแนนจากรายวิชาที่คำนวณแล้ว จึงจะเริ่มอ่านผลเปรียบเทียบได้"}</p>
+                  <p>
+                    {isEnglish
+                      ? "Both cohorts must have calculated course results before the comparison can be read."
+                      : "ทั้งสองรุ่นต้องมีผลคะแนนจากรายวิชาที่คำนวณแล้ว จึงจะเริ่มอ่านผลเปรียบเทียบได้"}
+                  </p>
                 </div>
               </header>
               <div className="executive-paired-readiness-grid">
@@ -717,28 +862,65 @@ export default function ExecutiveComparisonView({
                 <section className="executive-paired-radar executive-paired-card">
                   <header className="executive-paired-card-heading">
                     <div>
-                      <h2>{isEnglish ? "Shared competency overview" : "ภาพรวมสมรรถนะที่มีร่วมกัน"}</h2>
-                      <p>{sideTitle(left?.cohort, language)} {isEnglish ? "compared with" : "เทียบกับ"} {sideTitle(right?.cohort, language)}</p>
+                      <h2>
+                        {isEnglish
+                          ? "Shared competency overview"
+                          : "ภาพรวมสมรรถนะที่มีร่วมกัน"}
+                      </h2>
+                      <p>
+                        {sideTitle(left?.cohort, language)}{" "}
+                        {isEnglish ? "compared with" : "เทียบกับ"}{" "}
+                        {sideTitle(right?.cohort, language)}
+                      </p>
                     </div>
                     <BarChart3 size={19} />
                   </header>
                   <div className="executive-paired-radar__body">
                     {selectedCompetencies.length >= 3 ? (
                       <div className="executive-paired-radar__chart">
-                        <ComparisonRadarChart competencies={selectedCompetencies} left={left?.competencies} right={right?.competencies} language={language} />
+                        <ComparisonRadarChart
+                          competencies={selectedCompetencies}
+                          left={left?.competencies}
+                          right={right?.competencies}
+                          language={language}
+                        />
                       </div>
                     ) : (
                       <div className="executive-paired-empty-chart">
-                        {isEnglish ? "Select at least 3 competencies to show the radar chart." : "เลือกอย่างน้อย 3 สมรรถนะเพื่อแสดงกราฟเรดาร์"}
+                        {isEnglish
+                          ? "Select at least 3 competencies to show the radar chart."
+                          : "เลือกอย่างน้อย 3 สมรรถนะเพื่อแสดงกราฟเรดาร์"}
                       </div>
                     )}
                     <div className="executive-paired-legend">
-                      <div><i className="left" /><span><strong>{isEnglish ? "Set 1" : "ชุดข้อมูลที่ 1"}</strong><small>{sideTitle(left?.cohort, language)}</small></span></div>
-                      <div><i className="right" /><span><strong>{isEnglish ? "Set 2" : "ชุดข้อมูลที่ 2"}</strong><small>{sideTitle(right?.cohort, language)}</small></span></div>
+                      <div>
+                        <i className="left" />
+                        <span>
+                          <strong>
+                            {isEnglish ? "Set 1" : "ชุดข้อมูลที่ 1"}
+                          </strong>
+                          <small>{sideTitle(left?.cohort, language)}</small>
+                        </span>
+                      </div>
+                      <div>
+                        <i className="right" />
+                        <span>
+                          <strong>
+                            {isEnglish ? "Set 2" : "ชุดข้อมูลที่ 2"}
+                          </strong>
+                          <small>{sideTitle(right?.cohort, language)}</small>
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </section>
-                <ComparisonSummary selectedCompetencies={selectedCompetencies} left={left} right={right} language={language} isEnglish={isEnglish} />
+                <ComparisonSummary
+                  selectedCompetencies={selectedCompetencies}
+                  left={left}
+                  right={right}
+                  language={language}
+                  isEnglish={isEnglish}
+                />
               </section>
               <ComparisonTable left={left} right={right} language={language} isEnglish={isEnglish} />
             </>
@@ -747,7 +929,9 @@ export default function ExecutiveComparisonView({
       )}
       {!comparison && !isLoading && !error && (
         <div className="executive-paired-empty-state">
-          {isEnglish ? "Choose one cohort on each side to start comparing." : "เลือก Cohort ให้ครบทั้งสองฝั่งเพื่อเริ่มเปรียบเทียบ"}
+          {isEnglish
+            ? "Choose one cohort on each side to start comparing."
+            : "เลือกรุ่นนักศึกษาให้ครบทั้งสองฝั่งเพื่อเริ่มเปรียบเทียบ"}
         </div>
       )}
     </div>

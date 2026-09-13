@@ -273,6 +273,11 @@
     color: var(--primary);
 }
 
+.executive-paired-chips button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
 .executive-paired-chips button.active {
     background: var(--primary-bg);
 }
@@ -549,6 +554,11 @@
     font-weight: 750;
 }
 
+.executive-paired-table__empty {
+    color: var(--text-muted);
+    text-align: center;
+}
+
 .executive-paired-score-cell strong,
 .executive-paired-score-cell small,
 .executive-paired-score-cell span {
@@ -615,25 +625,6 @@
 .executive-paired-status.right-only {
     color: var(--accent-cyan);
     background: color-mix(in srgb, var(--accent-cyan) 13%, transparent);
-}
-
-.executive-paired-refresh {
-    align-self: flex-end;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 30px;
-    padding: 0 8px;
-    border: 0;
-    color: var(--text-muted);
-    background: transparent;
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.68rem;
-}
-
-.executive-paired-refresh:hover {
-    color: var(--primary);
 }
 
 @media (max-width: 1120px) {

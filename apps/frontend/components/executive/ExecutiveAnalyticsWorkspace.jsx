@@ -430,93 +430,95 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
       </header>
 
       {view !== "comparison" && (
-      <section className="executive-filter-panel executive-scopebar">
-        <div
-          className={
-            "executive-filter-grid " +
-            (hasDeanScope ? "dean-scope" : "admin-scope")
-          }
-        >
-          {!hasDeanScope && (
+        <section className="executive-filter-panel executive-scopebar">
+          <div
+            className={
+              "executive-filter-grid " +
+              (hasDeanScope ? "dean-scope" : "admin-scope")
+            }
+          >
+            {!hasDeanScope && (
+              <FilterSelect
+                label={isEnglish ? "Faculty" : "คณะ"}
+                value={selectedFaculty}
+                options={(scope.faculties || []).map((item) => ({
+                  value: item.faculty_id,
+                  label: nameOf(item, language),
+                }))}
+                placeholder={isEnglish ? "All faculties" : "ทุกคณะ"}
+                onChange={(value) => updateFilter("faculty_id", value)}
+                disabled={scopeLoading}
+              />
+            )}
             <FilterSelect
-              label={isEnglish ? "Faculty" : "คณะ"}
-              value={selectedFaculty}
-              options={(scope.faculties || []).map((item) => ({
-                value: item.faculty_id,
-                label: nameOf(item, language),
-              }))}
-              placeholder={isEnglish ? "All faculties" : "ทุกคณะ"}
-              onChange={(value) => updateFilter("faculty_id", value)}
+              label={isEnglish ? "Major" : "สาขา"}
+              value={selectedMajor}
+              options={(scope.majors || [])
+                .filter(
+                  (item) =>
+                    !selectedFaculty ||
+                    String(item.faculty_id) === selectedFaculty,
+                )
+                .map((item) => ({
+                  value: item.major_id,
+                  label: nameOf(item, language),
+                }))}
+              placeholder={isEnglish ? "All majors" : "ทุกสาขา"}
+              onChange={(value) => updateFilter("major_id", value)}
               disabled={scopeLoading}
             />
-          )}
-          <FilterSelect
-            label={isEnglish ? "Major" : "สาขา"}
-            value={selectedMajor}
-            options={(scope.majors || [])
-              .filter(
-                (item) =>
-                  !selectedFaculty ||
-                  String(item.faculty_id) === selectedFaculty,
-              )
-              .map((item) => ({
-                value: item.major_id,
+            <FilterSelect
+              label={isEnglish ? "Curriculum" : "หลักสูตร"}
+              value={selectedCurriculum}
+              options={(scope.curricula || []).map((item) => ({
+                value: item.curriculum_id,
                 label: nameOf(item, language),
               }))}
-            placeholder={isEnglish ? "All majors" : "ทุกสาขา"}
-            onChange={(value) => updateFilter("major_id", value)}
-            disabled={scopeLoading}
-          />
-          <FilterSelect
-            label={isEnglish ? "Curriculum" : "หลักสูตร"}
-            value={selectedCurriculum}
-            options={(scope.curricula || []).map((item) => ({
-              value: item.curriculum_id,
-              label: nameOf(item, language),
-            }))}
-            placeholder={isEnglish ? "All curricula" : "ทุกหลักสูตร"}
-            onChange={(value) => updateFilter("curriculum_id", value)}
-            disabled={scopeLoading}
-          />
-          <FilterSelect
-            label={isEnglish ? "Student cohort" : "รุ่นนักศึกษา"}
-            value={selectedCohort}
-            options={(scope.cohorts || []).map((item) => ({
-              value: item.cohort_id,
-              label:
-                nameOf(item, language) +
-                (isEnglish ? " (entered " : " (ปีเข้า ") +
-                item.entry_year_be +
-                ")",
-            }))}
-            placeholder={isEnglish ? "All cohorts" : "ทุกรุ่น"}
-            onChange={(value) => updateFilter("cohort_id", value)}
-            disabled={scopeLoading}
-          />
-        </div>
-        <div className="executive-scope-lock">
-          {hasDeanScope ? <LockKeyhole size={15} /> : <Filter size={15} />}
-          <span>
-            {hasDeanScope
-              ? isEnglish
-                ? "Limited to your faculty"
-                : "จำกัดเฉพาะคณะของคุณ"
-              : isEnglish
-                ? "Faculty can be changed"
-                : "เลือกดูข้อมูลตามคณะที่ต้องการ"}
-          </span>
-        </div>
-      </section>
+              placeholder={isEnglish ? "All curricula" : "ทุกหลักสูตร"}
+              onChange={(value) => updateFilter("curriculum_id", value)}
+              disabled={scopeLoading}
+            />
+            <FilterSelect
+              label={isEnglish ? "Student cohort" : "รุ่นนักศึกษา"}
+              value={selectedCohort}
+              options={(scope.cohorts || []).map((item) => ({
+                value: item.cohort_id,
+                label:
+                  nameOf(item, language) +
+                  (isEnglish ? " (entered " : " (ปีเข้า ") +
+                  item.entry_year_be +
+                  ")",
+              }))}
+              placeholder={isEnglish ? "All cohorts" : "ทุกรุ่น"}
+              onChange={(value) => updateFilter("cohort_id", value)}
+              disabled={scopeLoading}
+            />
+          </div>
+          <div className="executive-scope-lock">
+            {hasDeanScope ? <LockKeyhole size={15} /> : <Filter size={15} />}
+            <span>
+              {hasDeanScope
+                ? isEnglish
+                  ? "Limited to your faculty"
+                  : "จำกัดเฉพาะคณะของคุณ"
+                : isEnglish
+                  ? "Faculty can be changed"
+                  : "เลือกดูข้อมูลตามคณะที่ต้องการ"}
+            </span>
+          </div>
+        </section>
       )}
 
-      <div className="executive-data-note">
-        <Info size={16} />
-        <span>
-          {isEnglish
-            ? "Results use current Course Total and cohort competency targets. Activity scores are not included."
-            : "ข้อมูลนี้ใช้คะแนนจากรายวิชาและเกณฑ์สมรรถนะของรุ่น คะแนนกิจกรรมยังไม่รวมในหน้านี้"}
-        </span>
-      </div>
+      {view !== "comparison" && (
+        <div className="executive-data-note">
+          <Info size={16} />
+          <span>
+            {isEnglish
+              ? "Results use current Course Total and cohort competency targets. Activity scores are not included."
+              : "ข้อมูลนี้ใช้คะแนนจากรายวิชาและเกณฑ์สมรรถนะของรุ่น คะแนนกิจกรรมยังไม่รวมในหน้านี้"}
+          </span>
+        </div>
+      )}
 
       {error && (
         <div className="executive-error" role="alert">

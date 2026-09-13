@@ -74,7 +74,18 @@ function chooseDefaultCohorts(scope, user) {
   const preferred = preferredFaculty
     ? cohorts.filter((item) => String(item.faculty_id) === preferredFaculty)
     : [];
-  const candidates = (preferred.length >= 2 ? preferred : cohorts).sort(
+  const preferredIDs = new Set(
+    preferred.map((item) => String(item.cohort_id)),
+  );
+  const candidates = (preferred.length >= 2
+    ? preferred
+    : [
+        ...preferred,
+        ...cohorts.filter(
+          (item) => !preferredIDs.has(String(item.cohort_id)),
+        ),
+      ]
+  ).sort(
     (left, right) =>
       Number(right.entry_year_be || 0) - Number(left.entry_year_be || 0) ||
       Number(right.cohort_id || 0) - Number(left.cohort_id || 0),
