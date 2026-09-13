@@ -34,12 +34,20 @@ type ExecutiveCurriculumOption struct {
 }
 
 type ExecutiveCohortOption struct {
-	CohortID     uint64 `json:"cohort_id"`
-	CurriculumID uint64 `json:"curriculum_id"`
-	Code         string `json:"curriculum_code"`
-	NameTH       string `json:"curriculum_name_th"`
-	NameEN       string `json:"curriculum_name_en,omitempty"`
-	EntryYearBE  uint64 `json:"entry_year_be"`
+	CohortID           uint64 `json:"cohort_id"`
+	CurriculumID       uint64 `json:"curriculum_id"`
+	Code               string `json:"curriculum_code"`
+	NameTH             string `json:"curriculum_name_th"`
+	NameEN             string `json:"curriculum_name_en,omitempty"`
+	EntryYearBE        uint64 `json:"entry_year_be"`
+	FacultyID          uint64 `json:"faculty_id"`
+	MajorID            uint64 `json:"major_id"`
+	MajorNameTH        string `json:"major_name_th"`
+	MajorNameEN        string `json:"major_name_en,omitempty"`
+	Ready              bool   `json:"ready"`
+	ReadinessCode      string `json:"readiness_code"`
+	ReadinessMessageTH string `json:"readiness_message_th"`
+	ReadinessMessageEN string `json:"readiness_message_en"`
 }
 
 type ExecutiveScopeResponse struct {

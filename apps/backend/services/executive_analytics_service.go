@@ -68,13 +68,29 @@ func (s *ExecutiveAnalyticsService) Scope(ctx context.Context, claims *utils.Cla
 	if err != nil {
 		return nil, err
 	}
-	cohorts, err := s.Repo.GetCohortOptions(ctx, executiveScopeOptionFilters(f))
+	cohortSummaries, err := s.Repo.GetCohortSummaries(ctx, executiveScopeOptionFilters(f))
 	if err != nil {
 		return nil, err
 	}
-	years := make([]uint64, 0, len(cohorts))
+	cohorts := make([]models.ExecutiveCohortOption, 0, len(cohortSummaries))
+	years := make([]uint64, 0, len(cohortSummaries))
 	seen := map[uint64]bool{}
-	for _, item := range cohorts {
+	for _, item := range cohortSummaries {
+		cohorts = append(cohorts, models.ExecutiveCohortOption{
+			CohortID:           item.CohortID,
+			CurriculumID:       item.CurriculumID,
+			Code:               item.CurriculumCode,
+			NameTH:             item.CurriculumNameTH,
+			NameEN:             item.CurriculumNameEN,
+			EntryYearBE:        item.EntryYearBE,
+			FacultyID:          item.FacultyID,
+			MajorID:            item.MajorID,
+			MajorNameTH:        item.MajorNameTH,
+			Ready:              item.Ready,
+			ReadinessCode:      item.ReadinessCode,
+			ReadinessMessageTH: item.ReadinessMessageTH,
+			ReadinessMessageEN: item.ReadinessMessageEN,
+		})
 		if !seen[item.EntryYearBE] {
 			seen[item.EntryYearBE] = true
 			years = append(years, item.EntryYearBE)
