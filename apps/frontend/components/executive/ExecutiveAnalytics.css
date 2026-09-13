@@ -310,7 +310,21 @@
 }
 
 .executive-chart-canvas {
+    position: relative;
     height: 360px;
+}
+
+.executive-chart-loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--card) 78%, transparent);
+    pointer-events: none;
 }
 
 .executive-chart-note {

@@ -377,6 +377,12 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
   const selectedCurriculum = filters.curriculum_id || "";
   const selectedCohort = filters.cohort_id || "";
   const overviewMetrics = overview?.metrics || {};
+  const hasCachedViewData =
+    view === "overview" || view === "competencies"
+      ? overview !== null
+      : view === "comparison"
+        ? comparison.length > 0
+        : students.length > 0;
 
   return (
     <section className="executive-page">
@@ -514,7 +520,7 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
         </div>
       )}
 
-      {loading ? (
+      {loading && !hasCachedViewData ? (
         <LoadingState />
       ) : (
         <>
@@ -528,6 +534,7 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
               language={language}
               t={t}
               isEnglish={isEnglish}
+              loading={loading}
             />
           )}
           {view === "comparison" && (
@@ -608,6 +615,7 @@ function OverviewView({
   language,
   t,
   isEnglish,
+  loading,
 }) {
   if (!overview)
     return (
@@ -677,7 +685,10 @@ function OverviewView({
                     : "คะแนนจากรายวิชาเทียบกับเกณฑ์ของรุ่น"
                 }
               />
-              <ExecutiveRadarChart competencies={competencies} />
+              <ExecutiveRadarChart
+                competencies={competencies}
+                loading={loading}
+              />
             </section>
             <section className="executive-panel">
               <PanelTitle

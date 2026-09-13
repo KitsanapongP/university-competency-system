@@ -10,6 +10,7 @@ import {
     RadialLinearScale,
     Tooltip,
 } from 'chart.js';
+import { Loader2 } from 'lucide-react';
 import { Radar } from 'react-chartjs-2';
 import { useTheme } from '../../providers/theme-provider';
 import { useLanguage } from '../../providers/LanguageContext';
@@ -21,10 +22,15 @@ function displayName(item, language) {
     return item.name_th || item.name_en || item.code;
 }
 
-export default function ExecutiveRadarChart({ competencies = [], targetLabel }) {
+export default function ExecutiveRadarChart({
+    competencies = [],
+    targetLabel,
+    loading = false,
+}) {
     const { resolvedTheme } = useTheme();
     const { language, t } = useLanguage();
     const dark = resolvedTheme === 'dark';
+    const loadingLabel = language === 'en' ? 'Updating data...' : 'กำลังอัปเดตข้อมูล...';
 
     const labels = useMemo(
         () => competencies.map((item) => displayName(item, language)),
@@ -79,6 +85,10 @@ export default function ExecutiveRadarChart({ competencies = [], targetLabel }) 
     const options = {
         responsive: true,
         maintainAspectRatio: false,
+        animation: {
+            duration: 650,
+            easing: 'easeOutCubic',
+        },
         scales: {
             r: {
                 min: 0,
@@ -115,9 +125,19 @@ export default function ExecutiveRadarChart({ competencies = [], targetLabel }) 
     };
 
     return (
-        <div className="executive-chart-wrap">
+        <div className="executive-chart-wrap" aria-busy={loading}>
             <div className="executive-chart-canvas">
                 <Radar data={data} options={options} />
+                {loading && (
+                    <div
+                        className="executive-chart-loading-overlay"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <Loader2 size={18} className="executive-spin" />
+                        <span>{loadingLabel}</span>
+                    </div>
+                )}
             </div>
             <p className="executive-chart-note">
                     {targetLabel || (t('executive_target_note') || 'เส้นสีส้มคือเกณฑ์ของรุ่นนักศึกษา')}
