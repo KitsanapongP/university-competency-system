@@ -44,6 +44,39 @@ func TestExecutiveScopeAllowsAdminFacultySelection(t *testing.T) {
 	}
 }
 
+func TestExecutiveScopeOptionFiltersKeepCohortChoicesVisible(t *testing.T) {
+	cohortID := uint64(12)
+	entryYear := uint64(2566)
+	filters := models.ExecutiveAnalyticsFilters{
+		FacultyID:    uint64Pointer(1),
+		MajorID:      uint64Pointer(2),
+		CurriculumID: uint64Pointer(3),
+		CohortID:     &cohortID,
+		EntryYearBE:  &entryYear,
+	}
+
+	optionFilters := executiveScopeOptionFilters(filters)
+	if optionFilters.CohortID != nil {
+		t.Fatal("cohort option filters must not be restricted to the selected cohort")
+	}
+	if optionFilters.FacultyID == nil || *optionFilters.FacultyID != 1 {
+		t.Fatal("faculty filter should be preserved")
+	}
+	if optionFilters.MajorID == nil || *optionFilters.MajorID != 2 {
+		t.Fatal("major filter should be preserved")
+	}
+	if optionFilters.CurriculumID == nil || *optionFilters.CurriculumID != 3 {
+		t.Fatal("curriculum filter should be preserved")
+	}
+	if optionFilters.EntryYearBE == nil || *optionFilters.EntryYearBE != entryYear {
+		t.Fatal("entry year filter should be preserved")
+	}
+}
+
+func uint64Pointer(value uint64) *uint64 {
+	return &value
+}
+
 func TestSummarizeCompetenciesSeparatesRequiredAndTrackingFlags(t *testing.T) {
 	items := []models.ExecutiveCompetencyAggregate{
 		{CompetencyID: 1, NameTH: "การสื่อสาร", TargetScore: 80, IsRequired: true, AverageScore: 70, EvaluatedCount: 2, PassedCount: 1},

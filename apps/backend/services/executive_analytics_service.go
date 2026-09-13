@@ -29,6 +29,11 @@ func executiveHasRole(claims *utils.Claims, role string) bool {
 	return false
 }
 
+func executiveScopeOptionFilters(f models.ExecutiveAnalyticsFilters) models.ExecutiveAnalyticsFilters {
+	f.CohortID = nil
+	return f
+}
+
 func (s *ExecutiveAnalyticsService) scopedFilters(claims *utils.Claims, f models.ExecutiveAnalyticsFilters) (models.ExecutiveAnalyticsFilters, error) {
 	if executiveHasRole(claims, "admin") {
 		return f, nil
@@ -61,7 +66,7 @@ func (s *ExecutiveAnalyticsService) Scope(ctx context.Context, claims *utils.Cla
 	if err != nil {
 		return nil, err
 	}
-	cohorts, err := s.Repo.GetCohortOptions(ctx, f)
+	cohorts, err := s.Repo.GetCohortOptions(ctx, executiveScopeOptionFilters(f))
 	if err != nil {
 		return nil, err
 	}
