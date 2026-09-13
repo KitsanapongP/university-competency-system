@@ -21,9 +21,9 @@ import {
 import { useAuth } from "../../providers/auth-provider";
 import { useLanguage } from "../../providers/LanguageContext";
 import ExecutiveRadarChart from "./ExecutiveRadarChart";
+import ExecutiveComparisonView from "./ExecutiveComparisonView";
 import {
   fetchExecutiveCompetency,
-  fetchExecutiveComparison,
   fetchExecutiveOverview,
   fetchExecutiveScope,
   fetchExecutiveStudent,
@@ -220,7 +220,6 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
     entry_years: [],
   });
   const [overview, setOverview] = useState(null);
-  const [comparison, setComparison] = useState([]);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [scopeLoading, setScopeLoading] = useState(true);
@@ -256,7 +255,8 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
   useEffect(() => {
     let alive = true;
     setScopeLoading(true);
-    fetchExecutiveScope(apiFilters(filters))
+    const scopeFilters = view === "comparison" ? {} : apiFilters(filters);
+    fetchExecutiveScope(scopeFilters)
       .then((data) => {
         if (alive)
           setScope(
@@ -281,25 +281,27 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
     return () => {
       alive = false;
     };
-  }, [filterQuery, filters, refreshKey, t]);
+  }, [filterQuery, filters, refreshKey, t, view]);
 
   useEffect(() => {
     let alive = true;
+    if (view === "comparison") {
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
     setLoading(true);
     setError("");
     const requestFilters = apiFilters(filters);
     let request;
-    if (view === "comparison")
-      request = fetchExecutiveComparison(requestFilters);
-    else if (view === "students")
+    if (view === "students")
       request = fetchExecutiveStudents(requestFilters);
     else request = fetchExecutiveOverview(requestFilters);
     request
       .then((data) => {
         if (!alive) return;
-        if (view === "comparison")
-          setComparison(Array.isArray(data) ? data : []);
-        else if (view === "students")
+        if (view === "students")
           setStudents(Array.isArray(data) ? data : []);
         else setOverview(data || null);
       })
@@ -381,7 +383,7 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
     view === "overview" || view === "competencies"
       ? overview !== null
       : view === "comparison"
-        ? comparison.length > 0
+        ? scope.cohorts.length > 0
         : students.length > 0;
 
   return (
@@ -397,12 +399,20 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
               : t("executive_analytics") || "วิเคราะห์ข้อมูลผู้บริหาร"}
           </p>
           <h1 className="executive-page-header__title">
-            {isEnglish
+            {view === "comparison"
+              ? isEnglish
+                ? "Compare competency results by cohort"
+                : "เปรียบเทียบผลสมรรถนะระหว่างรุ่น"
+              : isEnglish
               ? "Faculty Competency Analytics"
               : "ภาพรวมสมรรถนะระดับคณะ"}
           </h1>
           <p>
-            {isEnglish
+            {view === "comparison"
+              ? isEnglish
+                ? "Choose two cohorts to compare their course competency results."
+                : "เลือกสองรุ่นเพื่อเปรียบเทียบผลสมรรถนะจากรายวิชา"
+              : isEnglish
               ? "Read-only view of course competency outcomes and cohort targets."
               : "ดูภาพรวมผลลัพธ์สมรรถนะจากรายวิชาและเกณฑ์ของแต่ละรุ่น"}
           </p>
@@ -423,6 +433,7 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
         </div>
       </header>
 
+      {view !== "comparison" && (
       <section className="executive-filter-panel executive-scopebar">
         <div
           className={
@@ -500,6 +511,7 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
           </span>
         </div>
       </section>
+      )}
 
       <div className="executive-data-note">
         <Info size={16} />
@@ -538,15 +550,12 @@ export default function ExecutiveAnalyticsWorkspace({ view = "overview" }) {
             />
           )}
           {view === "comparison" && (
-            <ComparisonView
-              rows={comparison}
+            <ExecutiveComparisonView
               scope={scope}
-              filters={filters}
-              onCurriculumChange={(value) =>
-                updateFilter("curriculum_id", value)
-              }
+              scopeLoading={scopeLoading}
+              user={user}
+              refreshKey={refreshKey}
               language={language}
-              t={t}
               isEnglish={isEnglish}
             />
           )}
@@ -823,338 +832,6 @@ function PanelTitle({ icon: Icon, title, description }) {
         <p>{description}</p>
       </div>
     </div>
-  );
-}
-
-function ComparisonView({
-  rows,
-  scope,
-  filters,
-  onCurriculumChange,
-  language,
-  t,
-  isEnglish,
-}) {
-  const [selectedYears, setSelectedYears] = useState([]);
-  const [selectedCompetencyIDs, setSelectedCompetencyIDs] = useState([]);
-  const availableYears = useMemo(
-    () =>
-      Array.from(new Set(rows.map((row) => Number(row.entry_year_be)))).sort(
-        (left, right) => left - right,
-      ),
-    [rows],
-  );
-  const competencyOptions = useMemo(() => {
-    const seen = new Map();
-    rows.forEach((row) => {
-      if (!seen.has(String(row.competency_id)))
-        seen.set(String(row.competency_id), row);
-    });
-    return Array.from(seen.values()).sort((left, right) =>
-      nameOf(left, language).localeCompare(nameOf(right, language)),
-    );
-  }, [language, rows]);
-  const filteredRows = useMemo(
-    () =>
-      rows.filter(
-        (row) =>
-          (!selectedYears.length ||
-            selectedYears.includes(Number(row.entry_year_be))) &&
-          (!selectedCompetencyIDs.length ||
-            selectedCompetencyIDs.includes(String(row.competency_id))),
-      ),
-    [rows, selectedCompetencyIDs, selectedYears],
-  );
-  const series = useMemo(() => {
-    const grouped = new Map();
-    filteredRows.forEach((row) => {
-      const key = String(row.competency_id);
-      const current = grouped.get(key) || {
-        ...row,
-        rows: [],
-        minimum: Number.POSITIVE_INFINITY,
-        maximum: Number.NEGATIVE_INFINITY,
-      };
-      const value = Number(row.average_score || 0);
-      current.rows.push(row);
-      current.minimum = Math.min(current.minimum, value);
-      current.maximum = Math.max(current.maximum, value);
-      grouped.set(key, current);
-    });
-    return Array.from(grouped.values())
-      .map((item) => ({ ...item, spread: item.maximum - item.minimum }))
-      .sort(
-        (left, right) =>
-          right.spread - left.spread ||
-          nameOf(left, language).localeCompare(nameOf(right, language)),
-      )
-      .slice(0, 8);
-  }, [filteredRows, language]);
-
-  const years = useMemo(
-    () =>
-      Array.from(
-        new Set(filteredRows.map((row) => Number(row.entry_year_be))),
-      ).sort((left, right) => left - right),
-    [filteredRows],
-  );
-  const scaleMaximum = Math.max(
-    100,
-    ...series.flatMap((item) =>
-      item.rows.map((row) => Number(row.average_score || 0)),
-    ),
-  );
-  const impactSummaries = useMemo(
-    () =>
-      series.map((item) => {
-        const values = [...item.rows].sort(
-          (left, right) =>
-            Number(left.average_score || 0) - Number(right.average_score || 0),
-        );
-        return {
-          ...item,
-          lowest: values[0],
-          highest: values[values.length - 1],
-        };
-      }),
-    [series],
-  );
-  const canCompare = years.length >= 2 && series.length > 0;
-
-  const toggleYear = (year) => {
-    setSelectedYears((current) =>
-      current.includes(year)
-        ? current.filter((item) => item !== year)
-        : [...current, year],
-    );
-  };
-  const toggleCompetency = (competencyID) => {
-    setSelectedCompetencyIDs((current) =>
-      current.includes(competencyID)
-        ? current.filter((item) => item !== competencyID)
-        : [...current, competencyID],
-    );
-  };
-
-  return (
-    <>
-      <section className="executive-panel executive-comparison-panel">
-        <PanelTitle
-          icon={BarChart3}
-          title={
-            isEnglish
-              ? "Compare competency results by cohort"
-              : "เปรียบเทียบผลสมรรถนะระหว่างรุ่น"
-          }
-          description={
-            isEnglish
-              ? "Choose a curriculum, cohorts, and competencies to compare their average course scores."
-              : "เลือกหลักสูตร รุ่น และสมรรถนะที่ต้องการ เพื่อเปรียบเทียบคะแนนเฉลี่ยจากรายวิชา"
-          }
-        />
-        {!rows.length ? (
-          <EmptyState>
-            {t("executive_no_comparison") ||
-              "ยังไม่มีข้อมูลเปรียบเทียบที่พร้อมใช้"}
-          </EmptyState>
-        ) : (
-          <>
-            <div className="executive-comparison-controls">
-              <label className="executive-comparison-select">
-                <span>
-                  {isEnglish ? "Curriculum" : "หลักสูตรที่ต้องการเปรียบเทียบ"}
-                </span>
-                <select
-                  value={filters.curriculum_id || ""}
-                  onChange={(event) => onCurriculumChange(event.target.value)}
-                >
-                  <option value="">
-                    {isEnglish ? "All curricula" : "ทุกหลักสูตร"}
-                  </option>
-                  {(scope.curricula || []).map((item) => (
-                    <option key={item.curriculum_id} value={item.curriculum_id}>
-                      {nameOf(item, language)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="executive-comparison-choice">
-                <span>
-                  {isEnglish
-                    ? "Cohorts to compare"
-                    : "รุ่นที่ต้องการเปรียบเทียบ"}
-                </span>
-                <div className="executive-choice-chips">
-                  {availableYears.map((year) => (
-                    <button
-                      type="button"
-                      key={year}
-                      className={
-                        !selectedYears.length || selectedYears.includes(year)
-                          ? "active"
-                          : ""
-                      }
-                      onClick={() => toggleYear(year)}
-                    >
-                      {isEnglish ? "Cohort " : "รุ่น "}
-                      {year}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="executive-comparison-choice executive-comparison-choice--competencies">
-                <span>
-                  {isEnglish
-                    ? "Competencies to compare"
-                    : "สมรรถนะที่ต้องการเปรียบเทียบ"}
-                </span>
-                <div className="executive-choice-chips">
-                  {competencyOptions.map((item) => {
-                    const competencyID = String(item.competency_id);
-                    return (
-                      <button
-                        type="button"
-                        key={competencyID}
-                        className={
-                          !selectedCompetencyIDs.length ||
-                          selectedCompetencyIDs.includes(competencyID)
-                            ? "active"
-                            : ""
-                        }
-                        onClick={() => toggleCompetency(competencyID)}
-                      >
-                        {nameOf(item, language)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-            {canCompare ? (
-              <>
-                <div
-                  className="executive-comparison-key"
-                  aria-label={
-                    isEnglish ? "Competency legend" : "คำอธิบายสีของสมรรถนะ"
-                  }
-                >
-                  {series.map((item, index) => (
-                    <span
-                      key={item.competency_id}
-                      className={"executive-comparison-key-item tone-" + index}
-                    >
-                      <i />
-                      {nameOf(item, language)}
-                    </span>
-                  ))}
-                </div>
-                <div className="executive-bar-scroll">
-                  <div
-                    className="executive-bar-chart"
-                    role="img"
-                    aria-label={
-                      isEnglish
-                        ? "Average competency scores by entry year"
-                        : "กราฟเปรียบเทียบคะแนนสมรรถนะเฉลี่ยตามปีเข้าเรียน"
-                    }
-                  >
-                    {years.map((year) => (
-                      <div className="executive-bar-group" key={year}>
-                        <div
-                          className="executive-bar-set"
-                          style={{ "--bar-count": series.length }}
-                        >
-                          {series.map((item, index) => {
-                            const matching = item.rows.find(
-                              (row) => Number(row.entry_year_be) === year,
-                            );
-                            const value = Number(matching?.average_score || 0);
-                            return (
-                              <div
-                                key={item.competency_id}
-                                className={"executive-bar tone-" + index}
-                                style={{
-                                  height: (value / scaleMaximum) * 100 + "%",
-                                }}
-                              >
-                                <span>{score(value)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div className="executive-bar-label">
-                          {isEnglish ? "Cohort " + year : "รุ่น " + year}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <EmptyState>
-                {isEnglish
-                  ? "Select at least two cohorts to compare."
-                  : "เลือกอย่างน้อยสองรุ่นเพื่อเริ่มเปรียบเทียบ"}
-              </EmptyState>
-            )}
-          </>
-        )}
-      </section>
-
-      {canCompare && (
-        <section className="executive-panel executive-comparison-summary">
-          <PanelTitle
-            icon={Info}
-            title={
-              isEnglish
-                ? "Clear differences to review"
-                : "สรุปความแตกต่างที่เห็นชัด"
-            }
-            description={
-              isEnglish
-                ? "These cards show the largest score gaps among the choices above."
-                : "บัตรเหล่านี้แสดงสมรรถนะที่มีคะแนนเฉลี่ยต่างกันมากที่สุดจากตัวเลือกด้านบน"
-            }
-          />
-          <div className="executive-impact-cards">
-            {impactSummaries.slice(0, 3).map((item) => (
-              <article
-                key={item.competency_id}
-                className="executive-impact-card"
-              >
-                <span className="executive-impact-card__label">
-                  {isEnglish ? "Competency" : "สมรรถนะ"}
-                </span>
-                <h3>{nameOf(item, language)}</h3>
-                <strong>
-                  {score(item.spread)}{" "}
-                  {isEnglish ? "points different" : "คะแนน"}
-                </strong>
-                <p>
-                  {isEnglish
-                    ? "Difference between "
-                    : "คะแนนเฉลี่ยต่างกันระหว่างรุ่น "}
-                  {item.lowest.entry_year_be} {isEnglish ? "and " : "กับรุ่น "}
-                  {item.highest.entry_year_be}
-                </p>
-                <div className="executive-impact-card__values">
-                  <span>
-                    {isEnglish ? "Cohort " : "รุ่น "}
-                    {item.lowest.entry_year_be}
-                    <b>{score(item.lowest.average_score)}</b>
-                  </span>
-                  <span>
-                    {isEnglish ? "Cohort " : "รุ่น "}
-                    {item.highest.entry_year_be}
-                    <b>{score(item.highest.average_score)}</b>
-                  </span>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
-    </>
   );
 }
 
