@@ -1354,8 +1354,8 @@ function CompetencyDrawer({ detail, language, t, isEnglish }) {
               <span className="executive-detail-source-metric">
                 <small>
                   {isEnglish
-                    ? "Average contribution"
-                    : "คะแนนเฉลี่ยที่มีส่วนช่วย"}
+                    ? "Average score from learners"
+                    : "คะแนนเฉลี่ยจากนักศึกษาที่มีคะแนน"}
                 </small>
                 <b>
                   {score(item.average_contribution)}{" "}
@@ -1364,7 +1364,7 @@ function CompetencyDrawer({ detail, language, t, isEnglish }) {
               </span>
               <span className="executive-detail-source-metric">
                 <small>
-                  {isEnglish ? "Learners with scores" : "นักศึกษาที่มีคะแนน"}
+                  {isEnglish ? "Number of learners with scores" : "จำนวนนักศึกษาที่มีคะแนน"}
                 </small>
                 <b>
                   {item.student_count} {isEnglish ? "learners" : "คน"}
