@@ -163,18 +163,25 @@ WHERE constraint_schema = DATABASE()
   )
 ORDER BY table_name, constraint_name, ordinal_position;
 
-SELECT constraint_name,
-       table_name,
-       check_clause
-FROM information_schema.check_constraints
-WHERE constraint_schema = DATABASE()
-  AND table_name IN (
-      'ele_free_elective_offerings',
-      'ele_offering_competencies',
-      'ele_offering_grade_records',
-      'score_free_elective_competency_scores'
+SELECT table_constraints.table_name,
+       check_constraints.constraint_name,
+       check_constraints.check_clause
+FROM information_schema.table_constraints
+JOIN information_schema.check_constraints
+  ON check_constraints.constraint_schema = table_constraints.constraint_schema
+ AND check_constraints.constraint_name = table_constraints.constraint_name
+WHERE table_constraints.constraint_schema = DATABASE()
+  AND table_constraints.constraint_type = 'CHECK'
+  AND check_constraints.constraint_name IN (
+      'chk_ele_offerings_semester',
+      'chk_ele_offerings_section_no',
+      'chk_ele_offering_competencies_weight',
+      'chk_ele_grade_records_grade_not_blank',
+      'chk_score_ele_raw_score',
+      'chk_score_ele_weighted_score',
+      'chk_score_ele_weight_snapshot'
   )
-ORDER BY table_name, constraint_name;
+ORDER BY table_constraints.table_name, check_constraints.constraint_name;
 
 -- 6. These cases are intentionally enforced by the application service in a
 -- transaction because they compare values across tables:
