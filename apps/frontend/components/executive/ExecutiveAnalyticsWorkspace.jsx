@@ -4,6 +4,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   BarChart3,
   ChevronRight,
   Filter,
@@ -77,6 +80,186 @@ function nameOf(item, language, fallback = "-") {
 
 function score(value) {
   return Number(value || 0).toFixed(2);
+}
+
+const STUDENT_SORT_KEYS = {
+  STUDENT_CODE: "student_code",
+  CURRICULUM: "curriculum",
+  COURSE_SCORE: "course_score",
+  TARGET_SCORE: "target_score",
+  STATUS: "status",
+};
+
+const SORT_DIRECTIONS = {
+  ASC: "asc",
+  DESC: "desc",
+};
+
+function compareStudentText(left, right, language) {
+  return String(left || "").localeCompare(
+    String(right || ""),
+    language === "en" ? "en" : "th",
+    {
+      numeric: true,
+      sensitivity: "base",
+    },
+  );
+}
+
+function compareStudentNumbers(left, right, direction) {
+  const leftValue = Number.isFinite(left) ? left : null;
+  const rightValue = Number.isFinite(right) ? right : null;
+  if (leftValue === null && rightValue === null) return 0;
+  if (leftValue === null) return 1;
+  if (rightValue === null) return -1;
+  const comparison = leftValue - rightValue;
+  return direction === SORT_DIRECTIONS.DESC ? -comparison : comparison;
+}
+
+function studentSortNumber(student, key) {
+  if (!student.ready) return null;
+  const value = Number(student[key]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function compareStudentStatus(left, right, direction) {
+  if (!left.ready && right.ready) return 1;
+  if (left.ready && !right.ready) return -1;
+  if (!left.ready && !right.ready) return 0;
+
+  const leftRank = left.passed ? 0 : 1;
+  const rightRank = right.passed ? 0 : 1;
+  const comparison = leftRank - rightRank;
+  return direction === SORT_DIRECTIONS.DESC ? -comparison : comparison;
+}
+
+function sortExecutiveStudents(students, sortKey, direction, language) {
+  return students
+    .map((student, index) => ({ student, index }))
+    .sort((left, right) => {
+      const leftStudent = left.student;
+      const rightStudent = right.student;
+      let comparison = 0;
+
+      if (sortKey === STUDENT_SORT_KEYS.STUDENT_CODE) {
+        comparison = compareStudentText(
+          leftStudent.student_code,
+          rightStudent.student_code,
+          language,
+        ) * (direction === SORT_DIRECTIONS.DESC ? -1 : 1);
+      } else if (sortKey === STUDENT_SORT_KEYS.CURRICULUM) {
+        comparison = compareStudentText(
+          leftStudent.curriculum_name_th,
+          rightStudent.curriculum_name_th,
+          language,
+        ) * (direction === SORT_DIRECTIONS.DESC ? -1 : 1);
+      } else if (sortKey === STUDENT_SORT_KEYS.COURSE_SCORE) {
+        comparison = compareStudentNumbers(
+          studentSortNumber(leftStudent, "course_total_score"),
+          studentSortNumber(rightStudent, "course_total_score"),
+          direction,
+        );
+      } else if (sortKey === STUDENT_SORT_KEYS.TARGET_SCORE) {
+        comparison = compareStudentNumbers(
+          studentSortNumber(leftStudent, "target_score"),
+          studentSortNumber(rightStudent, "target_score"),
+          direction,
+        );
+      } else if (sortKey === STUDENT_SORT_KEYS.STATUS) {
+        comparison = compareStudentStatus(leftStudent, rightStudent, direction);
+      }
+
+      if (comparison !== 0) return comparison;
+      comparison = compareStudentText(
+        leftStudent.student_code,
+        rightStudent.student_code,
+        language,
+      );
+      return comparison !== 0 ? comparison : left.index - right.index;
+    })
+    .map(({ student }) => student);
+}
+
+function sortDirectionLabel(sortKey, direction, isEnglish) {
+  const ascending = direction === SORT_DIRECTIONS.ASC;
+
+  if (sortKey === STUDENT_SORT_KEYS.STATUS) {
+    return isEnglish
+      ? ascending
+        ? "At target first"
+        : "Below target first"
+      : ascending
+        ? "ถึงเกณฑ์ขึ้นก่อน"
+        : "ต่ำกว่าเกณฑ์ขึ้นก่อน";
+  }
+
+  if (sortKey === STUDENT_SORT_KEYS.CURRICULUM) {
+    return isEnglish
+      ? ascending
+        ? "A to Z"
+        : "Z to A"
+      : ascending
+        ? "ก ถึง ฮ"
+        : "ฮ ถึง ก";
+  }
+
+  return isEnglish
+    ? ascending
+      ? "Low to high"
+      : "High to low"
+    : ascending
+      ? "น้อยไปมาก"
+      : "มากไปน้อย";
+}
+
+function SortableHeader({
+  label,
+  sortKey,
+  sortState,
+  onSort,
+  isEnglish,
+}) {
+  const active = sortState.key === sortKey;
+  const direction = active ? sortState.direction : SORT_DIRECTIONS.ASC;
+  const SortIcon = !active
+    ? ArrowUpDown
+    : direction === SORT_DIRECTIONS.ASC
+      ? ArrowUp
+      : ArrowDown;
+  const directionLabel = sortDirectionLabel(sortKey, direction, isEnglish);
+
+  return (
+    <th
+      aria-sort={
+        active
+          ? direction === SORT_DIRECTIONS.ASC
+            ? "ascending"
+            : "descending"
+          : "none"
+      }
+    >
+      <button
+        type="button"
+        className={
+          "executive-table-sort-button" + (active ? " active" : "")
+        }
+        onClick={() => onSort(sortKey)}
+        title={
+          isEnglish
+            ? `Sort by ${label}: ${directionLabel}`
+            : `เรียงตาม${label}: ${directionLabel}`
+        }
+        aria-label={
+          isEnglish
+            ? `Sort by ${label}: ${directionLabel}`
+            : `เรียงตาม${label}: ${directionLabel}`
+        }
+      >
+        <span>{label}</span>
+        <SortIcon size={15} aria-hidden="true" />
+      </button>
+    </th>
+  );
 }
 
 function studentCompetencyOutcome(item, isEnglish) {
@@ -840,6 +1023,36 @@ function StudentsView({
   t,
   isEnglish,
 }) {
+  const [sortState, setSortState] = useState({
+    key: STUDENT_SORT_KEYS.STUDENT_CODE,
+    direction: SORT_DIRECTIONS.ASC,
+  });
+  const sortedStudents = useMemo(
+    () =>
+      sortExecutiveStudents(
+        students,
+        sortState.key,
+        sortState.direction,
+        language,
+      ),
+    [language, sortState.direction, sortState.key, students],
+  );
+  const toggleSort = (key) => {
+    setSortState((current) => {
+      if (current.key !== key) {
+        return { key, direction: SORT_DIRECTIONS.ASC };
+      }
+
+      return {
+        key,
+        direction:
+          current.direction === SORT_DIRECTIONS.ASC
+            ? SORT_DIRECTIONS.DESC
+            : SORT_DIRECTIONS.ASC,
+      };
+    });
+  };
+
   return (
     <section className="executive-panel">
       <PanelTitle
@@ -873,18 +1086,48 @@ function StudentsView({
           <table className="executive-table">
             <thead>
               <tr>
-                <th>{isEnglish ? "Student" : "นักศึกษา"}</th>
-                <th>
-                  {isEnglish ? "Curriculum and cohort" : "หลักสูตรและรุ่น"}
-                </th>
-                <th>{isEnglish ? "Course total" : "คะแนนจากรายวิชา"}</th>
-                <th>{isEnglish ? "Target" : "เป้าหมาย"}</th>
-                <th>{isEnglish ? "Status" : "สถานะ"}</th>
+                <SortableHeader
+                  label={isEnglish ? "Student ID" : "รหัสนักศึกษา"}
+                  sortKey={STUDENT_SORT_KEYS.STUDENT_CODE}
+                  sortState={sortState}
+                  onSort={toggleSort}
+                  isEnglish={isEnglish}
+                />
+                <SortableHeader
+                  label={
+                    isEnglish ? "Curriculum and cohort" : "หลักสูตรและรุ่น"
+                  }
+                  sortKey={STUDENT_SORT_KEYS.CURRICULUM}
+                  sortState={sortState}
+                  onSort={toggleSort}
+                  isEnglish={isEnglish}
+                />
+                <SortableHeader
+                  label={isEnglish ? "Course total" : "คะแนนจากรายวิชา"}
+                  sortKey={STUDENT_SORT_KEYS.COURSE_SCORE}
+                  sortState={sortState}
+                  onSort={toggleSort}
+                  isEnglish={isEnglish}
+                />
+                <SortableHeader
+                  label={isEnglish ? "Target" : "เป้าหมาย"}
+                  sortKey={STUDENT_SORT_KEYS.TARGET_SCORE}
+                  sortState={sortState}
+                  onSort={toggleSort}
+                  isEnglish={isEnglish}
+                />
+                <SortableHeader
+                  label={isEnglish ? "Status" : "สถานะ"}
+                  sortKey={STUDENT_SORT_KEYS.STATUS}
+                  sortState={sortState}
+                  onSort={toggleSort}
+                  isEnglish={isEnglish}
+                />
                 <th />
               </tr>
             </thead>
             <tbody>
-              {students.map((student) => (
+              {sortedStudents.map((student) => (
                 <tr key={student.enrollment_id}>
                   <td>
                     <strong>{student.student_code}</strong>
