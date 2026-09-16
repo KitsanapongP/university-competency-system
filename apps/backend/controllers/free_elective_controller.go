@@ -183,6 +183,62 @@ func (c *FreeElectiveController) FinalizeOffering(w http.ResponseWriter, r *http
 	utils.OK(w, offering)
 }
 
+func (c *FreeElectiveController) GetOfferingCompetencies(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	items, err := c.Service.GetOfferingCompetencies(r.Context(), claims, offeringID)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, items)
+}
+
+func (c *FreeElectiveController) ReplaceOfferingCompetencies(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	var payload models.ReplaceFreeElectiveCompetenciesPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	items, err := c.Service.ReplaceOfferingCompetencies(r.Context(), claims, offeringID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, items)
+}
+
+func (c *FreeElectiveController) CopyPreviousOfferingCompetencies(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	items, err := c.Service.CopyPreviousOfferingCompetencies(r.Context(), claims, offeringID)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, items)
+}
+
 func freeElectiveClaims(w http.ResponseWriter, r *http.Request) (*utils.Claims, bool) {
 	claims, ok := utils.ClaimsFromContext(r.Context())
 	if !ok {
@@ -241,6 +297,10 @@ func writeFreeElectiveError(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, services.ErrFreeElectiveOfferingNotFound) {
 		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_OFFERING_NOT_FOUND", err.Error())
+		return
+	}
+	if errors.Is(err, services.ErrFreeElectiveOfferingLocked) {
+		utils.Error(w, http.StatusConflict, "OFFERING_NOT_EDITABLE", err.Error())
 		return
 	}
 	var validationErr services.FreeElectiveValidationError

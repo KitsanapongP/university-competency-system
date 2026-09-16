@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 
 	"github.com/spw32767/university-competency-system-backend/models"
@@ -11,6 +12,8 @@ import (
 type FreeElectiveRepository struct {
 	DB *sql.DB
 }
+
+var ErrFreeElectiveOfferingLocked = errors.New("free-elective offering is locked")
 
 func NewFreeElectiveRepository(db *sql.DB) *FreeElectiveRepository {
 	return &FreeElectiveRepository{DB: db}
@@ -483,4 +486,132 @@ func (r *FreeElectiveRepository) FinalizeOffering(ctx context.Context, offeringI
 		return sql.ErrNoRows
 	}
 	return nil
+}
+
+func scanFreeElectiveCompetency(scanner interface{ Scan(...any) error }) (models.FreeElectiveCompetency, error) {
+	var item models.FreeElectiveCompetency
+	if err := scanner.Scan(
+		&item.OfferingCompetencyID,
+		&item.OfferingID,
+		&item.CompetencyID,
+		&item.Code,
+		&item.NameTH,
+		&item.NameEN,
+		&item.WeightPercent,
+		&item.DisplayOrder,
+	); err != nil {
+		return item, err
+	}
+	return item, nil
+}
+
+func (r *FreeElectiveRepository) GetOfferingCompetencies(ctx context.Context, offeringID uint64) ([]models.FreeElectiveCompetency, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT mapping.offering_competency_id, mapping.offering_id, mapping.competency_id,
+			competency.code, competency.name_th, COALESCE(competency.name_en, ''),
+			mapping.weight_percent, mapping.display_order
+		FROM ele_offering_competencies mapping
+		JOIN comp_competencies competency
+			ON competency.competency_id = mapping.competency_id AND competency.deleted_at IS NULL
+		WHERE mapping.offering_id = ? AND mapping.deleted_at IS NULL
+		ORDER BY mapping.display_order, competency.name_th, competency.code`, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]models.FreeElectiveCompetency, 0)
+	for rows.Next() {
+		item, err := scanFreeElectiveCompetency(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *FreeElectiveRepository) ReplaceOfferingCompetencies(ctx context.Context, offeringID uint64, inputs []models.FreeElectiveCompetencyInput) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var status string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT status FROM ele_free_elective_offerings
+		WHERE offering_id = ? AND deleted_at IS NULL FOR UPDATE`, offeringID).Scan(&status); err != nil {
+		return err
+	}
+	if status == "finalized" || status == "cancelled" {
+		return ErrFreeElectiveOfferingLocked
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_offering_competencies
+		SET deleted_at = NOW(), updated_at = NOW()
+		WHERE offering_id = ? AND deleted_at IS NULL`, offeringID); err != nil {
+		return err
+	}
+	for index, input := range inputs {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO ele_offering_competencies
+				(offering_id, competency_id, weight_percent, display_order, created_at, updated_at)
+			VALUES (?, ?, ?, ?, NOW(), NOW())`, offeringID, input.CompetencyID, input.WeightPercent, index+1); err != nil {
+			return err
+		}
+	}
+	_, err = tx.ExecContext(ctx, `
+		UPDATE ele_free_elective_offerings
+		SET scores_recalculation_required = CASE WHEN status = 'finalized' THEN 1 ELSE scores_recalculation_required END,
+			updated_at = NOW()
+		WHERE offering_id = ? AND deleted_at IS NULL`, offeringID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (r *FreeElectiveRepository) CopyPreviousOfferingCompetencies(ctx context.Context, offeringID uint64) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var courseID, year, semester uint64
+	var status string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT free_elective_course_id, academic_year_be, semester, status
+		FROM ele_free_elective_offerings
+		WHERE offering_id = ? AND deleted_at IS NULL FOR UPDATE`, offeringID).Scan(&courseID, &year, &semester, &status); err != nil {
+		return err
+	}
+	if status == "finalized" || status == "cancelled" {
+		return ErrFreeElectiveOfferingLocked
+	}
+	var previousID uint64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT offering_id
+		FROM ele_free_elective_offerings
+		WHERE free_elective_course_id = ? AND deleted_at IS NULL
+			AND status <> 'cancelled'
+			AND (academic_year_be < ? OR (academic_year_be = ? AND semester < ?))
+		ORDER BY academic_year_be DESC, semester DESC, offering_id DESC
+		LIMIT 1`, courseID, year, year, semester).Scan(&previousID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_offering_competencies
+		SET deleted_at = NOW(), updated_at = NOW()
+		WHERE offering_id = ? AND deleted_at IS NULL`, offeringID); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO ele_offering_competencies
+			(offering_id, competency_id, weight_percent, display_order, created_at, updated_at)
+		SELECT ?, competency_id, weight_percent, display_order, NOW(), NOW()
+		FROM ele_offering_competencies
+		WHERE offering_id = ? AND deleted_at IS NULL`, offeringID, previousID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }

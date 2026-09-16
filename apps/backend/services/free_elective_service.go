@@ -16,6 +16,7 @@ var (
 	ErrFreeElectiveForbidden        = errors.New("insufficient free-elective scope")
 	ErrFreeElectiveCourseNotFound   = errors.New("free-elective course not found")
 	ErrFreeElectiveOfferingNotFound = errors.New("free-elective offering not found")
+	ErrFreeElectiveOfferingLocked   = errors.New("free-elective offering is locked")
 )
 
 type FreeElectiveValidationError struct {
@@ -315,6 +316,59 @@ func validFreeElectiveOfferingStatus(status string) bool {
 	default:
 		return false
 	}
+}
+
+func (s *FreeElectiveService) GetOfferingCompetencies(ctx context.Context, claims *utils.Claims, offeringID uint64) ([]models.FreeElectiveCompetency, error) {
+	if _, err := s.GetOffering(ctx, claims, offeringID); err != nil {
+		return nil, err
+	}
+	return s.Repo.GetOfferingCompetencies(ctx, offeringID)
+}
+
+func (s *FreeElectiveService) ReplaceOfferingCompetencies(ctx context.Context, claims *utils.Claims, offeringID uint64, payload models.ReplaceFreeElectiveCompetenciesPayload) ([]models.FreeElectiveCompetency, error) {
+	offering, err := s.GetOffering(ctx, claims, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	if offering.Status == "finalized" || offering.Status == "cancelled" {
+		return nil, ErrFreeElectiveOfferingLocked
+	}
+	seen := make(map[uint64]struct{}, len(payload.Competencies))
+	for _, input := range payload.Competencies {
+		if input.CompetencyID == 0 {
+			return nil, FreeElectiveValidationError{Message: "competency_id is required"}
+		}
+		if _, exists := seen[input.CompetencyID]; exists {
+			return nil, FreeElectiveValidationError{Message: "each competency can be added only once per offering"}
+		}
+		if input.WeightPercent < 0 || input.WeightPercent > 100 {
+			return nil, FreeElectiveValidationError{Message: "weight_percent must be between zero and one hundred"}
+		}
+		seen[input.CompetencyID] = struct{}{}
+	}
+	if err := s.Repo.ReplaceOfferingCompetencies(ctx, offeringID, payload.Competencies); errors.Is(err, repositories.ErrFreeElectiveOfferingLocked) {
+		return nil, ErrFreeElectiveOfferingLocked
+	} else if err != nil {
+		return nil, err
+	}
+	return s.Repo.GetOfferingCompetencies(ctx, offeringID)
+}
+
+func (s *FreeElectiveService) CopyPreviousOfferingCompetencies(ctx context.Context, claims *utils.Claims, offeringID uint64) ([]models.FreeElectiveCompetency, error) {
+	if _, err := s.GetOffering(ctx, claims, offeringID); err != nil {
+		return nil, err
+	}
+	err := s.Repo.CopyPreviousOfferingCompetencies(ctx, offeringID)
+	if errors.Is(err, repositories.ErrFreeElectiveOfferingLocked) {
+		return nil, ErrFreeElectiveOfferingLocked
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, FreeElectiveConflictError{Code: "PREVIOUS_MAPPING_NOT_FOUND", Message: "no previous offering has competency mappings to copy"}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.Repo.GetOfferingCompetencies(ctx, offeringID)
 }
 
 func nonZeroFreeElectiveID(value uint64) *uint64 {
