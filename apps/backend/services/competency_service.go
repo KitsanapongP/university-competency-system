@@ -82,13 +82,14 @@ type DashboardStatus struct {
 }
 
 type LearnerCompetencyProgress struct {
-	CoreScore        float64 `json:"core_score"`
-	CourseBonusScore float64 `json:"course_bonus_score"`
-	CourseTotalScore float64 `json:"course_total_score"`
-	ActivityScore    float64 `json:"activity_score"`
-	AccumulatedScore float64 `json:"accumulated_score"`
-	TargetScore      float64 `json:"target_score"`
-	Passed           bool    `json:"passed"`
+	CoreScore         float64 `json:"core_score"`
+	CourseBonusScore  float64 `json:"course_bonus_score"`
+	FreeElectiveScore float64 `json:"free_elective_score"`
+	CourseTotalScore  float64 `json:"course_total_score"`
+	ActivityScore     float64 `json:"activity_score"`
+	AccumulatedScore  float64 `json:"accumulated_score"`
+	TargetScore       float64 `json:"target_score"`
+	Passed            bool    `json:"passed"`
 }
 
 // GetAllCompetencies ดึง competencies ทั้งหมดในระบบ
@@ -247,13 +248,14 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 
 		progress := progressRows[comp.ID]
 		data.Progress[comp.ID] = LearnerCompetencyProgress{
-			CoreScore:        progress.CoreScore,
-			CourseBonusScore: progress.CourseBonusScore,
-			CourseTotalScore: progress.CoreScore + progress.CourseBonusScore,
-			ActivityScore:    progress.ActivityScore,
-			AccumulatedScore: progress.AccumulatedScore,
-			TargetScore:      progress.TargetScore,
-			Passed:           progress.Passed,
+			CoreScore:         progress.CoreScore,
+			CourseBonusScore:  progress.CourseBonusScore,
+			FreeElectiveScore: progress.FreeElectiveScore,
+			CourseTotalScore:  progress.CoreScore + progress.CourseBonusScore,
+			ActivityScore:     progress.ActivityScore,
+			AccumulatedScore:  progress.AccumulatedScore,
+			TargetScore:       progress.TargetScore,
+			Passed:            progress.Passed,
 		}
 		if requirement, exists := progressRows[comp.ID]; exists {
 			data.Requirements[comp.ID] = requirement.TargetScore

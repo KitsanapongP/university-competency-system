@@ -267,7 +267,7 @@ func (r *CourseCompetencyScoringRepository) recomputeResults(ctx context.Context
 func (r *CourseCompetencyScoringRepository) GetSummary(ctx context.Context, cohortID uint64) ([]models.CohortLearnerCompetencySummary, error) {
 	const query = `
 		SELECT roster.enrollment_id, enrollment.student_code, CONCAT_WS(' ', person.first_name_th, person.last_name_th), requirement.competency_id, competency.code, competency.name_th,
-			requirement.target_score, COALESCE(result.core_score, 0), COALESCE(result.course_bonus_score, 0),
+			requirement.target_score, COALESCE(result.core_score, 0), COALESCE(result.course_bonus_score, 0), COALESCE(result.free_elective_score, 0),
 			COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0), COALESCE(result.activity_score, 0), COALESCE(result.final_score, 0),
 			CASE WHEN requirement.is_required = 0 OR COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) >= requirement.target_score THEN 1 ELSE 0 END
 		FROM kku_enrollment_curricula roster
@@ -286,7 +286,7 @@ func (r *CourseCompetencyScoringRepository) GetSummary(ctx context.Context, coho
 	items := make([]models.CohortLearnerCompetencySummary, 0)
 	for rows.Next() {
 		var item models.CohortLearnerCompetencySummary
-		if err := rows.Scan(&item.EnrollmentID, &item.StudentCode, &item.StudentNameTH, &item.CompetencyID, &item.CompetencyCode, &item.CompetencyName, &item.TargetScore, &item.CoreScore, &item.CourseBonusScore, &item.CourseTotalScore, &item.ActivityScore, &item.AccumulatedScore, &item.PassedRequirement); err != nil {
+		if err := rows.Scan(&item.EnrollmentID, &item.StudentCode, &item.StudentNameTH, &item.CompetencyID, &item.CompetencyCode, &item.CompetencyName, &item.TargetScore, &item.CoreScore, &item.CourseBonusScore, &item.FreeElectiveScore, &item.CourseTotalScore, &item.ActivityScore, &item.AccumulatedScore, &item.PassedRequirement); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

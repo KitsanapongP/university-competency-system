@@ -452,9 +452,9 @@ func (r *ActivitySessionWorkspaceRepository) FinalizeScores(ctx context.Context,
 				return err
 			}
 			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO score_competency_result (enrollment_id, competency_id, core_score, course_bonus_score, activity_score, final_score)
-				VALUES (?, ?, ?, ?, ?, ?)
-				ON DUPLICATE KEY UPDATE core_score = VALUES(core_score), course_bonus_score = VALUES(course_bonus_score), activity_score = VALUES(activity_score), final_score = VALUES(final_score), deleted_at = NULL, updated_at = NOW()
+				INSERT INTO score_competency_result (enrollment_id, competency_id, core_score, course_bonus_score, free_elective_score, activity_score, final_score)
+				VALUES (?, ?, ?, ?, 0, ?, ?)
+				ON DUPLICATE KEY UPDATE core_score = VALUES(core_score), course_bonus_score = VALUES(course_bonus_score), activity_score = VALUES(activity_score), final_score = VALUES(core_score) + VALUES(course_bonus_score) + score_competency_result.free_elective_score + VALUES(activity_score), deleted_at = NULL, updated_at = NOW()
 			`, enrollmentID, competency.CompetencyID, coreScore, courseBonusScore, sessionTotal, coreScore+courseBonusScore+sessionTotal); err != nil {
 				return err
 			}

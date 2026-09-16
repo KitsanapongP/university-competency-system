@@ -451,13 +451,14 @@ ORDER BY s.start_at DESC
 }
 
 type LearnerCompetencyProgressRecord struct {
-	CoreScore        float64
-	CourseBonusScore float64
-	ActivityScore    float64
-	AccumulatedScore float64
-	TargetScore      float64
-	Passed           bool
-	HasResult        bool
+	CoreScore         float64
+	CourseBonusScore  float64
+	FreeElectiveScore float64
+	ActivityScore     float64
+	AccumulatedScore  float64
+	TargetScore       float64
+	Passed            bool
+	HasResult         bool
 }
 
 // GetLearnerCompetencyProgress returns the active Cohort's accumulated score
@@ -465,7 +466,7 @@ type LearnerCompetencyProgressRecord struct {
 func (r *CompetencyRepository) GetLearnerCompetencyProgress(ctx context.Context, personID int64) (map[int64]LearnerCompetencyProgressRecord, error) {
 	rows, err := r.DB.QueryContext(ctx, `
 		SELECT requirement.competency_id, COALESCE(result.core_score, 0), COALESCE(result.course_bonus_score, 0),
-			COALESCE(result.activity_score, 0), COALESCE(result.final_score, 0), requirement.target_score,
+			COALESCE(result.free_elective_score, 0), COALESCE(result.activity_score, 0), COALESCE(result.final_score, 0), requirement.target_score,
 			CASE WHEN requirement.is_required = 0 OR COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) >= requirement.target_score THEN 1 ELSE 0 END,
 			CASE WHEN result.competency_result_id IS NULL THEN 0 ELSE 1 END
 		FROM kku_enrollments enrollment
@@ -483,7 +484,7 @@ func (r *CompetencyRepository) GetLearnerCompetencyProgress(ctx context.Context,
 	for rows.Next() {
 		var competencyID int64
 		var item LearnerCompetencyProgressRecord
-		if err := rows.Scan(&competencyID, &item.CoreScore, &item.CourseBonusScore, &item.ActivityScore, &item.AccumulatedScore, &item.TargetScore, &item.Passed, &item.HasResult); err != nil {
+		if err := rows.Scan(&competencyID, &item.CoreScore, &item.CourseBonusScore, &item.FreeElectiveScore, &item.ActivityScore, &item.AccumulatedScore, &item.TargetScore, &item.Passed, &item.HasResult); err != nil {
 			return nil, err
 		}
 		if _, exists := progress[competencyID]; !exists {

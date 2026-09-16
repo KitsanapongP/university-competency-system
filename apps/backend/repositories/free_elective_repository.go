@@ -1091,3 +1091,179 @@ func recomputeFreeElectiveBestGradeFlagsTx(ctx context.Context, tx *sql.Tx, enro
 		WHERE grade_record_id = ? AND deleted_at IS NULL`, attempts[0].GradeRecordID)
 	return err
 }
+
+type freeElectiveScoreCandidate struct {
+	GradeRecordID          uint64
+	OfferingID             uint64
+	EnrollmentID           uint64
+	EnrollmentCurriculumID uint64
+	CohortID               uint64
+	AcademicYearBE         uint64
+	Semester               uint64
+	Grade                  string
+	GradeScheme            string
+	Evaluation             grading.Evaluation
+}
+
+func (r *FreeElectiveRepository) FinalizeOfferingAndCalculate(ctx context.Context, offeringID, userID uint64) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var courseID uint64
+	var status string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT free_elective_course_id, status
+		FROM ele_free_elective_offerings
+		WHERE offering_id = ? AND deleted_at IS NULL FOR UPDATE`, offeringID).Scan(&courseID, &status); err != nil {
+		return err
+	}
+	if status != "active" {
+		return ErrFreeElectiveOfferingLocked
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_free_elective_offerings
+		SET status = 'finalized', finalized_at = NOW(), finalized_by = ?,
+			scores_recalculation_required = 1, updated_at = NOW()
+		WHERE offering_id = ? AND deleted_at IS NULL`, userID, offeringID); err != nil {
+		return err
+	}
+	if err := recalculateFreeElectiveCourseTx(ctx, tx, courseID, userID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func recalculateFreeElectiveCourseTx(ctx context.Context, tx *sql.Tx, courseID, userID uint64) error {
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE score_free_elective_competency_scores score
+		JOIN ele_offering_grade_records grade ON grade.grade_record_id = score.grade_record_id
+		JOIN ele_offering_enrollments selected ON selected.offering_enrollment_id = grade.offering_enrollment_id
+		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
+		SET score.deleted_at = NOW(), score.updated_at = NOW()
+		WHERE offering.free_elective_course_id = ? AND score.deleted_at IS NULL`, courseID); err != nil {
+		return err
+	}
+	candidates, err := getFinalizedFreeElectiveCandidates(ctx, tx, courseID)
+	if err != nil {
+		return err
+	}
+	bestByEnrollment := make(map[uint64]freeElectiveScoreCandidate)
+	for _, candidate := range candidates {
+		if !candidate.Evaluation.HasScore {
+			continue
+		}
+		current, exists := bestByEnrollment[candidate.EnrollmentID]
+		if !exists || grading.IsBetterAttempt(
+			grading.GradeAttempt{Evaluation: candidate.Evaluation, AcademicYearBE: candidate.AcademicYearBE, Semester: candidate.Semester},
+			grading.GradeAttempt{Evaluation: current.Evaluation, AcademicYearBE: current.AcademicYearBE, Semester: current.Semester},
+		) {
+			bestByEnrollment[candidate.EnrollmentID] = candidate
+		}
+	}
+	cohortIDs := make(map[uint64]struct{})
+	for _, candidate := range bestByEnrollment {
+		if candidate.CohortID > 0 {
+			cohortIDs[candidate.CohortID] = struct{}{}
+		}
+		if err := insertFreeElectiveScoresTx(ctx, tx, candidate, userID); err != nil {
+			return err
+		}
+	}
+	for cohortID := range cohortIDs {
+		if err := recomputeCompetencyResultsTx(ctx, tx, cohortID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE edu_student_cohorts
+			SET free_elective_scores_recalculation_required = 0,
+				free_elective_scores_recalculated_at = NOW(), updated_at = NOW()
+			WHERE cohort_id = ? AND deleted_at IS NULL`, cohortID); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_free_elective_offerings
+		SET scores_recalculation_required = 0, scores_recalculated_at = NOW(),
+			scores_recalculated_by = ?, updated_at = NOW()
+		WHERE free_elective_course_id = ? AND status = 'finalized' AND deleted_at IS NULL`, userID, courseID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func getFinalizedFreeElectiveCandidates(ctx context.Context, tx *sql.Tx, courseID uint64) ([]freeElectiveScoreCandidate, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT grade.grade_record_id, selected.offering_id, selected.enrollment_id,
+			selected.enrollment_curriculum_id, COALESCE(roster.cohort_id, 0),
+			offering.academic_year_be, offering.semester, grade.grade, course.grade_scheme
+		FROM ele_offering_grade_records grade
+		JOIN ele_offering_enrollments selected ON selected.offering_enrollment_id = grade.offering_enrollment_id
+			AND selected.deleted_at IS NULL
+		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
+			AND offering.status = 'finalized' AND offering.deleted_at IS NULL
+		JOIN ele_free_elective_courses course ON course.free_elective_course_id = offering.free_elective_course_id
+		JOIN kku_enrollment_curricula roster ON roster.enrollment_curriculum_id = selected.enrollment_curriculum_id
+			AND roster.enrollment_id = selected.enrollment_id AND roster.deleted_at IS NULL
+		WHERE grade.deleted_at IS NULL AND course.free_elective_course_id = ?`, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	candidates := make([]freeElectiveScoreCandidate, 0)
+	for rows.Next() {
+		var candidate freeElectiveScoreCandidate
+		if err := rows.Scan(
+			&candidate.GradeRecordID,
+			&candidate.OfferingID,
+			&candidate.EnrollmentID,
+			&candidate.EnrollmentCurriculumID,
+			&candidate.CohortID,
+			&candidate.AcademicYearBE,
+			&candidate.Semester,
+			&candidate.Grade,
+			&candidate.GradeScheme,
+		); err != nil {
+			return nil, err
+		}
+		candidate.Evaluation = grading.Evaluate(candidate.GradeScheme, candidate.Grade)
+		candidates = append(candidates, candidate)
+	}
+	return candidates, rows.Err()
+}
+
+func insertFreeElectiveScoresTx(ctx context.Context, tx *sql.Tx, candidate freeElectiveScoreCandidate, userID uint64) error {
+	mappings, err := tx.QueryContext(ctx, `
+		SELECT offering_competency_id, weight_percent
+		FROM ele_offering_competencies
+		WHERE offering_id = ? AND deleted_at IS NULL
+		ORDER BY display_order, offering_competency_id`, candidate.OfferingID)
+	if err != nil {
+		return err
+	}
+	defer mappings.Close()
+	for mappings.Next() {
+		var mappingID uint64
+		var weight float64
+		if err := mappings.Scan(&mappingID, &weight); err != nil {
+			return err
+		}
+		weighted := candidate.Evaluation.Score * weight / 100
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO score_free_elective_competency_scores
+				(grade_record_id, offering_competency_id, raw_score, weighted_score,
+				 weight_snapshot, grade_snapshot, grade_scheme_snapshot, calculated_by,
+				 calculated_at, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+			ON DUPLICATE KEY UPDATE raw_score = VALUES(raw_score), weighted_score = VALUES(weighted_score),
+				weight_snapshot = VALUES(weight_snapshot), grade_snapshot = VALUES(grade_snapshot),
+				grade_scheme_snapshot = VALUES(grade_scheme_snapshot), calculated_by = VALUES(calculated_by),
+				calculated_at = NOW(), deleted_at = NULL, updated_at = NOW()`,
+			candidate.GradeRecordID, mappingID, candidate.Evaluation.Score, weighted, weight,
+			strings.ToUpper(strings.TrimSpace(candidate.Grade)), candidate.GradeScheme, userID); err != nil {
+			return err
+		}
+	}
+	return mappings.Err()
+}

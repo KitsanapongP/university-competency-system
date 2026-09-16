@@ -283,8 +283,10 @@ func (s *FreeElectiveService) FinalizeOffering(ctx context.Context, claims *util
 	if !readiness.Ready {
 		return nil, FreeElectiveConflictError{Code: "OFFERING_NOT_READY", Message: "offering is not ready to finalize", Data: readiness}
 	}
-	if err := s.Repo.FinalizeOffering(ctx, offeringID, uint64(claims.UserID)); errors.Is(err, sql.ErrNoRows) {
+	if err := s.Repo.FinalizeOfferingAndCalculate(ctx, offeringID, uint64(claims.UserID)); errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrFreeElectiveOfferingNotFound
+	} else if errors.Is(err, repositories.ErrFreeElectiveOfferingLocked) {
+		return nil, ErrFreeElectiveOfferingLocked
 	} else if err != nil {
 		return nil, err
 	}

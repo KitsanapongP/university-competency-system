@@ -48,6 +48,7 @@ type CohortLearnerCompetencySummary struct {
 	TargetScore       float64 `json:"target_score"`
 	CoreScore         float64 `json:"core_score"`
 	CourseBonusScore  float64 `json:"course_bonus_score"`
+	FreeElectiveScore float64 `json:"free_elective_score"`
 	CourseTotalScore  float64 `json:"course_total_score"`
 	ActivityScore     float64 `json:"activity_score"`
 	AccumulatedScore  float64 `json:"accumulated_score"`
