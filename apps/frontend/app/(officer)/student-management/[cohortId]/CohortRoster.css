@@ -1,14 +1,14 @@
-.cohort-roster-page { min-height: 100vh; box-sizing: border-box; padding-top: 1.25rem; background: var(--course-bg); }
+.cohort-roster-page { min-height: 100vh; box-sizing: border-box; padding-top: 1.25rem; background: var(--officer-bg, var(--course-bg)); color: var(--officer-text, var(--course-text)); font-family: var(--officer-font, 'Prompt', sans-serif); }
 .cohort-roster-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; margin-bottom: 1.25rem; }
-.cohort-roster-header h1 { margin: 0.75rem 0 0.25rem; color: var(--course-text); font-size: 1.55rem; }
+.cohort-roster-header h1 { margin: 0.75rem 0 0.25rem; color: var(--officer-primary-strong, var(--course-text)); font-size: 1.5rem; font-weight: 700; }
 .cohort-roster-header p { margin: 0; color: var(--course-text-muted); }
 .cohort-back { width: fit-content; }
-.cohort-summary { display: flex; align-items: stretch; gap: 0; margin-bottom: 1rem; overflow: hidden; border: 1px solid var(--course-card-border); border-radius: 8px; background: var(--course-card-bg); }
+.cohort-summary { display: flex; align-items: stretch; gap: 0; margin-bottom: 1rem; overflow: hidden; border: 1px solid var(--officer-border, var(--course-card-border)); border-radius: var(--officer-radius, 8px); background: var(--officer-surface, var(--course-card-bg)); }
 .cohort-summary > div { display: flex; min-width: 130px; flex: 1; flex-direction: column; gap: 0.2rem; padding: 0.875rem 1rem; border-right: 1px solid var(--course-border); }
 .cohort-summary span { color: var(--course-text-muted); font-size: 0.75rem; }
 .cohort-summary strong { color: var(--course-text); }
 .cohort-summary p { align-self: center; margin: 0; padding: 0.875rem 1rem; color: #d97706; font-size: 0.8125rem; }
-.cohort-roster-toolbar { display: flex; align-items: center; gap: 0.875rem; padding: 1rem; border-bottom: 1px solid var(--course-border); }
+.cohort-roster-toolbar { display: flex; align-items: center; gap: 0.875rem; padding: 1rem; border-bottom: 1px solid var(--officer-border, var(--course-border)); }
 .cohort-roster-toolbar .student-search { flex: 1 1 auto; min-width: 0; }
 .cohort-roster-toolbar > select.course-input { width: max-content; min-width: 0; flex: 0 0 auto; }
 .cohort-roster-toolbar > span { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--course-text-muted); font-size: 0.8125rem; white-space: nowrap; }
@@ -29,9 +29,9 @@
 .student-import-section--error { border-color: rgba(220, 38, 38, 0.4); color: #dc2626; }
 .student-import-candidate { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
 .student-import-candidate input { width: 16px; height: 16px; accent-color: var(--course-accent); }
-.cohort-workspace-tabs { display: flex; gap: 0.25rem; margin: 1.25rem 0 0.75rem; border-bottom: 1px solid var(--course-border); }
+.cohort-workspace-tabs { display: flex; gap: 0.25rem; margin: 1.25rem 0 0.75rem; border-bottom: 1px solid var(--officer-border, var(--course-border)); }
 .cohort-workspace-tabs button { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 40px; padding: 0 0.875rem; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--course-text-muted); cursor: pointer; }
-.cohort-workspace-tabs button.is-active { border-bottom-color: var(--course-accent); color: var(--course-accent-light); }
+.cohort-workspace-tabs button.is-active { border-bottom-color: var(--officer-primary, var(--course-accent)); color: var(--officer-primary, var(--course-accent-light)); }
 .cohort-score-panel__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.25rem; padding: 1.125rem; border-bottom: 1px solid var(--course-border); }
 .cohort-score-panel__header h2, .cohort-score-results h3 { margin: 0; color: var(--course-text); font-size: 1rem; }
 .cohort-score-panel__header p { margin: 0.4rem 0 0; color: var(--course-text-muted); font-size: 0.875rem; }

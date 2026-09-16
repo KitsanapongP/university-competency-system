@@ -703,13 +703,13 @@ export default function StudentManagementPage() {
   };
 
   return (
-    <div className="student-management-page">
-      <header className="course-list-header">
+    <div className="student-management-page officer-page">
+      <header className="course-list-header officer-page__header">
         <div className="course-list-header__left">
-          <h1 className="course-list-header__title">
+          <h1 className="course-list-header__title officer-page__title">
             {label(language, "จัดการข้อมูลนักศึกษา", "Student Management")}
           </h1>
-          <p className="course-list-header__subtitle">
+          <p className="course-list-header__subtitle officer-page__subtitle">
             {label(
               language,
               "สร้างรุ่น จัดการรายชื่อ และนำเข้าข้อมูลนักศึกษา",
@@ -717,7 +717,7 @@ export default function StudentManagementPage() {
             )}
           </p>
         </div>
-        <div className="course-list-header__actions">
+        <div className="course-list-header__actions officer-page__actions">
           <button
             className="course-btn course-btn--ghost"
             onClick={() => loadCohorts(true)}
@@ -744,7 +744,7 @@ export default function StudentManagementPage() {
         onCloseError={() => setFeedback({ type: "", message: "" })}
       />
 
-      <section className="student-filter-panel">
+      <section className="student-filter-panel officer-panel">
         <label className="course-field">
           <span className="course-label">
             {label(language, "คณะ", "Faculty")}
@@ -863,7 +863,7 @@ export default function StudentManagementPage() {
         </label>
       </section>
 
-      <section className="student-management-panel">
+      <section className="student-management-panel officer-panel">
         <div className="student-management-panel__header">
           <div>
             <span>{label(language, "รุ่นนักศึกษา", "Student cohorts")}</span>

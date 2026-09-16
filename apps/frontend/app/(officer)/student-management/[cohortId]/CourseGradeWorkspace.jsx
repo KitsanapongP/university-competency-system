@@ -1474,7 +1474,7 @@ export default function CourseGradeWorkspace({
   );
 
   return (
-    <section className="student-management-panel course-grade-workspace">
+    <section className="student-management-panel officer-panel course-grade-workspace">
       <div className="course-grade-workspace__header">
         <div>
           <h2>{label(language, "ผลการเรียน", "Course grades")}</h2>

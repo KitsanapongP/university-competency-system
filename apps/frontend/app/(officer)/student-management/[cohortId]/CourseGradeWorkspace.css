@@ -80,6 +80,46 @@
 .course-grade-reg-placeholder svg { color: var(--course-accent-light); }
 .course-grade-reg-placeholder strong { color: var(--course-text); }
 .course-grade-reg-placeholder p { margin: 0; font-size: .875rem; line-height: 1.6; }
+
+.course-grade-workspace,
+.course-grade-workspace button,
+.course-grade-workspace input,
+.course-grade-workspace select,
+.course-grade-workspace textarea {
+    font-family: var(--officer-font, 'Prompt', sans-serif);
+}
+
+.course-grade-workspace__header,
+.course-grade-editor-group-heading,
+.course-grade-editor-note,
+.course-grade-recalc-banner {
+    border-color: var(--officer-border, var(--course-border));
+}
+
+.course-grade-workspace__header h2,
+.course-grade-editor-group-heading strong,
+.course-grade-delete-impact {
+    color: var(--officer-text, var(--course-text));
+}
+
+.course-grade-workspace__header p,
+.course-grade-workspace__header span,
+.course-grade-editor-note,
+.course-grade-editor-group-heading span {
+    color: var(--officer-text-muted, var(--course-text-muted));
+}
+
+.course-grade-record-action--save {
+    color: var(--officer-success, #16a34a);
+}
+
+.course-grade-record-action--save:hover:not(:disabled),
+.course-grade-record-action--save:focus-visible {
+    border-color: color-mix(in srgb, var(--officer-success, #16a34a) 55%, transparent);
+    color: var(--officer-success, #16a34a);
+    background: color-mix(in srgb, var(--officer-success, #16a34a) 8%, transparent);
+}
+
 @media (max-width: 900px) {
     .course-grade-workspace__header { flex-direction: column; }
     .course-grade-toolbar { align-items: stretch; flex-wrap: wrap; }

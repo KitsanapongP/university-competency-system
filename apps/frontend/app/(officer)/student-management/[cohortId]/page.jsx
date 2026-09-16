@@ -952,8 +952,8 @@ export default function CohortRosterPage() {
   };
 
   return (
-    <div className="student-management-page cohort-roster-page">
-      <div className="cohort-roster-header">
+    <div className="student-management-page officer-page cohort-roster-page">
+      <div className="cohort-roster-header officer-page__header">
         <div>
           <Link
             className="course-btn course-btn--ghost cohort-back"
@@ -1074,7 +1074,7 @@ export default function CohortRosterPage() {
         </button>
       </div>
       {workspaceTab === "roster" ? (
-        <section className="student-management-panel">
+        <section className="student-management-panel officer-panel">
           <div className="cohort-roster-toolbar">
             <div className="student-search">
               <Search size={16} />
