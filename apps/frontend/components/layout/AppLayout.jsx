@@ -101,6 +101,11 @@ const MENU_CONFIG = {
       icon: Link2,
       labelKey: "template_assignments",
     },
+    {
+      id: "free-elective-management",
+      icon: BookOpen,
+      labelKey: "free_elective_management",
+    },
   ],
   admin: [
     { id: "dashboard", icon: LayoutDashboard, labelKey: "dashboard" },
@@ -108,6 +113,11 @@ const MENU_CONFIG = {
       id: "executive-management",
       icon: BarChart3,
       labelKey: "executive_analytics",
+    },
+    {
+      id: "free-elective-management",
+      icon: BookOpen,
+      labelKey: "free_elective_management",
     },
     {
       id: "major-management",

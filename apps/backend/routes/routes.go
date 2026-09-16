@@ -95,6 +95,9 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	executiveAnalyticsRepo := repositories.NewExecutiveAnalyticsRepository(db)
 	executiveAnalyticsSvc := services.NewExecutiveAnalyticsService(executiveAnalyticsRepo)
 	executiveAnalyticsHandler := &controllers.ExecutiveAnalyticsController{Service: executiveAnalyticsSvc}
+	freeElectiveRepo := repositories.NewFreeElectiveRepository(db)
+	freeElectiveSvc := services.NewFreeElectiveService(freeElectiveRepo)
+	freeElectiveHandler := &controllers.FreeElectiveController{Service: freeElectiveSvc}
 
 	// Versioned API routes
 	r.Route("/api/v1", func(api chi.Router) {
@@ -117,6 +120,30 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				ear.Get("/comparison", executiveAnalyticsHandler.Comparison)
 				ear.Get("/students", executiveAnalyticsHandler.Students)
 				ear.Get("/students/{enrollment_id}", executiveAnalyticsHandler.Student)
+			})
+
+			pr.Route("/free-electives", func(fer chi.Router) {
+				fer.Use(middleware.RequireRoles("admin", "officer"))
+				fer.Get("/courses", freeElectiveHandler.ListCourses)
+				fer.Post("/courses", freeElectiveHandler.CreateCourse)
+				fer.Get("/courses/{course_id}", freeElectiveHandler.GetCourse)
+				fer.Patch("/courses/{course_id}", freeElectiveHandler.UpdateCourse)
+				fer.Get("/offerings", freeElectiveHandler.ListOfferings)
+				fer.Post("/offerings", freeElectiveHandler.CreateOffering)
+				fer.Get("/offerings/{offering_id}", freeElectiveHandler.GetOffering)
+				fer.Patch("/offerings/{offering_id}/status", freeElectiveHandler.UpdateOfferingStatus)
+				fer.Post("/offerings/{offering_id}/finalize", freeElectiveHandler.FinalizeOffering)
+				fer.Get("/offerings/{offering_id}/competencies", freeElectiveHandler.GetOfferingCompetencies)
+				fer.Put("/offerings/{offering_id}/competencies", freeElectiveHandler.ReplaceOfferingCompetencies)
+				fer.Post("/offerings/{offering_id}/competencies/copy-previous", freeElectiveHandler.CopyPreviousOfferingCompetencies)
+				fer.Get("/offerings/{offering_id}/enrollments", freeElectiveHandler.ListOfferingEnrollments)
+				fer.Post("/offerings/{offering_id}/enrollments", freeElectiveHandler.AddOfferingEnrollments)
+				fer.Patch("/offerings/{offering_id}/enrollments/{offering_enrollment_id}", freeElectiveHandler.UpdateOfferingEnrollmentStatus)
+				fer.Put("/offerings/{offering_id}/enrollments/{offering_enrollment_id}/grade", freeElectiveHandler.UpsertOfferingGrade)
+				fer.Post("/offerings/{offering_id}/grade-imports/preview", freeElectiveHandler.PreviewGradeImport)
+				fer.Post("/offerings/{offering_id}/grade-imports/commit", freeElectiveHandler.CommitGradeImport)
+				fer.Get("/student-groups", freeElectiveHandler.ListStudentGroups)
+				fer.Get("/student-groups/{cohort_id}/students", freeElectiveHandler.ListCohortStudents)
 			})
 
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)
