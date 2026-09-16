@@ -229,17 +229,17 @@ function FreeElectiveManagementPageContent() {
     const impact = impactConfirmation?.impact;
 
     return (
-        <div className="free-elective-page">
-            <header className="free-elective-page__header">
+        <div className="free-elective-page officer-page">
+            <header className="free-elective-page__header officer-page__header">
                 <div>
                     <p className="free-elective-page__eyebrow">
                         <BookOpen size={15} aria-hidden="true" />
                         {labels.signInScope}
                     </p>
-                    <h1 className="free-elective-page__title">{labels.title}</h1>
-                    <p className="free-elective-page__subtitle">{labels.subtitle}</p>
+                    <h1 className="free-elective-page__title officer-page__title">{labels.title}</h1>
+                    <p className="free-elective-page__subtitle officer-page__subtitle">{labels.subtitle}</p>
                 </div>
-                <div className="free-elective-page__actions">
+                <div className="free-elective-page__actions officer-page__actions">
                     <button
                         type="button"
                         className="free-elective-button free-elective-button--secondary"

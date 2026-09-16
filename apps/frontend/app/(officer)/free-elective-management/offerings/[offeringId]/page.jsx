@@ -318,7 +318,7 @@ function FreeElectiveOfferingDetailPageContent() {
     }
 
     return (
-        <div className="free-elective-page">
+        <div className="free-elective-page officer-page">
             <button
                 type="button"
                 className="free-elective-back-button"
@@ -327,19 +327,19 @@ function FreeElectiveOfferingDetailPageContent() {
                 <ArrowLeft size={16} aria-hidden="true" />
                 {labels.back}
             </button>
-            <header className="free-elective-detail-header">
+            <header className="free-elective-detail-header officer-page__header">
                 <div>
                     <p className="free-elective-page__eyebrow">
                         <CalendarCheck size={15} aria-hidden="true" />
                         {labels.offeringDetail}
                     </p>
-                    <h1 className="free-elective-page__title">
+                    <h1 className="free-elective-page__title officer-page__title">
                         {offering.courseCode} ·{' '}
                         {language === 'en'
                             ? offering.courseNameEn || offering.courseNameTh
                             : offering.courseNameTh}
                     </h1>
-                    <p className="free-elective-page__subtitle">
+                    <p className="free-elective-page__subtitle officer-page__subtitle">
                         {formatFreeElectiveTerm(
                             offering.academicYearBE,
                             offering.semester,
@@ -363,7 +363,7 @@ function FreeElectiveOfferingDetailPageContent() {
                         </span>
                     </div>
                 </div>
-                <div className="free-elective-page__actions">
+                <div className="free-elective-page__actions officer-page__actions">
                     <FreeElectiveStatusBadge status={offering.status} language={language} />
                     {offering.status === 'draft' && (
                         <button

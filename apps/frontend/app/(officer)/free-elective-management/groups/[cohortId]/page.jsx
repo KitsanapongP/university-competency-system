@@ -82,7 +82,7 @@ export default function FreeElectiveGroupDetailPage() {
     }
 
     return (
-        <div className="free-elective-page">
+        <div className="free-elective-page officer-page">
             <button
                 type="button"
                 className="free-elective-back-button"
@@ -91,13 +91,13 @@ export default function FreeElectiveGroupDetailPage() {
                 <ArrowLeft size={16} aria-hidden="true" />
                 {labels.groupPageTitle}
             </button>
-            <header className="free-elective-page__header">
+            <header className="free-elective-page__header officer-page__header">
                 <div>
                     <p className="free-elective-page__eyebrow">
                         <Users size={15} aria-hidden="true" />
                         {labels.groupDetail}
                     </p>
-                    <h1 className="free-elective-page__title">
+                    <h1 className="free-elective-page__title officer-page__title">
                         {localizedFreeElective(
                             group,
                             language,
@@ -105,7 +105,7 @@ export default function FreeElectiveGroupDetailPage() {
                             'curriculumNameEn',
                         )}
                     </h1>
-                    <p className="free-elective-page__subtitle">
+                    <p className="free-elective-page__subtitle officer-page__subtitle">
                         {localizedFreeElective(
                             group,
                             language,

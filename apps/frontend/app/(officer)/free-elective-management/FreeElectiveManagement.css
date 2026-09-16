@@ -1,7 +1,11 @@
 .free-elective-page {
+    min-height: 100vh;
     min-width: 0;
-    padding: 8px 0 40px;
-    color: var(--text);
+    box-sizing: border-box;
+    padding: 1.5rem 8rem 3rem;
+    background: var(--officer-bg, var(--course-bg, var(--bg)));
+    color: var(--officer-text, var(--course-text, var(--text)));
+    font-family: var(--officer-font, 'Prompt', sans-serif);
 }
 
 .free-elective-page,
@@ -32,8 +36,9 @@
     justify-content: space-between;
     gap: 1.5rem;
     align-items: flex-start;
-    padding: 0.5rem 0 1.25rem;
-    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+    padding: 0 0 1rem;
+    border-bottom: 1px solid var(--officer-border, var(--course-border, var(--border)));
 }
 
 .free-elective-page__eyebrow,
@@ -42,26 +47,27 @@
     gap: 0.45rem;
     align-items: center;
     margin: 0;
-    color: var(--primary);
+    color: var(--officer-primary, var(--primary));
     font-size: 0.75rem;
     font-weight: 700;
 }
 
 .free-elective-page__title {
-    margin: 0.35rem 0 0.25rem;
-    color: var(--primary-dark);
-    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    margin: 0.5rem 0 0.25rem;
+    color: var(--officer-primary-strong, var(--course-title, var(--primary-dark)));
+    font-size: 1.5rem;
+    font-weight: 700;
     line-height: 1.2;
 }
 
 .dark .free-elective-page__title {
-    color: var(--primary-light);
+    color: var(--officer-primary, var(--course-title, var(--primary-light)));
 }
 
 .free-elective-page__subtitle {
     max-width: 48rem;
     margin: 0;
-    color: var(--text-muted);
+    color: var(--officer-text-muted, var(--text-muted));
     line-height: 1.55;
 }
 
@@ -89,7 +95,7 @@
     gap: 1.5rem;
     align-items: flex-start;
     padding-bottom: 1.25rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--officer-border, var(--border));
 }
 
 .free-elective-summary-chips {
@@ -167,10 +173,11 @@
     align-items: center;
     justify-content: center;
     gap: 0.45rem;
-    padding: 0.55rem 0.9rem;
+    padding: 0.625rem 1.25rem;
     border: 1px solid transparent;
     border-radius: 8px;
-    font-weight: 700;
+    color: var(--officer-text, var(--text));
+    font-weight: 500;
     line-height: 1.2;
     cursor: pointer;
     transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
@@ -183,22 +190,22 @@
 
 .free-elective-button--primary {
     color: #fff;
-    background: var(--primary);
+    background: var(--officer-primary, var(--primary));
 }
 
 .free-elective-button--primary:hover:not(:disabled) {
-    background: var(--primary-dark);
+    background: var(--officer-primary-strong, var(--primary-dark));
 }
 
 .free-elective-button--secondary {
-    border-color: var(--border);
-    color: var(--text);
-    background: var(--card);
+    border-color: var(--officer-border, var(--border));
+    color: var(--officer-text, var(--text));
+    background: var(--officer-surface, var(--card));
 }
 
 .free-elective-button--secondary:hover:not(:disabled) {
-    border-color: var(--primary);
-    color: var(--primary);
+    border-color: var(--officer-primary, var(--primary));
+    color: var(--officer-primary, var(--primary));
 }
 
 .free-elective-button--quiet {
@@ -239,10 +246,10 @@
 .free-elective-panel {
     overflow: hidden;
     margin-bottom: 1.1rem;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--card);
-    box-shadow: var(--shadow);
+    border: 1px solid var(--officer-border, var(--border));
+    border-radius: var(--officer-radius, 8px);
+    background: var(--officer-surface, var(--card));
+    box-shadow: var(--officer-shadow, var(--shadow));
 }
 
 .free-elective-panel__heading {
@@ -251,7 +258,7 @@
     gap: 1rem;
     align-items: flex-start;
     padding: 1rem 1.1rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--officer-border, var(--border));
 }
 
 .free-elective-panel__heading h2 {
@@ -261,7 +268,7 @@
 
 .free-elective-panel__heading p {
     margin: 0.25rem 0 0;
-    color: var(--text-muted);
+    color: var(--officer-text-muted, var(--text-muted));
     font-size: 0.8rem;
 }
 
@@ -277,7 +284,7 @@
 }
 
 .free-elective-filters {
-    background: color-mix(in srgb, var(--card) 92%, var(--primary-bg));
+    background: color-mix(in srgb, var(--officer-surface, var(--card)) 92%, var(--officer-primary-soft, var(--primary-bg)));
 }
 
 .free-elective-filter-grid {
@@ -308,10 +315,10 @@
     width: 100%;
     min-height: 2.5rem;
     padding: 0.55rem 0.7rem;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    color: var(--text);
-    background: var(--control-bg);
+    border: 1px solid var(--officer-border, var(--border));
+    border-radius: var(--officer-radius, 8px);
+    color: var(--officer-text, var(--text));
+    background: var(--officer-surface, var(--control-bg));
 }
 
 .free-elective-field textarea {
@@ -360,10 +367,10 @@
     min-height: 17rem;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--card);
-    box-shadow: var(--shadow);
+    border: 1px solid var(--officer-border, var(--border));
+    border-radius: var(--officer-radius, 8px);
+    background: var(--officer-surface, var(--card));
+    box-shadow: var(--officer-shadow, var(--shadow));
 }
 
 .free-elective-offering-card:hover,
@@ -388,13 +395,13 @@
     flex: 0 0 auto;
     place-items: center;
     border-radius: 8px;
-    color: var(--primary);
-    background: var(--primary-bg);
+    color: var(--officer-primary, var(--primary));
+    background: var(--officer-primary-soft, var(--primary-bg));
 }
 
 .free-elective-code {
     margin: 0 0 0.12rem;
-    color: var(--primary);
+    color: var(--officer-primary, var(--primary));
     font-size: 0.75rem;
     font-weight: 800;
     letter-spacing: 0.02em;
@@ -459,7 +466,7 @@
     align-items: center;
     margin-top: auto;
     padding: 0.8rem 1rem;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--officer-border, var(--border));
 }
 
 .free-elective-status {
@@ -549,7 +556,7 @@
     align-items: center;
     padding: 0;
     border: 0;
-    color: var(--primary);
+    color: var(--officer-primary, var(--primary));
     background: transparent;
     font-size: 0.78rem;
     font-weight: 800;
@@ -562,9 +569,9 @@
 
 .free-elective-empty {
     padding: 2rem 1rem;
-    border: 1px dashed var(--border);
-    border-radius: 10px;
-    color: var(--text-muted);
+    border: 1px dashed var(--officer-border, var(--border));
+    border-radius: var(--officer-radius, 8px);
+    color: var(--officer-text-muted, var(--text-muted));
     text-align: center;
 }
 
@@ -697,19 +704,19 @@
 .free-elective-table th,
 .free-elective-table td {
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--officer-border, var(--border));
     vertical-align: middle;
 }
 
 .free-elective-table th {
-    color: var(--text-muted);
-    background: var(--control-bg-soft);
+    color: var(--officer-text-muted, var(--text-muted));
+    background: var(--officer-surface-muted, var(--control-bg-soft));
     font-size: 0.72rem;
     font-weight: 800;
 }
 
 .free-elective-table td {
-    color: var(--text);
+    color: var(--officer-text, var(--text));
     font-size: 0.8rem;
 }
 
@@ -726,10 +733,10 @@
 .free-elective-grade-select {
     min-height: 2.2rem;
     padding: 0.4rem 0.55rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    background: var(--control-bg);
+    border: 1px solid var(--officer-border, var(--border));
+    border-radius: var(--officer-radius, 8px);
+    color: var(--officer-text, var(--text));
+    background: var(--officer-surface, var(--control-bg));
 }
 
 .free-elective-table select {
@@ -763,8 +770,8 @@
     width: 2.1rem;
     height: 2.1rem;
     place-items: center;
-    border: 1px solid var(--border);
-    border-radius: 7px;
+    border: 1px solid var(--officer-border, var(--border));
+    border-radius: 6px;
     background: transparent;
     cursor: pointer;
 }
@@ -784,12 +791,12 @@
 }
 
 .free-elective-icon-button--success {
-    color: var(--accent-green);
+    color: var(--officer-success, var(--accent-green));
 }
 
 .free-elective-icon-button--success:hover:not(:disabled) {
-    border-color: var(--accent-green);
-    background: color-mix(in srgb, var(--accent-green) 12%, transparent);
+    border-color: var(--officer-success, var(--accent-green));
+    background: color-mix(in srgb, var(--officer-success, var(--accent-green)) 12%, transparent);
 }
 
 .free-elective-best-badge {
@@ -1333,6 +1340,12 @@
     align-items: center;
     justify-content: center;
     color: var(--text-muted);
+}
+
+@media (max-width: 1280px) {
+    .free-elective-page {
+        padding-inline: 2rem;
+    }
 }
 
 @media (max-width: 1100px) {

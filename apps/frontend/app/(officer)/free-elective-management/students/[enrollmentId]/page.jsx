@@ -108,7 +108,7 @@ export default function FreeElectiveStudentDetailPage() {
     const { student } = detail;
 
     return (
-        <div className="free-elective-page">
+        <div className="free-elective-page officer-page">
             <button
                 type="button"
                 className="free-elective-back-button"
@@ -117,14 +117,16 @@ export default function FreeElectiveStudentDetailPage() {
                 <ArrowLeft size={16} aria-hidden="true" />
                 {labels.groups}
             </button>
-            <header className="free-elective-page__header">
+            <header className="free-elective-page__header officer-page__header">
                 <div>
                     <p className="free-elective-page__eyebrow">
                         <UserRound size={15} aria-hidden="true" />
                         {labels.studentDetail}
                     </p>
-                    <h1 className="free-elective-page__title">{student.studentCode}</h1>
-                    <p className="free-elective-page__subtitle">
+                    <h1 className="free-elective-page__title officer-page__title">
+                        {student.studentCode}
+                    </h1>
+                    <p className="free-elective-page__subtitle officer-page__subtitle">
                         {localizedFreeElective(
                             student,
                             language,
