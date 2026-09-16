@@ -260,3 +260,227 @@ func freeElectiveBoolOrDefault(value *bool, fallback bool) bool {
 	}
 	return *value
 }
+
+const freeElectiveOfferingSelect = `
+	SELECT offering.offering_id, offering.free_elective_course_id,
+		course.code, course.name_th, COALESCE(course.name_en, ''), course.grade_scheme,
+		offering.academic_year_be, offering.semester, offering.section_no,
+		offering.capacity, offering.status, offering.scores_recalculation_required,
+		offering.finalized_at,
+		COUNT(DISTINCT enrollment.offering_enrollment_id),
+		COUNT(DISTINCT CASE WHEN grade.grade_record_id IS NOT NULL THEN enrollment.offering_enrollment_id END),
+		COUNT(DISTINCT mapping.offering_competency_id),
+		COALESCE(SUM(mapping.weight_percent), 0),
+		offering.created_at, offering.updated_at
+	FROM ele_free_elective_offerings offering
+	JOIN ele_free_elective_courses course
+		ON course.free_elective_course_id = offering.free_elective_course_id
+		AND course.deleted_at IS NULL
+	LEFT JOIN ele_offering_enrollments enrollment
+		ON enrollment.offering_id = offering.offering_id AND enrollment.deleted_at IS NULL
+	LEFT JOIN ele_offering_grade_records grade
+		ON grade.offering_enrollment_id = enrollment.offering_enrollment_id AND grade.deleted_at IS NULL
+	LEFT JOIN ele_offering_competencies mapping
+		ON mapping.offering_id = offering.offering_id AND mapping.deleted_at IS NULL
+	WHERE offering.deleted_at IS NULL`
+
+func scanFreeElectiveOffering(scanner interface{ Scan(...any) error }) (*models.FreeElectiveOffering, error) {
+	var offering models.FreeElectiveOffering
+	var capacity sql.NullInt64
+	var finalizedAt sql.NullTime
+	if err := scanner.Scan(
+		&offering.OfferingID,
+		&offering.FreeElectiveCourseID,
+		&offering.CourseCode,
+		&offering.CourseNameTH,
+		&offering.CourseNameEN,
+		&offering.GradeScheme,
+		&offering.AcademicYearBE,
+		&offering.Semester,
+		&offering.SectionNo,
+		&capacity,
+		&offering.Status,
+		&offering.ScoresRecalculationRequired,
+		&finalizedAt,
+		&offering.StudentCount,
+		&offering.GradedStudentCount,
+		&offering.CompetencyCount,
+		&offering.WeightTotal,
+		&offering.CreatedAt,
+		&offering.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	if capacity.Valid {
+		value := int(capacity.Int64)
+		offering.Capacity = &value
+	}
+	if finalizedAt.Valid {
+		offering.FinalizedAt = &finalizedAt.Time
+	}
+	return &offering, nil
+}
+
+func freeElectiveOfferingGroupBy() string {
+	return `
+	GROUP BY offering.offering_id, offering.free_elective_course_id, course.code,
+		course.name_th, course.name_en, course.grade_scheme, offering.academic_year_be,
+		offering.semester, offering.section_no, offering.capacity, offering.status,
+		offering.scores_recalculation_required, offering.finalized_at,
+		offering.created_at, offering.updated_at`
+}
+
+func (r *FreeElectiveRepository) ListOfferings(ctx context.Context, filters models.FreeElectiveCourseFilters) ([]*models.FreeElectiveOffering, error) {
+	query := freeElectiveOfferingSelect
+	args := make([]any, 0, 4)
+	if filters.FacultyID != nil {
+		query += " AND course.faculty_id = ?"
+		args = append(args, *filters.FacultyID)
+	}
+	if filters.YearBE != nil {
+		query += " AND offering.academic_year_be = ?"
+		args = append(args, *filters.YearBE)
+	}
+	if filters.Semester != nil {
+		query += " AND offering.semester = ?"
+		args = append(args, *filters.Semester)
+	}
+	if strings.TrimSpace(filters.Status) != "" {
+		query += " AND offering.status = ?"
+		args = append(args, strings.ToLower(strings.TrimSpace(filters.Status)))
+	}
+	query += freeElectiveOfferingGroupBy() + " ORDER BY offering.academic_year_be DESC, offering.semester DESC, course.name_th"
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	offerings := make([]*models.FreeElectiveOffering, 0)
+	for rows.Next() {
+		offering, err := scanFreeElectiveOffering(rows)
+		if err != nil {
+			return nil, err
+		}
+		offerings = append(offerings, offering)
+	}
+	return offerings, rows.Err()
+}
+
+func (r *FreeElectiveRepository) GetOffering(ctx context.Context, offeringID uint64) (*models.FreeElectiveOffering, error) {
+	query := freeElectiveOfferingSelect + " AND offering.offering_id = ?" + freeElectiveOfferingGroupBy()
+	return scanFreeElectiveOffering(r.DB.QueryRowContext(ctx, query, offeringID))
+}
+
+func (r *FreeElectiveRepository) CreateOffering(ctx context.Context, payload models.UpsertFreeElectiveOfferingPayload, userID uint64) (*models.FreeElectiveOffering, error) {
+	result, err := r.DB.ExecContext(ctx, `
+		INSERT INTO ele_free_elective_offerings
+			(free_elective_course_id, academic_year_be, semester, section_no, capacity, created_by, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+		payload.FreeElectiveCourseID,
+		payload.AcademicYearBE,
+		payload.Semester,
+		strings.TrimSpace(payload.SectionNo),
+		payload.Capacity,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	return r.GetOffering(ctx, uint64(id))
+}
+
+func (r *FreeElectiveRepository) UpdateOfferingStatus(ctx context.Context, offeringID uint64, status string) error {
+	result, err := r.DB.ExecContext(ctx, `
+		UPDATE ele_free_elective_offerings
+		SET status = ?, updated_at = NOW()
+		WHERE offering_id = ? AND deleted_at IS NULL`, status, offeringID)
+	if err != nil {
+		return err
+	}
+	if affected, err := result.RowsAffected(); err != nil {
+		return err
+	} else if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *FreeElectiveRepository) GetOfferingReadiness(ctx context.Context, offeringID uint64) (models.FreeElectiveReadiness, error) {
+	var readiness models.FreeElectiveReadiness
+	var mappingCount, studentCount, missingGradeCount, invalidGradeCount int
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM ele_offering_competencies mapping WHERE mapping.offering_id = offering.offering_id AND mapping.deleted_at IS NULL),
+			(SELECT COUNT(*) FROM ele_offering_enrollments enrollment WHERE enrollment.offering_id = offering.offering_id AND enrollment.deleted_at IS NULL AND enrollment.status IN ('enrolled', 'completed')),
+			(SELECT COUNT(*)
+			 FROM ele_offering_enrollments enrollment
+			 LEFT JOIN ele_offering_grade_records grade
+				ON grade.offering_enrollment_id = enrollment.offering_enrollment_id AND grade.deleted_at IS NULL
+			 WHERE enrollment.offering_id = offering.offering_id
+				AND enrollment.deleted_at IS NULL AND enrollment.status IN ('enrolled', 'completed')
+				AND grade.grade_record_id IS NULL),
+			(SELECT COUNT(*)
+			 FROM ele_offering_enrollments enrollment
+			 JOIN ele_offering_grade_records grade
+				ON grade.offering_enrollment_id = enrollment.offering_enrollment_id AND grade.deleted_at IS NULL
+			 JOIN ele_free_elective_courses course ON course.free_elective_course_id = offering.free_elective_course_id
+			 WHERE enrollment.offering_id = offering.offering_id
+				AND enrollment.deleted_at IS NULL AND enrollment.status IN ('enrolled', 'completed')
+				AND NOT (
+					(course.grade_scheme = 'letter' AND grade.grade IN ('A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F', 'W', 'I'))
+					OR (course.grade_scheme = 'satisfactory' AND grade.grade IN ('S', 'U', 'W', 'I'))
+				))
+		FROM ele_free_elective_offerings offering
+		WHERE offering.offering_id = ? AND offering.deleted_at IS NULL`, offeringID).Scan(
+		&mappingCount,
+		&studentCount,
+		&missingGradeCount,
+		&invalidGradeCount,
+	)
+	if err != nil {
+		return readiness, err
+	}
+	readiness.CompetencyMapped = mappingCount > 0
+	readiness.WeightsValid = readiness.CompetencyMapped
+	readiness.StudentsAdded = studentCount > 0
+	readiness.GradesComplete = studentCount > 0 && missingGradeCount == 0 && invalidGradeCount == 0
+	if !readiness.CompetencyMapped {
+		readiness.Codes = append(readiness.Codes, "COMPETENCY_REQUIRED")
+		readiness.MessagesTH = append(readiness.MessagesTH, "กรุณาเพิ่มสมรรถนะอย่างน้อย 1 ด้าน")
+		readiness.MessagesEN = append(readiness.MessagesEN, "Add at least one competency mapping")
+	}
+	if !readiness.StudentsAdded {
+		readiness.Codes = append(readiness.Codes, "STUDENTS_REQUIRED")
+		readiness.MessagesTH = append(readiness.MessagesTH, "กรุณาเพิ่มผู้เรียนในรอบนี้")
+		readiness.MessagesEN = append(readiness.MessagesEN, "Add at least one learner")
+	}
+	if !readiness.GradesComplete {
+		readiness.Codes = append(readiness.Codes, "GRADES_REQUIRED")
+		readiness.MessagesTH = append(readiness.MessagesTH, "กรุณากรอกผลการเรียนให้ครบและถูกต้อง")
+		readiness.MessagesEN = append(readiness.MessagesEN, "Enter a valid grade for every learner")
+	}
+	readiness.Ready = len(readiness.Codes) == 0
+	return readiness, nil
+}
+
+func (r *FreeElectiveRepository) FinalizeOffering(ctx context.Context, offeringID, userID uint64) error {
+	result, err := r.DB.ExecContext(ctx, `
+		UPDATE ele_free_elective_offerings
+		SET status = 'finalized', finalized_at = NOW(), finalized_by = ?,
+			scores_recalculation_required = 1, updated_at = NOW()
+		WHERE offering_id = ? AND status = 'active' AND deleted_at IS NULL`, userID, offeringID)
+	if err != nil {
+		return err
+	}
+	if affected, err := result.RowsAffected(); err != nil {
+		return err
+	} else if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}

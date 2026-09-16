@@ -92,6 +92,97 @@ func (c *FreeElectiveController) UpdateCourse(w http.ResponseWriter, r *http.Req
 	utils.OK(w, course)
 }
 
+func (c *FreeElectiveController) ListOfferings(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	filters, ok := freeElectiveOfferingFilters(w, r)
+	if !ok {
+		return
+	}
+	offerings, err := c.Service.ListOfferings(r.Context(), claims, filters)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, offerings)
+}
+
+func (c *FreeElectiveController) GetOffering(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	offering, err := c.Service.GetOffering(r.Context(), claims, offeringID)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, offering)
+}
+
+func (c *FreeElectiveController) CreateOffering(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	var payload models.UpsertFreeElectiveOfferingPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	offering, err := c.Service.CreateOffering(r.Context(), claims, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.JSON(w, http.StatusCreated, utils.Envelope{"success": true, "data": offering})
+}
+
+func (c *FreeElectiveController) UpdateOfferingStatus(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	var payload models.UpdateFreeElectiveOfferingStatusPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	offering, err := c.Service.UpdateOfferingStatus(r.Context(), claims, offeringID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, offering)
+}
+
+func (c *FreeElectiveController) FinalizeOffering(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	offering, err := c.Service.FinalizeOffering(r.Context(), claims, offeringID)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, offering)
+}
+
 func freeElectiveClaims(w http.ResponseWriter, r *http.Request) (*utils.Claims, bool) {
 	claims, ok := utils.ClaimsFromContext(r.Context())
 	if !ok {
@@ -123,6 +214,22 @@ func freeElectiveOptionalUintQuery(w http.ResponseWriter, r *http.Request, name 
 	return &id, true
 }
 
+func freeElectiveOfferingFilters(w http.ResponseWriter, r *http.Request) (models.FreeElectiveCourseFilters, bool) {
+	var filters models.FreeElectiveCourseFilters
+	var ok bool
+	if filters.FacultyID, ok = freeElectiveOptionalUintQuery(w, r, "faculty_id"); !ok {
+		return filters, false
+	}
+	if filters.YearBE, ok = freeElectiveOptionalUintQuery(w, r, "academic_year_be"); !ok {
+		return filters, false
+	}
+	if filters.Semester, ok = freeElectiveOptionalUintQuery(w, r, "semester"); !ok {
+		return filters, false
+	}
+	filters.Status = r.URL.Query().Get("status")
+	return filters, true
+}
+
 func writeFreeElectiveError(w http.ResponseWriter, err error) {
 	if errors.Is(err, services.ErrFreeElectiveForbidden) {
 		utils.Error(w, http.StatusForbidden, "FACULTY_SCOPE_FORBIDDEN", err.Error())
@@ -130,6 +237,10 @@ func writeFreeElectiveError(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, services.ErrFreeElectiveCourseNotFound) {
 		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_COURSE_NOT_FOUND", err.Error())
+		return
+	}
+	if errors.Is(err, services.ErrFreeElectiveOfferingNotFound) {
+		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_OFFERING_NOT_FOUND", err.Error())
 		return
 	}
 	var validationErr services.FreeElectiveValidationError

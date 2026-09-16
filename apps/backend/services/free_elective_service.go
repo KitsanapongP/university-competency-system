@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	ErrFreeElectiveForbidden      = errors.New("insufficient free-elective scope")
-	ErrFreeElectiveCourseNotFound = errors.New("free-elective course not found")
+	ErrFreeElectiveForbidden        = errors.New("insufficient free-elective scope")
+	ErrFreeElectiveCourseNotFound   = errors.New("free-elective course not found")
+	ErrFreeElectiveOfferingNotFound = errors.New("free-elective offering not found")
 )
 
 type FreeElectiveValidationError struct {
@@ -181,6 +182,139 @@ func validateFreeElectiveCoursePayload(payload models.UpsertFreeElectiveCoursePa
 		return FreeElectiveValidationError{Message: "grade_scheme must be letter or satisfactory"}
 	}
 	return nil
+}
+
+func (s *FreeElectiveService) ListOfferings(ctx context.Context, claims *utils.Claims, filters models.FreeElectiveCourseFilters) ([]*models.FreeElectiveOffering, error) {
+	facultyID, err := s.scopedFaculty(claims, filters.FacultyID)
+	if err != nil {
+		return nil, err
+	}
+	filters.FacultyID = facultyID
+	if filters.YearBE != nil && *filters.YearBE == 0 {
+		return nil, FreeElectiveValidationError{Message: "academic_year_be must be greater than zero"}
+	}
+	if filters.Semester != nil && (*filters.Semester < 1 || *filters.Semester > 3) {
+		return nil, FreeElectiveValidationError{Message: "semester must be 1, 2, or 3"}
+	}
+	if filters.Status != "" && !validFreeElectiveOfferingStatus(filters.Status) {
+		return nil, FreeElectiveValidationError{Message: "status is invalid"}
+	}
+	return s.Repo.ListOfferings(ctx, filters)
+}
+
+func (s *FreeElectiveService) CreateOffering(ctx context.Context, claims *utils.Claims, payload models.UpsertFreeElectiveOfferingPayload) (*models.FreeElectiveOffering, error) {
+	course, err := s.GetCourse(ctx, claims, payload.FreeElectiveCourseID)
+	if err != nil {
+		return nil, err
+	}
+	if !course.IsActive {
+		return nil, FreeElectiveConflictError{Code: "COURSE_INACTIVE", Message: "inactive free-elective course cannot open a new offering"}
+	}
+	if err := validateFreeElectiveOfferingPayload(payload); err != nil {
+		return nil, err
+	}
+	if payload.SectionNo == "" {
+		payload.SectionNo = "01"
+	}
+	offering, err := s.Repo.CreateOffering(ctx, payload, uint64(claims.UserID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrFreeElectiveOfferingNotFound
+	}
+	return offering, err
+}
+
+func (s *FreeElectiveService) GetOffering(ctx context.Context, claims *utils.Claims, offeringID uint64) (*models.FreeElectiveOffering, error) {
+	offering, err := s.Repo.GetOffering(ctx, offeringID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrFreeElectiveOfferingNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.GetCourse(ctx, claims, offering.FreeElectiveCourseID); err != nil {
+		return nil, err
+	}
+	return offering, nil
+}
+
+func (s *FreeElectiveService) UpdateOfferingStatus(ctx context.Context, claims *utils.Claims, offeringID uint64, payload models.UpdateFreeElectiveOfferingStatusPayload) (*models.FreeElectiveOffering, error) {
+	offering, err := s.GetOffering(ctx, claims, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	nextStatus := strings.ToLower(strings.TrimSpace(payload.Status))
+	if nextStatus != "active" && nextStatus != "cancelled" {
+		return nil, FreeElectiveValidationError{Message: "status must be active or cancelled"}
+	}
+	if offering.Status == "finalized" || offering.Status == "cancelled" {
+		return nil, FreeElectiveConflictError{Code: "OFFERING_NOT_EDITABLE", Message: "finalized or cancelled offering cannot change status"}
+	}
+	if nextStatus == "active" {
+		readiness, err := s.Repo.GetOfferingReadiness(ctx, offeringID)
+		if err != nil {
+			return nil, err
+		}
+		if !readiness.CompetencyMapped {
+			return nil, FreeElectiveConflictError{Code: "COMPETENCY_REQUIRED", Message: "add competency mappings before opening the offering", Data: readiness}
+		}
+	}
+	if err := s.Repo.UpdateOfferingStatus(ctx, offeringID, nextStatus); errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrFreeElectiveOfferingNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	return s.Repo.GetOffering(ctx, offeringID)
+}
+
+func (s *FreeElectiveService) FinalizeOffering(ctx context.Context, claims *utils.Claims, offeringID uint64) (*models.FreeElectiveOffering, error) {
+	offering, err := s.GetOffering(ctx, claims, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	if offering.Status != "active" {
+		return nil, FreeElectiveConflictError{Code: "OFFERING_NOT_ACTIVE", Message: "only an active offering can be finalized"}
+	}
+	readiness, err := s.Repo.GetOfferingReadiness(ctx, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	if !readiness.Ready {
+		return nil, FreeElectiveConflictError{Code: "OFFERING_NOT_READY", Message: "offering is not ready to finalize", Data: readiness}
+	}
+	if err := s.Repo.FinalizeOffering(ctx, offeringID, uint64(claims.UserID)); errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrFreeElectiveOfferingNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	return s.Repo.GetOffering(ctx, offeringID)
+}
+
+func validateFreeElectiveOfferingPayload(payload models.UpsertFreeElectiveOfferingPayload) error {
+	if payload.FreeElectiveCourseID == 0 {
+		return FreeElectiveValidationError{Message: "free_elective_course_id is required"}
+	}
+	if payload.AcademicYearBE == 0 {
+		return FreeElectiveValidationError{Message: "academic_year_be is required"}
+	}
+	if payload.Semester < 1 || payload.Semester > 3 {
+		return FreeElectiveValidationError{Message: "semester must be 1, 2, or 3"}
+	}
+	if strings.TrimSpace(payload.SectionNo) == "" {
+		return FreeElectiveValidationError{Message: "section_no is required"}
+	}
+	if payload.Capacity != nil && *payload.Capacity < 0 {
+		return FreeElectiveValidationError{Message: "capacity must be zero or greater"}
+	}
+	return nil
+}
+
+func validFreeElectiveOfferingStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "draft", "active", "finalized", "cancelled":
+		return true
+	default:
+		return false
+	}
 }
 
 func nonZeroFreeElectiveID(value uint64) *uint64 {
