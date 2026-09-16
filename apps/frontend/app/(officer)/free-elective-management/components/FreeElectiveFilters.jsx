@@ -16,7 +16,10 @@ export default function FreeElectiveFilters({
         <section className="free-elective-panel free-elective-filters" aria-labelledby="free-elective-filter-title">
             <div className="free-elective-panel__heading">
                 <div>
-                    <p className="free-elective-eyebrow">
+                    <p
+                        id="free-elective-filter-title"
+                        className="free-elective-eyebrow"
+                    >
                         <Filter size={15} aria-hidden="true" />
                         {label('filterTitle')}
                     </p>
@@ -47,7 +50,9 @@ export default function FreeElectiveFilters({
                     >
                         <option value="">{label('allYears')}</option>
                         {values.availableYears.map((year) => (
-                            <option key={year} value={year}>{year}</option>
+                            <option key={year} value={year}>
+                                {year}
+                            </option>
                         ))}
                     </select>
                 </label>
@@ -58,9 +63,9 @@ export default function FreeElectiveFilters({
                         onChange={(event) => onChange('semester', event.target.value)}
                     >
                         <option value="">{label('allSemesters')}</option>
-                        <option value="1">{language === 'en' ? 'Term 1' : 'ภาคเรียนที่ 1'}</option>
-                        <option value="2">{language === 'en' ? 'Term 2' : 'ภาคเรียนที่ 2'}</option>
-                        <option value="3">{language === 'en' ? 'Term 3' : 'ภาคเรียนที่ 3'}</option>
+                        <option value="1">{label('semesterOne')}</option>
+                        <option value="2">{label('semesterTwo')}</option>
+                        <option value="3">{label('semesterThree')}</option>
                     </select>
                 </label>
                 <label className="free-elective-field">

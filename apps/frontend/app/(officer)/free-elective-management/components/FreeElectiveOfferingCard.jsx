@@ -13,21 +13,37 @@ export default function FreeElectiveOfferingCard({ offering, language, onManage 
                 </div>
                 <div>
                     <p className="free-elective-code">{offering.courseCode}</p>
-                    <h2>{language === 'en' ? offering.courseNameEn || offering.courseNameTh : offering.courseNameTh}</h2>
-                    <p>{formatFreeElectiveTerm(offering.academicYearBE, offering.semester, language)} · {language === 'en' ? 'Section' : 'กลุ่ม'} {offering.sectionNo}</p>
+                    <h2>
+                        {language === 'en'
+                            ? offering.courseNameEn || offering.courseNameTh
+                            : offering.courseNameTh}
+                    </h2>
+                    <p>
+                        {formatFreeElectiveTerm(offering.academicYearBE, offering.semester, language)} ·{' '}
+                        {label('section')} {offering.sectionNo}
+                    </p>
                 </div>
             </div>
             <div className="free-elective-offering-card__body">
                 <div className="free-elective-metric">
-                    <span><GraduationCap size={14} />{label('students')}</span>
+                    <span>
+                        <GraduationCap size={14} />
+                        {label('students')}
+                    </span>
                     <strong>{offering.studentCount}</strong>
                 </div>
                 <div className="free-elective-metric">
-                    <span><ClipboardList size={14} />{label('graded')}</span>
+                    <span>
+                        <ClipboardList size={14} />
+                        {label('graded')}
+                    </span>
                     <strong>{offering.gradedStudentCount}</strong>
                 </div>
                 <div className="free-elective-metric">
-                    <span><Scale size={14} />{label('competencies')}</span>
+                    <span>
+                        <Scale size={14} />
+                        {label('competencies')}
+                    </span>
                     <strong>{offering.competencyCount}</strong>
                 </div>
                 <div className="free-elective-metric">

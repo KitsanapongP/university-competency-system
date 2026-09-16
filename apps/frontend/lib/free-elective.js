@@ -184,8 +184,10 @@ export function mapFreeElectiveStudentGroup(item) {
         cohortId: item.cohort_id,
         facultyId: item.faculty_id,
         facultyNameTh: item.faculty_name_th || '',
+        facultyNameEn: item.faculty_name_en || '',
         majorId: item.major_id,
         majorNameTh: item.major_name_th || '',
+        majorNameEn: item.major_name_en || '',
         curriculumId: item.curriculum_id,
         curriculumNameTh: item.curriculum_name_th || '',
         curriculumNameEn: item.curriculum_name_en || '',
@@ -206,6 +208,7 @@ export function mapFreeElectiveStudent(item) {
         studentNameEn: item.student_name_en || '',
         curriculumId: item.curriculum_id,
         curriculumNameTh: item.curriculum_name_th || '',
+        curriculumNameEn: item.curriculum_name_en || '',
         entryYearBE: toNumber(item.entry_year_be),
     };
 }
@@ -221,6 +224,7 @@ export function mapFreeElectiveStudentCourse(item) {
         sectionNo: item.section_no || '',
         gradeScheme: item.grade_scheme || 'letter',
         grade: item.grade || '',
+        gradeSource: item.grade_source || '',
         isBestGrade: item.is_best_grade ?? false,
         status: item.status || '',
     };

@@ -1,6 +1,6 @@
+import { useState } from 'react';
 import { CalendarPlus } from 'lucide-react';
 import BaseModal from '../../../../components/ui/BaseModal';
-import { useEffect, useState } from 'react';
 
 function createInitialForm(defaultCourseId) {
     return {
@@ -22,12 +22,6 @@ export default function FreeElectiveOfferingModal({
     onSubmit,
 }) {
     const [form, setForm] = useState(createInitialForm());
-
-    useEffect(() => {
-        if (open) {
-            setForm(createInitialForm(courses[0]?.id));
-        }
-    }, [courses, open]);
 
     const setField = (field, value) => {
         setForm((current) => ({ ...current, [field]: value }));
@@ -59,7 +53,8 @@ export default function FreeElectiveOfferingModal({
                         <option value="">{labels.selectCourse}</option>
                         {courses.map((course) => (
                             <option key={course.id} value={course.id}>
-                                {course.code} · {language === 'en' ? course.nameEn || course.nameTh : course.nameTh}
+                                {course.code} ·{' '}
+                                {language === 'en' ? course.nameEn || course.nameTh : course.nameTh}
                             </option>
                         ))}
                     </select>
@@ -72,7 +67,7 @@ export default function FreeElectiveOfferingModal({
                             min="2400"
                             value={form.academicYearBE}
                             onChange={(event) => setField('academicYearBE', event.target.value)}
-                            placeholder="เช่น 2569"
+                            placeholder={labels.yearPlaceholder}
                             disabled={saving}
                             required
                         />
@@ -85,9 +80,9 @@ export default function FreeElectiveOfferingModal({
                             disabled={saving}
                             required
                         >
-                            <option value="1">{language === 'en' ? 'Term 1' : 'ภาคเรียนที่ 1'}</option>
-                            <option value="2">{language === 'en' ? 'Term 2' : 'ภาคเรียนที่ 2'}</option>
-                            <option value="3">{language === 'en' ? 'Term 3' : 'ภาคเรียนที่ 3'}</option>
+                            <option value="1">{labels.semesterOne}</option>
+                            <option value="2">{labels.semesterTwo}</option>
+                            <option value="3">{labels.semesterThree}</option>
                         </select>
                     </label>
                     <label className="free-elective-field">

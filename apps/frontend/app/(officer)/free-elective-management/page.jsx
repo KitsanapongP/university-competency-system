@@ -29,6 +29,15 @@ function getDefaultFacultyId(user) {
     return user?.faculty_id || '';
 }
 
+function ImpactStat({ label, value }) {
+    return (
+        <div>
+            <span>{label}</span>
+            <strong>{value}</strong>
+        </div>
+    );
+}
+
 export default function FreeElectiveManagementPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -300,7 +309,9 @@ export default function FreeElectiveManagementPage() {
                         onChange={handleFilterChange}
                     />
                     {loading ? (
-                        <div className="free-elective-loading" role="status">{labels.loading}</div>
+                        <div className="free-elective-loading" role="status">
+                            {labels.loading}
+                        </div>
                     ) : offerings.length ? (
                         <div className="free-elective-offering-grid">
                             {offerings.map((offering) => (
@@ -327,7 +338,9 @@ export default function FreeElectiveManagementPage() {
                         </div>
                     </div>
                     {loading ? (
-                        <div className="free-elective-loading" role="status">{labels.loading}</div>
+                        <div className="free-elective-loading" role="status">
+                            {labels.loading}
+                        </div>
                     ) : courses.length ? (
                         <div className="free-elective-course-grid free-elective-panel__content">
                             {courses.map((course) => (
@@ -346,6 +359,7 @@ export default function FreeElectiveManagementPage() {
             )}
 
             <FreeElectiveCourseModal
+                key={`${editingCourse?.id || 'new'}-${courseModalOpen ? 'open' : 'closed'}`}
                 open={courseModalOpen}
                 course={editingCourse}
                 faculties={faculties}
@@ -360,6 +374,7 @@ export default function FreeElectiveManagementPage() {
                 onSubmit={handleCourseSubmit}
             />
             <FreeElectiveOfferingModal
+                key={`${courses[0]?.id || 'empty'}-${offeringModalOpen ? 'open' : 'closed'}`}
                 open={offeringModalOpen}
                 courses={courses.filter((course) => course.isActive)}
                 language={language}
@@ -381,11 +396,14 @@ export default function FreeElectiveManagementPage() {
                 onCancel={() => setImpactConfirmation(null)}
                 impact={impact && (
                     <div className="free-elective-impact-list">
-                        <div><span>{labels.gradeRecordCount}</span><strong>{impact.grade_record_count}</strong></div>
-                        <div><span>{labels.learnerCount}</span><strong>{impact.learner_count}</strong></div>
-                        <div><span>{labels.offeringCount}</span><strong>{impact.offering_count}</strong></div>
-                        <div><span>{labels.finalizedOfferingCount}</span><strong>{impact.finalized_offering_count}</strong></div>
-                        <div><span>{labels.cohortCount}</span><strong>{impact.cohort_count}</strong></div>
+                        <ImpactStat label={labels.gradeRecordCount} value={impact.grade_record_count} />
+                        <ImpactStat label={labels.learnerCount} value={impact.learner_count} />
+                        <ImpactStat label={labels.offeringCount} value={impact.offering_count} />
+                        <ImpactStat
+                            label={labels.finalizedOfferingCount}
+                            value={impact.finalized_offering_count}
+                        />
+                        <ImpactStat label={labels.cohortCount} value={impact.cohort_count} />
                     </div>
                 )}
             />

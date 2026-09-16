@@ -17,13 +17,24 @@ export default function FreeElectiveCourseCard({ course, language, onEdit }) {
                 </div>
             </div>
             <div className="free-elective-course-card__body">
-                <p>{course.description || (language === 'en' ? 'No description' : 'ยังไม่มีรายละเอียด')}</p>
+                <p>{course.description || label('noDescription')}</p>
                 <div className="free-elective-course-card__details">
-                    <span>{label('credits')}: <strong>{course.credits}</strong></span>
-                    <span>{label('gradeScheme')}: <strong>{course.gradeScheme === 'satisfactory' ? label('satisfactoryGrades') : label('letterGrades')}</strong></span>
+                    <span>
+                        {label('credits')}: <strong>{course.credits}</strong>
+                    </span>
+                    <span>
+                        {label('gradeScheme')}:{' '}
+                        <strong>
+                            {course.gradeScheme === 'satisfactory'
+                                ? label('satisfactoryGrades')
+                                : label('letterGrades')}
+                        </strong>
+                    </span>
                 </div>
                 <div className="free-elective-course-card__details">
-                    <span>{label('offerings')}: <strong>{course.offeringCount}</strong></span>
+                    <span>
+                        {label('offerings')}: <strong>{course.offeringCount}</strong>
+                    </span>
                     <span>{course.isActive ? label('activeCourse') : label('inactiveCourse')}</span>
                 </div>
             </div>

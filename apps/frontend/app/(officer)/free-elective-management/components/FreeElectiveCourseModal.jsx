@@ -1,7 +1,7 @@
+import { useState } from 'react';
 import { BookOpen } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import BaseModal from '../../../../components/ui/BaseModal';
-import { FREE_ELECTIVE_GRADE_SCHEMES } from '../free-elective-labels';
+import { FREE_ELECTIVE_GRADE_SCHEMES } from '../../../../lib/free-elective';
 
 function createInitialForm(course, defaultFacultyId) {
     return {
@@ -11,7 +11,7 @@ function createInitialForm(course, defaultFacultyId) {
         nameEn: course?.nameEn || '',
         description: course?.description || '',
         credits: course?.credits || 3,
-        gradeScheme: course?.gradeScheme || 'letter',
+        gradeScheme: course?.gradeScheme || '',
         isActive: course?.isActive ?? true,
     };
 }
@@ -28,12 +28,6 @@ export default function FreeElectiveCourseModal({
     onSubmit,
 }) {
     const [form, setForm] = useState(createInitialForm(course, defaultFacultyId));
-
-    useEffect(() => {
-        if (open) {
-            setForm(createInitialForm(course, defaultFacultyId));
-        }
-    }, [course, defaultFacultyId, open]);
 
     const setField = (field, value) => {
         setForm((current) => ({ ...current, [field]: value }));
@@ -78,13 +72,15 @@ export default function FreeElectiveCourseModal({
                         <input
                             value={form.code}
                             onChange={(event) => setField('code', event.target.value)}
-                            placeholder="เช่น GE101"
+                            placeholder={labels.codePlaceholder}
                             disabled={saving}
                             required
                         />
                     </label>
                     <label className="free-elective-field">
-                        <span>{labels.courseName} ({language === 'en' ? 'Thai' : 'ภาษาไทย'}) *</span>
+                        <span>
+                            {labels.courseName} ({labels.thaiLanguage}) *
+                        </span>
                         <input
                             value={form.nameTh}
                             onChange={(event) => setField('nameTh', event.target.value)}
@@ -93,7 +89,9 @@ export default function FreeElectiveCourseModal({
                         />
                     </label>
                     <label className="free-elective-field">
-                        <span>{labels.courseName} ({language === 'en' ? 'English' : 'ภาษาอังกฤษ'})</span>
+                        <span>
+                            {labels.courseName} ({labels.englishLanguage})
+                        </span>
                         <input
                             value={form.nameEn}
                             onChange={(event) => setField('nameEn', event.target.value)}
@@ -120,6 +118,7 @@ export default function FreeElectiveCourseModal({
                             disabled={saving}
                             required
                         >
+                            <option value="">{labels.selectGradeScheme}</option>
                             {FREE_ELECTIVE_GRADE_SCHEMES.map((scheme) => (
                                 <option key={scheme.value} value={scheme.value}>
                                     {language === 'en' ? scheme.labelEn : scheme.labelTh}
