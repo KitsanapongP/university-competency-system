@@ -131,6 +131,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				fer.Get("/offerings", freeElectiveHandler.ListOfferings)
 				fer.Post("/offerings", freeElectiveHandler.CreateOffering)
 				fer.Get("/offerings/{offering_id}", freeElectiveHandler.GetOffering)
+				fer.Get("/offerings/{offering_id}/readiness", freeElectiveHandler.GetOfferingReadiness)
 				fer.Patch("/offerings/{offering_id}/status", freeElectiveHandler.UpdateOfferingStatus)
 				fer.Post("/offerings/{offering_id}/finalize", freeElectiveHandler.FinalizeOffering)
 				fer.Get("/offerings/{offering_id}/competencies", freeElectiveHandler.GetOfferingCompetencies)
@@ -144,6 +145,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				fer.Post("/offerings/{offering_id}/grade-imports/commit", freeElectiveHandler.CommitGradeImport)
 				fer.Get("/student-groups", freeElectiveHandler.ListStudentGroups)
 				fer.Get("/student-groups/{cohort_id}/students", freeElectiveHandler.ListCohortStudents)
+				fer.Get("/students/{enrollment_id}", freeElectiveHandler.GetStudentDetail)
 			})
 
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)

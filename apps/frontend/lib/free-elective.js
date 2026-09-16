@@ -200,6 +200,7 @@ export function mapFreeElectiveStudent(item) {
         id: item.enrollment_id,
         enrollmentId: item.enrollment_id,
         enrollmentCurriculumId: item.enrollment_curriculum_id,
+        facultyId: item.faculty_id,
         studentCode: item.student_code || '',
         studentNameTh: item.student_name_th || '',
         studentNameEn: item.student_name_en || '',
@@ -222,6 +223,13 @@ export function mapFreeElectiveStudentCourse(item) {
         grade: item.grade || '',
         isBestGrade: item.is_best_grade ?? false,
         status: item.status || '',
+    };
+}
+
+export function mapFreeElectiveStudentDetail(item) {
+    return {
+        student: mapFreeElectiveStudent(item?.student),
+        courses: (item?.courses || []).map(mapFreeElectiveStudentCourse),
     };
 }
 
@@ -462,6 +470,13 @@ export async function fetchFreeElectiveGroupStudents(cohortId) {
         `/api/v1/free-electives/student-groups/${cohortId}/students`,
     );
     return unwrapData(response, []).map(mapFreeElectiveStudent);
+}
+
+export async function fetchFreeElectiveStudentDetail(enrollmentId) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/students/${enrollmentId}`,
+    );
+    return mapFreeElectiveStudentDetail(unwrapData(response, null));
 }
 
 export function getFreeElectiveImpactFromError(error) {

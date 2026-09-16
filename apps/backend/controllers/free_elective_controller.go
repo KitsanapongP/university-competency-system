@@ -126,6 +126,23 @@ func (c *FreeElectiveController) GetOffering(w http.ResponseWriter, r *http.Requ
 	utils.OK(w, offering)
 }
 
+func (c *FreeElectiveController) GetOfferingReadiness(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	readiness, err := c.Service.GetOfferingReadiness(r.Context(), claims, offeringID)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, readiness)
+}
+
 func (c *FreeElectiveController) CreateOffering(w http.ResponseWriter, r *http.Request) {
 	claims, ok := freeElectiveClaims(w, r)
 	if !ok {
@@ -271,6 +288,23 @@ func (c *FreeElectiveController) ListCohortStudents(w http.ResponseWriter, r *ht
 		return
 	}
 	utils.OK(w, students)
+}
+
+func (c *FreeElectiveController) GetStudentDetail(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	enrollmentID, ok := freeElectiveID(w, r, "enrollment_id")
+	if !ok {
+		return
+	}
+	detail, err := c.Service.GetStudentDetail(r.Context(), claims, enrollmentID)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, detail)
 }
 
 func (c *FreeElectiveController) ListOfferingEnrollments(w http.ResponseWriter, r *http.Request) {

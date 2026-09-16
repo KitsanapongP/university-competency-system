@@ -359,6 +359,33 @@ func (s *FreeElectiveService) GetOfferingEnrollments(ctx context.Context, claims
 	return s.Repo.GetOfferingEnrollments(ctx, offeringID)
 }
 
+func (s *FreeElectiveService) GetOfferingReadiness(ctx context.Context, claims *utils.Claims, offeringID uint64) (models.FreeElectiveReadiness, error) {
+	if _, err := s.GetOffering(ctx, claims, offeringID); err != nil {
+		return models.FreeElectiveReadiness{}, err
+	}
+	return s.Repo.GetOfferingReadiness(ctx, offeringID)
+}
+
+func (s *FreeElectiveService) GetStudentDetail(ctx context.Context, claims *utils.Claims, enrollmentID uint64) (*models.FreeElectiveStudentDetail, error) {
+	detail, err := s.Repo.GetStudentDetail(ctx, enrollmentID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrFreeElectiveStudentGroupNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if detail.Student.FacultyID > 0 {
+		if _, err := s.scopedFaculty(claims, &detail.Student.FacultyID); err != nil {
+			return nil, err
+		}
+		return detail, nil
+	}
+	if !freeElectiveHasRole(claims, "admin") {
+		return nil, ErrFreeElectiveForbidden
+	}
+	return detail, nil
+}
+
 func (s *FreeElectiveService) AddOfferingEnrollments(ctx context.Context, claims *utils.Claims, offeringID uint64, payload models.AddFreeElectiveEnrollmentsPayload) ([]models.FreeElectiveEnrollment, error) {
 	if _, err := s.GetOffering(ctx, claims, offeringID); err != nil {
 		return nil, err
