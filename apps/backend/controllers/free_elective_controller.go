@@ -239,6 +239,105 @@ func (c *FreeElectiveController) CopyPreviousOfferingCompetencies(w http.Respons
 	utils.OK(w, items)
 }
 
+func (c *FreeElectiveController) ListStudentGroups(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	filters, ok := freeElectiveStudentGroupFilters(w, r)
+	if !ok {
+		return
+	}
+	groups, err := c.Service.GetStudentGroups(r.Context(), claims, filters)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, groups)
+}
+
+func (c *FreeElectiveController) ListCohortStudents(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	cohortID, ok := freeElectiveID(w, r, "cohort_id")
+	if !ok {
+		return
+	}
+	students, err := c.Service.GetCohortStudents(r.Context(), claims, cohortID)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, students)
+}
+
+func (c *FreeElectiveController) ListOfferingEnrollments(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	enrollments, err := c.Service.GetOfferingEnrollments(r.Context(), claims, offeringID)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, enrollments)
+}
+
+func (c *FreeElectiveController) AddOfferingEnrollments(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	var payload models.AddFreeElectiveEnrollmentsPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	enrollments, err := c.Service.AddOfferingEnrollments(r.Context(), claims, offeringID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, enrollments)
+}
+
+func (c *FreeElectiveController) UpdateOfferingEnrollmentStatus(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	enrollmentID, ok := freeElectiveID(w, r, "offering_enrollment_id")
+	if !ok {
+		return
+	}
+	var payload models.UpdateFreeElectiveEnrollmentStatusPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	enrollments, err := c.Service.UpdateOfferingEnrollmentStatus(r.Context(), claims, offeringID, enrollmentID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, enrollments)
+}
+
 func freeElectiveClaims(w http.ResponseWriter, r *http.Request) (*utils.Claims, bool) {
 	claims, ok := utils.ClaimsFromContext(r.Context())
 	if !ok {
@@ -286,6 +385,24 @@ func freeElectiveOfferingFilters(w http.ResponseWriter, r *http.Request) (models
 	return filters, true
 }
 
+func freeElectiveStudentGroupFilters(w http.ResponseWriter, r *http.Request) (models.FreeElectiveStudentGroupFilters, bool) {
+	var filters models.FreeElectiveStudentGroupFilters
+	var ok bool
+	if filters.FacultyID, ok = freeElectiveOptionalUintQuery(w, r, "faculty_id"); !ok {
+		return filters, false
+	}
+	if filters.MajorID, ok = freeElectiveOptionalUintQuery(w, r, "major_id"); !ok {
+		return filters, false
+	}
+	if filters.CurriculumID, ok = freeElectiveOptionalUintQuery(w, r, "curriculum_id"); !ok {
+		return filters, false
+	}
+	if filters.EntryYearBE, ok = freeElectiveOptionalUintQuery(w, r, "entry_year_be"); !ok {
+		return filters, false
+	}
+	return filters, true
+}
+
 func writeFreeElectiveError(w http.ResponseWriter, err error) {
 	if errors.Is(err, services.ErrFreeElectiveForbidden) {
 		utils.Error(w, http.StatusForbidden, "FACULTY_SCOPE_FORBIDDEN", err.Error())
@@ -297,6 +414,10 @@ func writeFreeElectiveError(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, services.ErrFreeElectiveOfferingNotFound) {
 		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_OFFERING_NOT_FOUND", err.Error())
+		return
+	}
+	if errors.Is(err, services.ErrFreeElectiveStudentGroupNotFound) {
+		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_STUDENT_GROUP_NOT_FOUND", err.Error())
 		return
 	}
 	if errors.Is(err, services.ErrFreeElectiveOfferingLocked) {

@@ -13,10 +13,11 @@ import (
 )
 
 var (
-	ErrFreeElectiveForbidden        = errors.New("insufficient free-elective scope")
-	ErrFreeElectiveCourseNotFound   = errors.New("free-elective course not found")
-	ErrFreeElectiveOfferingNotFound = errors.New("free-elective offering not found")
-	ErrFreeElectiveOfferingLocked   = errors.New("free-elective offering is locked")
+	ErrFreeElectiveForbidden            = errors.New("insufficient free-elective scope")
+	ErrFreeElectiveCourseNotFound       = errors.New("free-elective course not found")
+	ErrFreeElectiveOfferingNotFound     = errors.New("free-elective offering not found")
+	ErrFreeElectiveOfferingLocked       = errors.New("free-elective offering is locked")
+	ErrFreeElectiveStudentGroupNotFound = errors.New("free-elective student group not found")
 )
 
 type FreeElectiveValidationError struct {
@@ -316,6 +317,81 @@ func validFreeElectiveOfferingStatus(status string) bool {
 	default:
 		return false
 	}
+}
+
+func (s *FreeElectiveService) GetStudentGroups(ctx context.Context, claims *utils.Claims, filters models.FreeElectiveStudentGroupFilters) ([]models.FreeElectiveStudentGroup, error) {
+	facultyID, err := s.scopedFaculty(claims, filters.FacultyID)
+	if err != nil {
+		return nil, err
+	}
+	filters.FacultyID = facultyID
+	return s.Repo.GetStudentGroups(ctx, filters)
+}
+
+func (s *FreeElectiveService) GetCohortStudents(ctx context.Context, claims *utils.Claims, cohortID uint64) ([]models.FreeElectiveStudent, error) {
+	facultyID, err := s.scopedFaculty(claims, nil)
+	if err != nil {
+		return nil, err
+	}
+	groups, err := s.Repo.GetStudentGroups(ctx, models.FreeElectiveStudentGroupFilters{FacultyID: facultyID})
+	if err != nil {
+		return nil, err
+	}
+	var group *models.FreeElectiveStudentGroup
+	for index := range groups {
+		if groups[index].CohortID == cohortID {
+			group = &groups[index]
+			break
+		}
+	}
+	if group == nil {
+		return nil, ErrFreeElectiveStudentGroupNotFound
+	}
+	return s.Repo.GetCohortStudents(ctx, cohortID)
+}
+
+func (s *FreeElectiveService) GetOfferingEnrollments(ctx context.Context, claims *utils.Claims, offeringID uint64) ([]models.FreeElectiveEnrollment, error) {
+	if _, err := s.GetOffering(ctx, claims, offeringID); err != nil {
+		return nil, err
+	}
+	return s.Repo.GetOfferingEnrollments(ctx, offeringID)
+}
+
+func (s *FreeElectiveService) AddOfferingEnrollments(ctx context.Context, claims *utils.Claims, offeringID uint64, payload models.AddFreeElectiveEnrollmentsPayload) ([]models.FreeElectiveEnrollment, error) {
+	if _, err := s.GetOffering(ctx, claims, offeringID); err != nil {
+		return nil, err
+	}
+	if len(payload.Enrollments) == 0 {
+		return nil, FreeElectiveValidationError{Message: "at least one learner is required"}
+	}
+	if err := s.Repo.AddOfferingEnrollments(ctx, offeringID, uint64(claims.UserID), payload.Enrollments); errors.Is(err, repositories.ErrFreeElectiveOfferingLocked) {
+		return nil, ErrFreeElectiveOfferingLocked
+	} else if errors.Is(err, repositories.ErrFreeElectiveEnrollmentExists) {
+		return nil, FreeElectiveConflictError{Code: "LEARNER_ALREADY_ENROLLED", Message: "one or more learners are already enrolled in this offering"}
+	} else if errors.Is(err, repositories.ErrFreeElectiveCapacityExceeded) {
+		return nil, FreeElectiveConflictError{Code: "OFFERING_CAPACITY_REACHED", Message: "offering capacity has been reached"}
+	} else if errors.Is(err, repositories.ErrFreeElectiveEnrollmentInvalid) {
+		return nil, FreeElectiveValidationError{Message: "each learner and curriculum selection must belong to the same active student"}
+	} else if err != nil {
+		return nil, err
+	}
+	return s.Repo.GetOfferingEnrollments(ctx, offeringID)
+}
+
+func (s *FreeElectiveService) UpdateOfferingEnrollmentStatus(ctx context.Context, claims *utils.Claims, offeringID, enrollmentID uint64, payload models.UpdateFreeElectiveEnrollmentStatusPayload) ([]models.FreeElectiveEnrollment, error) {
+	if _, err := s.GetOffering(ctx, claims, offeringID); err != nil {
+		return nil, err
+	}
+	status := strings.ToLower(strings.TrimSpace(payload.Status))
+	if status != "enrolled" && status != "withdrawn" && status != "completed" {
+		return nil, FreeElectiveValidationError{Message: "status must be enrolled, withdrawn, or completed"}
+	}
+	if err := s.Repo.UpdateOfferingEnrollmentStatus(ctx, offeringID, enrollmentID, status); errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrFreeElectiveOfferingNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	return s.Repo.GetOfferingEnrollments(ctx, offeringID)
 }
 
 func (s *FreeElectiveService) GetOfferingCompetencies(ctx context.Context, claims *utils.Claims, offeringID uint64) ([]models.FreeElectiveCompetency, error) {

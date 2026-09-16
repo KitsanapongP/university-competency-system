@@ -13,7 +13,12 @@ type FreeElectiveRepository struct {
 	DB *sql.DB
 }
 
-var ErrFreeElectiveOfferingLocked = errors.New("free-elective offering is locked")
+var (
+	ErrFreeElectiveOfferingLocked    = errors.New("free-elective offering is locked")
+	ErrFreeElectiveEnrollmentExists  = errors.New("learner is already enrolled in this offering")
+	ErrFreeElectiveCapacityExceeded  = errors.New("offering capacity has been reached")
+	ErrFreeElectiveEnrollmentInvalid = errors.New("enrollment and curriculum selection do not match")
+)
 
 func NewFreeElectiveRepository(db *sql.DB) *FreeElectiveRepository {
 	return &FreeElectiveRepository{DB: db}
@@ -614,4 +619,282 @@ func (r *FreeElectiveRepository) CopyPreviousOfferingCompetencies(ctx context.Co
 		return err
 	}
 	return tx.Commit()
+}
+
+func scanFreeElectiveEnrollment(scanner interface{ Scan(...any) error }) (models.FreeElectiveEnrollment, error) {
+	var item models.FreeElectiveEnrollment
+	var gradeRecordID sql.NullInt64
+	var grade, source sql.NullString
+	var updatedAt sql.NullTime
+	if err := scanner.Scan(
+		&item.OfferingEnrollmentID,
+		&item.OfferingID,
+		&item.EnrollmentID,
+		&item.EnrollmentCurriculumID,
+		&item.StudentCode,
+		&item.StudentNameTH,
+		&item.StudentNameEN,
+		&item.CurriculumID,
+		&item.CurriculumNameTH,
+		&item.CurriculumNameEN,
+		&item.CohortID,
+		&item.EntryYearBE,
+		&item.EnrollmentStatus,
+		&item.Status,
+		&gradeRecordID,
+		&grade,
+		&source,
+		&item.IsBestGrade,
+		&updatedAt,
+	); err != nil {
+		return item, err
+	}
+	if gradeRecordID.Valid {
+		value := uint64(gradeRecordID.Int64)
+		item.GradeRecordID = &value
+	}
+	item.Grade = grade.String
+	item.GradeSource = source.String
+	if updatedAt.Valid {
+		item.UpdatedAt = &updatedAt.Time
+	}
+	return item, nil
+}
+
+func (r *FreeElectiveRepository) GetStudentGroups(ctx context.Context, filters models.FreeElectiveStudentGroupFilters) ([]models.FreeElectiveStudentGroup, error) {
+	query := `
+		SELECT cohort.cohort_id, faculty.faculty_id, faculty.name_th,
+			major.major_id, major.name_th, curriculum.curriculum_id,
+			curriculum.name_th, COALESCE(curriculum.name_en, ''), cohort.entry_year_be,
+			COUNT(DISTINCT roster.enrollment_id), COUNT(DISTINCT selected.enrollment_id)
+		FROM edu_student_cohorts cohort
+		JOIN edu_curricula curriculum ON curriculum.curriculum_id = cohort.curriculum_id AND curriculum.deleted_at IS NULL
+		JOIN edu_majors major ON major.major_id = curriculum.major_id AND major.deleted_at IS NULL
+		JOIN org_departments department ON department.department_id = major.department_id AND department.deleted_at IS NULL
+		JOIN org_faculties faculty ON faculty.faculty_id = department.faculty_id AND faculty.deleted_at IS NULL
+		LEFT JOIN kku_enrollment_curricula roster
+			ON roster.cohort_id = cohort.cohort_id AND roster.deleted_at IS NULL
+		LEFT JOIN kku_enrollments student
+			ON student.enrollment_id = roster.enrollment_id
+			AND student.deleted_at IS NULL AND student.enrollment_status = 'student'
+		LEFT JOIN ele_offering_enrollments selected
+			ON selected.enrollment_id = student.enrollment_id AND selected.deleted_at IS NULL
+		WHERE cohort.deleted_at IS NULL AND cohort.status <> 'archived'`
+	args := make([]any, 0, 4)
+	if filters.FacultyID != nil {
+		query += " AND faculty.faculty_id = ?"
+		args = append(args, *filters.FacultyID)
+	}
+	if filters.MajorID != nil {
+		query += " AND major.major_id = ?"
+		args = append(args, *filters.MajorID)
+	}
+	if filters.CurriculumID != nil {
+		query += " AND curriculum.curriculum_id = ?"
+		args = append(args, *filters.CurriculumID)
+	}
+	if filters.EntryYearBE != nil {
+		query += " AND cohort.entry_year_be = ?"
+		args = append(args, *filters.EntryYearBE)
+	}
+	query += `
+		GROUP BY cohort.cohort_id, faculty.faculty_id, faculty.name_th,
+			major.major_id, major.name_th, curriculum.curriculum_id, curriculum.name_th,
+			curriculum.name_en, cohort.entry_year_be
+		ORDER BY faculty.name_th, major.name_th, curriculum.name_th, cohort.entry_year_be DESC`
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	groups := make([]models.FreeElectiveStudentGroup, 0)
+	for rows.Next() {
+		var item models.FreeElectiveStudentGroup
+		if err := rows.Scan(
+			&item.CohortID,
+			&item.FacultyID,
+			&item.FacultyNameTH,
+			&item.MajorID,
+			&item.MajorNameTH,
+			&item.CurriculumID,
+			&item.CurriculumNameTH,
+			&item.CurriculumNameEN,
+			&item.EntryYearBE,
+			&item.StudentCount,
+			&item.SelectedCount,
+		); err != nil {
+			return nil, err
+		}
+		groups = append(groups, item)
+	}
+	return groups, rows.Err()
+}
+
+func (r *FreeElectiveRepository) GetCohortStudents(ctx context.Context, cohortID uint64) ([]models.FreeElectiveStudent, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT student.enrollment_id, roster.enrollment_curriculum_id, student.student_code,
+			CONCAT_WS(' ', person.first_name_th, person.last_name_th),
+			CONCAT_WS(' ', person.first_name_en, person.last_name_en),
+			curriculum.curriculum_id, curriculum.name_th, cohort.entry_year_be
+		FROM edu_student_cohorts cohort
+		JOIN kku_enrollment_curricula roster ON roster.cohort_id = cohort.cohort_id AND roster.deleted_at IS NULL
+		JOIN kku_enrollments student ON student.enrollment_id = roster.enrollment_id
+			AND student.deleted_at IS NULL AND student.enrollment_status = 'student'
+		JOIN persons person ON person.person_id = student.person_id AND person.deleted_at IS NULL
+		JOIN edu_curricula curriculum ON curriculum.curriculum_id = roster.curriculum_id AND curriculum.deleted_at IS NULL
+		WHERE cohort.cohort_id = ? AND cohort.deleted_at IS NULL
+		ORDER BY student.student_code`, cohortID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	students := make([]models.FreeElectiveStudent, 0)
+	for rows.Next() {
+		var item models.FreeElectiveStudent
+		if err := rows.Scan(
+			&item.EnrollmentID,
+			&item.EnrollmentCurriculumID,
+			&item.StudentCode,
+			&item.StudentNameTH,
+			&item.StudentNameEN,
+			&item.CurriculumID,
+			&item.CurriculumNameTH,
+			&item.EntryYearBE,
+		); err != nil {
+			return nil, err
+		}
+		students = append(students, item)
+	}
+	return students, rows.Err()
+}
+
+func (r *FreeElectiveRepository) GetOfferingEnrollments(ctx context.Context, offeringID uint64) ([]models.FreeElectiveEnrollment, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT selected.offering_enrollment_id, selected.offering_id, selected.enrollment_id,
+			selected.enrollment_curriculum_id, student.student_code,
+			CONCAT_WS(' ', person.first_name_th, person.last_name_th),
+			CONCAT_WS(' ', person.first_name_en, person.last_name_en),
+			curriculum.curriculum_id, curriculum.name_th, COALESCE(curriculum.name_en, ''),
+			cohort.cohort_id, cohort.entry_year_be, student.enrollment_status, selected.status,
+			grade.grade_record_id, grade.grade, grade.grade_source,
+			COALESCE(grade.is_best_grade, 0), grade.updated_at
+		FROM ele_offering_enrollments selected
+		JOIN kku_enrollments student ON student.enrollment_id = selected.enrollment_id AND student.deleted_at IS NULL
+		JOIN persons person ON person.person_id = student.person_id AND person.deleted_at IS NULL
+		JOIN kku_enrollment_curricula roster ON roster.enrollment_curriculum_id = selected.enrollment_curriculum_id
+			AND roster.enrollment_id = selected.enrollment_id AND roster.deleted_at IS NULL
+		JOIN edu_curricula curriculum ON curriculum.curriculum_id = roster.curriculum_id AND curriculum.deleted_at IS NULL
+		LEFT JOIN edu_student_cohorts cohort ON cohort.cohort_id = roster.cohort_id AND cohort.deleted_at IS NULL
+		LEFT JOIN ele_offering_grade_records grade
+			ON grade.offering_enrollment_id = selected.offering_enrollment_id AND grade.deleted_at IS NULL
+		WHERE selected.offering_id = ? AND selected.deleted_at IS NULL
+		ORDER BY student.student_code`, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	enrollments := make([]models.FreeElectiveEnrollment, 0)
+	for rows.Next() {
+		item, err := scanFreeElectiveEnrollment(rows)
+		if err != nil {
+			return nil, err
+		}
+		enrollments = append(enrollments, item)
+	}
+	return enrollments, rows.Err()
+}
+
+func (r *FreeElectiveRepository) AddOfferingEnrollments(ctx context.Context, offeringID, userID uint64, inputs []models.FreeElectiveEnrollmentInput) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var status string
+	var capacity sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT status, capacity FROM ele_free_elective_offerings
+		WHERE offering_id = ? AND deleted_at IS NULL FOR UPDATE`, offeringID).Scan(&status, &capacity); err != nil {
+		return err
+	}
+	if status == "finalized" || status == "cancelled" {
+		return ErrFreeElectiveOfferingLocked
+	}
+	var currentCount int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM ele_offering_enrollments
+		WHERE offering_id = ? AND deleted_at IS NULL AND status IN ('enrolled', 'completed')`, offeringID).Scan(&currentCount); err != nil {
+		return err
+	}
+	seen := make(map[uint64]struct{}, len(inputs))
+	for _, input := range inputs {
+		if input.EnrollmentID == 0 || input.EnrollmentCurriculumID == 0 {
+			return ErrFreeElectiveEnrollmentInvalid
+		}
+		if _, exists := seen[input.EnrollmentID]; exists {
+			return ErrFreeElectiveEnrollmentExists
+		}
+		seen[input.EnrollmentID] = struct{}{}
+		var enrollmentID, curriculumID uint64
+		if err := tx.QueryRowContext(ctx, `
+			SELECT student.enrollment_id, roster.curriculum_id
+			FROM kku_enrollments student
+			JOIN kku_enrollment_curricula roster
+				ON roster.enrollment_curriculum_id = ? AND roster.enrollment_id = student.enrollment_id
+			WHERE student.enrollment_id = ? AND student.enrollment_status = 'student'
+				AND student.deleted_at IS NULL AND roster.deleted_at IS NULL`, input.EnrollmentCurriculumID, input.EnrollmentID).Scan(&enrollmentID, &curriculumID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrFreeElectiveEnrollmentInvalid
+			}
+			return err
+		}
+		var existingID uint64
+		if err := tx.QueryRowContext(ctx, `
+			SELECT offering_enrollment_id FROM ele_offering_enrollments
+			WHERE offering_id = ? AND enrollment_id = ? AND deleted_at IS NULL
+			FOR UPDATE`, offeringID, enrollmentID).Scan(&existingID); err == nil {
+			return ErrFreeElectiveEnrollmentExists
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if capacity.Valid && int64(currentCount+1) > capacity.Int64 {
+			return ErrFreeElectiveCapacityExceeded
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO ele_offering_enrollments
+				(offering_id, enrollment_id, enrollment_curriculum_id, status, enrolled_at, enrolled_by, created_at, updated_at)
+			VALUES (?, ?, ?, 'enrolled', NOW(), ?, NOW(), NOW())`, offeringID, enrollmentID, input.EnrollmentCurriculumID, userID); err != nil {
+			return err
+		}
+		currentCount++
+	}
+	_, err = tx.ExecContext(ctx, `
+		UPDATE ele_free_elective_offerings
+		SET scores_recalculation_required = 1, updated_at = NOW()
+		WHERE offering_id = ? AND deleted_at IS NULL`, offeringID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (r *FreeElectiveRepository) UpdateOfferingEnrollmentStatus(ctx context.Context, offeringID, enrollmentID uint64, status string) error {
+	result, err := r.DB.ExecContext(ctx, `
+		UPDATE ele_offering_enrollments selected
+		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
+		SET selected.status = ?, selected.updated_at = NOW(), offering.scores_recalculation_required = 1
+		WHERE selected.offering_id = ? AND selected.offering_enrollment_id = ?
+			AND selected.deleted_at IS NULL AND offering.deleted_at IS NULL
+			AND offering.status IN ('draft', 'active')`, status, offeringID, enrollmentID)
+	if err != nil {
+		return err
+	}
+	if affected, err := result.RowsAffected(); err != nil {
+		return err
+	} else if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
