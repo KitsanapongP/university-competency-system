@@ -3,21 +3,22 @@ package models
 import "time"
 
 type FreeElectiveCourse struct {
-	FreeElectiveCourseID uint64    `json:"free_elective_course_id"`
-	FacultyID            uint64    `json:"faculty_id"`
-	FacultyNameTH        string    `json:"faculty_name_th"`
-	FacultyNameEN        string    `json:"faculty_name_en,omitempty"`
-	Code                 string    `json:"code"`
-	NameTH               string    `json:"name_th"`
-	NameEN               string    `json:"name_en,omitempty"`
-	Description          string    `json:"description,omitempty"`
-	Credits              int       `json:"credits"`
-	GradeScheme          string    `json:"grade_scheme"`
-	IsActive             bool      `json:"is_active"`
-	OfferingCount        int       `json:"offering_count"`
-	ActiveOfferingCount  int       `json:"active_offering_count"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	FreeElectiveCourseID   uint64    `json:"free_elective_course_id"`
+	FacultyID              uint64    `json:"faculty_id"`
+	FacultyNameTH          string    `json:"faculty_name_th"`
+	FacultyNameEN          string    `json:"faculty_name_en,omitempty"`
+	Code                   string    `json:"code"`
+	NameTH                 string    `json:"name_th"`
+	NameEN                 string    `json:"name_en,omitempty"`
+	Description            string    `json:"description,omitempty"`
+	Credits                int       `json:"credits"`
+	GradeScheme            string    `json:"grade_scheme"`
+	IsActive               bool      `json:"is_active"`
+	OfferingCount          int       `json:"offering_count"`
+	ActiveOfferingCount    int       `json:"active_offering_count"`
+	FinalizedOfferingCount int       `json:"finalized_offering_count"`
+	CreatedAt              time.Time `json:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at"`
 }
 
 type FreeElectiveOffering struct {
@@ -230,10 +231,11 @@ type FreeElectiveGradeImportPreview struct {
 }
 
 type FreeElectiveImpact struct {
-	GradeRecordCount int    `json:"grade_record_count"`
-	LearnerCount     int    `json:"learner_count"`
-	OfferingCount    int    `json:"offering_count"`
-	CohortCount      int    `json:"cohort_count"`
-	PreviousScheme   string `json:"previous_scheme"`
-	NextScheme       string `json:"next_scheme"`
+	GradeRecordCount       int    `json:"grade_record_count"`
+	LearnerCount           int    `json:"learner_count"`
+	OfferingCount          int    `json:"offering_count"`
+	FinalizedOfferingCount int    `json:"finalized_offering_count"`
+	CohortCount            int    `json:"cohort_count"`
+	PreviousScheme         string `json:"previous_scheme"`
+	NextScheme             string `json:"next_scheme"`
 }
