@@ -4,6 +4,8 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Building2, Edit3, GraduationCap, Plus, Power, RefreshCw, Save, Search } from 'lucide-react';
 import { useAuth } from '../../../providers/auth-provider';
+import { useLanguage } from '../../../providers/LanguageContext';
+import { officerDegreeLabel, officerText } from '../officer-labels';
 import {
     createMajor,
     fetchDepartments,
@@ -47,8 +49,8 @@ function appendCreatedMajor(returnTo, majorId) {
     return `${returnTo}${separator}created_major_id=${majorId}`;
 }
 
-function degreeLabel(value) {
-    return DEGREE_LEVELS.find(level => level.value === value)?.label || value || '-';
+function degreeLabel(value, language) {
+    return officerDegreeLabel(language, value);
 }
 
 function MajorFormModal({
@@ -63,6 +65,7 @@ function MajorFormModal({
     onClose,
     onSubmit,
 }) {
+    const { language } = useLanguage();
     const formDepartments = form.facultyId
         ? departments.filter(department => String(department.facultyId) === String(form.facultyId))
         : [];
@@ -71,25 +74,30 @@ function MajorFormModal({
     return (
         <BaseModal
             open
-            title={mode === 'edit' ? 'แก้ไขสาขา' : 'เพิ่มสาขาใหม่'}
+            title={mode === 'edit' ? officerText(language, 'แก้ไขสาขา', 'Edit major') : officerText(language, 'เพิ่มสาขาใหม่', 'Add major')}
             size="md"
             onClose={onClose}
             closeDisabled={submitting}
             footer={(
                 <>
                     <button className="course-btn course-btn--ghost" onClick={onClose} disabled={submitting}>
-                        ยกเลิก
+                        {officerText(language, 'ยกเลิก', 'Cancel')}
                     </button>
                     <button className="course-btn course-btn--primary" onClick={onSubmit} disabled={submitting}>
                         <Save size={16} />
-                        {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
+                        {submitting
+                            ? officerText(language, 'กำลังบันทึก...', 'Saving...')
+                            : officerText(language, 'บันทึก', 'Save')}
                     </button>
                 </>
             )}
         >
                     <div className="course-row">
                         <label className="course-field">
-                            <span className="course-label">คณะ<span className="course-required">*</span></span>
+                            <span className="course-label">
+                                {officerText(language, 'คณะ', 'Faculty')}
+                                <span className="course-required">*</span>
+                            </span>
                             <select
                                 className="course-input major-input--disabled-aware"
                                 value={form.facultyId || ''}
@@ -100,7 +108,7 @@ function MajorFormModal({
                                 }))}
                                 disabled={facultyLocked}
                             >
-                                <option value="">เลือกคณะ</option>
+                                <option value="">{officerText(language, 'เลือกคณะ', 'Select faculty')}</option>
                                 {faculties.map(faculty => (
                                     <option key={faculty.facultyId} value={faculty.facultyId}>
                                         {faculty.nameTh}
@@ -110,14 +118,17 @@ function MajorFormModal({
                         </label>
 
                         <label className="course-field">
-                            <span className="course-label">ภาควิชา<span className="course-required">*</span></span>
+                            <span className="course-label">
+                                {officerText(language, 'ภาควิชา', 'Department')}
+                                <span className="course-required">*</span>
+                            </span>
                             <select
                                 className="course-input"
                                 value={form.departmentId || ''}
                                 onChange={event => setForm(prev => ({ ...prev, departmentId: event.target.value }))}
                                 disabled={!form.facultyId}
                             >
-                                <option value="">เลือกภาควิชา</option>
+                                <option value="">{officerText(language, 'เลือกภาควิชา', 'Select department')}</option>
                                 {formDepartments.map(department => (
                                     <option key={department.departmentId} value={department.departmentId}>
                                         {department.nameTh}
@@ -129,17 +140,23 @@ function MajorFormModal({
 
                     <div className="course-row">
                         <label className="course-field">
-                            <span className="course-label">รหัสสาขา<span className="course-required">*</span></span>
+                            <span className="course-label">
+                                {officerText(language, 'รหัสสาขา', 'Major code')}
+                                <span className="course-required">*</span>
+                            </span>
                             <input
                                 className="course-input"
                                 value={form.code}
                                 onChange={event => setForm(prev => ({ ...prev, code: event.target.value }))}
-                                placeholder="เช่น cp_major"
+                                placeholder={officerText(language, 'เช่น cp_major', 'e.g. cp_major')}
                             />
                         </label>
 
                         <label className="course-field">
-                            <span className="course-label">ระดับปริญญา<span className="course-required">*</span></span>
+                            <span className="course-label">
+                                {officerText(language, 'ระดับปริญญา', 'Degree level')}
+                                <span className="course-required">*</span>
+                            </span>
                             <select
                                 className="course-input"
                                 value={form.degreeLevel}
@@ -147,7 +164,7 @@ function MajorFormModal({
                             >
                                 {DEGREE_LEVELS.map(level => (
                                     <option key={level.value} value={level.value}>
-                                        {level.label}
+                                        {officerDegreeLabel(language, level.value)}
                                     </option>
                                 ))}
                             </select>
@@ -155,22 +172,27 @@ function MajorFormModal({
                     </div>
 
                     <label className="course-field">
-                        <span className="course-label">ชื่อสาขา (ภาษาไทย)<span className="course-required">*</span></span>
+                        <span className="course-label">
+                            {officerText(language, 'ชื่อสาขา (ภาษาไทย)', 'Major name (Thai)')}
+                            <span className="course-required">*</span>
+                        </span>
                         <input
                             className="course-input"
                             value={form.nameTh}
                             onChange={event => setForm(prev => ({ ...prev, nameTh: event.target.value }))}
-                            placeholder="เช่น วิทยาการคอมพิวเตอร์"
+                            placeholder={officerText(language, 'เช่น วิทยาการคอมพิวเตอร์', 'e.g. วิทยาการคอมพิวเตอร์')}
                         />
                     </label>
 
                     <label className="course-field">
-                        <span className="course-label">ชื่อสาขา (ภาษาอังกฤษ)</span>
+                        <span className="course-label">
+                            {officerText(language, 'ชื่อสาขา (ภาษาอังกฤษ)', 'Major name (English)')}
+                        </span>
                         <input
                             className="course-input"
                             value={form.nameEn}
                             onChange={event => setForm(prev => ({ ...prev, nameEn: event.target.value }))}
-                            placeholder="เช่น Computer Science"
+                            placeholder={officerText(language, 'เช่น Computer Science', 'e.g. Computer Science')}
                         />
                     </label>
 
@@ -181,7 +203,7 @@ function MajorFormModal({
                             onChange={event => setForm(prev => ({ ...prev, isActive: event.target.checked }))}
                             disabled={forceActive}
                         />
-                        <span>เปิดใช้งานสาขานี้</span>
+                        <span>{officerText(language, 'เปิดใช้งานสาขานี้', 'Keep this major active')}</span>
                     </label>
         </BaseModal>
     );
@@ -191,6 +213,7 @@ function MajorManagementPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user } = useAuth();
+    const { language } = useLanguage();
     const isAdmin = user?.roles?.includes('admin');
     const returnTo = safeReturnTo(searchParams.get('return_to'));
     const requestedFacultyId = searchParams.get('faculty_id') || '';
@@ -232,7 +255,10 @@ function MajorManagementPageContent() {
                 }));
             } catch (err) {
                 if (mounted) {
-                    setFeedback({ type: 'error', message: err?.message || 'ไม่สามารถโหลดข้อมูลคณะได้' });
+                    setFeedback({
+                        type: 'error',
+                        message: err?.message || officerText(language, 'ไม่สามารถโหลดข้อมูลคณะได้', 'Unable to load faculties.'),
+                    });
                 }
             } finally {
                 if (mounted) setLookupsLoading(false);
@@ -243,7 +269,7 @@ function MajorManagementPageContent() {
         return () => {
             mounted = false;
         };
-    }, [requestedFacultyId]);
+    }, [language, requestedFacultyId]);
 
     useEffect(() => {
         let mounted = true;
@@ -255,7 +281,10 @@ function MajorManagementPageContent() {
                 setDepartments(nextDepartments);
             } catch (err) {
                 if (mounted) {
-                    setFeedback({ type: 'error', message: err?.message || 'ไม่สามารถโหลดข้อมูลภาควิชาได้' });
+                    setFeedback({
+                        type: 'error',
+                        message: err?.message || officerText(language, 'ไม่สามารถโหลดข้อมูลภาควิชาได้', 'Unable to load departments.'),
+                    });
                 }
             }
         }
@@ -264,7 +293,7 @@ function MajorManagementPageContent() {
         return () => {
             mounted = false;
         };
-    }, [filters.facultyId]);
+    }, [filters.facultyId, language]);
 
     const loadMajors = useCallback(async () => {
         setLoading(true);
@@ -272,11 +301,14 @@ function MajorManagementPageContent() {
             const nextMajors = await fetchMajorsForManagement(filters);
             setMajors(nextMajors);
         } catch (err) {
-            setFeedback({ type: 'error', message: err?.message || 'ไม่สามารถโหลดข้อมูลสาขาได้' });
+            setFeedback({
+                type: 'error',
+                message: err?.message || officerText(language, 'ไม่สามารถโหลดข้อมูลสาขาได้', 'Unable to load majors.'),
+            });
         } finally {
             setLoading(false);
         }
-    }, [filters]);
+    }, [filters, language]);
 
     useEffect(() => {
         loadMajors();
@@ -369,14 +401,19 @@ function MajorManagementPageContent() {
 
             setFeedback({
                 type: 'success',
-                message: modalMode === 'edit' ? 'บันทึกการแก้ไขสาขาสำเร็จ' : 'เพิ่มสาขาใหม่สำเร็จ',
+                message: modalMode === 'edit'
+                    ? officerText(language, 'บันทึกการแก้ไขสาขาสำเร็จ', 'Major updated successfully.')
+                    : officerText(language, 'เพิ่มสาขาใหม่สำเร็จ', 'Major created successfully.'),
             });
             setModalMode('');
             setEditingMajor(null);
             setForm(EMPTY_MAJOR_FORM);
             await loadMajors();
         } catch (err) {
-            setFeedback({ type: 'error', message: err?.message || 'ไม่สามารถบันทึกข้อมูลสาขาได้' });
+            setFeedback({
+                type: 'error',
+                message: err?.message || officerText(language, 'ไม่สามารถบันทึกข้อมูลสาขาได้', 'Unable to save the major.'),
+            });
         } finally {
             setSubmitting(false);
         }
@@ -388,11 +425,16 @@ function MajorManagementPageContent() {
             await updateMajorStatus(major.majorId, !major.isActive);
             setFeedback({
                 type: 'success',
-                message: !major.isActive ? 'เปิดใช้งานสาขาสำเร็จ' : 'ปิดใช้งานสาขาสำเร็จ',
+                message: !major.isActive
+                    ? officerText(language, 'เปิดใช้งานสาขาสำเร็จ', 'Major activated successfully.')
+                    : officerText(language, 'ปิดใช้งานสาขาสำเร็จ', 'Major deactivated successfully.'),
             });
             await loadMajors();
         } catch (err) {
-            setFeedback({ type: 'error', message: err?.message || 'ไม่สามารถเปลี่ยนสถานะสาขาได้' });
+            setFeedback({
+                type: 'error',
+                message: err?.message || officerText(language, 'ไม่สามารถเปลี่ยนสถานะสาขาได้', 'Unable to change the major status.'),
+            });
         }
     };
 
@@ -415,36 +457,46 @@ function MajorManagementPageContent() {
                     {returnTo && (
                         <button className="major-back-btn" onClick={() => router.push(returnTo)}>
                             <ArrowLeft size={16} />
-                            กลับไปสร้างหลักสูตร
+                            {officerText(language, 'กลับไปสร้างหลักสูตร', 'Back to curriculum creation')}
                         </button>
                     )}
-                    <div className="course-list-header__title officer-page__title">จัดการสาขา</div>
+                    <div className="course-list-header__title officer-page__title">
+                        {officerText(language, 'จัดการสาขา', 'Major management')}
+                    </div>
                     <p className="course-list-header__subtitle officer-page__subtitle">
-                        เพิ่ม แก้ไข และเปิด/ปิดสาขาที่ใช้เชื่อมกับหลักสูตร
+                        {officerText(
+                            language,
+                            'เพิ่ม แก้ไข และเปิด/ปิดสาขาที่ใช้เชื่อมกับหลักสูตร',
+                            'Create, edit, and activate majors used by curricula.',
+                        )}
                     </p>
                 </div>
                 <div className="course-list-header__actions officer-page__actions">
                     <button className="course-btn course-btn--ghost" onClick={loadMajors} disabled={loading}>
                         <RefreshCw size={16} />
-                        รีโหลด
+                        {officerText(language, 'โหลดใหม่', 'Refresh')}
                     </button>
                     <button className="course-btn course-btn--primary" onClick={openCreateModal}>
                         <Plus size={16} />
-                        เพิ่มสาขา
+                        {officerText(language, 'เพิ่มสาขา', 'Add major')}
                     </button>
                 </div>
             </div>
 
             <div className="major-filter-panel officer-panel">
                 <label className="course-field">
-                    <span className="course-label">คณะ</span>
+                    <span className="course-label">{officerText(language, 'คณะ', 'Faculty')}</span>
                     <select
                         className="course-input major-input--disabled-aware"
                         value={filters.facultyId}
                         onChange={event => handleFacultyFilterChange(event.target.value)}
                         disabled={lookupsLoading || facultyLocked}
                     >
-                        <option value="">{isAdmin ? 'ทุกคณะ' : 'คณะของคุณ'}</option>
+                        <option value="">
+                            {isAdmin
+                                ? officerText(language, 'ทุกคณะ', 'All faculties')
+                                : officerText(language, 'คณะของคุณ', 'Your faculty')}
+                        </option>
                         {faculties.map(faculty => (
                             <option key={faculty.facultyId} value={faculty.facultyId}>
                                 {faculty.nameTh}
@@ -454,13 +506,13 @@ function MajorManagementPageContent() {
                 </label>
 
                 <label className="course-field">
-                    <span className="course-label">ภาควิชา</span>
+                    <span className="course-label">{officerText(language, 'ภาควิชา', 'Department')}</span>
                     <select
                         className="course-input"
                         value={filters.departmentId}
                         onChange={event => setFilters(prev => ({ ...prev, departmentId: event.target.value }))}
                     >
-                        <option value="">ทุกภาควิชา</option>
+                        <option value="">{officerText(language, 'ทุกภาควิชา', 'All departments')}</option>
                         {departmentsForFilter.map(department => (
                             <option key={department.departmentId} value={department.departmentId}>
                                 {department.nameTh}
@@ -470,13 +522,13 @@ function MajorManagementPageContent() {
                 </label>
 
                 <label className="course-field">
-                    <span className="course-label">ค้นหา</span>
+                    <span className="course-label">{officerText(language, 'ค้นหา', 'Search')}</span>
                     <div className="major-search">
                         <Search size={16} />
                         <input
                             value={search}
                             onChange={event => setSearch(event.target.value)}
-                            placeholder="ค้นหารหัสหรือชื่อสาขา"
+                            placeholder={officerText(language, 'ค้นหารหัสหรือชื่อสาขา', 'Search major code or name')}
                         />
                     </div>
                 </label>
@@ -487,7 +539,7 @@ function MajorManagementPageContent() {
                         checked={filters.includeInactive}
                         onChange={event => setFilters(prev => ({ ...prev, includeInactive: event.target.checked }))}
                     />
-                    <span>แสดงสาขาที่ปิดใช้งาน</span>
+                        <span>{officerText(language, 'แสดงสาขาที่ปิดใช้งาน', 'Show inactive majors')}</span>
                 </label>
             </div>
 
@@ -506,11 +558,11 @@ function MajorManagementPageContent() {
                 <table className="major-table officer-table">
                     <thead>
                         <tr>
-                            <th>สาขา</th>
-                            <th>คณะ/ภาควิชา</th>
-                            <th>ระดับ</th>
-                            <th>หลักสูตร</th>
-                            <th>สถานะ</th>
+                            <th>{officerText(language, 'สาขา', 'Major')}</th>
+                            <th>{officerText(language, 'คณะ/ภาควิชา', 'Faculty / department')}</th>
+                            <th>{officerText(language, 'ระดับ', 'Degree')}</th>
+                            <th>{officerText(language, 'หลักสูตร', 'Curricula')}</th>
+                            <th>{officerText(language, 'สถานะ', 'Status')}</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -533,24 +585,32 @@ function MajorManagementPageContent() {
                                 <td>
                                     <span className="major-degree-pill">
                                         <GraduationCap size={14} />
-                                        {degreeLabel(major.degreeLevel)}
+                                        {degreeLabel(major.degreeLevel, language)}
                                     </span>
                                 </td>
                                 <td>{major.curriculumCount}</td>
                                 <td>
                                     <span className={`major-status major-status--${major.isActive ? 'active' : 'inactive'}`}>
-                                        {major.isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                                        {major.isActive
+                                            ? officerText(language, 'เปิดใช้งาน', 'Active')
+                                            : officerText(language, 'ปิดใช้งาน', 'Inactive')}
                                     </span>
                                 </td>
                                 <td>
                                     <div className="major-row-actions">
-                                        <button className="course-icon-btn" onClick={() => openEditModal(major)} title="แก้ไขสาขา">
+                                        <button
+                                            className="course-icon-btn"
+                                            onClick={() => openEditModal(major)}
+                                            title={officerText(language, 'แก้ไขสาขา', 'Edit major')}
+                                        >
                                             <Edit3 size={16} />
                                         </button>
                                         <button
                                             className={`course-icon-btn ${major.isActive ? 'course-icon-btn--danger' : ''}`}
                                             onClick={() => handleStatusToggle(major)}
-                                            title={major.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                                            title={major.isActive
+                                                ? officerText(language, 'ปิดใช้งาน', 'Deactivate')
+                                                : officerText(language, 'เปิดใช้งาน', 'Activate')}
                                         >
                                             <Power size={16} />
                                         </button>
@@ -566,13 +626,23 @@ function MajorManagementPageContent() {
                         <div className="course-empty__icon">
                             <GraduationCap size={34} />
                         </div>
-                        <div className="course-empty__title">ยังไม่มีสาขา</div>
-                        <p className="course-empty__text">เพิ่มสาขาใหม่เพื่อใช้เชื่อมกับหลักสูตร</p>
+                        <div className="course-empty__title">
+                            {officerText(language, 'ยังไม่มีสาขา', 'No majors found')}
+                        </div>
+                        <p className="course-empty__text">
+                            {officerText(
+                                language,
+                                'เพิ่มสาขาใหม่เพื่อใช้เชื่อมกับหลักสูตร',
+                                'Add a major to connect it with curricula.',
+                            )}
+                        </p>
                     </div>
                 )}
 
                 {loading && (
-                    <div className="major-loading">กำลังโหลดข้อมูลสาขา...</div>
+                    <div className="major-loading">
+                        {officerText(language, 'กำลังโหลดข้อมูลสาขา...', 'Loading majors...')}
+                    </div>
                 )}
             </div>
 

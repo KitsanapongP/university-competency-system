@@ -7,7 +7,6 @@ import {
   CheckCheck,
   Clock3,
   Lock,
-  Plus,
   RefreshCw,
   Save,
   UserPlus,
@@ -16,6 +15,8 @@ import {
 import BaseModal from "../../../../components/ui/BaseModal";
 import ConfirmActionModal from "../../../../components/ui/ConfirmActionModal";
 import ToastNotifications from "../../../../components/ui/ToastNotifications";
+import { useLanguage } from "../../../../providers/LanguageContext";
+import { officerText } from "../../officer-labels";
 import {
   addSessionWalkIn,
   fetchActivitySessionWorkspace,
@@ -33,11 +34,22 @@ import "../../activity-management/ActivityManagement.css";
 import "./ActivitySessionWorkspace.css";
 
 const ATTENDANCE_OPTIONS = [
-  { value: "present", label: "มาเข้าร่วม" },
-  { value: "late", label: "มาสาย" },
-  { value: "absent", label: "ขาด" },
-  { value: "excused", label: "ลา/ได้รับยกเว้น" },
+  { value: "present" },
+  { value: "late" },
+  { value: "absent" },
+  { value: "excused" },
 ];
+
+const ATTENDANCE_LABELS = {
+  present: ["มาเข้าร่วม", "Present"],
+  late: ["มาสาย", "Late"],
+  absent: ["ขาด", "Absent"],
+  excused: ["ลา/ได้รับยกเว้น", "Excused"],
+};
+
+function attendanceLabel(value, language) {
+  return officerText(language, ...(ATTENDANCE_LABELS[value] || [value, value]));
+}
 
 function asLocalInput(value) {
   if (!value) return "";
@@ -47,14 +59,17 @@ function asLocalInput(value) {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
-function errorMessage(error) {
-  return (
-    error?.message || error?.data?.message || "ไม่สามารถดำเนินการได้ในขณะนี้"
+function errorMessage(error, language) {
+  return officerText(
+    language,
+    error?.message || error?.data?.message || "ไม่สามารถดำเนินการได้ในขณะนี้",
+    error?.message || error?.data?.message || "Unable to complete the operation.",
   );
 }
 
 export default function ActivitySessionWorkspacePage() {
   const params = useParams();
+  const { language } = useLanguage();
   const sessionId = Number(params?.sessionId || 0);
   const [session, setSession] = useState(null);
   const [participants, setParticipants] = useState([]);
@@ -99,11 +114,11 @@ export default function ActivitySessionWorkspacePage() {
         setScoreParticipants([]);
       }
     } catch (error) {
-      pushToast("error", errorMessage(error));
+      pushToast("error", errorMessage(error, language));
     } finally {
       setLoading(false);
     }
-  }, [pushToast, sessionId]);
+  }, [language, pushToast, sessionId]);
 
   useEffect(() => {
     loadWorkspace();
@@ -117,11 +132,11 @@ export default function ActivitySessionWorkspacePage() {
           await searchSessionWalkInCandidates(sessionId, walkInQuery),
         );
       } catch (error) {
-        pushToast("error", errorMessage(error));
+        pushToast("error", errorMessage(error, language));
       }
     }, 200);
     return () => clearTimeout(timer);
-  }, [pushToast, sessionId, walkInOpen, walkInQuery]);
+  }, [language, pushToast, sessionId, walkInOpen, walkInQuery]);
 
   const filteredParticipants = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -161,9 +176,9 @@ export default function ActivitySessionWorkspacePage() {
         notes: patch.notes ?? participant.attendanceNotes,
       });
       await loadWorkspace();
-      pushToast("success", "บันทึกการเข้าร่วมแล้ว");
+      pushToast("success", officerText(language, "บันทึกการเข้าร่วมแล้ว", "Attendance saved."));
     } catch (error) {
-      pushToast("error", errorMessage(error));
+      pushToast("error", errorMessage(error, language));
     } finally {
       setSaving(false);
     }
@@ -178,9 +193,12 @@ export default function ActivitySessionWorkspacePage() {
       });
       setWalkInOpen(false);
       await loadWorkspace();
-      pushToast("success", `เพิ่ม ${candidate.nameTh} เป็น Walk-in แล้ว`);
+      pushToast(
+        "success",
+        officerText(language, `เพิ่ม ${candidate.nameTh} เป็นผู้เข้าร่วมหน้างานแล้ว`, `${candidate.nameTh} was added as a walk-in.`),
+      );
     } catch (error) {
-      pushToast("error", errorMessage(error));
+      pushToast("error", errorMessage(error, language));
     } finally {
       setSaving(false);
     }
@@ -218,9 +236,9 @@ export default function ActivitySessionWorkspacePage() {
     try {
       await saveSessionScores(sessionId, scores);
       await loadWorkspace();
-      pushToast("success", "บันทึกคะแนนแล้ว");
+      pushToast("success", officerText(language, "บันทึกคะแนนแล้ว", "Scores saved."));
     } catch (error) {
-      pushToast("error", errorMessage(error));
+      pushToast("error", errorMessage(error, language));
     } finally {
       setSaving(false);
     }
@@ -231,21 +249,42 @@ export default function ActivitySessionWorkspacePage() {
     try {
       if (confirmAction === "absent") {
         await markUnrecordedSessionParticipantsAbsent(sessionId);
-        pushToast("success", "บันทึกผู้ที่ยังไม่เช็กชื่อเป็นขาดแล้ว");
+        pushToast(
+          "success",
+          officerText(
+            language,
+            "บันทึกผู้ที่ยังไม่เช็กชื่อเป็นขาดแล้ว",
+            "Unrecorded participants were marked absent.",
+          ),
+        );
       }
       if (confirmAction === "finalize") {
         await finalizeSessionScores(sessionId);
-        pushToast("success", "ปิดคะแนนและคำนวณผล Competency แล้ว");
+        pushToast(
+          "success",
+          officerText(
+            language,
+            "ปิดคะแนนและคำนวณผลสมรรถนะแล้ว",
+            "Scores were finalized and competencies recalculated.",
+          ),
+        );
       }
       if (confirmAction === "correction") {
         await openSessionScoreCorrection(sessionId, correctionReason);
         setCorrectionReason("");
-        pushToast("success", "เปิด Correction แล้ว กรุณาแก้ไขและปิดคะแนนใหม่");
+        pushToast(
+          "success",
+          officerText(
+            language,
+            "เปิดโหมดแก้ไขแล้ว กรุณาแก้ไขและปิดคะแนนใหม่",
+            "Correction mode is open. Update the records and finalize scores again.",
+          ),
+        );
       }
       setConfirmAction("");
       await loadWorkspace();
     } catch (error) {
-      pushToast("error", errorMessage(error));
+      pushToast("error", errorMessage(error, language));
     } finally {
       setSaving(false);
     }
@@ -255,7 +294,7 @@ export default function ActivitySessionWorkspacePage() {
     return (
       <div className="activity-session-workspace officer-page">
         <div className="activity-session-workspace__empty">
-          กำลังโหลดรอบกิจกรรม...
+          {officerText(language, "กำลังโหลดรอบกิจกรรม...", "Loading activity session...")}
         </div>
       </div>
     );
@@ -268,11 +307,14 @@ export default function ActivitySessionWorkspacePage() {
             className="activity-session-workspace__back"
             href="/activity-management"
           >
-            กลับหน้ากิจกรรม
+            {officerText(language, "กลับหน้ากิจกรรม", "Back to activities")}
           </Link>
-          <h1>ผู้เข้าร่วมและคะแนน</h1>
+          <h1>{officerText(language, "ผู้เข้าร่วมและคะแนน", "Participants and scores")}</h1>
           <p>
-            {session?.activityCode} {session?.activityNameTh} | รอบที่{" "}
+            {session?.activityCode}{" "}
+            {language === "en"
+              ? session?.activityNameEn || session?.activityNameTh
+              : session?.activityNameTh} | {officerText(language, "รอบที่ ", "Session ")}
             {session?.sessionNo}
           </p>
         </div>
@@ -282,7 +324,7 @@ export default function ActivitySessionWorkspacePage() {
             onClick={loadWorkspace}
             disabled={saving}
           >
-            <RefreshCw size={16} /> โหลดใหม่
+            <RefreshCw size={16} /> {officerText(language, "โหลดใหม่", "Refresh")}
           </button>
           {session?.scoresFinalizedAt ? (
             <button
@@ -290,7 +332,7 @@ export default function ActivitySessionWorkspacePage() {
               onClick={() => setConfirmAction("correction")}
               disabled={saving}
             >
-              <Lock size={16} /> เปิด Correction
+              <Lock size={16} /> {officerText(language, "เปิดโหมดแก้ไข", "Open correction")}
             </button>
           ) : (
             <button
@@ -298,7 +340,7 @@ export default function ActivitySessionWorkspacePage() {
               onClick={() => setConfirmAction("finalize")}
               disabled={saving || session?.status !== "completed"}
             >
-              <CheckCheck size={16} /> ปิดคะแนน
+              <CheckCheck size={16} /> {officerText(language, "ปิดคะแนน", "Finalize scores")}
             </button>
           )}
         </div>
@@ -306,30 +348,33 @@ export default function ActivitySessionWorkspacePage() {
 
       <div className="activity-session-workspace__summary">
         <span>
-          สถานะรอบ: <strong>{session?.status}</strong>
+          {officerText(language, "สถานะรอบ: ", "Session status: ")}
+          <strong>{statusLabel(session?.status, language)}</strong>
         </span>
         <span>
-          Setup:{" "}
+          {officerText(language, "การตั้งค่า: ", "Setup: ")}
           <strong>
-            {session?.isSetupFinalized ? "ล็อกแล้ว" : "ยังไม่ล็อก"}
+            {session?.isSetupFinalized
+              ? officerText(language, "ล็อกแล้ว", "Finalized")
+              : officerText(language, "ยังไม่ล็อก", "Not finalized")}
           </strong>
         </span>
         <span>
-          เช็กชื่อแล้ว:{" "}
+          {officerText(language, "เช็กชื่อแล้ว: ", "Attendance recorded: ")}
           <strong>
             {participants.filter((item) => item.attendanceRecorded).length}/
             {participants.length}
           </strong>
         </span>
         <span>
-          คะแนนครบ:{" "}
+          {officerText(language, "คะแนนครบ: ", "Scores complete: ")}
           <strong>
             {scoreProgress.complete}/{scoreProgress.eligible}
           </strong>
         </span>
         {session?.scoresRecalculationRequired && (
           <span className="activity-session-workspace__warning">
-            ต้องคำนวณคะแนนใหม่
+            {officerText(language, "ต้องคำนวณคะแนนใหม่", "Recalculation required")}
           </span>
         )}
       </div>
@@ -339,13 +384,13 @@ export default function ActivitySessionWorkspacePage() {
           className={activeTab === "attendance" ? "active" : ""}
           onClick={() => setActiveTab("attendance")}
         >
-          <Users size={16} /> ผู้เข้าร่วมและเช็กชื่อ
+          <Users size={16} /> {officerText(language, "ผู้เข้าร่วมและเช็กชื่อ", "Participants and attendance")}
         </button>
         <button
           className={activeTab === "scores" ? "active" : ""}
           onClick={() => setActiveTab("scores")}
         >
-          <Clock3 size={16} /> คะแนนตาม Competency
+          <Clock3 size={16} /> {officerText(language, "คะแนนตามสมรรถนะ", "Scores by competency")}
         </button>
       </div>
 
@@ -356,7 +401,7 @@ export default function ActivitySessionWorkspacePage() {
               className="course-input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="ค้นหารหัสนักศึกษา หรือชื่อ"
+              placeholder={officerText(language, "ค้นหารหัสนักศึกษา หรือชื่อ", "Search student code or name")}
             />
             <div>
               <button
@@ -366,14 +411,14 @@ export default function ActivitySessionWorkspacePage() {
                   saving || session?.status !== "completed" || !canEditRecords
                 }
               >
-                บันทึกผู้ที่เหลือเป็นขาด
+                {officerText(language, "บันทึกผู้ที่เหลือเป็นขาด", "Mark remaining participants absent")}
               </button>
               <button
                 className="course-btn course-btn--primary"
                 onClick={() => setWalkInOpen(true)}
                 disabled={saving || !canEditRecords}
               >
-                <UserPlus size={16} /> เพิ่ม Walk-in
+                <UserPlus size={16} /> {officerText(language, "เพิ่มผู้เข้าร่วมหน้างาน", "Add walk-in")}
               </button>
             </div>
           </div>
@@ -381,19 +426,23 @@ export default function ActivitySessionWorkspacePage() {
             <table className="activity-session-workspace__table">
               <thead>
                 <tr>
-                  <th>ผู้เรียน</th>
-                  <th>สถานะ</th>
-                  <th>เวลาเข้า</th>
-                  <th>เวลาออก</th>
-                  <th>หมายเหตุ</th>
-                  <th />
+                  <th>{officerText(language, "ผู้เรียน", "Learner")}</th>
+                  <th>{officerText(language, "สถานะ", "Status")}</th>
+                  <th>{officerText(language, "เวลาเข้า", "Check-in")}</th>
+                  <th>{officerText(language, "เวลาออก", "Check-out")}</th>
+                  <th>{officerText(language, "หมายเหตุ", "Note")}</th>
+                  <th aria-label={officerText(language, "การจัดการ", "Actions")} />
                 </tr>
               </thead>
               <tbody>
                 {filteredParticipants.map((participant) => (
                   <tr key={participant.personId}>
                     <td>
-                      <strong>{participant.nameTh}</strong>
+                      <strong>
+                        {language === "en"
+                          ? participant.nameEn || participant.nameTh
+                          : participant.nameTh || participant.nameEn}
+                      </strong>
                       <span>{participant.studentCode}</span>
                     </td>
                     <td>
@@ -407,14 +456,20 @@ export default function ActivitySessionWorkspacePage() {
                             overrideStatus: true,
                             notes:
                               participant.attendanceNotes ||
-                              "ปรับสถานะด้วยเจ้าหน้าที่",
+                              officerText(
+                                language,
+                                "ปรับสถานะโดยเจ้าหน้าที่",
+                                "Status adjusted by officer",
+                              ),
                           })
                         }
                       >
-                        <option value="">ยังไม่บันทึก</option>
+                        <option value="">
+                          {officerText(language, "ยังไม่บันทึก", "Not recorded")}
+                        </option>
                         {ATTENDANCE_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
-                            {option.label}
+                            {attendanceLabel(option.value, language)}
                           </option>
                         ))}
                       </select>
@@ -467,7 +522,7 @@ export default function ActivitySessionWorkspacePage() {
                         }
                         disabled={!canEditRecords || saving}
                       >
-                        เช็กชื่อ
+                        {officerText(language, "เช็กชื่อ", "Check in")}
                       </button>
                     </td>
                   </tr>
@@ -480,8 +535,13 @@ export default function ActivitySessionWorkspacePage() {
         <section className="activity-session-workspace__panel">
           <div className="activity-session-workspace__toolbar">
             <p>
-              กรอกคะแนนดิบเต็ม {session?.maxRawScore} คะแนน
-              ผู้ที่ไม่เข้าเกณฑ์จะไม่สามารถให้คะแนนได้
+              {officerText(language, "กรอกคะแนนดิบเต็ม ", "Enter raw scores out of ")}
+              {session?.maxRawScore}{" "}
+              {officerText(
+                language,
+                "คะแนน ผู้ที่ไม่เข้าเกณฑ์จะไม่สามารถให้คะแนนได้",
+                ". Participants who are not eligible cannot be graded.",
+              )}
             </p>
             <button
               className="course-btn course-btn--primary"
@@ -492,15 +552,15 @@ export default function ActivitySessionWorkspacePage() {
                 session?.gradingMode === "attendance_only"
               }
             >
-              <Save size={16} /> บันทึกคะแนน
+              <Save size={16} /> {officerText(language, "บันทึกคะแนน", "Save scores")}
             </button>
           </div>
           <div className="activity-session-workspace__table-wrap">
             <table className="activity-session-workspace__table">
               <thead>
                 <tr>
-                  <th>ผู้เรียน</th>
-                  <th>Attendance</th>
+                  <th>{officerText(language, "ผู้เรียน", "Learner")}</th>
+                  <th>{officerText(language, "การเข้าร่วม", "Attendance")}</th>
                   {session?.competencies?.map((item) => (
                     <th key={item.sessionCompetencyId}>
                       {item.competencyCode}
@@ -513,11 +573,17 @@ export default function ActivitySessionWorkspacePage() {
                 {scoreParticipants.map((participant) => (
                   <tr key={participant.personId}>
                     <td>
-                      <strong>{participant.nameTh}</strong>
+                      <strong>
+                        {language === "en"
+                          ? participant.nameEn || participant.nameTh
+                          : participant.nameTh || participant.nameEn}
+                      </strong>
                       <span>{participant.studentCode}</span>
                     </td>
                     <td>
-                      {participant.attendanceStatus || "ยังไม่บันทึก"}
+                      {participant.attendanceStatus
+                        ? attendanceLabel(participant.attendanceStatus, language)
+                        : officerText(language, "ยังไม่บันทึก", "Not recorded")}
                       {!participant.eligibleForScoring && (
                         <span>{participant.scoringIneligibilityReason}</span>
                       )}
@@ -547,7 +613,7 @@ export default function ActivitySessionWorkspacePage() {
                         <span>
                           {score.finalScore !== null &&
                           score.finalScore !== undefined
-                            ? `หลัง penalty ${score.finalScore}`
+                            ? `${officerText(language, "หลังหักคะแนน ", "After penalty ")}${score.finalScore}`
                             : ""}
                         </span>
                       </td>
@@ -562,7 +628,7 @@ export default function ActivitySessionWorkspacePage() {
 
       <BaseModal
         open={walkInOpen}
-        title="เพิ่มผู้เข้าร่วมแบบ Walk-in"
+        title={officerText(language, "เพิ่มผู้เข้าร่วมหน้างาน", "Add walk-in participant")}
         onClose={() => setWalkInOpen(false)}
         size="md"
       >
@@ -571,7 +637,7 @@ export default function ActivitySessionWorkspacePage() {
           autoFocus
           value={walkInQuery}
           onChange={(event) => setWalkInQuery(event.target.value)}
-          placeholder="ค้นหารหัสนักศึกษา หรือชื่อ"
+          placeholder={officerText(language, "ค้นหารหัสนักศึกษา หรือชื่อ", "Search student code or name")}
         />
         <div className="activity-session-workspace__walkins">
           {walkInCandidates.map((candidate) => (
@@ -580,7 +646,11 @@ export default function ActivitySessionWorkspacePage() {
               onClick={() => addWalkIn(candidate)}
               disabled={saving}
             >
-              <strong>{candidate.nameTh}</strong>
+              <strong>
+                {language === "en"
+                  ? candidate.nameEn || candidate.nameTh
+                  : candidate.nameTh || candidate.nameEn}
+              </strong>
               <span>{candidate.studentCode}</span>
             </button>
           ))}
@@ -589,9 +659,13 @@ export default function ActivitySessionWorkspacePage() {
 
       <ConfirmActionModal
         open={confirmAction === "absent"}
-        title="บันทึกเป็นขาด"
-        message="ผู้สมัครที่อนุมัติแล้วและยังไม่มีข้อมูลเช็กชื่อ จะถูกบันทึกเป็นขาด"
-        confirmLabel="ยืนยันบันทึก"
+        title={officerText(language, "บันทึกเป็นขาด", "Mark as absent")}
+        message={officerText(
+          language,
+          "ผู้สมัครที่อนุมัติแล้วและยังไม่มีข้อมูลเช็กชื่อ จะถูกบันทึกเป็นขาด",
+          "Approved participants without attendance records will be marked absent.",
+        )}
+        confirmLabel={officerText(language, "ยืนยันบันทึก", "Confirm")}
         variant="warning"
         loading={saving}
         onConfirm={runConfirmAction}
@@ -599,9 +673,13 @@ export default function ActivitySessionWorkspacePage() {
       />
       <ConfirmActionModal
         open={confirmAction === "finalize"}
-        title="ปิดคะแนนและคำนวณผล"
-        message="ระบบจะล็อกคะแนนรายบุคคล คำนวณผล Competency ใหม่ และอัปเดตผลรวมของผู้เรียน"
-        confirmLabel="ปิดคะแนน"
+        title={officerText(language, "ปิดคะแนนและคำนวณผล", "Finalize and calculate results")}
+        message={officerText(
+          language,
+          "ระบบจะล็อกคะแนนรายบุคคล คำนวณผลสมรรถนะใหม่ และอัปเดตผลรวมของผู้เรียน",
+          "Individual scores will be locked, competencies recalculated, and learner totals updated.",
+        )}
+        confirmLabel={officerText(language, "ปิดคะแนน", "Finalize scores")}
         variant="warning"
         loading={saving}
         onConfirm={runConfirmAction}
@@ -609,7 +687,7 @@ export default function ActivitySessionWorkspacePage() {
       />
       <BaseModal
         open={confirmAction === "correction"}
-        title="เปิด Correction คะแนน"
+        title={officerText(language, "เปิดโหมดแก้ไขคะแนน", "Open score correction")}
         onClose={() => setConfirmAction("")}
         size="sm"
         footer={
@@ -618,27 +696,30 @@ export default function ActivitySessionWorkspacePage() {
               className="course-btn course-btn--ghost"
               onClick={() => setConfirmAction("")}
             >
-              ยกเลิก
+                {officerText(language, "ยกเลิก", "Cancel")}
             </button>
             <button
               className="course-btn course-btn--danger"
               onClick={runConfirmAction}
               disabled={saving || !correctionReason.trim()}
             >
-              เปิด Correction
+              {officerText(language, "เปิดโหมดแก้ไข", "Open correction")}
             </button>
           </>
         }
       >
         <p>
-          การแก้ไข Attendance หรือคะแนนจะกระทบผล Competency
-          ของผู้เข้าร่วมในรอบนี้
+          {officerText(
+            language,
+            "การแก้ไขการเข้าร่วมหรือคะแนนจะกระทบผลสมรรถนะของผู้เข้าร่วมในรอบนี้",
+            "Changing attendance or scores affects competency results for participants in this session.",
+          )}
         </p>
         <textarea
           className="course-input"
           value={correctionReason}
           onChange={(event) => setCorrectionReason(event.target.value)}
-          placeholder="ระบุเหตุผล"
+          placeholder={officerText(language, "ระบุเหตุผล", "Enter a reason")}
           rows={4}
         />
       </BaseModal>

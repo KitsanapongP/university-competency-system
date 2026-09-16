@@ -23,6 +23,7 @@ import ToastNotifications from "../../../../../components/ui/ToastNotifications"
 import BaseModal from "../../../../../components/ui/BaseModal";
 import ConfirmActionModal from "../../../../../components/ui/ConfirmActionModal";
 import { useLanguage } from "../../../../../providers/LanguageContext";
+import { officerText } from "../../../officer-labels";
 import { fetchActivity } from "../../../../../lib/activity";
 import { fetchCompetenciesForManagement } from "../../../../../lib/competency-management";
 import {
@@ -43,17 +44,38 @@ import "../../ActivityManagement.css";
 import "./ActivitySessionManagement.css";
 
 const TAB_OPTIONS = [
-  { id: "info", label: "ข้อมูลรอบกิจกรรม" },
-  { id: "assignments", label: "ผู้รับผิดชอบ" },
-  { id: "competencies", label: "Competency Mapping" },
+  { id: "info" },
+  { id: "assignments" },
+  { id: "competencies" },
 ];
 
 const ASSIGNMENT_ROLE_OPTIONS = [
-  { value: "lecturer", label: "อาจารย์/วิทยากร" },
-  { value: "officer", label: "เจ้าหน้าที่" },
-  { value: "assistant", label: "ผู้ช่วย" },
-  { value: "supervisor", label: "ผู้ดูแล" },
+  { value: "lecturer" },
+  { value: "officer" },
+  { value: "assistant" },
+  { value: "supervisor" },
 ];
+
+const TAB_LABELS = {
+  info: ["ข้อมูลรอบกิจกรรม", "Session details"],
+  assignments: ["ผู้รับผิดชอบ", "Assignees"],
+  competencies: ["การจับคู่สมรรถนะ", "Competency mapping"],
+};
+
+const ASSIGNMENT_ROLE_LABELS = {
+  lecturer: ["อาจารย์/วิทยากร", "Lecturer / speaker"],
+  officer: ["เจ้าหน้าที่", "Officer"],
+  assistant: ["ผู้ช่วย", "Assistant"],
+  supervisor: ["ผู้ดูแล", "Supervisor"],
+};
+
+function tabLabel(value, language) {
+  return officerText(language, ...(TAB_LABELS[value] || [value, value]));
+}
+
+function assignmentRoleLabel(value, language) {
+  return officerText(language, ...(ASSIGNMENT_ROLE_LABELS[value] || [value, value]));
+}
 
 const GRADING_MODE_OPTIONS = [
   { value: "attendance_only" },
@@ -141,12 +163,14 @@ const BACKEND_SESSION_MESSAGE_TH = {
   "activity session operation failed": "ไม่สามารถดำเนินการกับรอบกิจกรรมได้",
 };
 
-function mapSessionError(error) {
+function mapSessionError(error, language) {
   const message = error?.message || error?.payload?.error?.message || "";
-  return (
+  return officerText(
+    language,
     BACKEND_SESSION_MESSAGE_TH[message] ||
-    message ||
-    "ไม่สามารถดำเนินการกับรอบกิจกรรมได้"
+      message ||
+      "ไม่สามารถดำเนินการกับรอบกิจกรรมได้",
+    message || "Unable to complete the activity session operation.",
   );
 }
 
@@ -221,29 +245,29 @@ function lateTimeFromStart(startAt, graceMinutes = 0) {
   return lateTimeFromDate(startDate);
 }
 
-function formatDateTime(value) {
+function formatDateTime(value, language) {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("th-TH", {
+  return new Intl.DateTimeFormat(language === "en" ? "en-US" : "th-TH", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
 }
 
-function formatDateRange(session) {
+function formatDateRange(session, language) {
   if (!session) return "-";
-  return `${formatDateTime(session.startAt)} - ${formatDateTime(session.endAt)}`;
+  return `${formatDateTime(session.startAt, language)} - ${formatDateTime(session.endAt, language)}`;
 }
 
-function statusLabel(status) {
+function statusLabel(status, language) {
   switch (status) {
     case "scheduled":
-      return "Scheduled";
+      return officerText(language, "กำหนดการแล้ว", "Scheduled");
     case "completed":
-      return "Completed";
+      return officerText(language, "เสร็จสิ้น", "Completed");
     case "cancelled":
-      return "Cancelled";
+      return officerText(language, "ยกเลิกแล้ว", "Cancelled");
     default:
       return status || "-";
   }
@@ -317,28 +341,34 @@ function competencyToRow(item) {
   };
 }
 
-function StatusBadge({ status, finalized }) {
+function StatusBadge({ status, finalized, language }) {
   return (
     <span
       className={`activity-session-status activity-session-status--${status || "scheduled"}`}
     >
       {finalized && <Lock size={12} />}
-      {finalized ? "Finalized" : statusLabel(status)}
+      {finalized
+        ? officerText(language, "ล็อกแล้ว", "Finalized")
+        : statusLabel(status, language)}
     </span>
   );
 }
 
 function SessionForm({ form, setForm, disabled }) {
   const { language } = useLanguage();
-  const scoringModeLabel =
-    language === "en" ? "Scoring method" : "รูปแบบการให้คะแนน";
+  const scoringModeLabel = officerText(
+    language,
+    "รูปแบบการให้คะแนน",
+    "Scoring method",
+  );
 
   return (
     <div className="activity-session-form">
       <div className="course-row">
         <label className="course-field">
           <span className="course-label">
-            วันที่เริ่มต้น<span className="course-required">*</span>
+            {officerText(language, "วันที่เริ่มต้น", "Start date")}
+            <span className="course-required">*</span>
           </span>
           <input
             type="date"
@@ -352,7 +382,8 @@ function SessionForm({ form, setForm, disabled }) {
         </label>
         <label className="course-field">
           <span className="course-label">
-            เวลาเริ่มต้น<span className="course-required">*</span>
+            {officerText(language, "เวลาเริ่มต้น", "Start time")}
+            <span className="course-required">*</span>
           </span>
           <input
             type="time"
@@ -366,7 +397,8 @@ function SessionForm({ form, setForm, disabled }) {
         </label>
         <label className="course-field">
           <span className="course-label">
-            วันที่สิ้นสุด<span className="course-required">*</span>
+            {officerText(language, "วันที่สิ้นสุด", "End date")}
+            <span className="course-required">*</span>
           </span>
           <input
             type="date"
@@ -380,7 +412,8 @@ function SessionForm({ form, setForm, disabled }) {
         </label>
         <label className="course-field">
           <span className="course-label">
-            เวลาสิ้นสุด<span className="course-required">*</span>
+            {officerText(language, "เวลาสิ้นสุด", "End time")}
+            <span className="course-required">*</span>
           </span>
           <input
             type="time"
@@ -396,19 +429,23 @@ function SessionForm({ form, setForm, disabled }) {
 
       <div className="course-row">
         <label className="course-field">
-          <span className="course-label">สถานที่</span>
+          <span className="course-label">
+            {officerText(language, "สถานที่", "Location")}
+          </span>
           <input
             className="course-input"
             value={form.locationName}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, locationName: event.target.value }))
             }
-            placeholder="เช่น ห้องประชุม 1"
+            placeholder={officerText(language, "เช่น ห้องประชุม 1", "e.g. Meeting room 1")}
             disabled={disabled}
           />
         </label>
         <label className="course-field">
-          <span className="course-label">จำนวนรับ</span>
+          <span className="course-label">
+            {officerText(language, "จำนวนรับ", "Capacity")}
+          </span>
           <input
             type="number"
             min="0"
@@ -417,14 +454,16 @@ function SessionForm({ form, setForm, disabled }) {
             onChange={(event) =>
               setForm((prev) => ({ ...prev, capacity: event.target.value }))
             }
-            placeholder="ไม่จำกัด"
+            placeholder={officerText(language, "ไม่จำกัด", "No limit")}
             disabled={disabled}
           />
         </label>
       </div>
 
       <label className="course-field">
-        <span className="course-label">รายละเอียดสถานที่</span>
+        <span className="course-label">
+          {officerText(language, "รายละเอียดสถานที่", "Location details")}
+        </span>
         <textarea
           className="course-input activity-session-textarea"
           rows={3}
@@ -432,7 +471,11 @@ function SessionForm({ form, setForm, disabled }) {
           onChange={(event) =>
             setForm((prev) => ({ ...prev, locationDetail: event.target.value }))
           }
-          placeholder="รายละเอียดเพิ่มเติมสำหรับผู้เข้าร่วม"
+          placeholder={officerText(
+            language,
+            "รายละเอียดเพิ่มเติมสำหรับผู้เข้าร่วม",
+            "Additional details for participants",
+          )}
           disabled={disabled}
         />
       </label>
@@ -456,7 +499,9 @@ function SessionForm({ form, setForm, disabled }) {
           </select>
         </label>
         <label className="course-field">
-          <span className="course-label">คะแนนเต็ม</span>
+          <span className="course-label">
+            {officerText(language, "คะแนนเต็ม", "Maximum score")}
+          </span>
           <input
             type="number"
             min="0"
@@ -470,7 +515,9 @@ function SessionForm({ form, setForm, disabled }) {
           />
         </label>
         <label className="course-field">
-          <span className="course-label">เกณฑ์ผ่าน</span>
+          <span className="course-label">
+            {officerText(language, "เกณฑ์ผ่าน", "Pass threshold")}
+          </span>
           <input
             type="number"
             min="0"
@@ -483,7 +530,7 @@ function SessionForm({ form, setForm, disabled }) {
                 passThreshold: event.target.value,
               }))
             }
-            placeholder="ไม่กำหนด"
+            placeholder={officerText(language, "ไม่กำหนด", "Not set")}
             disabled={disabled}
           />
         </label>
@@ -491,7 +538,9 @@ function SessionForm({ form, setForm, disabled }) {
 
       <div className="course-row">
         <label className="course-field">
-          <span className="course-label">กำหนดเวลาสาย</span>
+          <span className="course-label">
+            {officerText(language, "กำหนดเวลาสาย", "Late time")}
+          </span>
           <input
             type="time"
             className="course-input"
@@ -513,11 +562,15 @@ function SessionForm({ form, setForm, disabled }) {
               }
               disabled={disabled}
             />
-            <span>เปิดใช้งาน กำหนดเวลาสาย</span>
+            <span>
+              {officerText(language, "เปิดใช้งานกำหนดเวลาสาย", "Enable late time")}
+            </span>
           </label>
         </label>
         <label className="course-field">
-          <span className="course-label">Late penalty factor</span>
+          <span className="course-label">
+            {officerText(language, "ตัวคูณหักคะแนนมาสาย", "Late penalty factor")}
+          </span>
           <input
             type="number"
             min="0.01"
@@ -535,7 +588,9 @@ function SessionForm({ form, setForm, disabled }) {
           />
         </label>
         <label className="course-field">
-          <span className="course-label">เวลาเข้าเรียนขั้นต่ำ (นาที)</span>
+          <span className="course-label">
+            {officerText(language, "เวลาเข้าเรียนขั้นต่ำ (นาที)", "Minimum attendance (minutes)")}
+          </span>
           <input
             type="number"
             min="0"
@@ -547,7 +602,7 @@ function SessionForm({ form, setForm, disabled }) {
                 minAttendanceMinutes: event.target.value,
               }))
             }
-            placeholder="ไม่กำหนด"
+            placeholder={officerText(language, "ไม่กำหนด", "Not set")}
             disabled={disabled}
           />
         </label>
@@ -566,7 +621,9 @@ function SessionForm({ form, setForm, disabled }) {
             }
             disabled={disabled}
           />
-          <span>ต้องลงทะเบียนก่อนเข้าร่วม</span>
+          <span>
+            {officerText(language, "ต้องลงทะเบียนก่อนเข้าร่วม", "Registration required")}
+          </span>
         </label>
         <label className="activity-management__checkbox">
           <input
@@ -580,7 +637,7 @@ function SessionForm({ form, setForm, disabled }) {
             }
             disabled={disabled}
           />
-          <span>ต้อง checkout</span>
+          <span>{officerText(language, "ต้องเช็กชื่อออก", "Checkout required")}</span>
         </label>
       </div>
     </div>
@@ -589,6 +646,7 @@ function SessionForm({ form, setForm, disabled }) {
 
 export default function ActivitySessionManagementPage() {
   const params = useParams();
+  const { language } = useLanguage();
   const activityId = params?.activityId;
   const [activity, setActivity] = useState(null);
   const [sessions, setSessions] = useState([]);
@@ -661,11 +719,11 @@ export default function ActivitySessionManagementPage() {
         (current) => current || nextSessions[0]?.sessionId || null,
       );
     } catch (err) {
-      setFeedback({ type: "error", message: mapSessionError(err) });
+      setFeedback({ type: "error", message: mapSessionError(err, language) });
     } finally {
       setLoading(false);
     }
-  }, [activityId]);
+  }, [activityId, language]);
 
   const loadSelectedSession = useCallback(async (sessionId) => {
     if (!sessionId) {
@@ -682,11 +740,11 @@ export default function ActivitySessionManagementPage() {
       setAssignmentRows(detail.assignments.map(assignmentToRow));
       setCompetencyRows(detail.competencies.map(competencyToRow));
     } catch (err) {
-      setFeedback({ type: "error", message: mapSessionError(err) });
+      setFeedback({ type: "error", message: mapSessionError(err, language) });
     } finally {
       setDetailLoading(false);
     }
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     loadPage();
@@ -727,13 +785,16 @@ export default function ActivitySessionManagementPage() {
     try {
       const created = await createActivitySession(activityId, createForm);
       setCreateModalOpen(false);
-      setFeedback({ type: "success", message: "สร้างรอบกิจกรรมแล้ว" });
+      setFeedback({
+        type: "success",
+        message: officerText(language, "สร้างรอบกิจกรรมแล้ว", "Session created."),
+      });
       const nextSessions = await loadList({ keepSelection: false });
       setSelectedSessionId(
         created.sessionId || nextSessions[0]?.sessionId || null,
       );
     } catch (err) {
-      setFeedback({ type: "error", message: mapSessionError(err) });
+      setFeedback({ type: "error", message: mapSessionError(err, language) });
     } finally {
       setSubmitting(false);
     }
@@ -749,10 +810,13 @@ export default function ActivitySessionManagementPage() {
         sessionForm,
       );
       setSelectedSession(updated);
-      setFeedback({ type: "success", message: "บันทึกข้อมูลรอบกิจกรรมแล้ว" });
+      setFeedback({
+        type: "success",
+        message: officerText(language, "บันทึกข้อมูลรอบกิจกรรมแล้ว", "Session details saved."),
+      });
       await loadList({ keepSelection: true });
     } catch (err) {
-      setFeedback({ type: "error", message: mapSessionError(err) });
+      setFeedback({ type: "error", message: mapSessionError(err, language) });
     } finally {
       setSubmitting(false);
     }
@@ -767,10 +831,13 @@ export default function ActivitySessionManagementPage() {
         selectedSession.sessionId,
         assignmentRows,
       );
-      setFeedback({ type: "success", message: "บันทึกผู้รับผิดชอบแล้ว" });
+      setFeedback({
+        type: "success",
+        message: officerText(language, "บันทึกผู้รับผิดชอบแล้ว", "Assignees saved."),
+      });
       await refreshSelectedAndList();
     } catch (err) {
-      setFeedback({ type: "error", message: mapSessionError(err) });
+      setFeedback({ type: "error", message: mapSessionError(err, language) });
     } finally {
       setSubmitting(false);
     }
@@ -787,11 +854,11 @@ export default function ActivitySessionManagementPage() {
       );
       setFeedback({
         type: "success",
-        message: "บันทึก Competency mapping แล้ว",
+        message: officerText(language, "บันทึกการจับคู่สมรรถนะแล้ว", "Competency mapping saved."),
       });
       await refreshSelectedAndList();
     } catch (err) {
-      setFeedback({ type: "error", message: mapSessionError(err) });
+      setFeedback({ type: "error", message: mapSessionError(err, language) });
     } finally {
       setSubmitting(false);
     }
@@ -810,13 +877,17 @@ export default function ActivitySessionManagementPage() {
         type: "success",
         message:
           status === "completed"
-            ? "เปลี่ยนสถานะเป็น Completed แล้ว"
-            : "ยกเลิกรอบกิจกรรมแล้ว",
+            ? officerText(
+                language,
+                "เปลี่ยนสถานะเป็นเสร็จสิ้นแล้ว",
+                "Session marked as completed.",
+              )
+            : officerText(language, "ยกเลิกรอบกิจกรรมแล้ว", "Session cancelled."),
       });
       setSelectedSession(updated);
       await refreshSelectedAndList(session.sessionId);
     } catch (err) {
-      setFeedback({ type: "error", message: mapSessionError(err) });
+      setFeedback({ type: "error", message: mapSessionError(err, language) });
     } finally {
       setSubmitting(false);
       setConfirmAction(EMPTY_CONFIRM);
@@ -829,11 +900,14 @@ export default function ActivitySessionManagementPage() {
     setFeedback({ type: "", message: "" });
     try {
       const finalized = await finalizeActivitySession(session.sessionId);
-      setFeedback({ type: "success", message: "Finalize รอบกิจกรรมแล้ว" });
+      setFeedback({
+        type: "success",
+        message: officerText(language, "ล็อกรอบกิจกรรมแล้ว", "Session finalized."),
+      });
       setSelectedSession(finalized);
       await refreshSelectedAndList(session.sessionId);
     } catch (err) {
-      setFeedback({ type: "error", message: mapSessionError(err) });
+      setFeedback({ type: "error", message: mapSessionError(err, language) });
     } finally {
       setSubmitting(false);
       setConfirmAction(EMPTY_CONFIRM);
@@ -846,13 +920,16 @@ export default function ActivitySessionManagementPage() {
     setFeedback({ type: "", message: "" });
     try {
       await deleteActivitySession(session.sessionId);
-      setFeedback({ type: "success", message: "ลบรอบกิจกรรมแล้ว" });
+      setFeedback({
+        type: "success",
+        message: officerText(language, "ลบรอบกิจกรรมแล้ว", "Session deleted."),
+      });
       setConfirmAction(EMPTY_CONFIRM);
       const nextSessions = await fetchActivitySessions(activityId);
       setSessions(nextSessions);
       setSelectedSessionId(nextSessions[0]?.sessionId || null);
     } catch (err) {
-      setFeedback({ type: "error", message: mapSessionError(err) });
+      setFeedback({ type: "error", message: mapSessionError(err, language) });
     } finally {
       setSubmitting(false);
     }
@@ -893,59 +970,70 @@ export default function ActivitySessionManagementPage() {
     if (!confirmAction.type || !confirmAction.session) return null;
     if (confirmAction.type === "complete") {
       return {
-        title: "เปลี่ยนสถานะเป็น Completed",
+        title: officerText(language, "เปลี่ยนสถานะเป็นเสร็จสิ้น", "Mark as completed"),
         message: (
           <>
-            ยืนยันว่ารอบกิจกรรม{" "}
-            <strong>ครั้งที่ {confirmAction.session.sessionNo}</strong>{" "}
-            ดำเนินการเสร็จแล้ว?
+            {officerText(language, "ยืนยันว่ารอบกิจกรรม ", "Confirm that session ")}
+            <strong>{confirmAction.session.sessionNo}</strong>{" "}
+            {officerText(language, "ดำเนินการเสร็จแล้วหรือไม่?", "is complete?")}
           </>
         ),
-        confirmLabel: "เปลี่ยนเป็น Completed",
+        confirmLabel: officerText(language, "เปลี่ยนเป็นเสร็จสิ้น", "Mark as completed"),
         variant: "info",
         onConfirm: () => handleStatusChange(confirmAction.session, "completed"),
       };
     }
     if (confirmAction.type === "cancel") {
       return {
-        title: "ยกเลิกรอบกิจกรรม",
+        title: officerText(language, "ยกเลิกรอบกิจกรรม", "Cancel session"),
         message: (
           <>
-            ยืนยันการยกเลิกรอบกิจกรรม{" "}
-            <strong>ครั้งที่ {confirmAction.session.sessionNo}</strong> หรือไม่?
+            {officerText(language, "ยืนยันการยกเลิกรอบกิจกรรม ", "Confirm cancelling session ")}
+            <strong>{confirmAction.session.sessionNo}</strong>
+            {officerText(language, " หรือไม่?", "?")}
           </>
         ),
-        hint: "รอบกิจกรรมที่ยกเลิกแล้วจะเป็น read-only",
-        confirmLabel: "ยกเลิกรอบกิจกรรม",
+        hint: officerText(language, "รอบกิจกรรมที่ยกเลิกแล้วจะเป็นแบบอ่านอย่างเดียว", "A cancelled session becomes read-only."),
+        confirmLabel: officerText(language, "ยกเลิกรอบกิจกรรม", "Cancel session"),
         variant: "danger",
         onConfirm: () => handleStatusChange(confirmAction.session, "cancelled"),
       };
     }
     if (confirmAction.type === "finalize") {
       return {
-        title: "Finalize รอบกิจกรรม",
+        title: officerText(language, "ล็อกรอบกิจกรรม", "Finalize session"),
         message: (
           <>
-            ยืนยันการ lock setup ของรอบกิจกรรม{" "}
-            <strong>ครั้งที่ {confirmAction.session.sessionNo}</strong> หรือไม่?
+            {officerText(language, "ยืนยันการล็อกการตั้งค่ารอบกิจกรรม ", "Confirm locking the setup for session ")}
+            <strong>{confirmAction.session.sessionNo}</strong>
+            {officerText(language, " หรือไม่?", "?")}
           </>
         ),
-        hint: "หลัง Finalize แล้วจะไม่สามารถแก้ข้อมูลรอบกิจกรรม ผู้รับผิดชอบ หรือ Competency mapping ได้",
-        confirmLabel: "Finalize",
+        hint: officerText(
+          language,
+          "หลังจากล็อกแล้วจะไม่สามารถแก้ข้อมูลรอบกิจกรรม ผู้รับผิดชอบ หรือการจับคู่สมรรถนะได้",
+          "After finalizing, session details, assignees, and competency mapping cannot be changed.",
+        ),
+        confirmLabel: officerText(language, "ล็อกรอบกิจกรรม", "Finalize session"),
         variant: "warning",
         onConfirm: () => handleFinalize(confirmAction.session),
       };
     }
     return {
-      title: "ลบรอบกิจกรรม",
+      title: officerText(language, "ลบรอบกิจกรรม", "Delete session"),
       message: (
         <>
-          ยืนยันการลบรอบกิจกรรม{" "}
-          <strong>ครั้งที่ {confirmAction.session.sessionNo}</strong> หรือไม่?
+          {officerText(language, "ยืนยันการลบรอบกิจกรรม ", "Confirm deleting session ")}
+          <strong>{confirmAction.session.sessionNo}</strong>
+          {officerText(language, " หรือไม่?", "?")}
         </>
       ),
-      hint: "ระบบจะ Soft delete ได้เฉพาะรอบที่ยังไม่มีข้อมูลลงทะเบียนหรือเช็กชื่อ",
-      confirmLabel: "ลบรอบกิจกรรม",
+      hint: officerText(
+        language,
+        "ระบบจะลบแบบ Soft delete ได้เฉพาะรอบที่ยังไม่มีข้อมูลลงทะเบียนหรือเช็กชื่อ",
+        "Only sessions without registration or attendance data can be soft-deleted.",
+      ),
+      confirmLabel: officerText(language, "ลบรอบกิจกรรม", "Delete session"),
       variant: "danger",
       onConfirm: () => handleDelete(confirmAction.session),
     };
@@ -957,13 +1045,15 @@ export default function ActivitySessionManagementPage() {
         <div className="course-list-header__left">
           <Link className="activity-session-back" href="/activity-management">
             <ArrowLeft size={16} />
-            กลับหน้ากิจกรรม
+            {officerText(language, "กลับหน้ากิจกรรม", "Back to activities")}
           </Link>
-          <h1 className="course-list-header__title officer-page__title">จัดการรอบกิจกรรม</h1>
+          <h1 className="course-list-header__title officer-page__title">
+            {officerText(language, "จัดการรอบกิจกรรม", "Activity session management")}
+          </h1>
           <p className="course-list-header__subtitle officer-page__subtitle">
             {activity
-              ? `${activity.code} - ${activity.nameTh}`
-              : "กำลังโหลดข้อมูลกิจกรรม..."}
+              ? `${activity.code} - ${language === "en" ? activity.nameEn || activity.nameTh : activity.nameTh}`
+              : officerText(language, "กำลังโหลดข้อมูลกิจกรรม...", "Loading activity...")}
           </p>
         </div>
         <div className="course-list-header__actions officer-page__actions">
@@ -976,7 +1066,7 @@ export default function ActivitySessionManagementPage() {
               size={16}
               className={loading ? "activity-management__spin" : ""}
             />
-            โหลดใหม่
+            {officerText(language, "โหลดใหม่", "Refresh")}
           </button>
           <button
             className="course-btn course-btn--primary"
@@ -984,7 +1074,7 @@ export default function ActivitySessionManagementPage() {
             disabled={loading || submitting || activityReadOnly}
           >
             <Plus size={16} />
-            เพิ่มรอบกิจกรรม
+            {officerText(language, "เพิ่มรอบกิจกรรม", "Add session")}
           </button>
         </div>
       </div>
@@ -1008,13 +1098,15 @@ export default function ActivitySessionManagementPage() {
         <aside className="activity-session-list">
           <div className="activity-session-list__header">
             <div>
-              <span>Activity Session</span>
-              <strong>{sessions.length} รอบ</strong>
+              <span>{officerText(language, "รอบกิจกรรม", "Activity sessions")}</span>
+              <strong>
+                {sessions.length}{" "}{officerText(language, "รอบ", "sessions")}
+              </strong>
             </div>
             {activityReadOnly && (
               <span className="activity-session-lock-note">
                 <Lock size={13} />
-                Read-only
+                {officerText(language, "อ่านอย่างเดียว", "Read-only")}
               </span>
             )}
           </div>
@@ -1022,7 +1114,7 @@ export default function ActivitySessionManagementPage() {
           <div className="activity-session-list__items">
             {loading ? (
               <div className="activity-session-empty">
-                กำลังโหลดรอบกิจกรรม...
+                {officerText(language, "กำลังโหลดรอบกิจกรรม...", "Loading sessions...")}
               </div>
             ) : sessions.length ? (
               sessions.map((session) => (
@@ -1033,19 +1125,22 @@ export default function ActivitySessionManagementPage() {
                   onClick={() => setSelectedSessionId(session.sessionId)}
                 >
                   <div className="activity-session-card__top">
-                    <strong>ครั้งที่ {session.sessionNo}</strong>
+                    <strong>
+                      {officerText(language, "ครั้งที่ ", "Session ")}{session.sessionNo}
+                    </strong>
                     <StatusBadge
                       status={session.status}
                       finalized={session.isSetupFinalized}
+                      language={language}
                     />
                   </div>
                   <span className="activity-session-card__time">
                     <Clock size={13} />
-                    {formatDateRange(session)}
+                    {formatDateRange(session, language)}
                   </span>
                   <span className="activity-session-card__place">
                     <MapPin size={13} />
-                    {session.locationName || "ยังไม่ระบุสถานที่"}
+                    {session.locationName || officerText(language, "ยังไม่ระบุสถานที่", "Location not set")}
                   </span>
                   <div className="activity-session-card__meta">
                     <span>
@@ -1059,7 +1154,9 @@ export default function ActivitySessionManagementPage() {
                 </button>
               ))
             ) : (
-              <div className="activity-session-empty">ยังไม่มีรอบกิจกรรม</div>
+              <div className="activity-session-empty">
+                {officerText(language, "ยังไม่มีรอบกิจกรรม", "No activity sessions")}
+              </div>
             )}
           </div>
         </aside>
@@ -1068,10 +1165,15 @@ export default function ActivitySessionManagementPage() {
           {!selectedSession ? (
             <div className="activity-session-detail__empty">
               <CalendarClock size={32} />
-              <strong>เลือกรอบกิจกรรมเพื่อจัดการข้อมูล</strong>
+              <strong>
+                {officerText(language, "เลือกรอบกิจกรรมเพื่อจัดการข้อมูล", "Select a session to manage")}
+              </strong>
               <span>
-                Prototype รอบนี้ยังไม่ทำ registration, attendance และ scoring
-                รายบุคคล
+                {officerText(
+                  language,
+                  "หน้านี้ยังไม่รองรับการลงทะเบียน การเช็กชื่อ และการให้คะแนนรายบุคคล",
+                  "Registration, attendance, and individual scoring are not available in this view yet.",
+                )}
               </span>
             </div>
           ) : (
@@ -1079,22 +1181,26 @@ export default function ActivitySessionManagementPage() {
               <div className="activity-session-detail__header">
                 <div>
                   <span className="activity-session-kicker">
-                    Session #{selectedSession.sessionNo}
+                    {officerText(language, "รอบที่ ", "Session ")}{selectedSession.sessionNo}
                   </span>
-                  <h2>รอบกิจกรรมครั้งที่ {selectedSession.sessionNo}</h2>
-                  <p>{formatDateRange(selectedSession)}</p>
+                  <h2>
+                    {officerText(language, "รอบกิจกรรมครั้งที่ ", "Activity session ")}
+                    {selectedSession.sessionNo}
+                  </h2>
+                  <p>{formatDateRange(selectedSession, language)}</p>
                 </div>
                 <div className="activity-session-detail__actions">
                   <StatusBadge
                     status={selectedSummary?.status}
                     finalized={selectedSummary?.isSetupFinalized}
+                    language={language}
                   />
                   <Link
                     className="course-btn course-btn--ghost"
                     href={`/activity-sessions/${selectedSession.sessionId}`}
                   >
                     <Users size={16} />
-                    ผู้เข้าร่วมและคะแนน
+                    {officerText(language, "ผู้เข้าร่วมและคะแนน", "Participants and scores")}
                   </Link>
                   <button
                     className="course-btn course-btn--ghost"
@@ -1107,7 +1213,7 @@ export default function ActivitySessionManagementPage() {
                     disabled={!selectedSession.canComplete || submitting}
                   >
                     <CheckCircle2 size={16} />
-                    Completed
+                    {officerText(language, "เสร็จสิ้น", "Completed")}
                   </button>
                   <button
                     className="course-btn course-btn--ghost"
@@ -1120,7 +1226,7 @@ export default function ActivitySessionManagementPage() {
                     disabled={!selectedSession.canCancel || submitting}
                   >
                     <XCircle size={16} />
-                    Cancel
+                    {officerText(language, "ยกเลิก", "Cancel")}
                   </button>
                   <button
                     className="course-btn course-btn--primary"
@@ -1133,12 +1239,16 @@ export default function ActivitySessionManagementPage() {
                     disabled={!canFinalizeSelected || submitting}
                     title={
                       canFinalizeSelected
-                        ? "Finalize"
-                        : "ต้องมีผู้รับผิดชอบ, Competency และสัดส่วนรวม 100%"
+                        ? officerText(language, "ล็อกรอบกิจกรรม", "Finalize session")
+                        : officerText(
+                            language,
+                            "ต้องมีผู้รับผิดชอบ สมรรถนะ และสัดส่วนรวม 100%",
+                            "Assignees, competencies, and a total of 100% are required.",
+                          )
                     }
                   >
                     <Lock size={16} />
-                    Finalize
+                    {officerText(language, "ล็อกรอบกิจกรรม", "Finalize")}
                   </button>
                   <button
                     className="course-btn course-btn--danger"
@@ -1151,27 +1261,32 @@ export default function ActivitySessionManagementPage() {
                     disabled={!selectedSession.canDelete || submitting}
                   >
                     <Trash2 size={16} />
-                    ลบ
+                    {officerText(language, "ลบ", "Delete")}
                   </button>
                 </div>
               </div>
 
               <div className="activity-session-summary">
                 <span>
-                  <UserPlus size={14} /> ผู้รับผิดชอบ{" "}
-                  {selectedSession.assignmentCount} คน
+                  <UserPlus size={14} /> {officerText(language, "ผู้รับผิดชอบ ", "Assignees ")}
+                  {selectedSession.assignmentCount}{" "}{officerText(language, "คน", "people")}
                 </span>
                 <span>
-                  <Award size={14} /> Competency{" "}
-                  {selectedSession.competencyCount} รายการ
+                  <Award size={14} /> {officerText(language, "สมรรถนะ ", "Competencies ")}
+                  {selectedSession.competencyCount}{" "}{officerText(language, "รายการ", "items")}
                 </span>
                 <span>
-                  Mapping รวม {selectedSession.competencyPercentTotal}%
+                  {officerText(language, "รวมการจับคู่ ", "Mapping total ")}
+                  {selectedSession.competencyPercentTotal}%
                 </span>
                 <span>
-                  ลงทะเบียน {selectedSession.registrationCount} รายการ
+                  {officerText(language, "ลงทะเบียน ", "Registrations ")}
+                  {selectedSession.registrationCount}{" "}{officerText(language, "รายการ", "items")}
                 </span>
-                <span>เช็กชื่อ {selectedSession.attendanceCount} รายการ</span>
+                <span>
+                  {officerText(language, "เช็กชื่อ ", "Attendance ")}
+                  {selectedSession.attendanceCount}{" "}{officerText(language, "รายการ", "items")}
+                </span>
               </div>
 
               <div className="activity-session-tabs">
@@ -1186,7 +1301,7 @@ export default function ActivitySessionManagementPage() {
                     }
                     onClick={() => setActiveTab(tab.id)}
                   >
-                    {tab.label}
+                    {tabLabel(tab.id, language)}
                   </button>
                 ))}
               </div>
@@ -1194,7 +1309,7 @@ export default function ActivitySessionManagementPage() {
               <div className="activity-session-tab-panel">
                 {detailLoading ? (
                   <div className="activity-session-empty">
-                    กำลังโหลดรายละเอียด...
+                    {officerText(language, "กำลังโหลดรายละเอียด...", "Loading details...")}
                   </div>
                 ) : activeTab === "info" ? (
                   <>
@@ -1205,7 +1320,9 @@ export default function ActivitySessionManagementPage() {
                     />
                     <div className="activity-session-panel-actions">
                       {sessionReadOnly && (
-                        <span>รอบกิจกรรมนี้อยู่ในสถานะที่แก้ไขไม่ได้</span>
+                        <span>
+                          {officerText(language, "รอบกิจกรรมนี้อยู่ในสถานะที่แก้ไขไม่ได้", "This session cannot be edited in its current status.")}
+                        </span>
                       )}
                       <button
                         className="course-btn course-btn--primary"
@@ -1213,7 +1330,7 @@ export default function ActivitySessionManagementPage() {
                         disabled={sessionReadOnly || submitting}
                       >
                         <Save size={16} />
-                        บันทึกข้อมูลรอบ
+                        {officerText(language, "บันทึกข้อมูลรอบ", "Save session details")}
                       </button>
                     </div>
                   </>
@@ -1221,8 +1338,12 @@ export default function ActivitySessionManagementPage() {
                   <div className="activity-session-table-panel">
                     <div className="activity-session-panel-toolbar">
                       <div>
-                        <strong>ผู้รับผิดชอบรอบกิจกรรม</strong>
-                        <span>เลือก staff ในคณะของกิจกรรมนี้เท่านั้น</span>
+                        <strong>
+                          {officerText(language, "ผู้รับผิดชอบรอบกิจกรรม", "Session assignees")}
+                        </strong>
+                        <span>
+                          {officerText(language, "เลือกเจ้าหน้าที่ในคณะของกิจกรรมนี้เท่านั้น", "Only staff from this activity's faculty can be selected.")}
+                        </span>
                       </div>
                       <button
                         className="course-btn course-btn--ghost"
@@ -1230,18 +1351,18 @@ export default function ActivitySessionManagementPage() {
                         disabled={sessionReadOnly || submitting}
                       >
                         <Plus size={16} />
-                        เพิ่มผู้รับผิดชอบ
+                        {officerText(language, "เพิ่มผู้รับผิดชอบ", "Add assignee")}
                       </button>
                     </div>
                     <div className="activity-session-table-wrap">
                       <table className="activity-session-table">
                         <thead>
                           <tr>
-                            <th>ผู้รับผิดชอบ</th>
-                            <th>บทบาท</th>
-                            <th>สิทธิ์</th>
-                            <th>หมายเหตุ</th>
-                            <th></th>
+                            <th>{officerText(language, "ผู้รับผิดชอบ", "Assignee")}</th>
+                            <th>{officerText(language, "บทบาท", "Role")}</th>
+                            <th>{officerText(language, "สิทธิ์", "Permissions")}</th>
+                            <th>{officerText(language, "หมายเหตุ", "Note")}</th>
+                            <th aria-label={officerText(language, "การจัดการ", "Actions")}></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1266,7 +1387,9 @@ export default function ActivitySessionManagementPage() {
                                     }
                                     disabled={sessionReadOnly || submitting}
                                   >
-                                    <option value="">เลือกผู้รับผิดชอบ</option>
+                                    <option value="">
+                                      {officerText(language, "เลือกผู้รับผิดชอบ", "Select assignee")}
+                                    </option>
                                     {assigneeOptions.map((option) => (
                                       <option
                                         key={option.userId}
@@ -1301,7 +1424,7 @@ export default function ActivitySessionManagementPage() {
                                         key={option.value}
                                         value={option.value}
                                       >
-                                        {option.label}
+                                        {assignmentRoleLabel(option.value, language)}
                                       </option>
                                     ))}
                                   </select>
@@ -1327,7 +1450,7 @@ export default function ActivitySessionManagementPage() {
                                         }
                                         disabled={sessionReadOnly || submitting}
                                       />{" "}
-                                      เช็กชื่อ
+                                      {officerText(language, "เช็กชื่อ", "Attendance")}
                                     </label>
                                     <label>
                                       <input
@@ -1348,7 +1471,7 @@ export default function ActivitySessionManagementPage() {
                                         }
                                         disabled={sessionReadOnly || submitting}
                                       />{" "}
-                                      ให้คะแนน
+                                      {officerText(language, "ให้คะแนน", "Grade")}
                                     </label>
                                     <label>
                                       <input
@@ -1369,7 +1492,7 @@ export default function ActivitySessionManagementPage() {
                                         }
                                         disabled={sessionReadOnly || submitting}
                                       />{" "}
-                                      Finalize
+                                      {officerText(language, "ล็อกข้อมูล", "Finalize")}
                                     </label>
                                   </div>
                                 </td>
@@ -1403,7 +1526,7 @@ export default function ActivitySessionManagementPage() {
                                       )
                                     }
                                     disabled={sessionReadOnly || submitting}
-                                    title="ลบผู้รับผิดชอบ"
+                                    title={officerText(language, "ลบผู้รับผิดชอบ", "Remove assignee")}
                                   >
                                     <Trash2 size={16} />
                                   </button>
@@ -1416,7 +1539,7 @@ export default function ActivitySessionManagementPage() {
                                 colSpan={5}
                                 className="activity-session-table-empty"
                               >
-                                ยังไม่มีผู้รับผิดชอบ
+                                {officerText(language, "ยังไม่มีผู้รับผิดชอบ", "No assignees")}
                               </td>
                             </tr>
                           )}
@@ -1430,7 +1553,7 @@ export default function ActivitySessionManagementPage() {
                         disabled={sessionReadOnly || submitting}
                       >
                         <Save size={16} />
-                        บันทึกผู้รับผิดชอบ
+                        {officerText(language, "บันทึกผู้รับผิดชอบ", "Save assignees")}
                       </button>
                     </div>
                   </div>
@@ -1438,7 +1561,7 @@ export default function ActivitySessionManagementPage() {
                   <div className="activity-session-table-panel">
                     <div className="activity-session-panel-toolbar">
                       <div>
-                        <strong>Competency Mapping</strong>
+                        <strong>{officerText(language, "การจับคู่สมรรถนะ", "Competency mapping")}</strong>
                         <span
                           className={
                             Math.abs(competencyTotal - 100) < 0.0001
@@ -1446,7 +1569,7 @@ export default function ActivitySessionManagementPage() {
                               : "activity-session-total-warn"
                           }
                         >
-                          รวม {competencyTotal}% / 100%
+                          {officerText(language, "รวม ", "Total ")}{competencyTotal}% / 100%
                         </span>
                       </div>
                       <button
@@ -1455,16 +1578,16 @@ export default function ActivitySessionManagementPage() {
                         disabled={sessionReadOnly || submitting}
                       >
                         <Plus size={16} />
-                        เพิ่ม Competency
+                        {officerText(language, "เพิ่มสมรรถนะ", "Add competency")}
                       </button>
                     </div>
                     <div className="activity-session-table-wrap">
                       <table className="activity-session-table">
                         <thead>
                           <tr>
-                            <th>Competency</th>
-                            <th>Max percent</th>
-                            <th></th>
+                            <th>{officerText(language, "สมรรถนะ", "Competency")}</th>
+                            <th>{officerText(language, "สัดส่วนสูงสุด", "Max percent")}</th>
+                            <th aria-label={officerText(language, "การจัดการ", "Actions")}></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1490,13 +1613,17 @@ export default function ActivitySessionManagementPage() {
                                     }
                                     disabled={sessionReadOnly || submitting}
                                   >
-                                    <option value="">เลือก Competency</option>
+                                    <option value="">
+                                      {officerText(language, "เลือกสมรรถนะ", "Select competency")}
+                                    </option>
                                     {competencyOptions.map((option) => (
                                       <option
                                         key={option.competencyId}
                                         value={option.competencyId}
                                       >
-                                        {option.nameTh} ({option.code})
+                                        {language === "en"
+                                          ? option.nameEn || option.nameTh
+                                          : option.nameTh || option.nameEn} ({option.code})
                                       </option>
                                     ))}
                                   </select>
@@ -1535,7 +1662,7 @@ export default function ActivitySessionManagementPage() {
                                       )
                                     }
                                     disabled={sessionReadOnly || submitting}
-                                    title="ลบ Competency"
+                                    title={officerText(language, "ลบสมรรถนะ", "Remove competency")}
                                   >
                                     <Trash2 size={16} />
                                   </button>
@@ -1548,7 +1675,7 @@ export default function ActivitySessionManagementPage() {
                                 colSpan={3}
                                 className="activity-session-table-empty"
                               >
-                                ยังไม่มี Competency mapping
+                                {officerText(language, "ยังไม่มีการจับคู่สมรรถนะ", "No competency mapping")}
                               </td>
                             </tr>
                           )}
@@ -1556,14 +1683,20 @@ export default function ActivitySessionManagementPage() {
                       </table>
                     </div>
                     <div className="activity-session-panel-actions">
-                      <span>Finalize ได้เมื่อ mapping รวมครบ 100%</span>
+                      <span>
+                        {officerText(
+                          language,
+                          "ล็อกได้เมื่อสัดส่วนการจับคู่รวมครบ 100%",
+                          "Finalize is available when mapping totals 100%.",
+                        )}
+                      </span>
                       <button
                         className="course-btn course-btn--primary"
                         onClick={handleSaveCompetencies}
                         disabled={sessionReadOnly || submitting}
                       >
                         <Save size={16} />
-                        บันทึก Competency
+                        {officerText(language, "บันทึกสมรรถนะ", "Save competencies")}
                       </button>
                     </div>
                   </div>
@@ -1577,7 +1710,7 @@ export default function ActivitySessionManagementPage() {
       {createModalOpen && (
         <BaseModal
           open
-          title="เพิ่มรอบกิจกรรม"
+          title={officerText(language, "เพิ่มรอบกิจกรรม", "Add activity session")}
           size="lg"
           onClose={() => !submitting && setCreateModalOpen(false)}
           closeDisabled={submitting}
@@ -1588,7 +1721,7 @@ export default function ActivitySessionManagementPage() {
                 onClick={() => setCreateModalOpen(false)}
                 disabled={submitting}
               >
-                ยกเลิก
+                {officerText(language, "ยกเลิก", "Cancel")}
               </button>
               <button
                 className="course-btn course-btn--primary"
@@ -1598,7 +1731,9 @@ export default function ActivitySessionManagementPage() {
                 }
               >
                 <Save size={16} />
-                {submitting ? "กำลังสร้าง..." : "สร้างรอบกิจกรรม"}
+                {submitting
+                  ? officerText(language, "กำลังสร้าง...", "Creating...")
+                  : officerText(language, "สร้างรอบกิจกรรม", "Create session")}
               </button>
             </>
           }
@@ -1618,7 +1753,9 @@ export default function ActivitySessionManagementPage() {
           message={confirmConfig.message}
           hint={confirmConfig.hint}
           confirmLabel={
-            submitting ? "กำลังดำเนินการ..." : confirmConfig.confirmLabel
+            submitting
+              ? officerText(language, "กำลังดำเนินการ...", "Processing...")
+              : confirmConfig.confirmLabel
           }
           variant={confirmConfig.variant}
           loading={submitting}
