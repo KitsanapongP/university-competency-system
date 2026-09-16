@@ -570,17 +570,17 @@ export default function TemplateAssignmentsPage() {
           );
 
   return (
-    <div className="template-assignments-page">
-      <header className="course-list-header">
+    <div className="template-assignments-page officer-page">
+      <header className="course-list-header officer-page__header">
         <div className="course-list-header__left">
-          <h1 className="course-list-header__title">
+          <h1 className="course-list-header__title officer-page__title">
             {text(
               language,
               "กำหนดแบบแผนให้นักศึกษา",
               "Assign plans to students",
             )}
           </h1>
-          <p className="course-list-header__subtitle">
+          <p className="course-list-header__subtitle officer-page__subtitle">
             {text(
               language,
               "กำหนดแบบแผนการประเมินให้รุ่นนักศึกษา และนำแบบแผนที่เคยถอดแล้วกลับมาใช้ได้",
@@ -588,7 +588,7 @@ export default function TemplateAssignmentsPage() {
             )}
           </p>
         </div>
-        <div className="course-list-header__actions">
+        <div className="course-list-header__actions officer-page__actions">
           <button
             type="button"
             className="course-btn course-btn--ghost"
@@ -612,7 +612,7 @@ export default function TemplateAssignmentsPage() {
       />
 
       <section
-        className="template-assignment-filter"
+        className="template-assignment-filter officer-panel"
         aria-label={text(language, "ตัวกรองคณะ", "Faculty filter")}
       >
         <label className="course-field">
@@ -646,7 +646,7 @@ export default function TemplateAssignmentsPage() {
         </p>
       </section>
 
-      <section className="template-assignment-section">
+      <section className="template-assignment-section officer-panel">
         <div className="template-assignment-section__header">
           <div>
             <h2>{text(language, "พร้อมกำหนด", "Ready to assign")}</h2>
@@ -713,7 +713,7 @@ export default function TemplateAssignmentsPage() {
         )}
       </section>
 
-      <section className="template-assignment-section">
+      <section className="template-assignment-section officer-panel">
         <div className="template-assignment-section__header">
           <div>
             <h2>{text(language, "กำหนดแล้ว", "Current assignments")}</h2>
@@ -738,8 +738,8 @@ export default function TemplateAssignmentsPage() {
             )}
           </div>
         ) : (
-          <div className="template-assignment-table-wrap">
-            <table className="template-assignment-table">
+          <div className="template-assignment-table-wrap officer-table-wrap">
+            <table className="template-assignment-table officer-table">
               <thead>
                 <tr>
                   <th>{text(language, "รุ่นนักศึกษา", "Cohort")}</th>

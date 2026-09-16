@@ -409,8 +409,8 @@ function MajorManagementPageContent() {
         : departments;
 
     return (
-        <div className="major-management-page">
-            <div className="course-list-header">
+        <div className="major-management-page officer-page">
+            <div className="course-list-header officer-page__header">
                 <div className="course-list-header__left">
                     {returnTo && (
                         <button className="major-back-btn" onClick={() => router.push(returnTo)}>
@@ -418,12 +418,12 @@ function MajorManagementPageContent() {
                             กลับไปสร้างหลักสูตร
                         </button>
                     )}
-                    <div className="course-list-header__title">จัดการสาขา</div>
-                    <p className="course-list-header__subtitle">
+                    <div className="course-list-header__title officer-page__title">จัดการสาขา</div>
+                    <p className="course-list-header__subtitle officer-page__subtitle">
                         เพิ่ม แก้ไข และเปิด/ปิดสาขาที่ใช้เชื่อมกับหลักสูตร
                     </p>
                 </div>
-                <div className="course-list-header__actions">
+                <div className="course-list-header__actions officer-page__actions">
                     <button className="course-btn course-btn--ghost" onClick={loadMajors} disabled={loading}>
                         <RefreshCw size={16} />
                         รีโหลด
@@ -435,7 +435,7 @@ function MajorManagementPageContent() {
                 </div>
             </div>
 
-            <div className="major-filter-panel">
+            <div className="major-filter-panel officer-panel">
                 <label className="course-field">
                     <span className="course-label">คณะ</span>
                     <select
@@ -502,8 +502,8 @@ function MajorManagementPageContent() {
                 ))}
             />
 
-            <div className="major-table-wrap">
-                <table className="major-table">
+            <div className="major-table-wrap officer-panel officer-table-wrap">
+                <table className="major-table officer-table">
                     <thead>
                         <tr>
                             <th>สาขา</th>
@@ -596,7 +596,7 @@ function MajorManagementPageContent() {
 
 export default function MajorManagementPage() {
     return (
-        <Suspense fallback={<div className="major-management-page">กำลังโหลด...</div>}>
+        <Suspense fallback={<div className="major-management-page officer-page">กำลังโหลด...</div>}>
             <MajorManagementPageContent />
         </Suspense>
     );

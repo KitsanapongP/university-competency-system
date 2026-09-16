@@ -59,6 +59,10 @@ body:has(.officer-page) {
     border-bottom: 1px solid var(--officer-border);
 }
 
+.officer-page > .officer-page__header {
+    align-items: flex-start;
+}
+
 .officer-page__heading {
     min-width: 0;
 }
@@ -74,6 +78,14 @@ body:has(.officer-page) {
 }
 
 .officer-page__title {
+    margin: 0.5rem 0 0.25rem;
+    color: var(--officer-primary-strong);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.officer-page .officer-page__title {
     margin: 0.5rem 0 0.25rem;
     color: var(--officer-primary-strong);
     font-size: 1.5rem;

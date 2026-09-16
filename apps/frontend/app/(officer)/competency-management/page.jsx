@@ -259,13 +259,13 @@ export default function CompetencyManagementPage() {
     };
 
     return (
-        <div className="course-list-page competency-management">
-            <div className="course-list-header">
+        <div className="course-list-page officer-page competency-management">
+            <div className="course-list-header officer-page__header">
                 <div className="course-list-header__left">
-                    <h1 className="course-list-header__title">จัดการสมรรถนะ</h1>
-                    <p className="course-list-header__subtitle">เพิ่ม แก้ไข และลบสมรรถนะที่ใช้สำหรับ Template</p>
+                    <h1 className="course-list-header__title officer-page__title">จัดการสมรรถนะ</h1>
+                    <p className="course-list-header__subtitle officer-page__subtitle">เพิ่ม แก้ไข และลบสมรรถนะที่ใช้สำหรับ Template</p>
                 </div>
-                <div className="course-list-header__actions">
+                <div className="course-list-header__actions officer-page__actions">
                     <button className="course-btn course-btn--ghost" onClick={loadCompetencies} disabled={loading || submitting}>
                         <RefreshCw size={16} className={loading ? 'competency-management__spin' : ''} />
                         โหลดใหม่
@@ -288,7 +288,7 @@ export default function CompetencyManagementPage() {
                 ))}
             />
 
-            <section className="competency-management__panel">
+            <section className="competency-management__panel officer-panel">
                 <div className="competency-management__toolbar">
                     <label className="competency-management__search">
                         <Search size={16} />
@@ -303,8 +303,8 @@ export default function CompetencyManagementPage() {
                     </span>
                 </div>
 
-                <div className="competency-management__table-wrap">
-                    <table className="competency-management__table">
+                <div className="competency-management__table-wrap officer-table-wrap">
+                    <table className="competency-management__table officer-table">
                         <thead>
                             <tr>
                                 <th>รหัส</th>

@@ -1,18 +1,19 @@
 .template-assignments-page {
     min-height: 100vh;
+    min-width: 0;
     box-sizing: border-box;
     display: grid;
     gap: 1.25rem;
     padding: 1.5rem 8rem 3rem;
-    color: var(--course-text);
-    font-family: 'Sarabun', sans-serif;
+    color: var(--officer-text, var(--course-text));
+    font-family: var(--officer-font, 'Prompt', sans-serif);
 }
 
 .template-assignment-filter,
 .template-assignment-section {
-    border: 1px solid var(--course-border);
-    background: var(--course-card-bg);
-    border-radius: 8px;
+    border: 1px solid var(--officer-border, var(--course-border));
+    background: var(--officer-surface, var(--course-card-bg));
+    border-radius: var(--officer-radius, 8px);
 }
 
 .template-assignment-filter {
@@ -32,7 +33,7 @@
     align-items: start;
     gap: 1rem;
     padding: 1rem 1.1rem;
-    border-bottom: 1px solid var(--course-border);
+    border-bottom: 1px solid var(--officer-border, var(--course-border));
 }
 
 .template-assignment-section__header h2 { margin: 0; font-size: 1rem; color: var(--course-text); }
@@ -53,9 +54,9 @@
 .template-assignment-empty { min-height: 6rem; padding: 1.5rem; display: grid; place-items: center; color: var(--course-text-muted); text-align: center; }
 .template-assignment-table-wrap { overflow-x: auto; }
 .template-assignment-table { width: 100%; border-collapse: collapse; min-width: 760px; }
-.template-assignment-table th, .template-assignment-table td { padding: .85rem 1rem; border-bottom: 1px solid var(--course-border); text-align: left; vertical-align: middle; }
-.template-assignment-table th { color: var(--course-text-muted); font-size: .78rem; font-weight: 600; }
-.template-assignment-table td { color: var(--course-text); font-size: .88rem; }
+.template-assignment-table th, .template-assignment-table td { padding: .85rem 1rem; border-bottom: 1px solid var(--officer-border, var(--course-border)); text-align: left; vertical-align: middle; }
+.template-assignment-table th { color: var(--officer-text-muted, var(--course-text-muted)); font-size: .78rem; font-weight: 600; }
+.template-assignment-table td { color: var(--officer-text, var(--course-text)); font-size: .88rem; }
 .template-assignment-table td > span { display: block; margin-top: .2rem; color: var(--course-text-muted); font-size: .78rem; }
 .template-assignment-actions { display: flex; gap: .35rem; justify-content: flex-end; }
 .template-assignment-state { display: inline-flex; border-radius: 999px; padding: .24rem .55rem; color: #0f766e; background: color-mix(in srgb, #14b8a6 18%, transparent); white-space: nowrap; font-size: .75rem; }
