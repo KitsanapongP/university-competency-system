@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
 	"strings"
 
+	"github.com/spw32767/university-competency-system-backend/grading"
 	"github.com/spw32767/university-competency-system-backend/models"
 )
 
@@ -14,10 +16,11 @@ type FreeElectiveRepository struct {
 }
 
 var (
-	ErrFreeElectiveOfferingLocked    = errors.New("free-elective offering is locked")
-	ErrFreeElectiveEnrollmentExists  = errors.New("learner is already enrolled in this offering")
-	ErrFreeElectiveCapacityExceeded  = errors.New("offering capacity has been reached")
-	ErrFreeElectiveEnrollmentInvalid = errors.New("enrollment and curriculum selection do not match")
+	ErrFreeElectiveOfferingLocked      = errors.New("free-elective offering is locked")
+	ErrFreeElectiveEnrollmentExists    = errors.New("learner is already enrolled in this offering")
+	ErrFreeElectiveCapacityExceeded    = errors.New("offering capacity has been reached")
+	ErrFreeElectiveEnrollmentInvalid   = errors.New("enrollment and curriculum selection do not match")
+	ErrFreeElectiveGradeTargetNotFound = errors.New("offering enrollment was not found")
 )
 
 func NewFreeElectiveRepository(db *sql.DB) *FreeElectiveRepository {
@@ -897,4 +900,194 @@ func (r *FreeElectiveRepository) UpdateOfferingEnrollmentStatus(ctx context.Cont
 		return sql.ErrNoRows
 	}
 	return nil
+}
+
+type FreeElectiveGradeTarget struct {
+	OfferingEnrollmentID uint64
+	EnrollmentID         uint64
+	StudentCode          string
+	HasGrade             bool
+}
+
+func (r *FreeElectiveRepository) GetOfferingGradeTargets(ctx context.Context, offeringID uint64) (map[string]FreeElectiveGradeTarget, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT selected.offering_enrollment_id, selected.enrollment_id, student.student_code,
+			CASE WHEN grade.grade_record_id IS NULL THEN 0 ELSE 1 END
+		FROM ele_offering_enrollments selected
+		JOIN kku_enrollments student ON student.enrollment_id = selected.enrollment_id AND student.deleted_at IS NULL
+		LEFT JOIN ele_offering_grade_records grade
+			ON grade.offering_enrollment_id = selected.offering_enrollment_id AND grade.deleted_at IS NULL
+		WHERE selected.offering_id = ? AND selected.deleted_at IS NULL
+		ORDER BY student.student_code`, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	targets := make(map[string]FreeElectiveGradeTarget)
+	for rows.Next() {
+		var target FreeElectiveGradeTarget
+		var hasGrade bool
+		if err := rows.Scan(&target.OfferingEnrollmentID, &target.EnrollmentID, &target.StudentCode, &hasGrade); err != nil {
+			return nil, err
+		}
+		target.HasGrade = hasGrade
+		targets[strings.ToUpper(strings.TrimSpace(target.StudentCode))] = target
+	}
+	return targets, rows.Err()
+}
+
+func (r *FreeElectiveRepository) UpsertOfferingGrade(ctx context.Context, offeringID uint64, write models.FreeElectiveGradeWrite, userID uint64) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := writeOfferingGradeTx(ctx, tx, offeringID, write, userID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (r *FreeElectiveRepository) ImportOfferingGrades(ctx context.Context, offeringID, userID uint64, writes []models.FreeElectiveGradeWrite) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, write := range writes {
+		if err := writeOfferingGradeTx(ctx, tx, offeringID, write, userID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func writeOfferingGradeTx(ctx context.Context, tx *sql.Tx, offeringID uint64, write models.FreeElectiveGradeWrite, userID uint64) error {
+	var status string
+	var enrollmentID, courseID, academicYear, semester uint64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT offering.status, selected.enrollment_id, offering.free_elective_course_id,
+			offering.academic_year_be, offering.semester
+		FROM ele_free_elective_offerings offering
+		JOIN ele_offering_enrollments selected ON selected.offering_id = offering.offering_id
+			AND selected.offering_enrollment_id = ? AND selected.deleted_at IS NULL
+		WHERE offering.offering_id = ? AND offering.deleted_at IS NULL
+		FOR UPDATE`, write.OfferingEnrollmentID, offeringID).Scan(&status, &enrollmentID, &courseID, &academicYear, &semester); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrFreeElectiveGradeTargetNotFound
+		}
+		return err
+	}
+	if status == "finalized" || status == "cancelled" {
+		return ErrFreeElectiveOfferingLocked
+	}
+	var gradeRecordID uint64
+	err := tx.QueryRowContext(ctx, `
+		SELECT grade_record_id FROM ele_offering_grade_records
+		WHERE offering_enrollment_id = ? AND deleted_at IS NULL FOR UPDATE`, write.OfferingEnrollmentID).Scan(&gradeRecordID)
+	if errors.Is(err, sql.ErrNoRows) {
+		result, err := tx.ExecContext(ctx, `
+			INSERT INTO ele_offering_grade_records
+				(offering_enrollment_id, grade, grade_source, source_reference, recorded_by, recorded_at, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, NOW(), NOW(), NOW())`, write.OfferingEnrollmentID, strings.ToUpper(strings.TrimSpace(write.Grade)), write.GradeSource, nullableFreeElectiveString(write.SourceReference), userID)
+		if err != nil {
+			return err
+		}
+		id, err := result.LastInsertId()
+		if err != nil {
+			return err
+		}
+		gradeRecordID = uint64(id)
+	} else if err != nil {
+		return err
+	} else {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE ele_offering_grade_records
+			SET grade = ?, grade_source = ?, source_reference = ?, recorded_by = ?, recorded_at = NOW(), updated_at = NOW()
+			WHERE grade_record_id = ? AND deleted_at IS NULL`, strings.ToUpper(strings.TrimSpace(write.Grade)), write.GradeSource, nullableFreeElectiveString(write.SourceReference), userID, gradeRecordID); err != nil {
+			return err
+		}
+	}
+	if err := recomputeFreeElectiveBestGradeFlagsTx(ctx, tx, enrollmentID, courseID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_free_elective_offerings
+		SET scores_recalculation_required = 1, updated_at = NOW()
+		WHERE offering_id = ? AND deleted_at IS NULL`, offeringID); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
+		UPDATE edu_student_cohorts cohort
+		JOIN kku_enrollment_curricula roster ON roster.enrollment_id = ? AND roster.enrollment_curriculum_id = (
+			SELECT selected.enrollment_curriculum_id
+			FROM ele_offering_enrollments selected
+			WHERE selected.offering_enrollment_id = ?
+		) AND roster.deleted_at IS NULL
+		SET cohort.free_elective_scores_recalculation_required = 1, cohort.updated_at = NOW()
+		WHERE cohort.cohort_id = roster.cohort_id AND cohort.deleted_at IS NULL`, enrollmentID, write.OfferingEnrollmentID)
+	return err
+}
+
+type freeElectiveGradeAttempt struct {
+	GradeRecordID  uint64
+	Grade          string
+	Scheme         string
+	AcademicYearBE uint64
+	Semester       uint64
+	Best           grading.GradeAttempt
+}
+
+func recomputeFreeElectiveBestGradeFlagsTx(ctx context.Context, tx *sql.Tx, enrollmentID, courseID uint64) error {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT grade.grade_record_id, grade.grade, course.grade_scheme,
+			offering.academic_year_be, offering.semester
+		FROM ele_offering_grade_records grade
+		JOIN ele_offering_enrollments selected ON selected.offering_enrollment_id = grade.offering_enrollment_id
+			AND selected.enrollment_id = ? AND selected.deleted_at IS NULL
+		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
+			AND offering.free_elective_course_id = ? AND offering.deleted_at IS NULL
+		JOIN ele_free_elective_courses course ON course.free_elective_course_id = offering.free_elective_course_id
+		WHERE grade.deleted_at IS NULL`, enrollmentID, courseID)
+	if err != nil {
+		return err
+	}
+	attempts := make([]freeElectiveGradeAttempt, 0)
+	for rows.Next() {
+		var attempt freeElectiveGradeAttempt
+		if err := rows.Scan(&attempt.GradeRecordID, &attempt.Grade, &attempt.Scheme, &attempt.AcademicYearBE, &attempt.Semester); err != nil {
+			rows.Close()
+			return err
+		}
+		attempt.Best = grading.GradeAttempt{
+			Evaluation:     grading.Evaluate(attempt.Scheme, attempt.Grade),
+			AcademicYearBE: attempt.AcademicYearBE,
+			Semester:       attempt.Semester,
+		}
+		attempts = append(attempts, attempt)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	sort.SliceStable(attempts, func(i, j int) bool {
+		return grading.IsBetterAttempt(attempts[i].Best, attempts[j].Best)
+	})
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_offering_grade_records grade
+		JOIN ele_offering_enrollments selected ON selected.offering_enrollment_id = grade.offering_enrollment_id
+		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
+		SET grade.is_best_grade = 0, grade.updated_at = NOW()
+		WHERE selected.enrollment_id = ? AND offering.free_elective_course_id = ? AND grade.deleted_at IS NULL`, enrollmentID, courseID); err != nil {
+		return err
+	}
+	if len(attempts) == 0 {
+		return nil
+	}
+	_, err = tx.ExecContext(ctx, `
+		UPDATE ele_offering_grade_records
+		SET is_best_grade = 1, updated_at = NOW()
+		WHERE grade_record_id = ? AND deleted_at IS NULL`, attempts[0].GradeRecordID)
+	return err
 }

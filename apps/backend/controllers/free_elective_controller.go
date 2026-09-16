@@ -338,6 +338,76 @@ func (c *FreeElectiveController) UpdateOfferingEnrollmentStatus(w http.ResponseW
 	utils.OK(w, enrollments)
 }
 
+func (c *FreeElectiveController) UpsertOfferingGrade(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	offeringEnrollmentID, ok := freeElectiveID(w, r, "offering_enrollment_id")
+	if !ok {
+		return
+	}
+	var payload models.UpsertFreeElectiveGradePayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	enrollments, err := c.Service.UpsertOfferingGrade(r.Context(), claims, offeringID, offeringEnrollmentID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, enrollments)
+}
+
+func (c *FreeElectiveController) PreviewGradeImport(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	var payload models.FreeElectiveGradeImportPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	preview, err := c.Service.PreviewGradeImport(r.Context(), claims, offeringID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, preview)
+}
+
+func (c *FreeElectiveController) CommitGradeImport(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	offeringID, ok := freeElectiveID(w, r, "offering_id")
+	if !ok {
+		return
+	}
+	var payload models.FreeElectiveGradeImportPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	enrollments, err := c.Service.CommitGradeImport(r.Context(), claims, offeringID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, enrollments)
+}
+
 func freeElectiveClaims(w http.ResponseWriter, r *http.Request) (*utils.Claims, bool) {
 	claims, ok := utils.ClaimsFromContext(r.Context())
 	if !ok {

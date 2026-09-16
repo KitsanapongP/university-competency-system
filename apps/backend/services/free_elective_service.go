@@ -394,6 +394,129 @@ func (s *FreeElectiveService) UpdateOfferingEnrollmentStatus(ctx context.Context
 	return s.Repo.GetOfferingEnrollments(ctx, offeringID)
 }
 
+func (s *FreeElectiveService) UpsertOfferingGrade(ctx context.Context, claims *utils.Claims, offeringID, offeringEnrollmentID uint64, payload models.UpsertFreeElectiveGradePayload) ([]models.FreeElectiveEnrollment, error) {
+	offering, err := s.GetOffering(ctx, claims, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateFreeElectiveGrade(payload.Grade, offering.GradeScheme); err != nil {
+		return nil, err
+	}
+	source := strings.ToLower(strings.TrimSpace(payload.GradeSource))
+	if source == "" {
+		source = "manual"
+	}
+	if source != "manual" && source != "excel" && source != "reg" {
+		return nil, FreeElectiveValidationError{Message: "grade_source is invalid"}
+	}
+	if err := s.Repo.UpsertOfferingGrade(ctx, offeringID, models.FreeElectiveGradeWrite{
+		OfferingEnrollmentID: offeringEnrollmentID,
+		Grade:                payload.Grade,
+		GradeSource:          source,
+		SourceReference:      payload.SourceReference,
+	}, uint64(claims.UserID)); errors.Is(err, repositories.ErrFreeElectiveOfferingLocked) {
+		return nil, ErrFreeElectiveOfferingLocked
+	} else if errors.Is(err, repositories.ErrFreeElectiveGradeTargetNotFound) {
+		return nil, FreeElectiveValidationError{Message: "the selected learner is not enrolled in this offering"}
+	} else if err != nil {
+		return nil, err
+	}
+	return s.Repo.GetOfferingEnrollments(ctx, offeringID)
+}
+
+func (s *FreeElectiveService) PreviewGradeImport(ctx context.Context, claims *utils.Claims, offeringID uint64, payload models.FreeElectiveGradeImportPayload) (*models.FreeElectiveGradeImportPreview, error) {
+	offering, err := s.GetOffering(ctx, claims, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	targets, err := s.Repo.GetOfferingGradeTargets(ctx, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	preview := &models.FreeElectiveGradeImportPreview{
+		ValidRows:     make([]models.FreeElectiveGradeImportRow, 0),
+		ExistingRows:  make([]models.FreeElectiveGradeImportRow, 0),
+		InvalidRows:   make([]models.FreeElectiveGradeImportIssue, 0),
+		DuplicateRows: make([]models.FreeElectiveGradeImportIssue, 0),
+	}
+	seen := make(map[string]struct{}, len(payload.Rows))
+	for index, row := range payload.Rows {
+		if row.RowNumber == 0 {
+			row.RowNumber = index + 2
+		}
+		code := strings.ToUpper(strings.TrimSpace(row.StudentCode))
+		if code == "" {
+			preview.InvalidRows = append(preview.InvalidRows, models.FreeElectiveGradeImportIssue{RowNumber: row.RowNumber, Message: "student_code is required"})
+			continue
+		}
+		if _, exists := seen[code]; exists {
+			preview.DuplicateRows = append(preview.DuplicateRows, models.FreeElectiveGradeImportIssue{RowNumber: row.RowNumber, StudentCode: row.StudentCode, Message: "student appears more than once in the file"})
+			continue
+		}
+		seen[code] = struct{}{}
+		target, exists := targets[code]
+		if !exists {
+			preview.InvalidRows = append(preview.InvalidRows, models.FreeElectiveGradeImportIssue{RowNumber: row.RowNumber, StudentCode: row.StudentCode, Message: "student is not enrolled in this offering"})
+			continue
+		}
+		if err := validateFreeElectiveGrade(row.Grade, offering.GradeScheme); err != nil {
+			preview.InvalidRows = append(preview.InvalidRows, models.FreeElectiveGradeImportIssue{RowNumber: row.RowNumber, StudentCode: row.StudentCode, Message: err.Error()})
+			continue
+		}
+		if target.HasGrade {
+			preview.ExistingRows = append(preview.ExistingRows, row)
+			continue
+		}
+		preview.ValidRows = append(preview.ValidRows, row)
+	}
+	return preview, nil
+}
+
+func (s *FreeElectiveService) CommitGradeImport(ctx context.Context, claims *utils.Claims, offeringID uint64, payload models.FreeElectiveGradeImportPayload) ([]models.FreeElectiveEnrollment, error) {
+	preview, err := s.PreviewGradeImport(ctx, claims, offeringID, payload)
+	if err != nil {
+		return nil, err
+	}
+	if len(preview.InvalidRows) > 0 || len(preview.DuplicateRows) > 0 {
+		return nil, FreeElectiveConflictError{Code: "GRADE_IMPORT_HAS_ERRORS", Message: "fix the invalid or duplicate rows before importing", Data: preview}
+	}
+	if len(preview.ExistingRows) > 0 && !payload.ReplaceExisting {
+		return nil, FreeElectiveConflictError{Code: "GRADE_IMPORT_REPLACE_REQUIRED", Message: "the file contains existing grades; confirm replacement before importing", Data: preview}
+	}
+	targets, err := s.Repo.GetOfferingGradeTargets(ctx, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	writes := make([]models.FreeElectiveGradeWrite, 0, len(preview.ValidRows)+len(preview.ExistingRows))
+	for _, row := range append(preview.ValidRows, preview.ExistingRows...) {
+		target := targets[strings.ToUpper(strings.TrimSpace(row.StudentCode))]
+		writes = append(writes, models.FreeElectiveGradeWrite{
+			OfferingEnrollmentID: target.OfferingEnrollmentID,
+			Grade:                row.Grade,
+			GradeSource:          "excel",
+		})
+	}
+	if len(writes) == 0 {
+		return nil, FreeElectiveValidationError{Message: "the import file has no grade rows"}
+	}
+	if err := s.Repo.ImportOfferingGrades(ctx, offeringID, uint64(claims.UserID), writes); errors.Is(err, repositories.ErrFreeElectiveOfferingLocked) {
+		return nil, ErrFreeElectiveOfferingLocked
+	} else if err != nil {
+		return nil, err
+	}
+	return s.Repo.GetOfferingEnrollments(ctx, offeringID)
+}
+
+func validateFreeElectiveGrade(value, scheme string) error {
+	if strings.TrimSpace(value) == "" {
+		return FreeElectiveValidationError{Message: "grade is required"}
+	}
+	if err := grading.ValidateGrade(scheme, value); err != nil {
+		return FreeElectiveValidationError{Message: "grade is not allowed for this course grade scheme"}
+	}
+	return nil
+}
+
 func (s *FreeElectiveService) GetOfferingCompetencies(ctx context.Context, claims *utils.Claims, offeringID uint64) ([]models.FreeElectiveCompetency, error) {
 	if _, err := s.GetOffering(ctx, claims, offeringID); err != nil {
 		return nil, err

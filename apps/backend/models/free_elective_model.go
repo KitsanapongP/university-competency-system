@@ -223,6 +223,13 @@ type FreeElectiveGradeImportIssue struct {
 	Message     string `json:"message"`
 }
 
+type FreeElectiveGradeWrite struct {
+	OfferingEnrollmentID uint64
+	Grade                string
+	GradeSource          string
+	SourceReference      *string
+}
+
 type FreeElectiveGradeImportPreview struct {
 	ValidRows     []FreeElectiveGradeImportRow   `json:"valid_rows"`
 	ExistingRows  []FreeElectiveGradeImportRow   `json:"existing_rows"`
