@@ -253,7 +253,7 @@ export default function ActivitySessionWorkspacePage() {
 
   if (loading)
     return (
-      <div className="activity-session-workspace">
+      <div className="activity-session-workspace officer-page">
         <div className="activity-session-workspace__empty">
           กำลังโหลดรอบกิจกรรม...
         </div>
@@ -261,8 +261,8 @@ export default function ActivitySessionWorkspacePage() {
     );
 
   return (
-    <div className="activity-session-workspace">
-      <header className="activity-session-workspace__header">
+    <div className="activity-session-workspace officer-page">
+      <header className="activity-session-workspace__header officer-page__header">
         <div>
           <Link
             className="activity-session-workspace__back"

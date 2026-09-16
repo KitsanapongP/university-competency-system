@@ -1,9 +1,10 @@
 .activity-session-page {
     min-height: 100vh;
-    background: var(--course-bg);
-    color: var(--course-text);
+    min-width: 0;
+    background: var(--officer-bg, var(--course-bg));
+    color: var(--officer-text, var(--course-text));
     padding: 1.5rem 8rem 3rem;
-    font-family: 'Sarabun', sans-serif;
+    font-family: var(--officer-font, 'Prompt', sans-serif);
     box-sizing: border-box;
 }
 
@@ -31,9 +32,9 @@
 
 .activity-session-list,
 .activity-session-detail {
-    border: 1px solid var(--course-card-border);
-    border-radius: 8px;
-    background: var(--course-card-bg);
+    border: 1px solid var(--officer-border, var(--course-card-border));
+    border-radius: var(--officer-radius, 8px);
+    background: var(--officer-surface, var(--course-card-bg));
     overflow: hidden;
 }
 

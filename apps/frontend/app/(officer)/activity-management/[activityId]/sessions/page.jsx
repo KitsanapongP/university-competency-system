@@ -952,21 +952,21 @@ export default function ActivitySessionManagementPage() {
   })();
 
   return (
-    <div className="activity-session-page">
-      <div className="course-list-header">
+    <div className="activity-session-page officer-page">
+      <div className="course-list-header officer-page__header">
         <div className="course-list-header__left">
           <Link className="activity-session-back" href="/activity-management">
             <ArrowLeft size={16} />
             กลับหน้ากิจกรรม
           </Link>
-          <h1 className="course-list-header__title">จัดการรอบกิจกรรม</h1>
-          <p className="course-list-header__subtitle">
+          <h1 className="course-list-header__title officer-page__title">จัดการรอบกิจกรรม</h1>
+          <p className="course-list-header__subtitle officer-page__subtitle">
             {activity
               ? `${activity.code} - ${activity.nameTh}`
               : "กำลังโหลดข้อมูลกิจกรรม..."}
           </p>
         </div>
-        <div className="course-list-header__actions">
+        <div className="course-list-header__actions officer-page__actions">
           <button
             className="course-btn course-btn--ghost"
             onClick={loadPage}

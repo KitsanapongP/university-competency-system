@@ -1,8 +1,10 @@
 .activity-session-workspace {
     min-height: 100vh;
+    min-width: 0;
     padding: 1.5rem 8rem 3rem;
-    background: var(--course-bg);
-    color: var(--course-text);
+    background: var(--officer-bg, var(--course-bg));
+    color: var(--officer-text, var(--course-text));
+    font-family: var(--officer-font, 'Prompt', sans-serif);
 }
 
 .activity-session-workspace__header,
@@ -31,9 +33,9 @@
 .activity-session-workspace__panel {
     margin-top: 1rem;
     padding: 1rem;
-    border: 1px solid var(--course-card-border);
-    border-radius: 8px;
-    background: var(--course-card-bg);
+    border: 1px solid var(--officer-border, var(--course-card-border));
+    border-radius: var(--officer-radius, 8px);
+    background: var(--officer-surface, var(--course-card-bg));
 }
 
 .activity-session-workspace__summary { flex-wrap: wrap; }
@@ -49,7 +51,7 @@
 .activity-session-workspace__toolbar > div { display: flex; gap: 0.5rem; }
 .activity-session-workspace__table-wrap { overflow-x: auto; }
 .activity-session-workspace__table { width: 100%; min-width: 980px; border-collapse: collapse; }
-.activity-session-workspace__table th { padding: 0.75rem; background: var(--course-ss-header-bg); color: var(--course-text-muted); font-size: 0.75rem; text-align: left; }
+.activity-session-workspace__table th { padding: 0.75rem; background: var(--officer-surface-muted, var(--course-ss-header-bg)); color: var(--officer-text-muted, var(--course-text-muted)); font-size: 0.75rem; text-align: left; }
 .activity-session-workspace__table td { padding: 0.75rem; border-top: 1px solid var(--course-border); vertical-align: middle; }
 .activity-session-workspace__table td > strong,
 .activity-session-workspace__table td > span { display: block; }

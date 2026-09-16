@@ -453,15 +453,15 @@ export default function ActivityManagementPage() {
     const facultyLocked = !isAdmin || faculties.length <= 1;
 
     return (
-        <div className="activity-management-page">
-            <div className="course-list-header">
+        <div className="activity-management-page officer-page">
+            <div className="course-list-header officer-page__header">
                 <div className="course-list-header__left">
-                    <h1 className="course-list-header__title">จัดการกิจกรรม</h1>
-                    <p className="course-list-header__subtitle">
+                    <h1 className="course-list-header__title officer-page__title">จัดการกิจกรรม</h1>
+                    <p className="course-list-header__subtitle officer-page__subtitle">
                         เพิ่ม แก้ไข เผยแพร่ และปิดกิจกรรมสำหรับสะสมสมรรถนะนักศึกษา
                     </p>
                 </div>
-                <div className="course-list-header__actions">
+                <div className="course-list-header__actions officer-page__actions">
                     <button className="course-btn course-btn--ghost" onClick={() => loadActivities({ clearFeedback: true })} disabled={loading || submitting}>
                         <RefreshCw size={16} className={loading ? 'activity-management__spin' : ''} />
                         โหลดใหม่
@@ -484,7 +484,7 @@ export default function ActivityManagementPage() {
                 ))}
             />
 
-            <section className="activity-filter-panel">
+            <section className="activity-filter-panel officer-panel">
                 <label className="course-field">
                     <span className="course-label">คณะ</span>
                     <select
@@ -559,7 +559,7 @@ export default function ActivityManagementPage() {
                 {options.types.map(value => <option key={value} value={value} />)}
             </datalist>
 
-            <section className="activity-management__panel">
+            <section className="activity-management__panel officer-panel">
                 <div className="activity-management__panel-header">
                     <div>
                         <span className="activity-management__panel-kicker">Activity parent</span>
