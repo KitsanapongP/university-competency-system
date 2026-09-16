@@ -128,16 +128,16 @@ func (s *FreeElectiveService) UpdateCourse(ctx context.Context, claims *utils.Cl
 	}
 
 	nextScheme := strings.ToLower(strings.TrimSpace(payload.GradeScheme))
-	resetGrades := nextScheme != existing.GradeScheme &&
-		(existing.OfferingCount > 0 || existing.FinalizedOfferingCount > 0)
-	if resetGrades {
+	resetGrades := false
+	if nextScheme != existing.GradeScheme {
 		impact, err := s.Repo.GetCourseImpact(ctx, courseID)
 		if err != nil {
 			return nil, err
 		}
+		resetGrades = impact.GradeRecordCount > 0
 		impact.PreviousScheme = existing.GradeScheme
 		impact.NextScheme = nextScheme
-		if !payload.ConfirmImpact {
+		if resetGrades && !payload.ConfirmImpact {
 			return nil, FreeElectiveConflictError{
 				Code:    "GRADE_SCHEME_CHANGE_REQUIRES_CONFIRMATION",
 				Message: "changing the grade scheme will clear current grade records and reopen offerings",

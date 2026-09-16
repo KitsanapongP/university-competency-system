@@ -100,8 +100,10 @@ type FreeElectiveStudentGroup struct {
 	CohortID         uint64 `json:"cohort_id"`
 	FacultyID        uint64 `json:"faculty_id"`
 	FacultyNameTH    string `json:"faculty_name_th"`
+	FacultyNameEN    string `json:"faculty_name_en,omitempty"`
 	MajorID          uint64 `json:"major_id"`
 	MajorNameTH      string `json:"major_name_th"`
+	MajorNameEN      string `json:"major_name_en,omitempty"`
 	CurriculumID     uint64 `json:"curriculum_id"`
 	CurriculumNameTH string `json:"curriculum_name_th"`
 	CurriculumNameEN string `json:"curriculum_name_en,omitempty"`
@@ -119,6 +121,7 @@ type FreeElectiveStudent struct {
 	StudentNameEN          string `json:"student_name_en,omitempty"`
 	CurriculumID           uint64 `json:"curriculum_id"`
 	CurriculumNameTH       string `json:"curriculum_name_th"`
+	CurriculumNameEN       string `json:"curriculum_name_en,omitempty"`
 	EntryYearBE            uint64 `json:"entry_year_be"`
 }
 
@@ -132,6 +135,7 @@ type FreeElectiveStudentCourse struct {
 	SectionNo      string `json:"section_no"`
 	GradeScheme    string `json:"grade_scheme"`
 	Grade          string `json:"grade,omitempty"`
+	GradeSource    string `json:"grade_source,omitempty"`
 	IsBestGrade    bool   `json:"is_best_grade"`
 	Status         string `json:"status"`
 }

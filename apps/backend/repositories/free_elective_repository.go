@@ -206,6 +206,10 @@ func (r *FreeElectiveRepository) GetCourseImpact(ctx context.Context, courseID u
 }
 
 func resetFreeElectiveCourseData(ctx context.Context, tx *sql.Tx, courseID uint64) error {
+	cohortIDs, err := getFreeElectiveCourseCohortIDs(ctx, tx, courseID)
+	if err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE score_free_elective_competency_scores score
 		JOIN ele_offering_grade_records grade ON grade.grade_record_id = score.grade_record_id
@@ -231,27 +235,63 @@ func resetFreeElectiveCourseData(ctx context.Context, tx *sql.Tx, courseID uint6
 		WHERE free_elective_course_id = ? AND deleted_at IS NULL`, courseID); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE score_competency_result result
-		JOIN kku_enrollment_curricula roster ON roster.enrollment_id = result.enrollment_id AND roster.deleted_at IS NULL
-		JOIN ele_offering_enrollments enrollment ON enrollment.enrollment_id = roster.enrollment_id AND enrollment.deleted_at IS NULL
-		JOIN ele_free_elective_offerings offering ON offering.offering_id = enrollment.offering_id AND offering.deleted_at IS NULL
-		SET result.free_elective_score = 0,
-			result.final_score = result.core_score + result.course_bonus_score + result.activity_score,
-			result.updated_at = NOW()
-		WHERE offering.free_elective_course_id = ? AND result.deleted_at IS NULL`, courseID); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE edu_student_cohorts cohort
-		JOIN kku_enrollment_curricula roster ON roster.cohort_id = cohort.cohort_id AND roster.deleted_at IS NULL
-		JOIN ele_offering_enrollments enrollment ON enrollment.enrollment_id = roster.enrollment_id AND enrollment.deleted_at IS NULL
-		JOIN ele_free_elective_offerings offering ON offering.offering_id = enrollment.offering_id AND offering.deleted_at IS NULL
-		SET cohort.free_elective_scores_recalculation_required = 1, cohort.updated_at = NOW()
-		WHERE offering.free_elective_course_id = ? AND cohort.deleted_at IS NULL`, courseID); err != nil {
-		return err
+	for cohortID := range cohortIDs {
+		if err := recomputeCompetencyResultsTx(ctx, tx, cohortID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE edu_student_cohorts
+			SET free_elective_scores_recalculation_required = 1,
+				free_elective_scores_recalculated_at = NULL, updated_at = NOW()
+			WHERE cohort_id = ? AND deleted_at IS NULL`, cohortID); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func getFreeElectiveCourseCohortIDs(ctx context.Context, tx *sql.Tx, courseID uint64) (map[uint64]struct{}, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT DISTINCT roster.cohort_id
+		FROM ele_free_elective_offerings offering
+		JOIN ele_offering_enrollments enrollment
+			ON enrollment.offering_id = offering.offering_id AND enrollment.deleted_at IS NULL
+		JOIN kku_enrollment_curricula roster
+			ON roster.enrollment_curriculum_id = enrollment.enrollment_curriculum_id
+			AND roster.enrollment_id = enrollment.enrollment_id AND roster.deleted_at IS NULL
+		JOIN kku_enrollments student ON student.enrollment_id = enrollment.enrollment_id
+			AND student.enrollment_status = 'student' AND student.deleted_at IS NULL
+		WHERE offering.free_elective_course_id = ?
+			AND offering.deleted_at IS NULL AND roster.cohort_id IS NOT NULL
+		UNION
+		SELECT DISTINCT roster.cohort_id
+		FROM score_free_elective_competency_scores score
+		JOIN ele_offering_grade_records grade ON grade.grade_record_id = score.grade_record_id
+		JOIN ele_offering_enrollments enrollment ON enrollment.offering_enrollment_id = grade.offering_enrollment_id
+		JOIN ele_free_elective_offerings offering ON offering.offering_id = enrollment.offering_id
+		JOIN kku_enrollment_curricula roster
+			ON roster.enrollment_curriculum_id = enrollment.enrollment_curriculum_id
+			AND roster.enrollment_id = enrollment.enrollment_id AND roster.deleted_at IS NULL
+		JOIN kku_enrollments student ON student.enrollment_id = enrollment.enrollment_id
+			AND student.enrollment_status = 'student' AND student.deleted_at IS NULL
+		WHERE offering.free_elective_course_id = ?
+			AND offering.deleted_at IS NULL AND roster.cohort_id IS NOT NULL`, courseID, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cohortIDs := make(map[uint64]struct{})
+	for rows.Next() {
+		var cohortID uint64
+		if err := rows.Scan(&cohortID); err != nil {
+			return nil, err
+		}
+		if cohortID > 0 {
+			cohortIDs[cohortID] = struct{}{}
+		}
+	}
+	return cohortIDs, rows.Err()
 }
 
 func nullableFreeElectiveString(value *string) any {
@@ -666,10 +706,10 @@ func scanFreeElectiveEnrollment(scanner interface{ Scan(...any) error }) (models
 
 func (r *FreeElectiveRepository) GetStudentGroups(ctx context.Context, filters models.FreeElectiveStudentGroupFilters) ([]models.FreeElectiveStudentGroup, error) {
 	query := `
-		SELECT cohort.cohort_id, faculty.faculty_id, faculty.name_th,
-			major.major_id, major.name_th, curriculum.curriculum_id,
+		SELECT cohort.cohort_id, faculty.faculty_id, faculty.name_th, COALESCE(faculty.name_en, ''),
+			major.major_id, major.name_th, COALESCE(major.name_en, ''), curriculum.curriculum_id,
 			curriculum.name_th, COALESCE(curriculum.name_en, ''), cohort.entry_year_be,
-			COUNT(DISTINCT roster.enrollment_id), COUNT(DISTINCT selected.enrollment_id)
+			COUNT(DISTINCT student.enrollment_id), COUNT(DISTINCT selected.enrollment_id)
 		FROM edu_student_cohorts cohort
 		JOIN edu_curricula curriculum ON curriculum.curriculum_id = cohort.curriculum_id AND curriculum.deleted_at IS NULL
 		JOIN edu_majors major ON major.major_id = curriculum.major_id AND major.deleted_at IS NULL
@@ -681,7 +721,8 @@ func (r *FreeElectiveRepository) GetStudentGroups(ctx context.Context, filters m
 			ON student.enrollment_id = roster.enrollment_id
 			AND student.deleted_at IS NULL AND student.enrollment_status = 'student'
 		LEFT JOIN ele_offering_enrollments selected
-			ON selected.enrollment_id = student.enrollment_id AND selected.deleted_at IS NULL
+			ON selected.enrollment_id = student.enrollment_id
+			AND selected.deleted_at IS NULL AND selected.status IN ('enrolled', 'completed')
 		WHERE cohort.deleted_at IS NULL AND cohort.status <> 'archived'`
 	args := make([]any, 0, 4)
 	if filters.FacultyID != nil {
@@ -701,8 +742,8 @@ func (r *FreeElectiveRepository) GetStudentGroups(ctx context.Context, filters m
 		args = append(args, *filters.EntryYearBE)
 	}
 	query += `
-		GROUP BY cohort.cohort_id, faculty.faculty_id, faculty.name_th,
-			major.major_id, major.name_th, curriculum.curriculum_id, curriculum.name_th,
+		GROUP BY cohort.cohort_id, faculty.faculty_id, faculty.name_th, faculty.name_en,
+			major.major_id, major.name_th, major.name_en, curriculum.curriculum_id, curriculum.name_th,
 			curriculum.name_en, cohort.entry_year_be
 		ORDER BY faculty.name_th, major.name_th, curriculum.name_th, cohort.entry_year_be DESC`
 
@@ -718,8 +759,10 @@ func (r *FreeElectiveRepository) GetStudentGroups(ctx context.Context, filters m
 			&item.CohortID,
 			&item.FacultyID,
 			&item.FacultyNameTH,
+			&item.FacultyNameEN,
 			&item.MajorID,
 			&item.MajorNameTH,
+			&item.MajorNameEN,
 			&item.CurriculumID,
 			&item.CurriculumNameTH,
 			&item.CurriculumNameEN,
@@ -739,7 +782,7 @@ func (r *FreeElectiveRepository) GetCohortStudents(ctx context.Context, cohortID
 		SELECT student.enrollment_id, roster.enrollment_curriculum_id, COALESCE(student.faculty_id, 0), COALESCE(student.student_code, ''),
 			CONCAT_WS(' ', person.first_name_th, person.last_name_th),
 			CONCAT_WS(' ', person.first_name_en, person.last_name_en),
-			curriculum.curriculum_id, curriculum.name_th, COALESCE(cohort.entry_year_be, 0)
+			curriculum.curriculum_id, curriculum.name_th, COALESCE(curriculum.name_en, ''), COALESCE(cohort.entry_year_be, 0)
 		FROM edu_student_cohorts cohort
 		JOIN kku_enrollment_curricula roster ON roster.cohort_id = cohort.cohort_id AND roster.deleted_at IS NULL
 		JOIN kku_enrollments student ON student.enrollment_id = roster.enrollment_id
@@ -764,6 +807,7 @@ func (r *FreeElectiveRepository) GetCohortStudents(ctx context.Context, cohortID
 			&item.StudentNameEN,
 			&item.CurriculumID,
 			&item.CurriculumNameTH,
+			&item.CurriculumNameEN,
 			&item.EntryYearBE,
 		); err != nil {
 			return nil, err
@@ -779,7 +823,7 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 		SELECT student.enrollment_id, roster.enrollment_curriculum_id, COALESCE(student.faculty_id, 0),
 			COALESCE(student.student_code, ''), CONCAT_WS(' ', person.first_name_th, person.last_name_th),
 			CONCAT_WS(' ', person.first_name_en, person.last_name_en), curriculum.curriculum_id,
-			curriculum.name_th, COALESCE(cohort.entry_year_be, 0)
+			curriculum.name_th, COALESCE(curriculum.name_en, ''), COALESCE(cohort.entry_year_be, 0)
 		FROM kku_enrollments student
 		JOIN persons person ON person.person_id = student.person_id AND person.deleted_at IS NULL
 		JOIN kku_enrollment_curricula roster ON roster.enrollment_id = student.enrollment_id
@@ -800,6 +844,7 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 		&student.StudentNameEN,
 		&student.CurriculumID,
 		&student.CurriculumNameTH,
+		&student.CurriculumNameEN,
 		&student.EntryYearBE,
 	); err != nil {
 		return nil, err
@@ -808,7 +853,7 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 	rows, err := r.DB.QueryContext(ctx, `
 		SELECT offering.offering_id, course.code, course.name_th, COALESCE(course.name_en, ''),
 			offering.academic_year_be, offering.semester, offering.section_no, course.grade_scheme,
-			COALESCE(grade.grade, ''), COALESCE(grade.is_best_grade, 0), selected.status
+			COALESCE(grade.grade, ''), COALESCE(grade.grade_source, ''), COALESCE(grade.is_best_grade, 0), selected.status
 		FROM ele_offering_enrollments selected
 		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
 			AND offering.deleted_at IS NULL
@@ -836,6 +881,7 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 			&course.SectionNo,
 			&course.GradeScheme,
 			&course.Grade,
+			&course.GradeSource,
 			&course.IsBestGrade,
 			&course.Status,
 		); err != nil {
@@ -860,7 +906,7 @@ func (r *FreeElectiveRepository) GetOfferingEnrollments(ctx context.Context, off
 			CONCAT_WS(' ', person.first_name_th, person.last_name_th),
 			CONCAT_WS(' ', person.first_name_en, person.last_name_en),
 			curriculum.curriculum_id, curriculum.name_th, COALESCE(curriculum.name_en, ''),
-			cohort.cohort_id, cohort.entry_year_be, student.enrollment_status, selected.status,
+			COALESCE(cohort.cohort_id, 0), COALESCE(cohort.entry_year_be, 0), student.enrollment_status, selected.status,
 			grade.grade_record_id, grade.grade, grade.grade_source,
 			COALESCE(grade.is_best_grade, 0), grade.updated_at
 		FROM ele_offering_enrollments selected
@@ -1126,6 +1172,7 @@ func recomputeFreeElectiveBestGradeFlagsTx(ctx context.Context, tx *sql.Tx, enro
 		FROM ele_offering_grade_records grade
 		JOIN ele_offering_enrollments selected ON selected.offering_enrollment_id = grade.offering_enrollment_id
 			AND selected.enrollment_id = ? AND selected.deleted_at IS NULL
+			AND selected.status IN ('enrolled', 'completed')
 		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
 			AND offering.free_elective_course_id = ? AND offering.deleted_at IS NULL
 		JOIN ele_free_elective_courses course ON course.free_elective_course_id = offering.free_elective_course_id
@@ -1160,7 +1207,8 @@ func recomputeFreeElectiveBestGradeFlagsTx(ctx context.Context, tx *sql.Tx, enro
 		JOIN ele_offering_enrollments selected ON selected.offering_enrollment_id = grade.offering_enrollment_id
 		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
 		SET grade.is_best_grade = 0, grade.updated_at = NOW()
-		WHERE selected.enrollment_id = ? AND offering.free_elective_course_id = ? AND grade.deleted_at IS NULL`, enrollmentID, courseID); err != nil {
+		WHERE selected.enrollment_id = ? AND offering.free_elective_course_id = ?
+			AND grade.deleted_at IS NULL`, enrollmentID, courseID); err != nil {
 		return err
 	}
 	if len(attempts) == 0 {
@@ -1226,6 +1274,10 @@ func recalculateFreeElectiveCourseTx(ctx context.Context, tx *sql.Tx, courseID, 
 		WHERE offering.free_elective_course_id = ? AND score.deleted_at IS NULL`, courseID); err != nil {
 		return err
 	}
+	cohortIDs, err := getFinalizedFreeElectiveCohortIDs(ctx, tx, courseID)
+	if err != nil {
+		return err
+	}
 	candidates, err := getFinalizedFreeElectiveCandidates(ctx, tx, courseID)
 	if err != nil {
 		return err
@@ -1243,11 +1295,7 @@ func recalculateFreeElectiveCourseTx(ctx context.Context, tx *sql.Tx, courseID, 
 			bestByEnrollment[candidate.EnrollmentID] = candidate
 		}
 	}
-	cohortIDs := make(map[uint64]struct{})
 	for _, candidate := range bestByEnrollment {
-		if candidate.CohortID > 0 {
-			cohortIDs[candidate.CohortID] = struct{}{}
-		}
 		if err := insertFreeElectiveScoresTx(ctx, tx, candidate, userID); err != nil {
 			return err
 		}
@@ -1274,6 +1322,51 @@ func recalculateFreeElectiveCourseTx(ctx context.Context, tx *sql.Tx, courseID, 
 	return nil
 }
 
+func getFinalizedFreeElectiveCohortIDs(ctx context.Context, tx *sql.Tx, courseID uint64) (map[uint64]struct{}, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT DISTINCT roster.cohort_id
+		FROM ele_offering_enrollments selected
+		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
+			AND offering.status = 'finalized' AND offering.deleted_at IS NULL
+		JOIN kku_enrollment_curricula roster ON roster.enrollment_curriculum_id = selected.enrollment_curriculum_id
+			AND roster.enrollment_id = selected.enrollment_id AND roster.deleted_at IS NULL
+		JOIN kku_enrollments student ON student.enrollment_id = selected.enrollment_id
+			AND student.enrollment_status = 'student' AND student.deleted_at IS NULL
+		WHERE offering.free_elective_course_id = ?
+			AND selected.status IN ('enrolled', 'completed')
+			AND selected.deleted_at IS NULL
+			AND roster.cohort_id IS NOT NULL
+		UNION
+		SELECT DISTINCT roster.cohort_id
+		FROM score_free_elective_competency_scores score
+		JOIN ele_offering_grade_records grade ON grade.grade_record_id = score.grade_record_id
+		JOIN ele_offering_enrollments selected ON selected.offering_enrollment_id = grade.offering_enrollment_id
+		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
+		JOIN kku_enrollment_curricula roster ON roster.enrollment_curriculum_id = selected.enrollment_curriculum_id
+			AND roster.enrollment_id = selected.enrollment_id AND roster.deleted_at IS NULL
+		JOIN kku_enrollments student ON student.enrollment_id = selected.enrollment_id
+			AND student.enrollment_status = 'student' AND student.deleted_at IS NULL
+		WHERE offering.free_elective_course_id = ?
+			AND offering.deleted_at IS NULL
+			AND roster.cohort_id IS NOT NULL`, courseID, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cohortIDs := make(map[uint64]struct{})
+	for rows.Next() {
+		var cohortID uint64
+		if err := rows.Scan(&cohortID); err != nil {
+			return nil, err
+		}
+		if cohortID > 0 {
+			cohortIDs[cohortID] = struct{}{}
+		}
+	}
+	return cohortIDs, rows.Err()
+}
+
 func getFinalizedFreeElectiveCandidates(ctx context.Context, tx *sql.Tx, courseID uint64) ([]freeElectiveScoreCandidate, error) {
 	rows, err := tx.QueryContext(ctx, `
 		SELECT grade.grade_record_id, selected.offering_id, selected.enrollment_id,
@@ -1287,7 +1380,10 @@ func getFinalizedFreeElectiveCandidates(ctx context.Context, tx *sql.Tx, courseI
 		JOIN ele_free_elective_courses course ON course.free_elective_course_id = offering.free_elective_course_id
 		JOIN kku_enrollment_curricula roster ON roster.enrollment_curriculum_id = selected.enrollment_curriculum_id
 			AND roster.enrollment_id = selected.enrollment_id AND roster.deleted_at IS NULL
-		WHERE grade.deleted_at IS NULL AND course.free_elective_course_id = ?`, courseID)
+		JOIN kku_enrollments student ON student.enrollment_id = selected.enrollment_id
+			AND student.enrollment_status = 'student' AND student.deleted_at IS NULL
+		WHERE grade.deleted_at IS NULL AND selected.status IN ('enrolled', 'completed')
+			AND course.free_elective_course_id = ?`, courseID)
 	if err != nil {
 		return nil, err
 	}

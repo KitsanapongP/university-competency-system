@@ -25,7 +25,9 @@ func recomputeCompetencyResultsTx(ctx context.Context, tx *sql.Tx, cohortID uint
 			JOIN ele_offering_grade_records grade ON grade.grade_record_id = score.grade_record_id
 				AND grade.deleted_at IS NULL
 			JOIN ele_offering_enrollments selected ON selected.offering_enrollment_id = grade.offering_enrollment_id
-				AND selected.deleted_at IS NULL
+				AND selected.deleted_at IS NULL AND selected.status IN ('enrolled', 'completed')
+			JOIN kku_enrollments freeElectiveStudent ON freeElectiveStudent.enrollment_id = selected.enrollment_id
+				AND freeElectiveStudent.enrollment_status = 'student' AND freeElectiveStudent.deleted_at IS NULL
 			JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
 				AND offering.deleted_at IS NULL AND offering.status = 'finalized'
 			JOIN ele_offering_competencies mapping ON mapping.offering_competency_id = score.offering_competency_id
