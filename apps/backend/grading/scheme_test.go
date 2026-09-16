@@ -17,6 +17,26 @@ func TestAllowedGradesFollowCourseScheme(t *testing.T) {
 	}
 }
 
+func TestValidateGradeRejectsTheWrongScheme(t *testing.T) {
+	if err := ValidateGrade(SchemeLetter, "S"); err != ErrGradeNotAllowed {
+		t.Fatalf("ValidateGrade(letter, S) = %v, want ErrGradeNotAllowed", err)
+	}
+	if err := ValidateGrade(SchemeSatisfactory, "A"); err != ErrGradeNotAllowed {
+		t.Fatalf("ValidateGrade(satisfactory, A) = %v, want ErrGradeNotAllowed", err)
+	}
+	if err := ValidateGrade(SchemeSatisfactory, " s "); err != nil {
+		t.Fatalf("ValidateGrade(satisfactory, s) = %v, want nil", err)
+	}
+}
+
+func TestGradeOptionsAreIndependentCopies(t *testing.T) {
+	options := GradeOptions(SchemeSatisfactory)
+	options[0] = "changed"
+	if GradeOptions(SchemeSatisfactory)[0] != "S" {
+		t.Fatal("GradeOptions should return an independent copy")
+	}
+}
+
 func TestEvaluateCourseGradeScheme(t *testing.T) {
 	tests := []struct {
 		name      string

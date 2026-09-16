@@ -11,6 +11,7 @@ const (
 )
 
 var ErrInvalidScheme = errors.New("invalid course grade scheme")
+var ErrGradeNotAllowed = errors.New("grade is not allowed for this grade scheme")
 
 var letterGrades = []string{"A", "B+", "B", "C+", "C", "D+", "D", "F", "W", "I"}
 var satisfactoryGrades = []string{"S", "U", "W", "I"}
@@ -22,6 +23,24 @@ func NormalizeScheme(value string) string {
 func IsValidScheme(value string) bool {
 	scheme := NormalizeScheme(value)
 	return scheme == SchemeLetter || scheme == SchemeSatisfactory
+}
+
+// ValidateGrade is the shared boundary for every feature that accepts a
+// course grade. Keeping this check here prevents free-elective workflows from
+// creating a second, subtly different grade vocabulary.
+func ValidateGrade(scheme, value string) error {
+	if !IsValidScheme(scheme) {
+		return ErrInvalidScheme
+	}
+	if !IsRecognizedForScheme(scheme, value) {
+		return ErrGradeNotAllowed
+	}
+	return nil
+}
+
+// GradeOptions returns a copy so callers can safely use it as UI/API data.
+func GradeOptions(scheme string) []string {
+	return AllowedGrades(scheme)
 }
 
 func AllowedGrades(scheme string) []string {
