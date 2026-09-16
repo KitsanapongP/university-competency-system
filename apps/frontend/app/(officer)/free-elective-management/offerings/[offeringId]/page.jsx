@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ArrowLeft,
     CalendarCheck,
@@ -60,7 +60,7 @@ function errorMessage(error, fallback) {
     return error?.message || fallback;
 }
 
-export default function FreeElectiveOfferingDetailPage() {
+function FreeElectiveOfferingDetailPageContent() {
     const router = useRouter();
     const params = useParams();
     const searchParams = useSearchParams();
@@ -576,5 +576,19 @@ export default function FreeElectiveOfferingDetailPage() {
                 onCloseError={() => setError('')}
             />
         </div>
+    );
+}
+
+export default function FreeElectiveOfferingDetailPage() {
+    return (
+        <Suspense
+            fallback={(
+                <div className="free-elective-loading" role="status">
+                    {FREE_ELECTIVE_LABELS.th.loading}
+                </div>
+            )}
+        >
+            <FreeElectiveOfferingDetailPageContent />
+        </Suspense>
     );
 }

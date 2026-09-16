@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BookOpen, GraduationCap, RefreshCw, Search, Users } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../../providers/auth-provider';
@@ -23,7 +23,7 @@ function buildLabels(language) {
     );
 }
 
-export default function FreeElectiveGroupsPage() {
+function FreeElectiveGroupsPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
@@ -322,5 +322,19 @@ export default function FreeElectiveGroupsPage() {
                 onCloseError={() => setError('')}
             />
         </div>
+    );
+}
+
+export default function FreeElectiveGroupsPage() {
+    return (
+        <Suspense
+            fallback={(
+                <div className="free-elective-loading" role="status">
+                    {FREE_ELECTIVE_LABELS.th.loading}
+                </div>
+            )}
+        >
+            <FreeElectiveGroupsPageContent />
+        </Suspense>
     );
 }
