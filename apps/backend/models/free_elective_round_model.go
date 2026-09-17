@@ -60,6 +60,11 @@ type FreeElectiveRoundEnrollment struct {
 	StudentCode             string     `json:"student_code"`
 	StudentNameTH           string     `json:"student_name_th"`
 	StudentNameEN           string     `json:"student_name_en,omitempty"`
+	CurriculumID            uint64     `json:"curriculum_id"`
+	CurriculumNameTH        string     `json:"curriculum_name_th"`
+	CurriculumNameEN        string     `json:"curriculum_name_en,omitempty"`
+	CohortID                uint64     `json:"cohort_id"`
+	EntryYearBE             uint64     `json:"entry_year_be"`
 	EnrollmentStatus        string     `json:"enrollment_status"`
 	Status                  string     `json:"status"`
 	Grade                   string     `json:"grade,omitempty"`
@@ -67,6 +72,12 @@ type FreeElectiveRoundEnrollment struct {
 	IsBestGrade             bool       `json:"is_best_grade"`
 	GradeRecordID           *uint64    `json:"grade_record_id,omitempty"`
 	UpdatedAt               *time.Time `json:"updated_at,omitempty"`
+}
+
+type FreeElectiveRoundCourseDetail struct {
+	Course        FreeElectiveRoundCourse       `json:"course"`
+	AllowedGrades []string                      `json:"allowed_grades"`
+	Enrollments   []FreeElectiveRoundEnrollment `json:"enrollments"`
 }
 
 type FreeElectiveRoundDetail struct {
@@ -130,4 +141,31 @@ type FreeElectiveRoundValidationIssue struct {
 type DuplicateFreeElectiveRoundPayload struct {
 	AcademicYearBE uint64 `json:"academic_year_be"`
 	Semester       uint64 `json:"semester"`
+}
+
+type AddFreeElectiveRoundCoursePayload struct {
+	FreeElectiveCourseID uint64                             `json:"free_elective_course_id"`
+	Competencies         []FreeElectiveRoundCompetencyInput `json:"competencies"`
+}
+
+type ReplaceFreeElectiveRoundCourseCompetenciesPayload struct {
+	Competencies []FreeElectiveRoundCompetencyInput `json:"competencies"`
+}
+
+type AddFreeElectiveRoundEnrollmentsPayload struct {
+	Enrollments []FreeElectiveEnrollmentInput `json:"enrollments"`
+}
+
+type UpdateFreeElectiveRoundEnrollmentStatusPayload struct {
+	Status string `json:"status"`
+}
+
+type UpsertFreeElectiveRoundGradePayload struct {
+	Grade           string  `json:"grade"`
+	GradeSource     string  `json:"grade_source"`
+	SourceReference *string `json:"source_reference"`
+}
+
+type FreeElectiveRoundLearnerFilters struct {
+	Search string
 }

@@ -13,13 +13,16 @@ import (
 )
 
 var (
-	ErrFreeElectiveForbidden            = errors.New("insufficient free-elective scope")
-	ErrFreeElectiveCourseNotFound       = errors.New("free-elective course not found")
-	ErrFreeElectiveRoundNotFound        = errors.New("free-elective round not found")
-	ErrFreeElectiveOfferingNotFound     = errors.New("free-elective offering not found")
-	ErrFreeElectiveOfferingLocked       = errors.New("free-elective offering is locked")
-	ErrFreeElectiveStudentGroupNotFound = errors.New("free-elective student group not found")
-	ErrFreeElectiveStudentNotFound      = errors.New("free-elective student not found")
+	ErrFreeElectiveForbidden               = errors.New("insufficient free-elective scope")
+	ErrFreeElectiveCourseNotFound          = errors.New("free-elective course not found")
+	ErrFreeElectiveRoundNotFound           = errors.New("free-elective round not found")
+	ErrFreeElectiveRoundCourseNotFound     = errors.New("free-elective round course not found")
+	ErrFreeElectiveRoundEnrollmentNotFound = errors.New("free-elective round enrollment not found")
+	ErrFreeElectiveRoundLocked             = errors.New("free-elective round is locked")
+	ErrFreeElectiveOfferingNotFound        = errors.New("free-elective offering not found")
+	ErrFreeElectiveOfferingLocked          = errors.New("free-elective offering is locked")
+	ErrFreeElectiveStudentGroupNotFound    = errors.New("free-elective student group not found")
+	ErrFreeElectiveStudentNotFound         = errors.New("free-elective student not found")
 )
 
 type FreeElectiveValidationError struct {

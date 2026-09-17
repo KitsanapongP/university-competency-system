@@ -611,6 +611,14 @@ func writeFreeElectiveError(w http.ResponseWriter, err error) {
 		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_ROUND_NOT_FOUND", err.Error())
 		return
 	}
+	if errors.Is(err, services.ErrFreeElectiveRoundCourseNotFound) {
+		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_ROUND_COURSE_NOT_FOUND", err.Error())
+		return
+	}
+	if errors.Is(err, services.ErrFreeElectiveRoundEnrollmentNotFound) {
+		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_ROUND_ENROLLMENT_NOT_FOUND", err.Error())
+		return
+	}
 	if errors.Is(err, services.ErrFreeElectiveOfferingNotFound) {
 		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_OFFERING_NOT_FOUND", err.Error())
 		return
@@ -625,6 +633,10 @@ func writeFreeElectiveError(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, services.ErrFreeElectiveOfferingLocked) {
 		utils.Error(w, http.StatusConflict, "OFFERING_NOT_EDITABLE", err.Error())
+		return
+	}
+	if errors.Is(err, services.ErrFreeElectiveRoundLocked) {
+		utils.Error(w, http.StatusConflict, "ROUND_NOT_EDITABLE", err.Error())
 		return
 	}
 	var validationErr services.FreeElectiveValidationError

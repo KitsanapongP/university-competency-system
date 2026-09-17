@@ -19,13 +19,23 @@ func (s *FreeElectiveService) ListRounds(ctx context.Context, claims *utils.Clai
 		return nil, err
 	}
 	filters.FacultyID = facultyID
-	if err := validateFreeElectiveRoundPeriod(filters.AcademicYearBE, filters.Semester); err != nil {
+	if err := validateFreeElectiveRoundFilters(filters); err != nil {
 		return nil, err
 	}
 	if filters.Status != "" && !validFreeElectiveOfferingStatus(filters.Status) {
 		return nil, FreeElectiveValidationError{Message: "status is invalid"}
 	}
 	return s.Repo.ListRounds(ctx, filters)
+}
+
+func validateFreeElectiveRoundFilters(filters models.FreeElectiveRoundFilters) error {
+	if filters.AcademicYearBE != nil && *filters.AcademicYearBE == 0 {
+		return FreeElectiveValidationError{Message: "academic_year_be must be greater than zero"}
+	}
+	if filters.Semester != nil && (*filters.Semester < 1 || *filters.Semester > 3) {
+		return FreeElectiveValidationError{Message: "semester must be 1, 2, or 3"}
+	}
+	return nil
 }
 
 func (s *FreeElectiveService) GetRound(ctx context.Context, claims *utils.Claims, roundID uint64) (*models.FreeElectiveRoundDetail, error) {
