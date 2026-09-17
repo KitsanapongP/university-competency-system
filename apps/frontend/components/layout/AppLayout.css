@@ -416,6 +416,37 @@
     padding: 32px 24px 64px;
 }
 
+/* The sidebar shell uses the same semantic palette as every management page. */
+.competency-app--sidebar {
+    --bg: var(--ui-page-bg);
+    --card: var(--ui-surface);
+    --border: var(--ui-border);
+    --text: var(--ui-text);
+    --text-muted: var(--ui-text-muted);
+    --primary: var(--ui-primary);
+    --primary-bg: var(--ui-primary-soft);
+    --primary-dark: var(--ui-title);
+    --control-bg-soft: var(--ui-hover);
+    --course-bg: var(--ui-page-bg);
+    font-family: var(--ui-font);
+}
+
+.app-sidebar-shell,
+.competency-app--sidebar .main-content--sidebar {
+    background: var(--ui-page-bg);
+}
+
+.app-sidebar,
+.app-sidebar-mobile-drawer {
+    color: var(--ui-text);
+    background: var(--ui-surface);
+    border-color: var(--ui-border);
+}
+
+.competency-app--sidebar .main-content-officer.main-content--sidebar {
+    background: var(--ui-page-bg);
+}
+
 .app-sidebar-mobile-bar,
 .app-sidebar-shell-mobile-overlay {
     display: none;

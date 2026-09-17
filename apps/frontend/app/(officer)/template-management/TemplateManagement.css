@@ -5415,3 +5415,100 @@
         gap: 0.4rem;
     }
 }
+
+
+/* Keep the legacy template selectors on the shared management theme. */
+:root.dark,
+:root:not(.dark) {
+    --tm-bg: var(--ui-page-bg);
+    --tm-text: var(--ui-text);
+    --tm-text-muted: var(--ui-text-muted);
+    --tm-card-bg: var(--ui-surface);
+    --tm-card-border: var(--ui-border-strong);
+    --tm-accent: var(--ui-primary);
+    --tm-accent-light: var(--ui-primary-hover);
+    --tm-accent-subtle: var(--ui-title);
+    --tm-hover: var(--ui-hover);
+    --tm-input-bg: var(--ui-surface-muted);
+    --tm-input-border: var(--ui-border);
+    --tm-border: var(--ui-border);
+    --tm-title: var(--ui-title);
+    --tm-icon-bg: color-mix(in srgb, var(--ui-primary) 15%, transparent);
+    --tm-icon-color: var(--ui-icon);
+    --tm-icon-secondary: var(--ui-text-muted);
+    --tm-card-gradient: var(--ui-card-gradient);
+    --tm-editor-topbar-bg: var(--ui-surface-muted);
+    --tm-ccp-sheet__toolbar-bg: var(--ui-surface-muted);
+    --tm-editor-tabs-bg: var(--ui-surface-muted);
+    --tm-panel-border: var(--ui-border);
+    --tm-panel-hover: var(--ui-hover);
+    --tm-panel-selected-bg: var(--ui-primary-soft);
+    --tm-panel-selected-border: var(--ui-primary);
+    --tm-tree-name: var(--ui-text);
+    --tm-tree-hover: var(--ui-surface-raised);
+    --tm-competency-row-bg: var(--ui-surface-raised);
+    --tm-competency-name: var(--ui-text);
+    --tm-form-input-bg: var(--ui-surface-raised);
+    --tm-form-input-border: var(--ui-border);
+    --tm-form-focus-border: var(--ui-primary);
+    --tm-modal-border: var(--ui-border-strong);
+    --tm-course-row-border: var(--ui-border);
+    --tm-course-row-hover: var(--ui-hover);
+    --tm-course-name: var(--ui-text);
+    --tm-ss-row-hover: var(--ui-hover);
+    --tm-ss-row-selected: var(--ui-primary-soft);
+    --tm-ss-placeholder: var(--ui-border);
+    --tm-ss-header-bg: var(--ui-surface-muted);
+    --tm-ss-tfoot-bg: var(--ui-surface-muted);
+    --tm-ss-tfoot-border: var(--ui-border);
+    --tm-wp-hover: var(--ui-hover);
+    --tm-wp-active: var(--ui-primary-soft);
+    --tm-weight-input-border: var(--ui-border);
+    --tm-ss-row--master: var(--ui-surface);
+    --tm-blue: var(--ui-primary);
+    --tm-master-badge-color: var(--ui-primary-hover);
+    --tm-master-badge-bg: var(--ui-primary-soft);
+    --tm-master-course-border: var(--ui-border);
+    --tm-master-row-name: var(--ui-text);
+    --tfm-btn-ghost-hover: var(--ui-hover);
+    --tfm-comp-card-border: var(--ui-border-strong);
+    --tfm-master-card-check-color: var(--ui-success);
+    --tfm-master-card-icon-bg: var(--ui-primary-soft);
+    --tfm-master-card-icon-blue-bg: var(--ui-primary-soft);
+    --tfm-master-card-selected-bg: var(--ui-primary);
+    --tfm-preview-empty-color: var(--ui-text-muted);
+    --tfm-preview-header-border: var(--ui-border);
+    --tfm-search-icon-color: var(--ui-icon);
+    --tfm-step-line-bg: var(--ui-border);
+    --tfm-step-num-border: var(--ui-primary);
+}
+
+.tm-page {
+    padding-inline: var(--ui-page-padding-inline);
+    color: var(--ui-text);
+    background: var(--ui-page-bg);
+    font-family: var(--ui-font);
+}
+
+.tm-header {
+    border-bottom-color: var(--ui-border);
+}
+
+.tm-panel {
+    border-radius: var(--ui-radius-panel);
+    box-shadow: var(--ui-shadow);
+}
+
+.tm-page,
+.tm-page button,
+.tm-page input,
+.tm-page select,
+.tm-page textarea {
+    font-family: var(--ui-font);
+}
+
+.tm-page {
+    --text-primary: var(--ui-text);
+    --text-secondary: var(--ui-text-muted);
+    --border-color: var(--ui-border);
+}

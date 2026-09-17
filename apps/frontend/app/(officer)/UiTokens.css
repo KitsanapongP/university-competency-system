@@ -65,3 +65,8 @@ body:has(.competency-app--sidebar) {
 .competency-app--sidebar textarea {
     font-family: var(--ui-font);
 }
+
+.competency-app.competency-app--sidebar,
+.competency-app.competency-app--sidebar * {
+    font-family: var(--ui-font);
+}
