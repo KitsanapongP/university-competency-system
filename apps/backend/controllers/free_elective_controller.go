@@ -307,6 +307,97 @@ func (c *FreeElectiveController) GetStudentDetail(w http.ResponseWriter, r *http
 	utils.OK(w, detail)
 }
 
+func (c *FreeElectiveController) GetStudentAvailableOfferings(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	enrollmentID, ok := freeElectiveID(w, r, "enrollment_id")
+	if !ok {
+		return
+	}
+	offerings, err := c.Service.GetStudentAvailableOfferings(r.Context(), claims, enrollmentID)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, offerings)
+}
+
+func (c *FreeElectiveController) AddStudentOffering(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	enrollmentID, ok := freeElectiveID(w, r, "enrollment_id")
+	if !ok {
+		return
+	}
+	var payload models.AddFreeElectiveStudentOfferingPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	detail, err := c.Service.AddStudentOffering(r.Context(), claims, enrollmentID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, detail)
+}
+
+func (c *FreeElectiveController) UpdateStudentOfferingStatus(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	enrollmentID, ok := freeElectiveID(w, r, "enrollment_id")
+	if !ok {
+		return
+	}
+	offeringEnrollmentID, ok := freeElectiveID(w, r, "offering_enrollment_id")
+	if !ok {
+		return
+	}
+	var payload models.UpdateFreeElectiveEnrollmentStatusPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	detail, err := c.Service.UpdateStudentOfferingStatus(r.Context(), claims, enrollmentID, offeringEnrollmentID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, detail)
+}
+
+func (c *FreeElectiveController) UpdateStudentOfferingGrade(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	enrollmentID, ok := freeElectiveID(w, r, "enrollment_id")
+	if !ok {
+		return
+	}
+	offeringEnrollmentID, ok := freeElectiveID(w, r, "offering_enrollment_id")
+	if !ok {
+		return
+	}
+	var payload models.UpsertFreeElectiveGradePayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	detail, err := c.Service.UpdateStudentOfferingGrade(r.Context(), claims, enrollmentID, offeringEnrollmentID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, detail)
+}
+
 func (c *FreeElectiveController) ListOfferingEnrollments(w http.ResponseWriter, r *http.Request) {
 	claims, ok := freeElectiveClaims(w, r)
 	if !ok {
@@ -522,6 +613,10 @@ func writeFreeElectiveError(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, services.ErrFreeElectiveStudentGroupNotFound) {
 		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_STUDENT_GROUP_NOT_FOUND", err.Error())
+		return
+	}
+	if errors.Is(err, services.ErrFreeElectiveStudentNotFound) {
+		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_STUDENT_NOT_FOUND", err.Error())
 		return
 	}
 	if errors.Is(err, services.ErrFreeElectiveOfferingLocked) {

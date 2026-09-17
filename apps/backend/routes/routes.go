@@ -146,6 +146,10 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				fer.Get("/student-groups", freeElectiveHandler.ListStudentGroups)
 				fer.Get("/student-groups/{cohort_id}/students", freeElectiveHandler.ListCohortStudents)
 				fer.Get("/students/{enrollment_id}", freeElectiveHandler.GetStudentDetail)
+				fer.Get("/students/{enrollment_id}/available-offerings", freeElectiveHandler.GetStudentAvailableOfferings)
+				fer.Post("/students/{enrollment_id}/offerings", freeElectiveHandler.AddStudentOffering)
+				fer.Patch("/students/{enrollment_id}/offerings/{offering_enrollment_id}/status", freeElectiveHandler.UpdateStudentOfferingStatus)
+				fer.Put("/students/{enrollment_id}/offerings/{offering_enrollment_id}/grade", freeElectiveHandler.UpdateStudentOfferingGrade)
 			})
 
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)

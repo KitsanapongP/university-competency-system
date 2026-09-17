@@ -315,6 +315,7 @@ func freeElectiveBoolOrDefault(value *bool, fallback bool) bool {
 const freeElectiveOfferingSelect = `
 	SELECT offering.offering_id, offering.free_elective_course_id,
 		course.code, course.name_th, COALESCE(course.name_en, ''), course.grade_scheme,
+		course.faculty_id, faculty.name_th, COALESCE(faculty.name_en, ''),
 		offering.academic_year_be, offering.semester, offering.section_no,
 		offering.capacity, offering.status, offering.scores_recalculation_required,
 		offering.finalized_at,
@@ -327,6 +328,8 @@ const freeElectiveOfferingSelect = `
 	JOIN ele_free_elective_courses course
 		ON course.free_elective_course_id = offering.free_elective_course_id
 		AND course.deleted_at IS NULL
+	JOIN org_faculties faculty
+		ON faculty.faculty_id = course.faculty_id AND faculty.deleted_at IS NULL
 	LEFT JOIN ele_offering_enrollments enrollment
 		ON enrollment.offering_id = offering.offering_id AND enrollment.deleted_at IS NULL
 	LEFT JOIN ele_offering_grade_records grade
@@ -346,6 +349,9 @@ func scanFreeElectiveOffering(scanner interface{ Scan(...any) error }) (*models.
 		&offering.CourseNameTH,
 		&offering.CourseNameEN,
 		&offering.GradeScheme,
+		&offering.FacultyID,
+		&offering.FacultyNameTH,
+		&offering.FacultyNameEN,
 		&offering.AcademicYearBE,
 		&offering.Semester,
 		&offering.SectionNo,
@@ -375,7 +381,8 @@ func scanFreeElectiveOffering(scanner interface{ Scan(...any) error }) (*models.
 func freeElectiveOfferingGroupBy() string {
 	return `
 	GROUP BY offering.offering_id, offering.free_elective_course_id, course.code,
-		course.name_th, course.name_en, course.grade_scheme, offering.academic_year_be,
+		course.name_th, course.name_en, course.grade_scheme, course.faculty_id, faculty.name_th,
+		faculty.name_en, offering.academic_year_be,
 		offering.semester, offering.section_no, offering.capacity, offering.status,
 		offering.scores_recalculation_required, offering.finalized_at,
 		offering.created_at, offering.updated_at`
@@ -851,7 +858,7 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 	}
 
 	rows, err := r.DB.QueryContext(ctx, `
-		SELECT offering.offering_id, course.code, course.name_th, COALESCE(course.name_en, ''),
+		SELECT selected.offering_enrollment_id, offering.offering_id, course.code, course.name_th, COALESCE(course.name_en, ''),
 			offering.academic_year_be, offering.semester, offering.section_no, course.grade_scheme,
 			COALESCE(grade.grade, ''), COALESCE(grade.grade_source, ''), COALESCE(grade.is_best_grade, 0), selected.status
 		FROM ele_offering_enrollments selected
@@ -872,6 +879,7 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 	for rows.Next() {
 		var course models.FreeElectiveStudentCourse
 		if err := rows.Scan(
+			&course.OfferingEnrollmentID,
 			&course.OfferingID,
 			&course.CourseCode,
 			&course.CourseNameTH,
@@ -897,6 +905,34 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 		Student: student,
 		Courses: studentCourses,
 	}, nil
+}
+
+func (r *FreeElectiveRepository) GetStudentAvailableOfferings(ctx context.Context, enrollmentID uint64) ([]*models.FreeElectiveOffering, error) {
+	query := freeElectiveOfferingSelect + `
+		AND offering.status = 'active'
+		AND NOT EXISTS (
+			SELECT 1
+			FROM ele_offering_enrollments selected
+			WHERE selected.offering_id = offering.offering_id
+				AND selected.enrollment_id = ?
+				AND selected.deleted_at IS NULL
+		)` + freeElectiveOfferingGroupBy() + `
+		ORDER BY offering.academic_year_be DESC, offering.semester DESC, course.name_th, offering.section_no`
+
+	rows, err := r.DB.QueryContext(ctx, query, enrollmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	offerings := make([]*models.FreeElectiveOffering, 0)
+	for rows.Next() {
+		offering, err := scanFreeElectiveOffering(rows)
+		if err != nil {
+			return nil, err
+		}
+		offerings = append(offerings, offering)
+	}
+	return offerings, rows.Err()
 }
 
 func (r *FreeElectiveRepository) GetOfferingEnrollments(ctx context.Context, offeringID uint64) ([]models.FreeElectiveEnrollment, error) {
@@ -1027,6 +1063,78 @@ func (r *FreeElectiveRepository) UpdateOfferingEnrollmentStatus(ctx context.Cont
 		return sql.ErrNoRows
 	}
 	return nil
+}
+
+type FreeElectiveStudentOfferingTarget struct {
+	OfferingID     uint64
+	OfferingStatus string
+	Status         string
+	GradeScheme    string
+}
+
+func (r *FreeElectiveRepository) GetStudentOfferingTarget(ctx context.Context, enrollmentID, offeringEnrollmentID uint64) (FreeElectiveStudentOfferingTarget, error) {
+	var target FreeElectiveStudentOfferingTarget
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT selected.offering_id, offering.status, selected.status, course.grade_scheme
+		FROM ele_offering_enrollments selected
+		JOIN ele_free_elective_offerings offering
+			ON offering.offering_id = selected.offering_id AND offering.deleted_at IS NULL
+		JOIN ele_free_elective_courses course
+			ON course.free_elective_course_id = offering.free_elective_course_id AND course.deleted_at IS NULL
+		WHERE selected.offering_enrollment_id = ? AND selected.enrollment_id = ?
+			AND selected.deleted_at IS NULL`, offeringEnrollmentID, enrollmentID).Scan(
+		&target.OfferingID,
+		&target.OfferingStatus,
+		&target.Status,
+		&target.GradeScheme,
+	)
+	return target, err
+}
+
+func (r *FreeElectiveRepository) UpdateStudentOfferingStatus(ctx context.Context, enrollmentID, offeringEnrollmentID uint64, status string) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var offeringStatus, currentStatus string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT offering.status, selected.status
+		FROM ele_offering_enrollments selected
+		JOIN ele_free_elective_offerings offering
+			ON offering.offering_id = selected.offering_id AND offering.deleted_at IS NULL
+		WHERE selected.offering_enrollment_id = ? AND selected.enrollment_id = ?
+			AND selected.deleted_at IS NULL FOR UPDATE`, offeringEnrollmentID, enrollmentID).Scan(&offeringStatus, &currentStatus); err != nil {
+		return err
+	}
+	if offeringStatus == "finalized" || offeringStatus == "cancelled" || currentStatus == "completed" {
+		return ErrFreeElectiveOfferingLocked
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_offering_enrollments
+		SET status = ?, updated_at = NOW()
+		WHERE offering_enrollment_id = ? AND enrollment_id = ? AND deleted_at IS NULL`, status, offeringEnrollmentID, enrollmentID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_free_elective_offerings offering
+		JOIN ele_offering_enrollments selected ON selected.offering_id = offering.offering_id
+		SET offering.scores_recalculation_required = 1, offering.updated_at = NOW()
+		WHERE selected.offering_enrollment_id = ? AND offering.deleted_at IS NULL`, offeringEnrollmentID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE edu_student_cohorts cohort
+		JOIN kku_enrollment_curricula roster ON roster.cohort_id = cohort.cohort_id
+		JOIN ele_offering_enrollments selected
+			ON selected.enrollment_curriculum_id = roster.enrollment_curriculum_id
+			AND selected.offering_enrollment_id = ?
+		SET cohort.free_elective_scores_recalculation_required = 1, cohort.updated_at = NOW()
+		WHERE roster.enrollment_id = ? AND roster.deleted_at IS NULL AND cohort.deleted_at IS NULL`, offeringEnrollmentID, enrollmentID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 type FreeElectiveGradeTarget struct {

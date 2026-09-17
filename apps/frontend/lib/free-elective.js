@@ -105,6 +105,9 @@ export function mapFreeElectiveOffering(item) {
         courseCode: item.course_code || '',
         courseNameTh: item.course_name_th || '',
         courseNameEn: item.course_name_en || '',
+        facultyId: item.faculty_id,
+        facultyNameTh: item.faculty_name_th || '',
+        facultyNameEn: item.faculty_name_en || '',
         gradeScheme: item.grade_scheme || 'letter',
         academicYearBE: toNumber(item.academic_year_be),
         semester: toNumber(item.semester),
@@ -215,6 +218,7 @@ export function mapFreeElectiveStudent(item) {
 
 export function mapFreeElectiveStudentCourse(item) {
     return {
+        offeringEnrollmentId: item.offering_enrollment_id,
         offeringId: item.offering_id,
         courseCode: item.course_code || '',
         courseNameTh: item.course_name_th || '',
@@ -479,6 +483,57 @@ export async function fetchFreeElectiveGroupStudents(cohortId) {
 export async function fetchFreeElectiveStudentDetail(enrollmentId) {
     const response = await apiFetch(
         `/api/v1/free-electives/students/${enrollmentId}`,
+    );
+    return mapFreeElectiveStudentDetail(unwrapData(response, null));
+}
+
+export async function fetchFreeElectiveStudentAvailableOfferings(enrollmentId) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/students/${enrollmentId}/available-offerings`,
+    );
+    return unwrapData(response, []).map(mapFreeElectiveOffering);
+}
+
+export async function addFreeElectiveStudentOffering(enrollmentId, offeringId) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/students/${enrollmentId}/offerings`,
+        {
+            method: 'POST',
+            body: JSON.stringify({ offering_id: toNumber(offeringId) }),
+        },
+    );
+    return mapFreeElectiveStudentDetail(unwrapData(response, null));
+}
+
+export async function updateFreeElectiveStudentOfferingStatus(
+    enrollmentId,
+    offeringEnrollmentId,
+    status,
+) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/students/${enrollmentId}/offerings/${offeringEnrollmentId}/status`,
+        {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
+        },
+    );
+    return mapFreeElectiveStudentDetail(unwrapData(response, null));
+}
+
+export async function updateFreeElectiveStudentGrade(
+    enrollmentId,
+    offeringEnrollmentId,
+    grade,
+) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/students/${enrollmentId}/offerings/${offeringEnrollmentId}/grade`,
+        {
+            method: 'PUT',
+            body: JSON.stringify({
+                grade: String(grade || '').trim(),
+                grade_source: 'manual',
+            }),
+        },
     );
     return mapFreeElectiveStudentDetail(unwrapData(response, null));
 }

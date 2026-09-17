@@ -18,6 +18,7 @@ var (
 	ErrFreeElectiveOfferingNotFound     = errors.New("free-elective offering not found")
 	ErrFreeElectiveOfferingLocked       = errors.New("free-elective offering is locked")
 	ErrFreeElectiveStudentGroupNotFound = errors.New("free-elective student group not found")
+	ErrFreeElectiveStudentNotFound      = errors.New("free-elective student not found")
 )
 
 type FreeElectiveValidationError struct {
@@ -367,9 +368,17 @@ func (s *FreeElectiveService) GetOfferingReadiness(ctx context.Context, claims *
 }
 
 func (s *FreeElectiveService) GetStudentDetail(ctx context.Context, claims *utils.Claims, enrollmentID uint64) (*models.FreeElectiveStudentDetail, error) {
+	detail, err := s.getScopedStudentDetail(ctx, claims, enrollmentID)
+	if err != nil {
+		return nil, err
+	}
+	return detail, nil
+}
+
+func (s *FreeElectiveService) getScopedStudentDetail(ctx context.Context, claims *utils.Claims, enrollmentID uint64) (*models.FreeElectiveStudentDetail, error) {
 	detail, err := s.Repo.GetStudentDetail(ctx, enrollmentID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrFreeElectiveStudentGroupNotFound
+		return nil, ErrFreeElectiveStudentNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -384,6 +393,122 @@ func (s *FreeElectiveService) GetStudentDetail(ctx context.Context, claims *util
 		return nil, ErrFreeElectiveForbidden
 	}
 	return detail, nil
+}
+
+func (s *FreeElectiveService) GetStudentAvailableOfferings(ctx context.Context, claims *utils.Claims, enrollmentID uint64) ([]*models.FreeElectiveOffering, error) {
+	if _, err := s.getScopedStudentDetail(ctx, claims, enrollmentID); err != nil {
+		return nil, err
+	}
+	return s.Repo.GetStudentAvailableOfferings(ctx, enrollmentID)
+}
+
+func (s *FreeElectiveService) AddStudentOffering(ctx context.Context, claims *utils.Claims, enrollmentID uint64, payload models.AddFreeElectiveStudentOfferingPayload) (*models.FreeElectiveStudentDetail, error) {
+	detail, err := s.getScopedStudentDetail(ctx, claims, enrollmentID)
+	if err != nil {
+		return nil, err
+	}
+	if payload.OfferingID == 0 {
+		return nil, FreeElectiveValidationError{Message: "offering_id is required"}
+	}
+	offering, err := s.Repo.GetOffering(ctx, payload.OfferingID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrFreeElectiveOfferingNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if offering.Status != "active" {
+		return nil, FreeElectiveConflictError{Code: "OFFERING_NOT_AVAILABLE", Message: "only an active offering can be added to a learner"}
+	}
+	err = s.Repo.AddOfferingEnrollments(ctx, payload.OfferingID, uint64(claims.UserID), []models.FreeElectiveEnrollmentInput{{
+		EnrollmentID:           detail.Student.EnrollmentID,
+		EnrollmentCurriculumID: detail.Student.EnrollmentCurriculumID,
+	}})
+	if errors.Is(err, repositories.ErrFreeElectiveOfferingLocked) {
+		return nil, ErrFreeElectiveOfferingLocked
+	}
+	if errors.Is(err, repositories.ErrFreeElectiveEnrollmentExists) {
+		return nil, FreeElectiveConflictError{Code: "LEARNER_ALREADY_ENROLLED", Message: "the learner is already enrolled in this offering"}
+	}
+	if errors.Is(err, repositories.ErrFreeElectiveCapacityExceeded) {
+		return nil, FreeElectiveConflictError{Code: "OFFERING_CAPACITY_REACHED", Message: "offering capacity has been reached"}
+	}
+	if errors.Is(err, repositories.ErrFreeElectiveEnrollmentInvalid) {
+		return nil, FreeElectiveValidationError{Message: "the learner and curriculum selection do not match"}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.Repo.GetStudentDetail(ctx, enrollmentID)
+}
+
+func (s *FreeElectiveService) UpdateStudentOfferingStatus(ctx context.Context, claims *utils.Claims, enrollmentID, offeringEnrollmentID uint64, payload models.UpdateFreeElectiveEnrollmentStatusPayload) (*models.FreeElectiveStudentDetail, error) {
+	if _, err := s.getScopedStudentDetail(ctx, claims, enrollmentID); err != nil {
+		return nil, err
+	}
+	status := strings.ToLower(strings.TrimSpace(payload.Status))
+	if status != "enrolled" && status != "withdrawn" {
+		return nil, FreeElectiveValidationError{Message: "status must be enrolled or withdrawn"}
+	}
+	target, err := s.Repo.GetStudentOfferingTarget(ctx, enrollmentID, offeringEnrollmentID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrFreeElectiveStudentNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if target.OfferingStatus == "finalized" || target.OfferingStatus == "cancelled" {
+		return nil, ErrFreeElectiveOfferingLocked
+	}
+	if target.Status == "completed" {
+		return nil, FreeElectiveConflictError{Code: "ENROLLMENT_STATUS_LOCKED", Message: "a completed enrollment cannot change status from the learner page"}
+	}
+	if err := s.Repo.UpdateStudentOfferingStatus(ctx, enrollmentID, offeringEnrollmentID, status); errors.Is(err, repositories.ErrFreeElectiveOfferingLocked) {
+		return nil, ErrFreeElectiveOfferingLocked
+	} else if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrFreeElectiveStudentNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	return s.Repo.GetStudentDetail(ctx, enrollmentID)
+}
+
+func (s *FreeElectiveService) UpdateStudentOfferingGrade(ctx context.Context, claims *utils.Claims, enrollmentID, offeringEnrollmentID uint64, payload models.UpsertFreeElectiveGradePayload) (*models.FreeElectiveStudentDetail, error) {
+	if _, err := s.getScopedStudentDetail(ctx, claims, enrollmentID); err != nil {
+		return nil, err
+	}
+	target, err := s.Repo.GetStudentOfferingTarget(ctx, enrollmentID, offeringEnrollmentID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrFreeElectiveStudentNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if target.Status == "withdrawn" {
+		return nil, FreeElectiveConflictError{Code: "WITHDRAWN_ENROLLMENT", Message: "restore the enrollment before editing its grade"}
+	}
+	if target.OfferingStatus == "finalized" || target.OfferingStatus == "cancelled" {
+		return nil, ErrFreeElectiveOfferingLocked
+	}
+	if err := validateFreeElectiveGrade(payload.Grade, target.GradeScheme); err != nil {
+		return nil, err
+	}
+	err = s.Repo.UpsertOfferingGrade(ctx, target.OfferingID, models.FreeElectiveGradeWrite{
+		OfferingEnrollmentID: offeringEnrollmentID,
+		Grade:                payload.Grade,
+		GradeSource:          "manual",
+		SourceReference:      nil,
+	}, uint64(claims.UserID))
+	if errors.Is(err, repositories.ErrFreeElectiveOfferingLocked) {
+		return nil, ErrFreeElectiveOfferingLocked
+	}
+	if errors.Is(err, repositories.ErrFreeElectiveGradeTargetNotFound) {
+		return nil, ErrFreeElectiveStudentNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.Repo.GetStudentDetail(ctx, enrollmentID)
 }
 
 func (s *FreeElectiveService) AddOfferingEnrollments(ctx context.Context, claims *utils.Claims, offeringID uint64, payload models.AddFreeElectiveEnrollmentsPayload) ([]models.FreeElectiveEnrollment, error) {

@@ -27,6 +27,9 @@ type FreeElectiveOffering struct {
 	CourseCode                  string     `json:"course_code"`
 	CourseNameTH                string     `json:"course_name_th"`
 	CourseNameEN                string     `json:"course_name_en,omitempty"`
+	FacultyID                   uint64     `json:"faculty_id"`
+	FacultyNameTH               string     `json:"faculty_name_th"`
+	FacultyNameEN               string     `json:"faculty_name_en,omitempty"`
 	GradeScheme                 string     `json:"grade_scheme"`
 	AcademicYearBE              uint64     `json:"academic_year_be"`
 	Semester                    uint64     `json:"semester"`
@@ -126,18 +129,19 @@ type FreeElectiveStudent struct {
 }
 
 type FreeElectiveStudentCourse struct {
-	OfferingID     uint64 `json:"offering_id"`
-	CourseCode     string `json:"course_code"`
-	CourseNameTH   string `json:"course_name_th"`
-	CourseNameEN   string `json:"course_name_en,omitempty"`
-	AcademicYearBE uint64 `json:"academic_year_be"`
-	Semester       uint64 `json:"semester"`
-	SectionNo      string `json:"section_no"`
-	GradeScheme    string `json:"grade_scheme"`
-	Grade          string `json:"grade,omitempty"`
-	GradeSource    string `json:"grade_source,omitempty"`
-	IsBestGrade    bool   `json:"is_best_grade"`
-	Status         string `json:"status"`
+	OfferingEnrollmentID uint64 `json:"offering_enrollment_id"`
+	OfferingID           uint64 `json:"offering_id"`
+	CourseCode           string `json:"course_code"`
+	CourseNameTH         string `json:"course_name_th"`
+	CourseNameEN         string `json:"course_name_en,omitempty"`
+	AcademicYearBE       uint64 `json:"academic_year_be"`
+	Semester             uint64 `json:"semester"`
+	SectionNo            string `json:"section_no"`
+	GradeScheme          string `json:"grade_scheme"`
+	Grade                string `json:"grade,omitempty"`
+	GradeSource          string `json:"grade_source,omitempty"`
+	IsBestGrade          bool   `json:"is_best_grade"`
+	Status               string `json:"status"`
 }
 
 type FreeElectiveStudentDetail struct {
@@ -203,6 +207,10 @@ type FreeElectiveEnrollmentInput struct {
 
 type UpdateFreeElectiveEnrollmentStatusPayload struct {
 	Status string `json:"status"`
+}
+
+type AddFreeElectiveStudentOfferingPayload struct {
+	OfferingID uint64 `json:"offering_id"`
 }
 
 type UpsertFreeElectiveGradePayload struct {
