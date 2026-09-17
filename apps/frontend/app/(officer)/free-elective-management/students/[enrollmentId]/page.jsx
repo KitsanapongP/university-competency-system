@@ -493,6 +493,7 @@ export default function FreeElectiveStudentDetailPage() {
             </section>
 
             <FreeElectiveStudentOfferingPicker
+                key={pickerOpen ? 'open' : 'closed'}
                 open={pickerOpen}
                 offerings={availableOfferings}
                 loading={availableLoading}

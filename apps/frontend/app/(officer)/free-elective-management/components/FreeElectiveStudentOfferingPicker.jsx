@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { BookOpen, Building2, Check, Search } from 'lucide-react';
 import BaseModal from '../../../../components/ui/BaseModal';
 import { formatFreeElectiveTerm, localizedFreeElective } from '../free-elective-labels';
@@ -15,13 +15,6 @@ export default function FreeElectiveStudentOfferingPicker({
 }) {
     const [search, setSearch] = useState('');
     const [selectedOfferingId, setSelectedOfferingId] = useState('');
-
-    useEffect(() => {
-        if (!open) {
-            setSearch('');
-            setSelectedOfferingId('');
-        }
-    }, [open]);
 
     const filteredOfferings = useMemo(() => {
         const term = search.trim().toLowerCase();
