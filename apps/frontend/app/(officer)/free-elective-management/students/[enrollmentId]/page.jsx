@@ -108,7 +108,7 @@ export default function FreeElectiveStudentDetailPage() {
     const { student } = detail;
 
     return (
-        <div className="free-elective-page officer-page">
+      <div className="free-elective-page officer-page ui-page">
             <button
                 type="button"
                 className="free-elective-back-button"
@@ -117,7 +117,7 @@ export default function FreeElectiveStudentDetailPage() {
                 <ArrowLeft size={16} aria-hidden="true" />
                 {labels.groups}
             </button>
-            <header className="free-elective-page__header officer-page__header">
+        <header className="free-elective-page__header officer-page__header ui-page__header">
                 <div>
                     <p className="free-elective-page__eyebrow">
                         <UserRound size={15} aria-hidden="true" />

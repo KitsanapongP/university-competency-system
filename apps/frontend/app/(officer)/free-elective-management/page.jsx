@@ -229,8 +229,8 @@ function FreeElectiveManagementPageContent() {
     const impact = impactConfirmation?.impact;
 
     return (
-        <div className="free-elective-page officer-page">
-            <header className="free-elective-page__header officer-page__header">
+    <div className="free-elective-page officer-page ui-page">
+      <header className="free-elective-page__header officer-page__header ui-page__header">
                 <div>
                     <p className="free-elective-page__eyebrow">
                         <BookOpen size={15} aria-hidden="true" />

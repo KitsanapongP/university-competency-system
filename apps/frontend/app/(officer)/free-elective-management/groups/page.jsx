@@ -143,7 +143,7 @@ function FreeElectiveGroupsPageContent() {
     };
 
     return (
-        <div className="free-elective-page officer-page">
+    <div className="free-elective-page officer-page ui-page">
             <button
                 type="button"
                 className="free-elective-back-button"
@@ -152,7 +152,7 @@ function FreeElectiveGroupsPageContent() {
                 <ArrowLeft size={16} aria-hidden="true" />
                 {labels.back}
             </button>
-            <header className="free-elective-page__header officer-page__header">
+      <header className="free-elective-page__header officer-page__header ui-page__header">
                 <div>
                     <p className="free-elective-page__eyebrow">
                         <Users size={15} aria-hidden="true" />

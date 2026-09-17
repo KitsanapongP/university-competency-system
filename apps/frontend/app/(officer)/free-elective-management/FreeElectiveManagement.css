@@ -1427,3 +1427,276 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
+
+/* Curriculum/Template visual tokens */
+.free-elective-page {
+    padding-inline: var(--ui-page-padding-inline);
+    background: var(--ui-page-bg);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+}
+
+.free-elective-page__header,
+.free-elective-detail-header {
+    border-color: var(--ui-border);
+}
+
+.free-elective-page__eyebrow,
+.free-elective-eyebrow,
+.free-elective-code {
+    color: var(--ui-primary-hover);
+}
+
+.free-elective-page__title {
+    color: var(--ui-title);
+}
+
+.dark .free-elective-page__title {
+    color: var(--ui-title);
+}
+
+.free-elective-page__subtitle,
+.free-elective-panel__heading p,
+.free-elective-field > span:first-child,
+.free-elective-field__hint,
+.free-elective-offering-card__header p:last-child,
+.free-elective-course-card__header p:last-child,
+.free-elective-metric span,
+.free-elective-detail-list span,
+.free-elective-table__secondary,
+.free-elective-loading,
+.free-elective-empty,
+.free-elective-notice,
+.free-elective-group-card__meta,
+.free-elective-group-student-identity span,
+.free-elective-student-detail-count span,
+.free-elective-term-group__heading span,
+.free-elective-student-course-row,
+.free-elective-student-course-row > div span,
+.free-elective-grade-history-chip,
+.free-elective-readiness-message,
+.free-elective-readiness-message span {
+    color: var(--ui-text-muted);
+}
+
+.free-elective-panel,
+.free-elective-offering-card,
+.free-elective-course-card,
+.free-elective-group-card,
+.free-elective-modal,
+.free-elective-picker,
+.free-elective-import {
+    border-color: var(--ui-border-strong);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface);
+    box-shadow: var(--ui-shadow);
+}
+
+.free-elective-panel__heading,
+.free-elective-panel__footer,
+.free-elective-offering-card__header,
+.free-elective-course-card__header,
+.free-elective-offering-card__footer,
+.free-elective-course-card__footer,
+.free-elective-group-card__footer,
+.free-elective-student-course-list__header,
+.free-elective-student-course-row,
+.free-elective-modal-actions {
+    border-color: var(--ui-border);
+}
+
+.free-elective-panel__heading h2,
+.free-elective-offering-card h2,
+.free-elective-course-card h2,
+.free-elective-metric strong,
+.free-elective-detail-list strong,
+.free-elective-group-card strong,
+.free-elective-group-student-identity strong,
+.free-elective-student-course-row > div strong,
+.free-elective-grade-value,
+.free-elective-impact-list strong {
+    color: var(--ui-text);
+}
+
+.free-elective-filters,
+.free-elective-offering-card__body,
+.free-elective-course-card__body,
+.free-elective-group-card__body,
+.free-elective-term-group__heading,
+.free-elective-student-course-list__header,
+.free-elective-impact-list div,
+.free-elective-student-detail-count {
+    background: var(--ui-surface-raised);
+}
+
+.free-elective-field,
+.free-elective-checkbox {
+    color: var(--ui-text);
+}
+
+.free-elective-field input,
+.free-elective-field select,
+.free-elective-field textarea,
+.free-elective-number-input,
+.free-elective-grade-select,
+.free-elective-search-field input,
+.free-elective-file-input {
+    border-color: var(--ui-border);
+    border-radius: var(--ui-radius-control);
+    color: var(--ui-text);
+    background: var(--ui-surface-raised);
+    font-family: var(--ui-font);
+}
+
+.free-elective-field input:focus,
+.free-elective-field select:focus,
+.free-elective-field textarea:focus,
+.free-elective-number-input:focus,
+.free-elective-grade-select:focus,
+.free-elective-search-field input:focus {
+    outline: 0;
+    border-color: var(--ui-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 18%, transparent);
+}
+
+.free-elective-field input::placeholder,
+.free-elective-field textarea::placeholder,
+.free-elective-search-field input::placeholder {
+    color: var(--ui-text-muted);
+}
+
+.free-elective-checkbox input {
+    accent-color: var(--ui-primary);
+}
+
+.free-elective-button {
+    border-radius: var(--ui-radius-control);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+}
+
+.free-elective-button--primary {
+    background: var(--ui-primary);
+}
+
+.free-elective-button--primary:hover:not(:disabled) {
+    background: var(--ui-primary-hover);
+}
+
+.free-elective-button--secondary {
+    border-color: var(--ui-border);
+    color: var(--ui-text);
+    background: var(--ui-surface);
+}
+
+.free-elective-button--secondary:hover:not(:disabled) {
+    border-color: var(--ui-primary);
+    color: var(--ui-primary-hover);
+}
+
+.free-elective-button--quiet {
+    border-color: var(--ui-border);
+    color: var(--ui-text-muted);
+}
+
+.free-elective-view-tabs {
+    border-color: var(--ui-border);
+}
+
+.free-elective-view-tab {
+    color: var(--ui-text-muted);
+    font-family: var(--ui-font);
+}
+
+.free-elective-view-tab:hover,
+.free-elective-view-tab--active {
+    color: var(--ui-primary-hover);
+}
+
+.free-elective-view-tab--active {
+    border-bottom-color: var(--ui-primary);
+}
+
+.free-elective-offering-card:hover,
+.free-elective-course-card:hover,
+.free-elective-group-card:hover {
+    border-color: var(--ui-primary);
+}
+
+.free-elective-offering-card__icon,
+.free-elective-course-card__icon {
+    color: var(--ui-icon);
+    background: var(--ui-primary-soft);
+}
+
+.free-elective-status--draft {
+    color: var(--ui-warning);
+    background: color-mix(in srgb, var(--ui-warning) 16%, transparent);
+}
+
+.free-elective-status--active,
+.free-elective-status--enrolled {
+    color: var(--ui-success);
+    background: color-mix(in srgb, var(--ui-success) 16%, transparent);
+}
+
+.free-elective-status--finalized,
+.free-elective-status--completed {
+    color: var(--ui-primary-hover);
+    background: color-mix(in srgb, var(--ui-primary) 16%, transparent);
+}
+
+.free-elective-status--cancelled,
+.free-elective-status--withdrawn {
+    color: var(--ui-danger);
+    background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
+}
+
+.free-elective-table,
+.free-elective-grade-table {
+    color: var(--ui-text);
+}
+
+.free-elective-table th,
+.free-elective-grade-table th {
+    color: var(--ui-text-muted);
+    background: var(--ui-surface-raised);
+}
+
+.free-elective-table td,
+.free-elective-grade-table td {
+    border-color: var(--ui-border);
+    color: var(--ui-text);
+}
+
+.free-elective-table tr:hover td,
+.free-elective-grade-table tr:hover td {
+    background: var(--ui-hover);
+}
+
+.free-elective-notice {
+    border-left-color: var(--ui-primary);
+    background: var(--ui-primary-soft);
+}
+
+.free-elective-summary-chips span,
+.free-elective-group-card__icon,
+.free-elective-student-detail-count {
+    border-color: var(--ui-border);
+    color: var(--ui-text-muted);
+    background: var(--ui-surface-raised);
+}
+
+.free-elective-student-detail-count strong,
+.free-elective-metric__accent {
+    color: var(--ui-primary-hover) !important;
+}
+
+.free-elective-term-group,
+.free-elective-group-student-row {
+    border-color: var(--ui-border);
+}
+
+.free-elective-modal-actions {
+    border-top-color: var(--ui-border);
+}
