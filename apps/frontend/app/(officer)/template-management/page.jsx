@@ -2045,12 +2045,14 @@ export default function TemplateManagementPage() {
   // ── List View ──
   if (view === "list") {
     return (
-      <div className="tm-page">
+      <div className="tm-page officer-page ui-page">
         {/* Header */}
-        <div className="tm-header">
-          <div>
-            <h1 className="tm-header__title">จัดการแบบแผนการประเมิน</h1>
-            <p className="tpl-list-view__sub">
+        <div className="tm-header officer-page__header ui-page__header">
+          <div className="officer-page__heading ui-page__heading">
+            <h1 className="tm-header__title officer-page__title ui-page__title">
+              จัดการแบบแผนการประเมิน
+            </h1>
+            <p className="tpl-list-view__sub officer-page__subtitle ui-page__subtitle">
               เลือกแบบแผนการประเมินที่ต้องการแก้ไข หรือสร้างแบบแผนใหม่
             </p>
           </div>
@@ -2181,7 +2183,7 @@ export default function TemplateManagementPage() {
 
   // ── Editor View ──
   return (
-    <div className="tm-page tm-page--editor">
+    <div className="tm-page tm-page--editor officer-page ui-page">
       <div className="editor-topbar">
         <div className="editor-topbar__main">
           <button

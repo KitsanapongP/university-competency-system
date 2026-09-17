@@ -1848,12 +1848,14 @@ export default function CurriculumManagementPage() {
 
       {/* หน้าแรก รวมหลักสูตรทั้งหมด */}
       {view === "list" ? (
-        <div className="course-list-page">
+        <div className="course-list-page officer-page ui-page">
           {/* Header */}
-          <div className="course-list-header">
-            <div className="course-list-header__left">
-              <h1 className="course-list-header__title">จัดการหลักสูตร</h1>
-              <p className="course-list-header__subtitle">
+          <div className="course-list-header officer-page__header ui-page__header">
+            <div className="course-list-header__left officer-page__heading ui-page__heading">
+              <h1 className="course-list-header__title officer-page__title ui-page__title">
+                จัดการหลักสูตร
+              </h1>
+              <p className="course-list-header__subtitle officer-page__subtitle ui-page__subtitle">
                 สร้างและจัดการหลักสูตรสำหรับนักศึกษา
               </p>
             </div>
@@ -1945,7 +1947,7 @@ export default function CurriculumManagementPage() {
           )}
         </div>
       ) : view === "editor" && selectedCourse ? (
-        <div className="course-editor-page">
+        <div className="course-editor-page officer-page ui-page">
           {/* Editor View */}
           {/* หน้ารายละเอียดหลักสูตร */}
           <div className="course-editor-header">

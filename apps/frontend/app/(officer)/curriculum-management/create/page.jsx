@@ -1496,8 +1496,8 @@ function Step2({
               </div>
               {deleteCategoryPreview.moveTarget ? (
                 <div>
-                  รายวิชาจะถูกย้ายไปที่ "{deleteCategoryPreview.moveTarget.code}{" "}
-                  {deleteCategoryPreview.moveTarget.name || "ยังไม่ตั้งชื่อ"}"
+                  รายวิชาจะถูกย้ายไปที่ &quot;{deleteCategoryPreview.moveTarget.code}{" "}
+                  {deleteCategoryPreview.moveTarget.name || "ยังไม่ตั้งชื่อ"}&quot;
                 </div>
               ) : (
                 <div>
@@ -1899,7 +1899,7 @@ function CreateCoursePageContent() {
   };
 
   return (
-    <div className="course-create-page">
+    <div className="course-create-page officer-page ui-page">
       <div
         className={`course-create-container ${step === 2 ? "course-create-container--wide" : ""}`}
       >
@@ -2031,7 +2031,13 @@ function CreateCoursePageContent() {
 
 export default function CreateCoursePage() {
   return (
-    <Suspense fallback={<div className="course-create-page">กำลังโหลด...</div>}>
+    <Suspense
+      fallback={
+        <div className="course-create-page officer-page ui-page">
+          กำลังโหลด...
+        </div>
+      }
+    >
       <CreateCoursePageContent />
     </Suspense>
   );

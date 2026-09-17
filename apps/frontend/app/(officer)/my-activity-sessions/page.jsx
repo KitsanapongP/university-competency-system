@@ -28,11 +28,13 @@ export default function MyActivitySessionsPage() {
   }, []);
 
   return (
-    <div className="activity-management-page ui-page">
-      <div className="course-list-header ui-page__header">
-        <div className="course-list-header__left">
-          <h1 className="course-list-header__title">รอบกิจกรรมของฉัน</h1>
-          <p className="course-list-header__subtitle">
+    <div className="activity-management-page officer-page ui-page">
+      <div className="course-list-header officer-page__header ui-page__header">
+        <div className="course-list-header__left officer-page__heading ui-page__heading">
+          <h1 className="course-list-header__title officer-page__title ui-page__title">
+            รอบกิจกรรมของฉัน
+          </h1>
+          <p className="course-list-header__subtitle officer-page__subtitle ui-page__subtitle">
             รอบกิจกรรมที่ได้รับมอบหมายให้เช็กชื่อ ให้คะแนน หรือยืนยันผล
           </p>
         </div>
