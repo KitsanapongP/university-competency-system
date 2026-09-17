@@ -242,6 +242,153 @@ export function mapFreeElectiveStudentDetail(item) {
     };
 }
 
+export function mapFreeElectiveRoundCourse(item) {
+    if (!item) {
+        return null;
+    }
+
+    return {
+        id: item.round_course_id,
+        roundCourseId: item.round_course_id,
+        roundId: item.round_id,
+        freeElectiveCourseId: item.free_elective_course_id,
+        courseCode: item.course_code || '',
+        courseNameTh: item.course_name_th || '',
+        courseNameEn: item.course_name_en || '',
+        description: item.description || '',
+        credits: toNumber(item.credits),
+        gradeScheme: item.grade_scheme || 'letter',
+        displayOrder: toNumber(item.display_order),
+        studentCount: toNumber(item.student_count),
+        gradedStudentCount: toNumber(item.graded_student_count),
+        competencies: (item.competencies || []).map((competency) => ({
+            id: competency.round_course_competency_id,
+            roundCourseCompetencyId: competency.round_course_competency_id,
+            roundCourseId: competency.round_course_id,
+            competencyId: competency.competency_id,
+            code: competency.code || '',
+            nameTh: competency.name_th || '',
+            nameEn: competency.name_en || '',
+            weightPercent: toNumber(competency.weight_percent),
+            displayOrder: toNumber(competency.display_order),
+        })),
+        createdAt: item.created_at,
+        updatedAt: item.updated_at,
+    };
+}
+
+export function mapFreeElectiveRound(item) {
+    if (!item) {
+        return null;
+    }
+
+    return {
+        id: item.round_id,
+        roundId: item.round_id,
+        facultyId: item.faculty_id,
+        facultyNameTh: item.faculty_name_th || '',
+        facultyNameEn: item.faculty_name_en || '',
+        academicYearBE: toNumber(item.academic_year_be),
+        semester: toNumber(item.semester),
+        status: item.status || 'draft',
+        scoresRecalculationRequired: item.scores_recalculation_required ?? false,
+        finalizedAt: item.finalized_at || null,
+        courseCount: toNumber(item.course_count),
+        learnerCount: toNumber(item.learner_count),
+        gradeCount: toNumber(item.grade_count),
+        createdAt: item.created_at,
+        updatedAt: item.updated_at,
+    };
+}
+
+export function mapFreeElectiveRoundDetail(item) {
+    return {
+        round: mapFreeElectiveRound(item?.round),
+        courses: (item?.courses || []).map(mapFreeElectiveRoundCourse),
+    };
+}
+
+function roundCoursePayload(course) {
+    return {
+        round_course_id: toNumber(course.roundCourseId || course.id),
+        free_elective_course_id: toNumber(
+            course.freeElectiveCourseId || course.free_elective_course_id,
+        ),
+        course_code: String(course.courseCode || '').trim(),
+        course_name_th: String(course.courseNameTh || '').trim(),
+        course_name_en: toNullableString(course.courseNameEn),
+        description: toNullableString(course.description),
+        credits: toNumber(course.credits),
+        grade_scheme: course.gradeScheme || '',
+        competencies: (course.competencies || []).map((item) => ({
+            competency_id: toNumber(item.competencyId),
+            weight_percent: toNumber(item.weightPercent),
+        })),
+    };
+}
+
+function roundPayload(form) {
+    return {
+        faculty_id: toNumber(form.facultyId),
+        academic_year_be: toNumber(form.academicYearBE),
+        semester: toNumber(form.semester),
+        courses: (form.courses || []).map(roundCoursePayload),
+    };
+}
+
+export async function fetchFreeElectiveRounds(filters = {}) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds${buildQuery(filters)}`,
+    );
+    return unwrapData(response, []).map(mapFreeElectiveRound);
+}
+
+export async function fetchFreeElectiveRound(roundId) {
+    const response = await apiFetch(`/api/v1/free-electives/rounds/${roundId}`);
+    return mapFreeElectiveRoundDetail(unwrapData(response, null));
+}
+
+export async function previewFreeElectiveRound(form) {
+    const response = await apiFetch('/api/v1/free-electives/rounds/preview', {
+        method: 'POST',
+        body: JSON.stringify(roundPayload(form)),
+    });
+    return unwrapData(response, null);
+}
+
+export async function createFreeElectiveRound(form) {
+    const response = await apiFetch('/api/v1/free-electives/rounds', {
+        method: 'POST',
+        body: JSON.stringify(roundPayload(form)),
+    });
+    return mapFreeElectiveRoundDetail(unwrapData(response, null));
+}
+
+export async function duplicateFreeElectiveRound(roundId, form) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/duplicate`,
+        {
+            method: 'POST',
+            body: JSON.stringify({
+                academic_year_be: toNumber(form.academicYearBE),
+                semester: toNumber(form.semester),
+            }),
+        },
+    );
+    return mapFreeElectiveRoundDetail(unwrapData(response, null));
+}
+
+export async function updateFreeElectiveRoundStatus(roundId, status) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/status`,
+        {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
+        },
+    );
+    return mapFreeElectiveRoundDetail(unwrapData(response, null));
+}
+
 function coursePayload(form, confirmImpact = false) {
     return {
         faculty_id: toNumber(form.facultyId),

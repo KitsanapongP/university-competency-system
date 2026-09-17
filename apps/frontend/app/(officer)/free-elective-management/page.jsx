@@ -5,13 +5,15 @@ import { ExternalLink, Plus, RefreshCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../providers/auth-provider';
 import { useLanguage } from '../../../providers/LanguageContext';
+import { fetchCompetenciesForManagement } from '../../../lib/competency-management';
 import { fetchFaculties } from '../../../lib/curriculum';
 import {
     createFreeElectiveCourse,
-    createFreeElectiveOffering,
+    createFreeElectiveRound,
     fetchFreeElectiveCourses,
-    fetchFreeElectiveOfferings,
+    fetchFreeElectiveRounds,
     getFreeElectiveImpactFromError,
+    previewFreeElectiveRound,
     updateFreeElectiveCourse,
 } from '../../../lib/free-elective';
 import ConfirmActionModal from '../../../components/ui/ConfirmActionModal';
@@ -19,8 +21,8 @@ import ToastNotifications from '../../../components/ui/ToastNotifications';
 import FreeElectiveCourseCard from './components/FreeElectiveCourseCard';
 import FreeElectiveCourseModal from './components/FreeElectiveCourseModal';
 import FreeElectiveFilters from './components/FreeElectiveFilters';
-import FreeElectiveOfferingCard from './components/FreeElectiveOfferingCard';
-import FreeElectiveOfferingModal from './components/FreeElectiveOfferingModal';
+import FreeElectiveRoundCard from './components/FreeElectiveRoundCard';
+import FreeElectiveRoundWizard from './components/FreeElectiveRoundWizard';
 import { FREE_ELECTIVE_LABELS, freeElectiveText } from './free-elective-labels';
 import '../curriculum-management/CourseLayout.css';
 import './FreeElectiveManagement.css';
@@ -54,7 +56,6 @@ function FreeElectiveManagementPageContent() {
     );
     const isAdmin = user?.roles?.includes('admin');
     const accountFacultyId = getDefaultFacultyId(user);
-    const view = searchParams.get('view') === 'courses' ? 'courses' : 'offerings';
     const selectedFacultyId = isAdmin
         ? searchParams.get('faculty_id') || ''
         : accountFacultyId;
@@ -64,17 +65,21 @@ function FreeElectiveManagementPageContent() {
 
     const [faculties, setFaculties] = useState([]);
     const [courses, setCourses] = useState([]);
-    const [offerings, setOfferings] = useState([]);
+    const [competencies, setCompetencies] = useState([]);
+    const [rounds, setRounds] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [catalogLoading, setCatalogLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [courseCatalogOpen, setCourseCatalogOpen] = useState(false);
+    const [roundWizardOpen, setRoundWizardOpen] = useState(false);
     const [courseModalOpen, setCourseModalOpen] = useState(false);
-    const [offeringModalOpen, setOfferingModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState(null);
     const [impactConfirmation, setImpactConfirmation] = useState(null);
+    const wizardFacultyId = selectedFacultyId || accountFacultyId || faculties[0]?.facultyId || '';
 
-    const loadData = useCallback(async () => {
+    const loadRounds = useCallback(async () => {
         if (!user) {
             return;
         }
@@ -85,10 +90,9 @@ function FreeElectiveManagementPageContent() {
             const facultyFilter = selectedFacultyId
                 ? { facultyId: selectedFacultyId }
                 : {};
-            const [nextFaculties, nextCourses, nextOfferings] = await Promise.all([
+            const [nextFaculties, nextRounds] = await Promise.all([
                 fetchFaculties(),
-                fetchFreeElectiveCourses(facultyFilter),
-                fetchFreeElectiveOfferings({
+                fetchFreeElectiveRounds({
                     ...facultyFilter,
                     academicYearBE: selectedYear,
                     semester: selectedSemester,
@@ -96,26 +100,60 @@ function FreeElectiveManagementPageContent() {
                 }),
             ]);
             setFaculties(nextFaculties);
-            setCourses(nextCourses);
-            setOfferings(nextOfferings);
+            setRounds(nextRounds);
         } catch (loadError) {
-            setError(loadError.message || labels.loadError);
+            setError(loadError.message || labels.roundLoadError);
         } finally {
             setLoading(false);
         }
-    }, [labels.loadError, selectedFacultyId, selectedSemester, selectedStatus, selectedYear, user]);
+    }, [
+        labels.roundLoadError,
+        selectedFacultyId,
+        selectedSemester,
+        selectedStatus,
+        selectedYear,
+        user,
+    ]);
+
+    const loadCourseCatalog = useCallback(async (force = false) => {
+        if (!user || (!force && courses.length > 0) || catalogLoading) {
+            return;
+        }
+        setCatalogLoading(true);
+        try {
+            const facultyFilter = selectedFacultyId
+                ? { facultyId: selectedFacultyId }
+                : {};
+            const [nextCourses, nextCompetencies] = await Promise.all([
+                fetchFreeElectiveCourses(facultyFilter),
+                fetchCompetenciesForManagement(),
+            ]);
+            setCourses(nextCourses);
+            setCompetencies(nextCompetencies);
+        } catch (loadError) {
+            setError(loadError.message || labels.loadError);
+        } finally {
+            setCatalogLoading(false);
+        }
+    }, [catalogLoading, courses.length, labels.loadError, selectedFacultyId, user]);
 
     useEffect(() => {
         if (!authLoading && user) {
-            loadData();
+            loadRounds();
         }
-    }, [authLoading, loadData, user]);
+    }, [authLoading, loadRounds, user]);
 
-    const availableYears = useMemo(() => {
-        return Array.from(
-            new Set(offerings.map((offering) => offering.academicYearBE).filter(Boolean)),
-        ).sort((left, right) => right - left);
-    }, [offerings]);
+    useEffect(() => {
+        if (roundWizardOpen || courseCatalogOpen) {
+            loadCourseCatalog();
+        }
+    }, [courseCatalogOpen, loadCourseCatalog, roundWizardOpen]);
+
+    const availableYears = useMemo(() => (
+        Array.from(
+            new Set(rounds.map((round) => round.academicYearBE).filter(Boolean)),
+        ).sort((left, right) => right - left)
+    ), [rounds]);
 
     const setQueryValue = (key, value) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -125,11 +163,9 @@ function FreeElectiveManagementPageContent() {
             params.set(key, String(value));
         }
         const query = params.toString();
-        router.replace(`/free-elective-management${query ? `?${query}` : ''}`, { scroll: false });
-    };
-
-    const handleViewChange = (nextView) => {
-        setQueryValue('view', nextView === 'offerings' ? '' : nextView);
+        router.replace(`/free-elective-management${query ? `?${query}` : ''}`, {
+            scroll: false,
+        });
     };
 
     const handleFilterChange = (key, value) => {
@@ -140,6 +176,10 @@ function FreeElectiveManagementPageContent() {
             status: 'status',
         }[key];
         setQueryValue(queryKey, value);
+    };
+
+    const openCourseCatalog = () => {
+        setCourseCatalogOpen((current) => !current);
     };
 
     const openCreateCourse = () => {
@@ -165,7 +205,8 @@ function FreeElectiveManagementPageContent() {
             }
             setCourseModalOpen(false);
             setEditingCourse(null);
-            await loadData();
+            setCourses([]);
+            await loadCourseCatalog(true);
         } catch (saveError) {
             const impact = getFreeElectiveImpactFromError(saveError);
             if (saveError.code === 'GRADE_SCHEME_CHANGE_REQUIRES_CONFIRMATION' && impact) {
@@ -195,7 +236,8 @@ function FreeElectiveManagementPageContent() {
             setCourseModalOpen(false);
             setEditingCourse(null);
             setSuccess(labels.saveSuccess);
-            await loadData();
+            setCourses([]);
+            await loadCourseCatalog(true);
         } catch (saveError) {
             setError(saveError.message || labels.loadError);
         } finally {
@@ -203,14 +245,22 @@ function FreeElectiveManagementPageContent() {
         }
     };
 
-    const handleOfferingSubmit = async (form) => {
+    const handleRoundPreview = async (form) => {
+        const result = await previewFreeElectiveRound(form);
+        if (!result) {
+            throw new Error(labels.roundLoadError);
+        }
+        return result;
+    };
+
+    const handleRoundSubmit = async (form) => {
         setSaving(true);
         setError('');
         try {
-            await createFreeElectiveOffering(form);
-            setOfferingModalOpen(false);
-            setSuccess(labels.offeringCreated);
-            await loadData();
+            await createFreeElectiveRound(form);
+            setRoundWizardOpen(false);
+            setSuccess(labels.roundCreated);
+            await loadRounds();
         } catch (saveError) {
             setError(saveError.message || labels.loadError);
         } finally {
@@ -218,8 +268,8 @@ function FreeElectiveManagementPageContent() {
         }
     };
 
-    const goToOffering = (offeringId) => {
-        router.push(`/free-elective-management/offerings/${offeringId}`);
+    const goToRound = (roundId) => {
+        router.push(`/free-elective-management/rounds/${roundId}`);
     };
 
     const goToGroups = () => {
@@ -229,17 +279,24 @@ function FreeElectiveManagementPageContent() {
     const impact = impactConfirmation?.impact;
 
     return (
-    <div className="free-elective-page officer-page ui-page">
-      <header className="free-elective-page__header officer-page__header ui-page__header">
+        <div className="free-elective-page officer-page ui-page">
+            <header className="free-elective-page__header officer-page__header ui-page__header">
                 <div>
-                    <h1 className="free-elective-page__title officer-page__title">{labels.title}</h1>
-                    <p className="free-elective-page__subtitle officer-page__subtitle">{labels.subtitle}</p>
+                    <p className="free-elective-page__eyebrow free-elective-eyebrow">
+                        {labels.round}
+                    </p>
+                    <h1 className="free-elective-page__title officer-page__title">
+                        {labels.roundTitle}
+                    </h1>
+                    <p className="free-elective-page__subtitle officer-page__subtitle">
+                        {labels.roundSubtitle}
+                    </p>
                 </div>
                 <div className="free-elective-page__actions officer-page__actions">
                     <button
                         type="button"
                         className="free-elective-button free-elective-button--secondary"
-                        onClick={loadData}
+                        onClick={loadRounds}
                         disabled={loading}
                         title={labels.refresh}
                     >
@@ -257,98 +314,108 @@ function FreeElectiveManagementPageContent() {
                     <button
                         type="button"
                         className="free-elective-button free-elective-button--primary"
-                        onClick={view === 'courses' ? openCreateCourse : () => setOfferingModalOpen(true)}
+                        onClick={() => setRoundWizardOpen(true)}
                     >
                         <Plus size={17} aria-hidden="true" />
-                        {view === 'courses' ? labels.addCourse : labels.addOffering}
+                        {labels.createRound}
                     </button>
                 </div>
             </header>
 
-            <nav className="free-elective-view-tabs" aria-label={labels.title}>
-                <button
-                    type="button"
-                    className={`free-elective-view-tab ${view === 'offerings' ? 'free-elective-view-tab--active' : ''}`}
-                    onClick={() => handleViewChange('offerings')}
-                    aria-current={view === 'offerings' ? 'page' : undefined}
-                >
-                    {labels.offerings}
-                </button>
-                <button
-                    type="button"
-                    className={`free-elective-view-tab ${view === 'courses' ? 'free-elective-view-tab--active' : ''}`}
-                    onClick={() => handleViewChange('courses')}
-                    aria-current={view === 'courses' ? 'page' : undefined}
-                >
-                    {labels.courses}
-                </button>
-            </nav>
+            <FreeElectiveFilters
+                language={language}
+                faculties={faculties}
+                isAdmin={isAdmin}
+                titleKey="roundFilters"
+                values={{
+                    facultyId: selectedFacultyId,
+                    academicYearBE: selectedYear,
+                    semester: selectedSemester,
+                    status: selectedStatus,
+                    availableYears,
+                }}
+                onChange={handleFilterChange}
+            />
 
-            {view === 'offerings' && (
-                <>
-                    <FreeElectiveFilters
-                        language={language}
-                        faculties={faculties}
-                        isAdmin={isAdmin}
-                        values={{
-                            facultyId: selectedFacultyId,
-                            academicYearBE: selectedYear,
-                            semester: selectedSemester,
-                            status: selectedStatus,
-                            availableYears,
-                        }}
-                        onChange={handleFilterChange}
-                    />
-                    {loading ? (
-                        <div className="free-elective-loading" role="status">
-                            {labels.loading}
-                        </div>
-                    ) : offerings.length ? (
-                        <div className="free-elective-offering-grid">
-                            {offerings.map((offering) => (
-                                <FreeElectiveOfferingCard
-                                    key={offering.id}
-                                    offering={offering}
-                                    language={language}
-                                    onManage={goToOffering}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="free-elective-empty">{labels.noOfferings}</div>
-                    )}
-                </>
+            {loading ? (
+                <div className="free-elective-loading" role="status">
+                    {labels.loading}
+                </div>
+            ) : rounds.length ? (
+                <div className="free-elective-round-grid">
+                    {rounds.map((round) => (
+                        <FreeElectiveRoundCard
+                            key={round.id}
+                            round={round}
+                            language={language}
+                            onManage={goToRound}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <div className="free-elective-empty">{labels.noOfferings}</div>
             )}
 
-            {view === 'courses' && (
-                <section className="free-elective-panel">
-                    <div className="free-elective-panel__heading">
-                        <div>
-                            <h2>{labels.courses}</h2>
-                            <p>{courses.length} {labels.records}</p>
-                        </div>
+            <section className="free-elective-panel free-elective-course-catalog-panel">
+                <div className="free-elective-panel__heading">
+                    <div>
+                        <h2>{labels.courses}</h2>
+                        <p>{labels.roundCardHint}</p>
                     </div>
-                    {loading ? (
-                        <div className="free-elective-loading" role="status">
-                            {labels.loading}
-                        </div>
-                    ) : courses.length ? (
-                        <div className="free-elective-course-grid free-elective-panel__content">
-                            {courses.map((course) => (
-                                <FreeElectiveCourseCard
-                                    key={course.id}
-                                    course={course}
-                                    language={language}
-                                    onEdit={openEditCourse}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="free-elective-empty free-elective-panel__content">{labels.noCourses}</div>
-                    )}
-                </section>
-            )}
+                    <div className="free-elective-inline-actions">
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--secondary"
+                            onClick={openCourseCatalog}
+                        >
+                            {courseCatalogOpen ? labels.close : labels.view}
+                        </button>
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--quiet"
+                            onClick={openCreateCourse}
+                        >
+                            <Plus size={15} aria-hidden="true" />
+                            {labels.addCourse}
+                        </button>
+                    </div>
+                </div>
+                {courseCatalogOpen && (
+                    <div className="free-elective-panel__content">
+                        {catalogLoading ? (
+                            <div className="free-elective-loading" role="status">
+                                {labels.loading}
+                            </div>
+                        ) : courses.length ? (
+                            <div className="free-elective-course-grid">
+                                {courses.map((course) => (
+                                    <FreeElectiveCourseCard
+                                        key={course.id}
+                                        course={course}
+                                        language={language}
+                                        onEdit={openEditCourse}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="free-elective-empty">{labels.noCourses}</div>
+                        )}
+                    </div>
+                )}
+            </section>
 
+            <FreeElectiveRoundWizard
+                open={roundWizardOpen}
+                language={language}
+                labels={labels}
+                courses={courses.filter((course) => course.isActive)}
+                competencies={competencies.filter((competency) => competency.isActive)}
+                facultyId={wizardFacultyId}
+                saving={saving}
+                onClose={() => setRoundWizardOpen(false)}
+                onPreview={handleRoundPreview}
+                onSubmit={handleRoundSubmit}
+            />
             <FreeElectiveCourseModal
                 key={`${editingCourse?.id || 'new'}-${courseModalOpen ? 'open' : 'closed'}`}
                 open={courseModalOpen}
@@ -363,16 +430,6 @@ function FreeElectiveManagementPageContent() {
                     setEditingCourse(null);
                 }}
                 onSubmit={handleCourseSubmit}
-            />
-            <FreeElectiveOfferingModal
-                key={`${courses[0]?.id || 'empty'}-${offeringModalOpen ? 'open' : 'closed'}`}
-                open={offeringModalOpen}
-                courses={courses.filter((course) => course.isActive)}
-                language={language}
-                labels={labels}
-                saving={saving}
-                onClose={() => setOfferingModalOpen(false)}
-                onSubmit={handleOfferingSubmit}
             />
             <ConfirmActionModal
                 open={Boolean(impactConfirmation)}

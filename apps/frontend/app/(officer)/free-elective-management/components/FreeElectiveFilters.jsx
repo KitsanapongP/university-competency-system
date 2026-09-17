@@ -7,6 +7,7 @@ export default function FreeElectiveFilters({
     language,
     faculties,
     isAdmin,
+    titleKey = 'filterTitle',
     values,
     onChange,
 }) {
@@ -21,7 +22,7 @@ export default function FreeElectiveFilters({
                         className="free-elective-eyebrow"
                     >
                         <Filter size={15} aria-hidden="true" />
-                        {label('filterTitle')}
+                        {label(titleKey)}
                     </p>
                 </div>
             </div>
