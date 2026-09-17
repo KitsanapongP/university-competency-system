@@ -495,10 +495,121 @@ export const FREE_ELECTIVE_LABELS = {
     },
 };
 
+const FREE_ELECTIVE_ROUND_MANAGEMENT_LABELS = {
+    th: {
+        roundDetailTitle: 'รายละเอียดรอบเปิดสอน',
+        roundDetailSubtitle: 'จัดการวิชาเสรีและผู้เรียนในรอบเปิดสอนนี้',
+        noRounds: 'ยังไม่มีรอบเปิดสอนตามตัวกรอง',
+        roundCourseDetail: 'รายละเอียดวิชาในรอบเปิดสอน',
+        courseMetadata: 'ข้อมูลวิชา',
+        roundCourseManagement: 'จัดการวิชาในรอบนี้',
+        deleteRoundCourse: 'นำวิชาออกจากรอบ',
+        deleteRoundCourseTitle: 'ยืนยันการนำวิชาออกจากรอบ',
+        deleteRoundCourseMessage: 'วิชานี้ยังไม่มีผู้เรียนและสามารถนำออกจากรอบฉบับร่างได้',
+        deleteRoundCourseSuccess: 'นำวิชาออกจากรอบแล้ว',
+        roundNotEditable: 'รอบนี้ปิดการแก้ไขแล้ว',
+        roundScoreRecalculation: 'มีการเปลี่ยนแปลงที่ต้องคำนวณคะแนนวิชาเสรีใหม่',
+        chooseLearners: 'เลือกผู้เรียน',
+        learnerSearch: 'ค้นหารหัสหรือชื่อผู้เรียน',
+        addLearnersToCourse: 'เพิ่มผู้เรียนในวิชานี้',
+        learnerAdded: 'เพิ่มผู้เรียนแล้ว',
+        noRoundLearners: 'ยังไม่มีผู้เรียนในวิชานี้',
+        restoreLearner: 'คืนสถานะผู้เรียน',
+        withdrawLearner: 'ถอนผู้เรียนออกจากวิชา',
+        statusUpdated: 'ปรับสถานะผู้เรียนแล้ว',
+        roundCourseSaved: 'บันทึกข้อมูลวิชาในรอบแล้ว',
+        roundCourseDeleted: 'นำวิชาออกจากรอบแล้ว',
+        courseLearnerCount: 'ผู้เรียนที่ลงทะเบียน',
+        courseGradeCount: 'ผู้เรียนที่มีผลการเรียน',
+        deleteRoundCourseHint: 'นำออกได้เฉพาะวิชาที่รอบยังเป็นฉบับร่างและยังไม่มีผู้เรียน',
+        openRoundTitle: 'ยืนยันการเปิดรอบ',
+        openRoundMessage: 'หลังเปิดรอบแล้ว ยังแก้ไขวิชาและข้อมูลผู้เรียนได้ แต่ไม่สามารถปิดผลรอบถาวรจากหน้านี้',
+        cancelRoundTitle: 'ยืนยันการยกเลิกรอบ',
+        cancelRoundMessage: 'รอบที่ยกเลิกจะไม่สามารถแก้ไขหรือเปิดกลับมาใช้งานได้',
+        confirmOpenRound: 'เปิดรอบ',
+        confirmCancelRound: 'ยกเลิกรอบ',
+        noAvailableCourses: 'ไม่มีวิชาเสรีที่พร้อมเพิ่มในรอบนี้',
+        courseAddedToRound: 'เพิ่มวิชาในรอบแล้ว',
+        saveCourseInRound: 'บันทึกวิชาในรอบ',
+        roundCourseFormHint: 'เลือกวิชาและกำหนดสมรรถนะกับน้ำหนักสำหรับรอบนี้',
+        noSelectedCompetencies: 'กรุณาเพิ่มสมรรถนะอย่างน้อยหนึ่งด้าน',
+        chooseCourseFirst: 'กรุณาเลือกวิชาก่อนเพิ่มสมรรถนะ',
+        confirmWithdrawLearner: 'ยืนยันการถอนผู้เรียน',
+        confirmWithdrawLearnerMessage: 'ผู้เรียนจะยังคงอยู่ในประวัติ แต่จะไม่นับเป็นผู้เรียนที่กำลังลงทะเบียน',
+        confirmRestoreLearner: 'ยืนยันการคืนสถานะผู้เรียน',
+        confirmRestoreLearnerMessage: 'ผู้เรียนจะกลับมาเป็นผู้เรียนที่กำลังลงทะเบียนในวิชานี้',
+        gradeNotAllowed: 'เกรดนี้ไม่ตรงกับรูปแบบเกรดของวิชา',
+        selectGrade: 'เลือกเกรด',
+        sourceRound: 'กรอกโดยเจ้าหน้าที่',
+        backToRound: 'กลับไปรอบเปิดสอน',
+        duplicateRoundAction: 'ทำสำเนารอบนี้',
+    },
+    en: {
+        roundDetailTitle: 'Offering round details',
+        roundDetailSubtitle: 'Manage free-elective courses and learners in this round',
+        noRounds: 'No offering rounds found for the selected filters',
+        roundCourseDetail: 'Course in offering round',
+        courseMetadata: 'Course information',
+        roundCourseManagement: 'Manage courses in this round',
+        deleteRoundCourse: 'Remove course from round',
+        deleteRoundCourseTitle: 'Confirm removing course from round',
+        deleteRoundCourseMessage: 'This course has no learners and can be removed while the round is a draft',
+        deleteRoundCourseSuccess: 'Course removed from round',
+        roundNotEditable: 'This round is no longer editable',
+        roundScoreRecalculation: 'Changes require free-elective scores to be recalculated',
+        chooseLearners: 'Choose learners',
+        learnerSearch: 'Search student code or name',
+        addLearnersToCourse: 'Add learners to this course',
+        learnerAdded: 'Learners added',
+        noRoundLearners: 'No learners are enrolled in this course yet',
+        restoreLearner: 'Restore learner',
+        withdrawLearner: 'Withdraw learner',
+        statusUpdated: 'Learner status updated',
+        roundCourseSaved: 'Round course saved',
+        roundCourseDeleted: 'Course removed from round',
+        courseLearnerCount: 'Enrolled learners',
+        courseGradeCount: 'Learners with grades',
+        deleteRoundCourseHint: 'Only a draft course without learners can be removed',
+        openRoundTitle: 'Confirm opening round',
+        openRoundMessage: 'After opening, courses and learners can still be updated. Finalization is not available here',
+        cancelRoundTitle: 'Confirm cancelling round',
+        cancelRoundMessage: 'A cancelled round cannot be edited or reopened',
+        confirmOpenRound: 'Open round',
+        confirmCancelRound: 'Cancel round',
+        noAvailableCourses: 'No active free-elective courses are available for this round',
+        courseAddedToRound: 'Course added to round',
+        saveCourseInRound: 'Save course in round',
+        roundCourseFormHint: 'Choose a course and set its competencies and weights for this round',
+        noSelectedCompetencies: 'Add at least one competency',
+        chooseCourseFirst: 'Choose a course before adding competencies',
+        confirmWithdrawLearner: 'Confirm learner withdrawal',
+        confirmWithdrawLearnerMessage: 'The learner remains in history but is no longer enrolled in this course',
+        confirmRestoreLearner: 'Confirm restoring learner',
+        confirmRestoreLearnerMessage: 'The learner will be enrolled in this course again',
+        gradeNotAllowed: 'This grade does not match the course grade scheme',
+        selectGrade: 'Choose grade',
+        sourceRound: 'Entered by officer',
+        backToRound: 'Back to offering round',
+        duplicateRoundAction: 'Duplicate this round',
+    },
+};
+
 export function freeElectiveText(language, key) {
     return FREE_ELECTIVE_LABELS[language]?.[key]
+        || FREE_ELECTIVE_ROUND_MANAGEMENT_LABELS[language]?.[key]
         || FREE_ELECTIVE_LABELS.th[key]
+        || FREE_ELECTIVE_ROUND_MANAGEMENT_LABELS.th[key]
         || key;
+}
+
+export function buildFreeElectiveLabels(language) {
+    const keys = new Set([
+        ...Object.keys(FREE_ELECTIVE_LABELS.th),
+        ...Object.keys(FREE_ELECTIVE_ROUND_MANAGEMENT_LABELS.th),
+    ]);
+    return Object.fromEntries(
+        Array.from(keys).map((key) => [key, freeElectiveText(language, key)]),
+    );
 }
 
 export function localizedFreeElective(item, language, thKey, enKey) {

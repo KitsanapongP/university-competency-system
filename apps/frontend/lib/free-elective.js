@@ -308,6 +308,43 @@ export function mapFreeElectiveRoundDetail(item) {
     };
 }
 
+export function mapFreeElectiveRoundEnrollment(item) {
+    if (!item) {
+        return null;
+    }
+
+    return {
+        id: item.round_course_enrollment_id,
+        roundCourseEnrollmentId: item.round_course_enrollment_id,
+        roundCourseId: item.round_course_id,
+        enrollmentId: item.enrollment_id,
+        enrollmentCurriculumId: item.enrollment_curriculum_id,
+        studentCode: item.student_code || '',
+        studentNameTh: item.student_name_th || '',
+        studentNameEn: item.student_name_en || '',
+        curriculumId: item.curriculum_id,
+        curriculumNameTh: item.curriculum_name_th || '',
+        curriculumNameEn: item.curriculum_name_en || '',
+        cohortId: item.cohort_id,
+        entryYearBE: toNumber(item.entry_year_be),
+        enrollmentStatus: item.enrollment_status || '',
+        status: item.status || 'enrolled',
+        grade: item.grade || '',
+        gradeSource: item.grade_source || '',
+        isBestGrade: item.is_best_grade ?? false,
+        gradeRecordId: item.grade_record_id || null,
+        updatedAt: item.updated_at || null,
+    };
+}
+
+export function mapFreeElectiveRoundCourseDetail(item) {
+    return {
+        course: mapFreeElectiveRoundCourse(item?.course),
+        allowedGrades: Array.isArray(item?.allowed_grades) ? item.allowed_grades : [],
+        enrollments: (item?.enrollments || []).map(mapFreeElectiveRoundEnrollment),
+    };
+}
+
 function roundCoursePayload(course) {
     return {
         round_course_id: toNumber(course.roundCourseId || course.id),
@@ -387,6 +424,140 @@ export async function updateFreeElectiveRoundStatus(roundId, status) {
         },
     );
     return mapFreeElectiveRoundDetail(unwrapData(response, null));
+}
+
+function roundCourseMappingPayload(competencies) {
+    return (competencies || []).map((item) => ({
+        competency_id: toNumber(item.competencyId || item.competency_id),
+        weight_percent: toNumber(item.weightPercent ?? item.weight_percent),
+    }));
+}
+
+export async function fetchFreeElectiveRoundCourse(roundId, roundCourseId) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}`,
+    );
+    return mapFreeElectiveRoundCourseDetail(unwrapData(response, null));
+}
+
+export async function addFreeElectiveRoundCourse(roundId, courseId, competencies) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses`,
+        {
+            method: 'POST',
+            body: JSON.stringify({
+                free_elective_course_id: toNumber(courseId),
+                competencies: roundCourseMappingPayload(competencies),
+            }),
+        },
+    );
+    return mapFreeElectiveRoundCourse(unwrapData(response, null));
+}
+
+export async function replaceFreeElectiveRoundCourseCompetencies(
+    roundId,
+    roundCourseId,
+    competencies,
+) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/competencies`,
+        {
+            method: 'PUT',
+            body: JSON.stringify({
+                competencies: roundCourseMappingPayload(competencies),
+            }),
+        },
+    );
+    return mapFreeElectiveRoundCourseDetail(unwrapData(response, null));
+}
+
+export async function deleteFreeElectiveRoundCourse(roundId, roundCourseId) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}`,
+        { method: 'DELETE' },
+    );
+    return unwrapData(response, null);
+}
+
+export async function fetchFreeElectiveRoundCourseLearners(
+    roundId,
+    roundCourseId,
+    search = '',
+) {
+    const query = new URLSearchParams();
+    if (search.trim()) {
+        query.set('search', search.trim());
+    }
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/learners${suffix}`,
+    );
+    return unwrapData(response, []).map(mapFreeElectiveStudent);
+}
+
+export async function fetchFreeElectiveRoundCourseEnrollments(roundId, roundCourseId) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/enrollments`,
+    );
+    return unwrapData(response, []).map(mapFreeElectiveRoundEnrollment);
+}
+
+export async function addFreeElectiveRoundCourseEnrollments(
+    roundId,
+    roundCourseId,
+    enrollments,
+) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/enrollments`,
+        {
+            method: 'POST',
+            body: JSON.stringify({
+                enrollments: (enrollments || []).map((item) => ({
+                    enrollment_id: toNumber(item.enrollmentId || item.enrollment_id),
+                    enrollment_curriculum_id: toNumber(
+                        item.enrollmentCurriculumId || item.enrollment_curriculum_id,
+                    ),
+                })),
+            }),
+        },
+    );
+    return unwrapData(response, []).map(mapFreeElectiveRoundEnrollment);
+}
+
+export async function updateFreeElectiveRoundCourseEnrollmentStatus(
+    roundId,
+    roundCourseId,
+    roundCourseEnrollmentId,
+    status,
+) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/enrollments/${roundCourseEnrollmentId}`,
+        {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
+        },
+    );
+    return unwrapData(response, []).map(mapFreeElectiveRoundEnrollment);
+}
+
+export async function upsertFreeElectiveRoundCourseGrade(
+    roundId,
+    roundCourseId,
+    roundCourseEnrollmentId,
+    form,
+) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/enrollments/${roundCourseEnrollmentId}/grade`,
+        {
+            method: 'PUT',
+            body: JSON.stringify({
+                grade: String(form.grade || '').trim(),
+                grade_source: form.gradeSource || 'manual',
+                source_reference: toNullableString(form.sourceReference),
+            }),
+        },
+    );
+    return unwrapData(response, []).map(mapFreeElectiveRoundEnrollment);
 }
 
 function coursePayload(form, confirmImpact = false) {
