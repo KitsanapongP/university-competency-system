@@ -324,8 +324,8 @@ export default function CompetencyManagementPage() {
     };
 
     return (
-        <div className="course-list-page officer-page competency-management">
-            <div className="course-list-header officer-page__header">
+        <div className="course-list-page officer-page ui-page competency-management">
+            <div className="course-list-header officer-page__header ui-page__header">
                 <div className="course-list-header__left">
                     <h1 className="course-list-header__title officer-page__title">
                         {officerText(language, 'จัดการสมรรถนะ', 'Competency management')}
@@ -361,7 +361,7 @@ export default function CompetencyManagementPage() {
                 ))}
             />
 
-            <section className="competency-management__panel officer-panel">
+            <section className="competency-management__panel officer-panel ui-panel">
                 <div className="competency-management__toolbar">
                     <label className="competency-management__search">
                         <Search size={16} />

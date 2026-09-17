@@ -236,3 +236,91 @@
         min-width: 760px;
     }
 }
+
+/* Curriculum/Template visual tokens */
+.major-management-page {
+    background: var(--ui-page-bg);
+    color: var(--ui-text);
+    padding-inline: var(--ui-page-padding-inline);
+    font-family: var(--ui-font);
+}
+
+.major-back-btn {
+    color: var(--ui-text-muted);
+}
+
+.major-back-btn:hover {
+    color: var(--ui-primary-hover);
+}
+
+.major-filter-panel,
+.major-table-wrap {
+    border-color: var(--ui-border-strong);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface);
+}
+
+.major-search {
+    border-color: var(--ui-border);
+    border-radius: var(--ui-radius-control);
+    background: var(--ui-surface-raised);
+    color: var(--ui-text-muted);
+}
+
+.major-search:focus-within {
+    border-color: var(--ui-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 18%, transparent);
+}
+
+.major-search input,
+.major-checkbox,
+.major-toggle-field,
+.major-org-cell span:first-child,
+.major-table td {
+    color: var(--ui-text);
+}
+
+.major-search input::placeholder,
+.major-name-cell span,
+.major-org-cell span,
+.major-loading {
+    color: var(--ui-text-muted);
+}
+
+.major-checkbox input,
+.major-toggle-field input {
+    accent-color: var(--ui-primary);
+}
+
+.major-table th {
+    background: var(--ui-surface-raised);
+    color: var(--ui-text-muted);
+}
+
+.major-table td {
+    border-top-color: var(--ui-border);
+}
+
+.major-table tr:hover td {
+    background: var(--ui-hover);
+}
+
+.major-code {
+    background: color-mix(in srgb, var(--ui-primary) 12%, transparent);
+    color: var(--ui-icon) !important;
+}
+
+.major-degree-pill {
+    background: color-mix(in srgb, var(--ui-primary) 12%, transparent);
+    color: var(--ui-primary-hover);
+}
+
+.major-status--active {
+    background: color-mix(in srgb, var(--ui-success) 14%, transparent);
+    color: var(--ui-success);
+}
+
+.major-status--inactive {
+    background: color-mix(in srgb, var(--ui-text-muted) 16%, transparent);
+    color: var(--ui-text-muted);
+}

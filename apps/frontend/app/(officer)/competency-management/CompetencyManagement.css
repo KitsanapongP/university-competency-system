@@ -190,3 +190,65 @@
         padding-inline: 1rem;
     }
 }
+
+/* Curriculum/Template visual tokens */
+.competency-management {
+    padding-inline: var(--ui-page-padding-inline);
+    background: var(--ui-page-bg);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+}
+
+.competency-management__panel {
+    border-color: var(--ui-border-strong);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface);
+}
+
+.competency-management__toolbar,
+.competency-management__table th,
+.competency-management__table td {
+    border-color: var(--ui-border);
+}
+
+.competency-management__search {
+    border-color: var(--ui-border);
+    border-radius: var(--ui-radius-control);
+    background: var(--ui-surface-raised);
+    color: var(--ui-text-muted);
+}
+
+.competency-management__search input,
+.competency-management__name,
+.competency-management__confirm-text {
+    color: var(--ui-text);
+}
+
+.competency-management__search input::placeholder,
+.competency-management__count,
+.competency-management__name span,
+.competency-management__description,
+.competency-management__hint,
+.competency-management__empty {
+    color: var(--ui-text-muted);
+}
+
+.competency-management__table th {
+    color: var(--ui-text-muted);
+    background: var(--ui-surface-raised);
+}
+
+.competency-management__code {
+    color: var(--ui-primary);
+    background: color-mix(in srgb, var(--ui-primary) 10%, transparent);
+}
+
+.competency-management__badge {
+    color: var(--ui-success);
+    background: color-mix(in srgb, var(--ui-success) 12%, transparent);
+}
+
+.competency-management__badge--locked {
+    color: var(--ui-warning);
+    background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
+}

@@ -451,8 +451,8 @@ function MajorManagementPageContent() {
         : departments;
 
     return (
-        <div className="major-management-page officer-page">
-            <div className="course-list-header officer-page__header">
+        <div className="major-management-page officer-page ui-page">
+            <div className="course-list-header officer-page__header ui-page__header">
                 <div className="course-list-header__left">
                     {returnTo && (
                         <button className="major-back-btn" onClick={() => router.push(returnTo)}>
@@ -483,7 +483,7 @@ function MajorManagementPageContent() {
                 </div>
             </div>
 
-            <div className="major-filter-panel officer-panel">
+            <div className="major-filter-panel officer-panel ui-panel">
                 <label className="course-field">
                     <span className="course-label">{officerText(language, 'คณะ', 'Faculty')}</span>
                     <select
