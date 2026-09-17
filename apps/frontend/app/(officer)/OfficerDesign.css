@@ -4,26 +4,28 @@
    ============================================================ */
 
 :root {
-    --officer-font: 'Prompt', sans-serif;
-    --officer-bg: var(--bg, #f8fafc);
-    --officer-surface: var(--card, #ffffff);
-    --officer-surface-muted: var(--control-bg-soft, #f1f5f9);
-    --officer-text: var(--text, #0f172a);
-    --officer-text-muted: var(--text-muted, #64748b);
-    --officer-border: var(--border, #e2e8f0);
-    --officer-primary: var(--primary, #2563eb);
-    --officer-primary-strong: var(--primary-dark, #1e40af);
-    --officer-primary-soft: var(--primary-bg, #eff6ff);
-    --officer-hover: var(--control-bg-soft, #f1f5f9);
-    --officer-danger: #dc2626;
-    --officer-success: #16a34a;
-    --officer-warning: #d97706;
-    --officer-radius: 8px;
-    --officer-shadow: var(--shadow, 0 4px 6px -1px rgba(0, 0, 0, 0.05));
-    --officer-page-padding-inline: 8rem;
+    /* Compatibility aliases for pages being migrated incrementally. */
+    --officer-font: var(--ui-font);
+    --officer-bg: var(--ui-page-bg);
+    --officer-surface: var(--ui-surface);
+    --officer-surface-muted: var(--ui-surface-muted);
+    --officer-text: var(--ui-text);
+    --officer-text-muted: var(--ui-text-muted);
+    --officer-border: var(--ui-border-strong);
+    --officer-primary: var(--ui-primary);
+    --officer-primary-strong: var(--ui-title);
+    --officer-primary-soft: var(--ui-primary-soft);
+    --officer-hover: var(--ui-hover);
+    --officer-danger: var(--ui-danger);
+    --officer-success: var(--ui-success);
+    --officer-warning: var(--ui-warning);
+    --officer-radius: var(--ui-radius-panel);
+    --officer-shadow: var(--ui-shadow);
+    --officer-page-padding-inline: var(--ui-page-padding-inline);
 }
 
-body:has(.officer-page) {
+body:has(.officer-page),
+body:has(.competency-app--sidebar) {
     font-family: var(--officer-font);
 }
 
@@ -94,7 +96,7 @@ body:has(.officer-page) {
 }
 
 .dark .officer-page__title {
-    color: var(--officer-primary);
+    color: var(--ui-title);
 }
 
 .officer-page__subtitle {

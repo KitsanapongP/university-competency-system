@@ -1,0 +1,67 @@
+/* ============================================================
+   Shared management UI tokens
+   Curriculum and Template are the visual reference for Officer/Admin pages.
+   ============================================================ */
+
+:root {
+    --ui-font: 'Sarabun', sans-serif;
+    --ui-page-bg: #0f1117;
+    --ui-surface: #1a1f2e;
+    --ui-surface-muted: #1e293b;
+    --ui-surface-raised: #243044;
+    --ui-text: #e2e8f0;
+    --ui-text-muted: #94a3b8;
+    --ui-border: #334155;
+    --ui-border-strong: #2d3748;
+    --ui-primary: #3b82f6;
+    --ui-primary-hover: #60a5fa;
+    --ui-primary-soft: #1e3a5f;
+    --ui-title: #7dd3fc;
+    --ui-icon: #60a5fa;
+    --ui-hover: #334155;
+    --ui-success: #22c55e;
+    --ui-warning: #f59e0b;
+    --ui-danger: #ef4444;
+    --ui-card-gradient: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+    --ui-radius-control: 8px;
+    --ui-radius-panel: 8px;
+    --ui-radius-card: 12px;
+    --ui-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+    --ui-page-padding-inline: 10rem;
+}
+
+:root:not(.dark) {
+    --ui-page-bg: #f8fafc;
+    --ui-surface: #ffffff;
+    --ui-surface-muted: #f8fafc;
+    --ui-surface-raised: #f1f5f9;
+    --ui-text: #1e293b;
+    --ui-text-muted: #64748b;
+    --ui-border: #cbd5e1;
+    --ui-border-strong: #e2e8f0;
+    --ui-primary: #3b82f6;
+    --ui-primary-hover: #2563eb;
+    --ui-primary-soft: #eff6ff;
+    --ui-title: #1d4ed8;
+    --ui-icon: #3b82f6;
+    --ui-hover: #f1f5f9;
+    --ui-success: #16a34a;
+    --ui-warning: #d97706;
+    --ui-danger: #dc2626;
+    --ui-card-gradient: linear-gradient(145deg, #f1f5f9 0%, #e2e8f0 100%);
+    --ui-shadow: 0 4px 12px rgb(15 23 42 / 8%);
+}
+
+body:has(.competency-app--sidebar) {
+    background: var(--ui-page-bg);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+}
+
+.competency-app--sidebar,
+.competency-app--sidebar button,
+.competency-app--sidebar input,
+.competency-app--sidebar select,
+.competency-app--sidebar textarea {
+    font-family: var(--ui-font);
+}
