@@ -23,7 +23,7 @@ import FreeElectiveCourseModal from './components/FreeElectiveCourseModal';
 import FreeElectiveFilters from './components/FreeElectiveFilters';
 import FreeElectiveRoundCard from './components/FreeElectiveRoundCard';
 import FreeElectiveRoundWizard from './components/FreeElectiveRoundWizard';
-import { FREE_ELECTIVE_LABELS, freeElectiveText } from './free-elective-labels';
+import { FREE_ELECTIVE_LABELS, buildFreeElectiveLabels } from './free-elective-labels';
 import '../curriculum-management/CourseLayout.css';
 import './FreeElectiveManagement.css';
 
@@ -45,15 +45,7 @@ function FreeElectiveManagementPageContent() {
     const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
     const { language } = useLanguage();
-    const labels = useMemo(
-        () => Object.fromEntries(
-            Object.keys(FREE_ELECTIVE_LABELS.th).map((key) => [
-                key,
-                freeElectiveText(language, key),
-            ]),
-        ),
-        [language],
-    );
+    const labels = useMemo(() => buildFreeElectiveLabels(language), [language]);
     const isAdmin = user?.roles?.includes('admin');
     const accountFacultyId = getDefaultFacultyId(user);
     const selectedFacultyId = isAdmin
@@ -74,6 +66,7 @@ function FreeElectiveManagementPageContent() {
     const [success, setSuccess] = useState('');
     const [courseCatalogOpen, setCourseCatalogOpen] = useState(false);
     const [roundWizardOpen, setRoundWizardOpen] = useState(false);
+    const [roundWizardKey, setRoundWizardKey] = useState(0);
     const [courseModalOpen, setCourseModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState(null);
     const [impactConfirmation, setImpactConfirmation] = useState(null);
@@ -185,6 +178,11 @@ function FreeElectiveManagementPageContent() {
     const openCreateCourse = () => {
         setEditingCourse(null);
         setCourseModalOpen(true);
+    };
+
+    const openRoundWizard = () => {
+        setRoundWizardKey((current) => current + 1);
+        setRoundWizardOpen(true);
     };
 
     const openEditCourse = (course) => {
@@ -314,7 +312,7 @@ function FreeElectiveManagementPageContent() {
                     <button
                         type="button"
                         className="free-elective-button free-elective-button--primary"
-                        onClick={() => setRoundWizardOpen(true)}
+                        onClick={openRoundWizard}
                     >
                         <Plus size={17} aria-hidden="true" />
                         {labels.createRound}
@@ -353,7 +351,7 @@ function FreeElectiveManagementPageContent() {
                     ))}
                 </div>
             ) : (
-                <div className="free-elective-empty">{labels.noOfferings}</div>
+                <div className="free-elective-empty">{labels.noRounds}</div>
             )}
 
             <section className="free-elective-panel free-elective-course-catalog-panel">
@@ -405,6 +403,7 @@ function FreeElectiveManagementPageContent() {
             </section>
 
             <FreeElectiveRoundWizard
+                key={roundWizardKey}
                 open={roundWizardOpen}
                 language={language}
                 labels={labels}

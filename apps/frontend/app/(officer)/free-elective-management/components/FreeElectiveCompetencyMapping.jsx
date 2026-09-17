@@ -55,16 +55,18 @@ export default function FreeElectiveCompetencyMapping({
                 </div>
                 {canEdit && (
                     <div className="free-elective-inline-actions">
-                        <button
-                            type="button"
-                            className="free-elective-button free-elective-button--quiet"
-                            onClick={onCopyPrevious}
-                            disabled={saving}
-                            title={labels.copyPrevious}
-                        >
-                            <Copy size={15} aria-hidden="true" />
-                            {labels.copyPrevious}
-                        </button>
+                        {onCopyPrevious && (
+                            <button
+                                type="button"
+                                className="free-elective-button free-elective-button--quiet"
+                                onClick={onCopyPrevious}
+                                disabled={saving}
+                                title={labels.copyPrevious}
+                            >
+                                <Copy size={15} aria-hidden="true" />
+                                {labels.copyPrevious}
+                            </button>
+                        )}
                         <button
                             type="button"
                             className="free-elective-button free-elective-button--quiet"

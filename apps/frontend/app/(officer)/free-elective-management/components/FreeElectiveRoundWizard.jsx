@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, Check, Plus, Trash2 } from 'lucide-react';
 import BaseModal from '../../../../components/ui/BaseModal';
 
@@ -18,6 +18,12 @@ function getCourseName(course, language) {
     return language === 'en'
         ? course.nameEn || course.nameTh
         : course.nameTh;
+}
+
+function getGradeSchemeLabel(course, labels) {
+    return course?.gradeScheme === 'satisfactory'
+        ? labels.satisfactoryGrades
+        : labels.letterGrades;
 }
 
 function getCompetencyName(competency, language) {
@@ -83,15 +89,6 @@ export default function FreeElectiveRoundWizard({
     const [localErrors, setLocalErrors] = useState([]);
     const [preview, setPreview] = useState(null);
     const [previewing, setPreviewing] = useState(false);
-
-    useEffect(() => {
-        if (open) {
-            setStep(1);
-            setForm(initialForm());
-            setLocalErrors([]);
-            setPreview(null);
-        }
-    }, [open]);
 
     const availableCourses = useMemo(() => {
         const selectedIds = new Set(
@@ -365,7 +362,10 @@ export default function FreeElectiveRoundWizard({
                                             <div className="free-elective-round-course-editor__meta">
                                                 <strong>{selectedCourse.code}</strong>
                                                 <span>{getCourseName(selectedCourse, language)}</span>
-                                                <span>{labels.gradeScheme}: {selectedCourse.gradeScheme}</span>
+                                                <span>
+                                                    {labels.gradeScheme}:{' '}
+                                                    {getGradeSchemeLabel(selectedCourse, labels)}
+                                                </span>
                                             </div>
                                         )}
                                         {selectedCourse && (
@@ -548,4 +548,3 @@ export default function FreeElectiveRoundWizard({
         </BaseModal>
     );
 }
-
