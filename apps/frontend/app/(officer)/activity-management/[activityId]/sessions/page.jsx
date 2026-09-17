@@ -1040,8 +1040,8 @@ export default function ActivitySessionManagementPage() {
   })();
 
   return (
-    <div className="activity-session-page officer-page">
-      <div className="course-list-header officer-page__header">
+    <div className="activity-session-page officer-page ui-page">
+      <div className="course-list-header officer-page__header ui-page__header">
         <div className="course-list-header__left">
           <Link className="activity-session-back" href="/activity-management">
             <ArrowLeft size={16} />
@@ -1095,7 +1095,7 @@ export default function ActivitySessionManagementPage() {
       />
 
       <section className="activity-session-shell">
-        <aside className="activity-session-list">
+        <aside className="activity-session-list ui-panel">
           <div className="activity-session-list__header">
             <div>
               <span>{officerText(language, "รอบกิจกรรม", "Activity sessions")}</span>
@@ -1161,7 +1161,7 @@ export default function ActivitySessionManagementPage() {
           </div>
         </aside>
 
-        <main className="activity-session-detail">
+        <main className="activity-session-detail ui-panel">
           {!selectedSession ? (
             <div className="activity-session-detail__empty">
               <CalendarClock size={32} />
@@ -1354,8 +1354,8 @@ export default function ActivitySessionManagementPage() {
                         {officerText(language, "เพิ่มผู้รับผิดชอบ", "Add assignee")}
                       </button>
                     </div>
-                    <div className="activity-session-table-wrap">
-                      <table className="activity-session-table">
+              <div className="activity-session-table-wrap ui-table-wrap">
+                <table className="activity-session-table ui-table">
                         <thead>
                           <tr>
                             <th>{officerText(language, "ผู้รับผิดชอบ", "Assignee")}</th>
@@ -1581,8 +1581,8 @@ export default function ActivitySessionManagementPage() {
                         {officerText(language, "เพิ่มสมรรถนะ", "Add competency")}
                       </button>
                     </div>
-                    <div className="activity-session-table-wrap">
-                      <table className="activity-session-table">
+              <div className="activity-session-table-wrap ui-table-wrap">
+                <table className="activity-session-table ui-table">
                         <thead>
                           <tr>
                             <th>{officerText(language, "สมรรถนะ", "Competency")}</th>

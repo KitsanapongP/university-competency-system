@@ -292,7 +292,7 @@ export default function ActivitySessionWorkspacePage() {
 
   if (loading)
     return (
-      <div className="activity-session-workspace officer-page">
+      <div className="activity-session-workspace officer-page ui-page">
         <div className="activity-session-workspace__empty">
           {officerText(language, "กำลังโหลดรอบกิจกรรม...", "Loading activity session...")}
         </div>
@@ -300,8 +300,8 @@ export default function ActivitySessionWorkspacePage() {
     );
 
   return (
-    <div className="activity-session-workspace officer-page">
-      <header className="activity-session-workspace__header officer-page__header">
+    <div className="activity-session-workspace officer-page ui-page">
+      <header className="activity-session-workspace__header officer-page__header ui-page__header">
         <div>
           <Link
             className="activity-session-workspace__back"
@@ -346,7 +346,7 @@ export default function ActivitySessionWorkspacePage() {
         </div>
       </header>
 
-      <div className="activity-session-workspace__summary">
+      <div className="activity-session-workspace__summary ui-panel">
         <span>
           {officerText(language, "สถานะรอบ: ", "Session status: ")}
           <strong>{statusLabel(session?.status, language)}</strong>
@@ -395,7 +395,7 @@ export default function ActivitySessionWorkspacePage() {
       </div>
 
       {activeTab === "attendance" ? (
-        <section className="activity-session-workspace__panel">
+        <section className="activity-session-workspace__panel ui-panel">
           <div className="activity-session-workspace__toolbar">
             <input
               className="course-input"
@@ -422,8 +422,8 @@ export default function ActivitySessionWorkspacePage() {
               </button>
             </div>
           </div>
-          <div className="activity-session-workspace__table-wrap">
-            <table className="activity-session-workspace__table">
+          <div className="activity-session-workspace__table-wrap ui-table-wrap">
+            <table className="activity-session-workspace__table ui-table">
               <thead>
                 <tr>
                   <th>{officerText(language, "ผู้เรียน", "Learner")}</th>
@@ -532,7 +532,7 @@ export default function ActivitySessionWorkspacePage() {
           </div>
         </section>
       ) : (
-        <section className="activity-session-workspace__panel">
+        <section className="activity-session-workspace__panel ui-panel">
           <div className="activity-session-workspace__toolbar">
             <p>
               {officerText(language, "กรอกคะแนนดิบเต็ม ", "Enter raw scores out of ")}
@@ -555,8 +555,8 @@ export default function ActivitySessionWorkspacePage() {
               <Save size={16} /> {officerText(language, "บันทึกคะแนน", "Save scores")}
             </button>
           </div>
-          <div className="activity-session-workspace__table-wrap">
-            <table className="activity-session-workspace__table">
+          <div className="activity-session-workspace__table-wrap ui-table-wrap">
+            <table className="activity-session-workspace__table ui-table">
               <thead>
                 <tr>
                   <th>{officerText(language, "ผู้เรียน", "Learner")}</th>

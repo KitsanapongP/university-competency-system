@@ -273,3 +273,94 @@
         white-space: normal;
     }
 }
+
+/* Curriculum/Template visual tokens */
+.activity-management-page {
+    background: var(--ui-page-bg);
+    color: var(--ui-text);
+    padding-inline: var(--ui-page-padding-inline);
+    font-family: var(--ui-font);
+}
+
+.activity-filter-panel,
+.activity-management__panel {
+    border-color: var(--ui-border-strong);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface);
+}
+
+.activity-search {
+    border-color: var(--ui-border);
+    border-radius: var(--ui-radius-control);
+    background: var(--ui-surface-raised);
+    color: var(--ui-text-muted);
+}
+
+.activity-search:focus-within {
+    border-color: var(--ui-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 18%, transparent);
+}
+
+.activity-search input,
+.activity-management__panel-header,
+.activity-table td,
+.activity-management__checkbox,
+.activity-management__confirm-text {
+    color: var(--ui-text);
+}
+
+.activity-management__panel-header,
+.activity-table th,
+.activity-table td {
+    border-color: var(--ui-border);
+}
+
+.activity-management__panel-kicker,
+.activity-management__panel-note,
+.activity-management__hint,
+.activity-meta-cell span,
+.activity-session-cell span,
+.activity-name-cell span,
+.activity-management__empty {
+    color: var(--ui-text-muted);
+}
+
+.activity-table th {
+    background: var(--ui-surface-raised);
+    color: var(--ui-text-muted);
+}
+
+.activity-table tr:hover td {
+    background: var(--ui-hover);
+}
+
+.activity-code {
+    background: color-mix(in srgb, var(--ui-primary) 12%, transparent);
+    color: var(--ui-icon) !important;
+}
+
+.activity-status--draft {
+    background: color-mix(in srgb, var(--ui-text-muted) 16%, transparent);
+    color: var(--ui-text-muted);
+}
+
+.activity-status--published {
+    background: color-mix(in srgb, var(--ui-success) 14%, transparent);
+    color: var(--ui-success);
+}
+
+.activity-status--closed {
+    background: color-mix(in srgb, var(--ui-primary) 14%, transparent);
+    color: var(--ui-primary-hover);
+}
+
+.activity-status--cancelled {
+    background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
+    color: var(--ui-danger);
+}
+
+.activity-management__session-note {
+    border-color: color-mix(in srgb, var(--ui-primary) 22%, transparent);
+    background: color-mix(in srgb, var(--ui-primary) 10%, transparent);
+    color: var(--ui-text);
+}

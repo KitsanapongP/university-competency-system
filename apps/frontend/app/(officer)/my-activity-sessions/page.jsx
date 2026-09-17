@@ -28,8 +28,8 @@ export default function MyActivitySessionsPage() {
   }, []);
 
   return (
-    <div className="activity-management-page">
-      <div className="course-list-header">
+    <div className="activity-management-page ui-page">
+      <div className="course-list-header ui-page__header">
         <div className="course-list-header__left">
           <h1 className="course-list-header__title">รอบกิจกรรมของฉัน</h1>
           <p className="course-list-header__subtitle">
@@ -37,14 +37,14 @@ export default function MyActivitySessionsPage() {
           </p>
         </div>
       </div>
-      <section className="activity-management__panel">
+      <section className="activity-management__panel ui-panel">
         <div className="activity-management__panel-header">
           <span>
             <CalendarClock size={16} /> {sessions.length} รอบกิจกรรม
           </span>
         </div>
-        <div className="activity-table-wrap">
-          <table className="activity-table">
+        <div className="activity-table-wrap ui-table-wrap">
+          <table className="activity-table ui-table">
             <thead>
               <tr>
                 <th>กิจกรรม</th>

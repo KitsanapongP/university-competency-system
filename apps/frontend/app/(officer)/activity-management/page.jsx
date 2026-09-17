@@ -557,8 +557,8 @@ export default function ActivityManagementPage() {
     const facultyLocked = !isAdmin || faculties.length <= 1;
 
     return (
-        <div className="activity-management-page officer-page">
-            <div className="course-list-header officer-page__header">
+        <div className="activity-management-page officer-page ui-page">
+            <div className="course-list-header officer-page__header ui-page__header">
                 <div className="course-list-header__left">
                     <h1 className="course-list-header__title officer-page__title">
                         {officerText(language, 'จัดการกิจกรรม', 'Activity management')}
@@ -594,7 +594,7 @@ export default function ActivityManagementPage() {
                 ))}
             />
 
-            <section className="activity-filter-panel officer-panel">
+            <section className="activity-filter-panel officer-panel ui-panel">
                 <label className="course-field">
                     <span className="course-label">{officerText(language, 'คณะ', 'Faculty')}</span>
                     <select
@@ -675,7 +675,7 @@ export default function ActivityManagementPage() {
                 {options.types.map(value => <option key={value} value={value} />)}
             </datalist>
 
-            <section className="activity-management__panel officer-panel">
+            <section className="activity-management__panel officer-panel ui-panel">
                 <div className="activity-management__panel-header">
                     <div>
                         <span className="activity-management__panel-kicker">
@@ -690,8 +690,8 @@ export default function ActivityManagementPage() {
                     </span>
                 </div>
 
-                <div className="activity-table-wrap">
-                    <table className="activity-table">
+                <div className="activity-table-wrap ui-table-wrap">
+                    <table className="activity-table ui-table">
                         <thead>
                             <tr>
                                 <th>{officerText(language, 'กิจกรรม', 'Activity')}</th>

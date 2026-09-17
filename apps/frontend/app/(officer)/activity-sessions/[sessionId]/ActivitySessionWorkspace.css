@@ -63,3 +63,62 @@
 
 @media (max-width: 1280px) { .activity-session-workspace { padding-inline: 2rem; } }
 @media (max-width: 720px) { .activity-session-workspace { padding-inline: 1rem; } .activity-session-workspace__header, .activity-session-workspace__toolbar { align-items: flex-start; flex-direction: column; } }
+
+/* Curriculum/Template visual tokens */
+.activity-session-workspace {
+    padding-inline: var(--ui-page-padding-inline);
+    background: var(--ui-page-bg);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+}
+
+.activity-session-workspace__summary,
+.activity-session-workspace__panel {
+    border-color: var(--ui-border-strong);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface);
+}
+
+.activity-session-workspace__header p,
+.activity-session-workspace__header span,
+.activity-session-workspace__table td span,
+.activity-session-workspace__toolbar p,
+.activity-session-workspace__empty {
+    color: var(--ui-text-muted);
+}
+
+.activity-session-workspace__back {
+    color: var(--ui-primary-hover);
+}
+
+.activity-session-workspace__summary span,
+.activity-session-workspace__walkins button {
+    background: var(--ui-hover);
+    color: var(--ui-text);
+}
+
+.activity-session-workspace__warning {
+    color: var(--ui-warning);
+    background: color-mix(in srgb, var(--ui-warning) 18%, transparent) !important;
+}
+
+.activity-session-workspace__tabs,
+.activity-session-workspace__table th,
+.activity-session-workspace__table td,
+.activity-session-workspace__walkins button {
+    border-color: var(--ui-border);
+}
+
+.activity-session-workspace__tabs button {
+    color: var(--ui-text-muted);
+}
+
+.activity-session-workspace__tabs button.active {
+    border-bottom-color: var(--ui-primary);
+    color: var(--ui-text);
+}
+
+.activity-session-workspace__table th {
+    background: var(--ui-surface-raised);
+    color: var(--ui-text-muted);
+}
