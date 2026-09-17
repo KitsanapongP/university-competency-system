@@ -44,3 +44,100 @@
 .cohort-score-status--pending { background: rgba(245, 158, 11, 0.14); color: #d97706; }
 @media (max-width: 760px) { .cohort-score-panel__header { flex-direction: column; } }
 @media (max-width: 900px) { .cohort-roster-header { flex-direction: column; } .cohort-summary { flex-wrap: wrap; } .cohort-summary > div { min-width: 45%; } .cohort-roster-toolbar { align-items: stretch; flex-direction: column; } .cohort-roster-toolbar .student-search, .cohort-roster-toolbar > select.course-input { width: 100%; } }
+
+/* Curriculum/Template visual tokens */
+.cohort-roster-page {
+    padding-inline: var(--ui-page-padding-inline);
+    background: var(--ui-page-bg);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+}
+
+.cohort-roster-header h1 {
+    color: var(--ui-title);
+}
+
+.cohort-roster-header p,
+.cohort-summary span,
+.cohort-roster-toolbar > span,
+.student-import-toolbar > span,
+.student-import-empty,
+.student-import-section p {
+    color: var(--ui-text-muted);
+}
+
+.cohort-summary,
+.cohort-summary > div,
+.cohort-roster-toolbar,
+.cohort-workspace-tabs,
+.cohort-score-panel__header,
+.cohort-score-results {
+    border-color: var(--ui-border);
+}
+
+.cohort-summary {
+    border-color: var(--ui-border-strong);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface);
+}
+
+.cohort-summary strong,
+.cohort-score-panel__header h2,
+.cohort-score-results h3,
+.student-import-section {
+    color: var(--ui-text);
+}
+
+.cohort-summary p {
+    color: var(--ui-warning);
+}
+
+.student-enrollment-status {
+    background: color-mix(in srgb, var(--ui-primary) 12%, transparent);
+    color: var(--ui-primary-hover);
+}
+
+.student-enrollment-status--suspended,
+.cohort-score-status--pending {
+    background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
+    color: var(--ui-warning);
+}
+
+.student-enrollment-status--alumni,
+.student-enrollment-status--inactive {
+    background: color-mix(in srgb, var(--ui-text-muted) 16%, transparent);
+    color: var(--ui-text-muted);
+}
+
+.student-import-summary > * {
+    background: var(--ui-surface-raised);
+    color: var(--ui-text-muted);
+}
+
+.student-import-summary > strong {
+    color: var(--ui-success);
+}
+
+.student-import-summary__error,
+.student-import-section--error {
+    color: var(--ui-danger);
+}
+
+.cohort-workspace-tabs button {
+    color: var(--ui-text-muted);
+}
+
+.cohort-workspace-tabs button.is-active {
+    border-bottom-color: var(--ui-primary);
+    color: var(--ui-primary-hover);
+}
+
+.cohort-score-panel__header p,
+.cohort-score-code {
+    color: var(--ui-text-muted);
+}
+
+.cohort-score-status--pass {
+    color: var(--ui-success);
+    background: color-mix(in srgb, var(--ui-success) 14%, transparent);
+}

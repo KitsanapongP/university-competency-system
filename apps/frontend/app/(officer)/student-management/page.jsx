@@ -703,8 +703,8 @@ export default function StudentManagementPage() {
   };
 
   return (
-    <div className="student-management-page officer-page">
-      <header className="course-list-header officer-page__header">
+    <div className="student-management-page officer-page ui-page">
+      <header className="course-list-header officer-page__header ui-page__header">
         <div className="course-list-header__left">
           <h1 className="course-list-header__title officer-page__title">
             {label(language, "จัดการข้อมูลนักศึกษา", "Student Management")}
@@ -744,7 +744,7 @@ export default function StudentManagementPage() {
         onCloseError={() => setFeedback({ type: "", message: "" })}
       />
 
-      <section className="student-filter-panel officer-panel">
+      <section className="student-filter-panel officer-panel ui-panel">
         <label className="course-field">
           <span className="course-label">
             {label(language, "คณะ", "Faculty")}
@@ -863,7 +863,7 @@ export default function StudentManagementPage() {
         </label>
       </section>
 
-      <section className="student-management-panel officer-panel">
+      <section className="student-management-panel officer-panel ui-panel">
         <div className="student-management-panel__header">
           <div>
             <span>{label(language, "รุ่นนักศึกษา", "Student cohorts")}</span>
@@ -879,8 +879,8 @@ export default function StudentManagementPage() {
             )}
           </span>
         </div>
-        <div className="student-table-wrap">
-          <table className="student-table">
+        <div className="student-table-wrap ui-table-wrap">
+          <table className="student-table ui-table">
             <thead>
               <tr>
                 <th>

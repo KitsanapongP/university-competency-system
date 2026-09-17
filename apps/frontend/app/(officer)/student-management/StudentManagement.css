@@ -163,3 +163,94 @@
     .student-filter-panel { grid-template-columns: 1fr; }
     .student-management-panel__header { align-items: flex-start; flex-direction: column; }
 }
+
+/* Curriculum/Template visual tokens */
+.student-management-page {
+    padding-inline: var(--ui-page-padding-inline);
+    background: var(--ui-page-bg);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+}
+
+.student-filter-panel,
+.student-management-panel {
+    border-color: var(--ui-border-strong);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface);
+}
+
+.student-search {
+    border-color: var(--ui-border);
+    border-radius: var(--ui-radius-control);
+    background: var(--ui-surface-raised);
+    color: var(--ui-text-muted);
+}
+
+.student-search:focus-within {
+    border-color: var(--ui-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 18%, transparent);
+}
+
+.student-search input,
+.student-management-panel__header,
+.student-table td,
+.student-curriculum-impact > strong,
+.student-curriculum-impact__list b {
+    color: var(--ui-text);
+}
+
+.student-management-panel__header,
+.student-table th,
+.student-table td,
+.student-identity-readonly {
+    border-color: var(--ui-border);
+}
+
+.student-management-panel__header span,
+.student-cohort-cell span,
+.student-template-note,
+.student-form-hint,
+.student-roster-count span,
+.student-empty,
+.student-identity-readonly span,
+.student-identity-readonly small,
+.student-curriculum-impact__list li,
+.student-curriculum-impact__preserved {
+    color: var(--ui-text-muted);
+}
+
+.student-table th {
+    background: var(--ui-surface-raised);
+    color: var(--ui-text-muted);
+}
+
+.student-table tbody tr:hover td {
+    background: var(--ui-hover);
+}
+
+.student-roster-count svg {
+    color: var(--ui-primary-hover);
+}
+
+.student-roster-count em {
+    color: var(--ui-warning);
+}
+
+.student-status--draft {
+    background: color-mix(in srgb, var(--ui-text-muted) 16%, transparent);
+    color: var(--ui-text-muted);
+}
+
+.student-status--active {
+    background: color-mix(in srgb, var(--ui-success) 14%, transparent);
+    color: var(--ui-success);
+}
+
+.student-status--archived {
+    background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
+    color: var(--ui-warning);
+}
+
+.student-identity-readonly {
+    background: var(--ui-surface-raised);
+}

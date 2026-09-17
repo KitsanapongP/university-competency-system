@@ -277,9 +277,9 @@ function GradeEditorTable({
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      className="student-table-wrap course-grade-modal-table"
+      className="student-table-wrap course-grade-modal-table ui-table-wrap"
     >
-      <table className="student-table">
+      <table className="student-table ui-table">
         <thead>
           <tr>
             <th>{label(language, "ผู้เรียน", "Student")}</th>
@@ -1474,7 +1474,7 @@ export default function CourseGradeWorkspace({
   );
 
   return (
-    <section className="student-management-panel officer-panel course-grade-workspace">
+    <section className="student-management-panel officer-panel ui-panel course-grade-workspace">
       <div className="course-grade-workspace__header">
         <div>
           <h2>{label(language, "ผลการเรียน", "Course grades")}</h2>
@@ -1637,8 +1637,8 @@ export default function CourseGradeWorkspace({
           {label(language, "มุมมองรายผู้เรียน", "By student")}
         </button>
       </div>
-      <div className="student-table-wrap course-grade-table-wrap">
-        <table className="student-table course-grade-table">
+      <div className="student-table-wrap course-grade-table-wrap ui-table-wrap">
+        <table className="student-table course-grade-table ui-table">
           <thead>
             <tr>
               {view === "courses" ? (

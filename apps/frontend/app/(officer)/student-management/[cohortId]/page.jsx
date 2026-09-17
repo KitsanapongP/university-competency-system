@@ -952,8 +952,8 @@ export default function CohortRosterPage() {
   };
 
   return (
-    <div className="student-management-page officer-page cohort-roster-page">
-      <div className="cohort-roster-header officer-page__header">
+    <div className="student-management-page officer-page ui-page cohort-roster-page">
+      <div className="cohort-roster-header officer-page__header ui-page__header">
         <div>
           <Link
             className="course-btn course-btn--ghost cohort-back"
@@ -1074,7 +1074,7 @@ export default function CohortRosterPage() {
         </button>
       </div>
       {workspaceTab === "roster" ? (
-        <section className="student-management-panel officer-panel">
+        <section className="student-management-panel officer-panel ui-panel">
           <div className="cohort-roster-toolbar">
             <div className="student-search">
               <Search size={16} />
@@ -1114,8 +1114,8 @@ export default function CohortRosterPage() {
               {label(language, "รายการ", "items")}
             </span>
           </div>
-          <div className="student-table-wrap">
-            <table className="student-table cohort-roster-table">
+          <div className="student-table-wrap ui-table-wrap">
+            <table className="student-table cohort-roster-table ui-table">
               <thead>
                 <tr>
                   <th>{label(language, "นักศึกษา", "Student")}</th>

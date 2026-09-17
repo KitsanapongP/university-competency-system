@@ -220,3 +220,134 @@
         width: 100%;
     }
 }
+
+/* Curriculum/Template visual tokens */
+.course-grade-workspace {
+    border-color: var(--ui-border-strong);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface);
+    color: var(--ui-text);
+}
+
+.course-grade-workspace,
+.course-grade-workspace button,
+.course-grade-workspace input,
+.course-grade-workspace select,
+.course-grade-workspace textarea {
+    font-family: var(--ui-font);
+}
+
+.course-grade-workspace__header,
+.course-grade-editor-group-heading,
+.course-grade-editor-note,
+.course-grade-recalc-banner,
+.course-grade-summary,
+.course-grade-summary > div,
+.course-grade-view-tabs,
+.course-grade-editor-horizontal-scroll,
+.course-grade-record-action,
+.course-grade-history-chip,
+.course-grade-import-section {
+    border-color: var(--ui-border);
+}
+
+.course-grade-workspace__header h2,
+.course-grade-editor-group-heading strong,
+.course-grade-delete-impact,
+.course-grade-summary strong,
+.course-grade-import-section > strong,
+.course-grade-reg-placeholder strong {
+    color: var(--ui-text);
+}
+
+.course-grade-workspace__header p,
+.course-grade-workspace__header span,
+.course-grade-editor-note,
+.course-grade-editor-group-heading span,
+.course-grade-summary span,
+.course-grade-source,
+.course-grade-history-chip,
+.course-grade-history-empty,
+.course-grade-no-period,
+.course-grade-import-toolbar > span,
+.course-grade-import-summary,
+.course-grade-reg-placeholder {
+    color: var(--ui-text-muted);
+}
+
+.course-grade-summary,
+.course-grade-editor-group-heading,
+.course-grade-source,
+.course-grade-no-period,
+.course-grade-import-empty {
+    background: var(--ui-surface-raised);
+}
+
+.course-grade-view-tabs button {
+    color: var(--ui-text-muted);
+}
+
+.course-grade-view-tabs button.is-active {
+    color: var(--ui-primary-hover);
+    border-bottom-color: var(--ui-primary);
+}
+
+.course-grade-type--core,
+.course-grade-best,
+.course-grade-record-action--save {
+    color: var(--ui-success);
+}
+
+.course-grade-type--core,
+.course-grade-best {
+    background: color-mix(in srgb, var(--ui-success) 14%, transparent);
+}
+
+.course-grade-type--bonus {
+    color: var(--ui-warning);
+    background: color-mix(in srgb, var(--ui-warning) 14%, transparent);
+}
+
+.course-grade-progress {
+    background: var(--ui-border);
+}
+
+.course-grade-progress span {
+    background: var(--ui-primary);
+}
+
+.course-grade-record-action:hover:not(:disabled),
+.course-grade-record-action:focus-visible {
+    color: var(--ui-primary-hover);
+    border-color: var(--ui-primary);
+    background: color-mix(in srgb, var(--ui-primary) 10%, transparent);
+}
+
+.course-grade-record-action--danger:hover:not(:disabled),
+.course-grade-record-action--danger:focus-visible {
+    color: var(--ui-danger);
+    border-color: color-mix(in srgb, var(--ui-danger) 55%, transparent);
+    background: color-mix(in srgb, var(--ui-danger) 8%, transparent);
+}
+
+.course-grade-action-menu__list {
+    border-color: var(--ui-border);
+    background: var(--ui-surface);
+}
+
+.course-grade-action-menu__list button {
+    color: var(--ui-text);
+}
+
+.course-grade-action-menu__list button:hover,
+.course-grade-action-menu__list button:focus-visible {
+    background: var(--ui-surface-raised);
+}
+
+.course-grade-action-menu__list button.is-danger {
+    color: var(--ui-danger);
+}
+
+.course-grade-action-menu__list button.is-add {
+    color: var(--ui-success);
+}
