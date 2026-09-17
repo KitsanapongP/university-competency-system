@@ -6,6 +6,8 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const frontendDirectory = path.resolve(scriptDirectory, '..');
 
 const requiredPages = [
+    'app/(officer)/curriculum-management/page.jsx',
+    'app/(officer)/curriculum-management/create/page.jsx',
     'app/(officer)/free-elective-management/page.jsx',
     'app/(officer)/free-elective-management/groups/page.jsx',
     'app/(officer)/free-elective-management/groups/[cohortId]/page.jsx',
@@ -19,9 +21,17 @@ const requiredPages = [
     'app/(officer)/major-management/page.jsx',
     'app/(officer)/competency-management/page.jsx',
     'app/(officer)/template-assignments/page.jsx',
+    'app/(officer)/template-management/page.jsx',
+    'app/(officer)/my-activity-sessions/page.jsx',
 ];
 
+const pagesWithStandardHeader = requiredPages.filter(
+    relativePath => !relativePath.endsWith('curriculum-management/create/page.jsx'),
+);
+
 const sharedStylesPath = path.join(frontendDirectory, 'app/(officer)/OfficerDesign.css');
+const tokenStylesPath = path.join(frontendDirectory, 'app/(officer)/UiTokens.css');
+const primitiveStylesPath = path.join(frontendDirectory, 'app/(officer)/UiPrimitives.css');
 const labelsPath = path.join(frontendDirectory, 'app/(officer)/officer-labels.js');
 const failures = [];
 
@@ -40,8 +50,19 @@ requiredPages.forEach(relativePath => {
     if (!content.includes('officer-page')) {
         failures.push(`${relativePath}: missing officer-page root class`);
     }
+    if (!content.includes('ui-page')) {
+        failures.push(`${relativePath}: missing ui-page root class`);
+    }
+});
+
+pagesWithStandardHeader.forEach(relativePath => {
+    const content = readFile(relativePath);
+    if (!content) return;
     if (!content.includes('officer-page__header')) {
         failures.push(`${relativePath}: missing officer-page__header class`);
+    }
+    if (!content.includes('ui-page__header')) {
+        failures.push(`${relativePath}: missing ui-page__header class`);
     }
 });
 
@@ -54,6 +75,32 @@ if (!sharedStyles) {
     ['--officer-font', '--officer-primary', '--officer-surface', '@media'].forEach(token => {
         if (!sharedStyles.includes(token)) {
             failures.push(`OfficerDesign.css: missing ${token}`);
+        }
+    });
+}
+
+const tokenStyles = fs.existsSync(tokenStylesPath)
+    ? fs.readFileSync(tokenStylesPath, 'utf8')
+    : '';
+if (!tokenStyles) {
+    failures.push('app/(officer)/UiTokens.css: semantic token stylesheet does not exist');
+} else {
+    ['--ui-font', '--ui-page-bg', '--ui-primary', ':root:not(.dark)'].forEach(token => {
+        if (!tokenStyles.includes(token)) {
+            failures.push(`UiTokens.css: missing ${token}`);
+        }
+    });
+}
+
+const primitiveStyles = fs.existsSync(primitiveStylesPath)
+    ? fs.readFileSync(primitiveStylesPath, 'utf8')
+    : '';
+if (!primitiveStyles) {
+    failures.push('app/(officer)/UiPrimitives.css: shared primitive stylesheet does not exist');
+} else {
+    ['.ui-page', '.ui-panel', '.ui-table'].forEach(selector => {
+        if (!primitiveStyles.includes(selector)) {
+            failures.push(`UiPrimitives.css: missing ${selector}`);
         }
     });
 }
