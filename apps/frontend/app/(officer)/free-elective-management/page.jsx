@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { BookOpen, ExternalLink, Plus, RefreshCw } from 'lucide-react';
+import { ExternalLink, Plus, RefreshCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../providers/auth-provider';
 import { useLanguage } from '../../../providers/LanguageContext';
@@ -252,7 +252,7 @@ function FreeElectiveManagementPageContent() {
                         onClick={goToGroups}
                     >
                         <ExternalLink size={16} aria-hidden="true" />
-                        {labels.groups}
+                        {labels.learnerManagement}
                     </button>
                     <button
                         type="button"

@@ -106,6 +106,11 @@ const MENU_CONFIG = {
       icon: BookOpen,
       labelKey: "free_elective_management",
     },
+    {
+      id: "free-elective-management/groups",
+      icon: Users,
+      labelKey: "free_elective_students",
+    },
   ],
   admin: [
     { id: "dashboard", icon: LayoutDashboard, labelKey: "dashboard" },
@@ -118,6 +123,11 @@ const MENU_CONFIG = {
       id: "free-elective-management",
       icon: BookOpen,
       labelKey: "free_elective_management",
+    },
+    {
+      id: "free-elective-management/groups",
+      icon: Users,
+      labelKey: "free_elective_students",
     },
     {
       id: "major-management",

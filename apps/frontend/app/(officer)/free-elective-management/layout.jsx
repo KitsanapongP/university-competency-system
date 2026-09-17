@@ -1,15 +1,19 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../../../providers/auth-provider';
 import { AppLayout } from '../../../components/layout/AppLayout';
 import '../../../app/Competency.css';
 
 export default function FreeElectiveManagementLayout({ children }) {
     const router = useRouter();
+    const pathname = usePathname();
     const { user, loading, logout } = useAuth();
     const isAdmin = user?.roles?.includes('admin');
+    const isLearnerManagementRoute =
+        pathname?.startsWith('/free-elective-management/groups')
+        || pathname?.startsWith('/free-elective-management/students');
 
     useEffect(() => {
         if (!loading && !user) {
@@ -29,7 +33,9 @@ export default function FreeElectiveManagementLayout({ children }) {
     return (
         <AppLayout
             role={isAdmin ? 'admin' : 'officer'}
-            activePage="free-elective-management"
+            activePage={isLearnerManagementRoute
+                ? 'free-elective-management/groups'
+                : 'free-elective-management'}
             onNavigate={handleNavigate}
             user={user}
             loading={loading}
