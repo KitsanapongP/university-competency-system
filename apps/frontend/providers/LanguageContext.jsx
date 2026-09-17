@@ -446,6 +446,8 @@ translations.th.menu_management = 'เมนูการจัดการ';
 translations.en.executive_analytics = 'Executive Analytics';
 translations.en.free_elective_management = 'Free-elective courses';
 translations.th.free_elective_management = 'จัดการวิชาเสรี';
+translations.en.free_elective_students = 'Learners and free-elective courses';
+translations.th.free_elective_students = 'ผู้เรียนและวิชาเสรี';
 translations.th.executive_analytics = 'วิเคราะห์ข้อมูลผู้บริหาร';
 translations.en.executive_competencies = 'Competency Overview';
 translations.th.executive_competencies = 'ภาพรวมสมรรถนะ';
@@ -490,10 +492,16 @@ export function LanguageProvider({ children }) {
     // Sync from localStorage after hydration
     useEffect(() => {
         const saved = localStorage.getItem('language');
-        if (saved && saved !== language) {
-            setLanguage(saved);
+        if (!saved || saved === language) {
+            return undefined;
         }
-    }, []);
+
+        const timeoutId = window.setTimeout(() => {
+            setLanguage(saved);
+        }, 0);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [language]);
 
     const changeLanguage = (lang) => {
         setLanguage(lang);
