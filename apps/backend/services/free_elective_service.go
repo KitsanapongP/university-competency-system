@@ -447,8 +447,8 @@ func (s *FreeElectiveService) UpdateStudentOfferingStatus(ctx context.Context, c
 		return nil, err
 	}
 	status := strings.ToLower(strings.TrimSpace(payload.Status))
-	if status != "enrolled" && status != "withdrawn" {
-		return nil, FreeElectiveValidationError{Message: "status must be enrolled or withdrawn"}
+	if err := validateStudentOfferingStatus(status); err != nil {
+		return nil, err
 	}
 	target, err := s.Repo.GetStudentOfferingTarget(ctx, enrollmentID, offeringEnrollmentID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -460,8 +460,8 @@ func (s *FreeElectiveService) UpdateStudentOfferingStatus(ctx context.Context, c
 	if target.OfferingStatus == "finalized" || target.OfferingStatus == "cancelled" {
 		return nil, ErrFreeElectiveOfferingLocked
 	}
-	if target.Status == "completed" {
-		return nil, FreeElectiveConflictError{Code: "ENROLLMENT_STATUS_LOCKED", Message: "a completed enrollment cannot change status from the learner page"}
+	if err := validateStudentOfferingCurrentStatus(target.Status); err != nil {
+		return nil, err
 	}
 	if err := s.Repo.UpdateStudentOfferingStatus(ctx, enrollmentID, offeringEnrollmentID, status); errors.Is(err, repositories.ErrFreeElectiveOfferingLocked) {
 		return nil, ErrFreeElectiveOfferingLocked
@@ -667,6 +667,23 @@ func validateFreeElectiveGrade(value, scheme string) error {
 	}
 	if err := grading.ValidateGrade(scheme, value); err != nil {
 		return FreeElectiveValidationError{Message: "grade is not allowed for this course grade scheme"}
+	}
+	return nil
+}
+
+func validateStudentOfferingStatus(status string) error {
+	if status != "enrolled" && status != "withdrawn" {
+		return FreeElectiveValidationError{Message: "status must be enrolled or withdrawn"}
+	}
+	return nil
+}
+
+func validateStudentOfferingCurrentStatus(status string) error {
+	if status == "completed" {
+		return FreeElectiveConflictError{
+			Code:    "ENROLLMENT_STATUS_LOCKED",
+			Message: "a completed enrollment cannot change status from the learner page",
+		}
 	}
 	return nil
 }

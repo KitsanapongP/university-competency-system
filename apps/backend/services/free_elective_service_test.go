@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/spw32767/university-competency-system-backend/models"
@@ -84,5 +85,33 @@ func TestValidateFreeElectiveGradeUsesCourseScheme(t *testing.T) {
 				t.Fatalf("validateFreeElectiveGrade(%q, %q) = %v, valid = %t", test.grade, test.scheme, err, test.valid)
 			}
 		})
+	}
+}
+
+func TestValidateStudentOfferingStatusAllowsEnrollmentLifecycleActions(t *testing.T) {
+	for _, status := range []string{"enrolled", "withdrawn"} {
+		if err := validateStudentOfferingStatus(status); err != nil {
+			t.Fatalf("validateStudentOfferingStatus(%q) = %v, want nil", status, err)
+		}
+	}
+}
+
+func TestValidateStudentOfferingStatusRejectsCompletedAndUnknownStatuses(t *testing.T) {
+	for _, status := range []string{"completed", "cancelled", ""} {
+		if err := validateStudentOfferingStatus(status); err == nil {
+			t.Fatalf("validateStudentOfferingStatus(%q) = nil, want validation error", status)
+		}
+	}
+}
+
+func TestCompletedStudentOfferingCannotChangeStatusFromLearnerPage(t *testing.T) {
+	err := validateStudentOfferingCurrentStatus("completed")
+	var conflictErr FreeElectiveConflictError
+	if !errors.As(err, &conflictErr) || conflictErr.Code != "ENROLLMENT_STATUS_LOCKED" {
+		t.Fatalf("validateStudentOfferingCurrentStatus(completed) = %v, want ENROLLMENT_STATUS_LOCKED", err)
+	}
+
+	if err := validateStudentOfferingCurrentStatus("enrolled"); err != nil {
+		t.Fatalf("validateStudentOfferingCurrentStatus(enrolled) = %v, want nil", err)
 	}
 }
