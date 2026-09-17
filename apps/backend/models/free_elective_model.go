@@ -137,6 +137,7 @@ type FreeElectiveStudentCourse struct {
 	AcademicYearBE       uint64 `json:"academic_year_be"`
 	Semester             uint64 `json:"semester"`
 	SectionNo            string `json:"section_no"`
+	OfferingStatus       string `json:"offering_status"`
 	GradeScheme          string `json:"grade_scheme"`
 	Grade                string `json:"grade,omitempty"`
 	GradeSource          string `json:"grade_source,omitempty"`

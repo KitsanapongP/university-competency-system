@@ -859,7 +859,7 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 
 	rows, err := r.DB.QueryContext(ctx, `
 		SELECT selected.offering_enrollment_id, offering.offering_id, course.code, course.name_th, COALESCE(course.name_en, ''),
-			offering.academic_year_be, offering.semester, offering.section_no, course.grade_scheme,
+			offering.academic_year_be, offering.semester, offering.section_no, offering.status, course.grade_scheme,
 			COALESCE(grade.grade, ''), COALESCE(grade.grade_source, ''), COALESCE(grade.is_best_grade, 0), selected.status
 		FROM ele_offering_enrollments selected
 		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
@@ -887,6 +887,7 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 			&course.AcademicYearBE,
 			&course.Semester,
 			&course.SectionNo,
+			&course.OfferingStatus,
 			&course.GradeScheme,
 			&course.Grade,
 			&course.GradeSource,

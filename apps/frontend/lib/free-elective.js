@@ -226,6 +226,7 @@ export function mapFreeElectiveStudentCourse(item) {
         academicYearBE: toNumber(item.academic_year_be),
         semester: toNumber(item.semester),
         sectionNo: item.section_no || '',
+        offeringStatus: item.offering_status || '',
         gradeScheme: item.grade_scheme || 'letter',
         grade: item.grade || '',
         gradeSource: item.grade_source || '',

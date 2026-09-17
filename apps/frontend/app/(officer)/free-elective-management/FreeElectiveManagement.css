@@ -1700,3 +1700,200 @@
 .free-elective-modal-actions {
     border-top-color: var(--ui-border);
 }
+
+.free-elective-page__actions .free-elective-student-detail-count {
+    min-width: 8.5rem;
+}
+
+.free-elective-student-course-row--editing {
+    background: var(--ui-primary-soft);
+}
+
+.free-elective-student-course-row--editing:hover td {
+    background: transparent;
+}
+
+.free-elective-student-course-row > span,
+.free-elective-student-course-row > strong,
+.free-elective-course-row__manage {
+    min-width: 0;
+}
+
+.free-elective-course-row__manage {
+    display: flex;
+    justify-content: center;
+}
+
+.free-elective-course-actions {
+    position: relative;
+    display: inline-flex;
+    justify-content: center;
+}
+
+.free-elective-course-actions__menu {
+    position: absolute;
+    z-index: 5;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    display: grid;
+    min-width: 12rem;
+    overflow: hidden;
+    padding: 0.3rem;
+    border: 1px solid var(--ui-border-strong);
+    border-radius: var(--ui-radius-control);
+    background: var(--ui-surface);
+    box-shadow: var(--ui-shadow);
+}
+
+.free-elective-course-actions__menu button {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    min-height: 2.2rem;
+    padding: 0 0.65rem;
+    border: 0;
+    border-radius: calc(var(--ui-radius-control) - 2px);
+    color: var(--ui-text);
+    background: transparent;
+    font: inherit;
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.free-elective-course-actions__menu button:hover {
+    background: var(--ui-hover);
+}
+
+.free-elective-course-actions__menu button svg {
+    color: var(--ui-icon);
+}
+
+.free-elective-course-actions__menu .free-elective-course-actions__menu-item--danger {
+    color: var(--ui-danger);
+}
+
+.free-elective-course-actions__menu .free-elective-course-actions__menu-item--danger svg {
+    color: var(--ui-danger);
+}
+
+.free-elective-course-actions__readonly {
+    color: var(--ui-text-muted);
+    font-size: 0.72rem;
+}
+
+.free-elective-student-offering-picker {
+    display: grid;
+    gap: 1rem;
+}
+
+.free-elective-student-offering-picker__hint {
+    margin: 0;
+    color: var(--ui-text-muted);
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+
+.free-elective-student-offering-list {
+    display: grid;
+    max-height: 28rem;
+    gap: 0.55rem;
+    overflow-y: auto;
+    padding: 0.1rem;
+}
+
+.free-elective-student-offering-option {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(10rem, 0.55fr) auto;
+    gap: 0.75rem;
+    align-items: center;
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-control);
+    color: var(--ui-text);
+    background: var(--ui-surface-raised);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.free-elective-student-offering-option:hover,
+.free-elective-student-offering-option--selected {
+    border-color: var(--ui-primary);
+    background: var(--ui-primary-soft);
+}
+
+.free-elective-student-offering-option:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+.free-elective-student-offering-option__icon {
+    display: grid;
+    width: 2.2rem;
+    height: 2.2rem;
+    place-items: center;
+    border-radius: var(--ui-radius-control);
+    color: var(--ui-icon);
+    background: var(--ui-primary-soft);
+}
+
+.free-elective-student-offering-option__content,
+.free-elective-student-offering-option__meta {
+    display: grid;
+    min-width: 0;
+    gap: 0.15rem;
+}
+
+.free-elective-student-offering-option__content strong {
+    color: var(--ui-primary-hover);
+    font-size: 0.78rem;
+}
+
+.free-elective-student-offering-option__content span {
+    overflow: hidden;
+    color: var(--ui-text);
+    font-size: 0.82rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.free-elective-student-offering-option__content small,
+.free-elective-student-offering-option__meta small {
+    color: var(--ui-text-muted);
+    font-size: 0.7rem;
+}
+
+.free-elective-student-offering-option__meta > span {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
+    overflow: hidden;
+    color: var(--ui-text);
+    font-size: 0.75rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.free-elective-student-offering-option__check {
+    display: grid;
+    width: 1.5rem;
+    height: 1.5rem;
+    place-items: center;
+    color: var(--ui-primary);
+}
+
+@media (max-width: 720px) {
+    .free-elective-student-offering-option {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .free-elective-student-offering-option__meta {
+        grid-column: 2 / -1;
+    }
+
+    .free-elective-page__actions .free-elective-student-detail-count {
+        width: 100%;
+    }
+}
