@@ -232,10 +232,6 @@ function FreeElectiveManagementPageContent() {
     <div className="free-elective-page officer-page ui-page">
       <header className="free-elective-page__header officer-page__header ui-page__header">
                 <div>
-                    <p className="free-elective-page__eyebrow">
-                        <BookOpen size={15} aria-hidden="true" />
-                        {labels.signInScope}
-                    </p>
                     <h1 className="free-elective-page__title officer-page__title">{labels.title}</h1>
                     <p className="free-elective-page__subtitle officer-page__subtitle">{labels.subtitle}</p>
                 </div>
@@ -268,11 +264,6 @@ function FreeElectiveManagementPageContent() {
                     </button>
                 </div>
             </header>
-
-            <div className="free-elective-notice" role="status">
-                <BookOpen size={17} aria-hidden="true" />
-                <span>{labels.signInScope}</span>
-            </div>
 
             <nav className="free-elective-view-tabs" aria-label={labels.title}>
                 <button

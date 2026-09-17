@@ -13,7 +13,7 @@ export default function FreeElectiveFilters({
     const label = (key) => freeElectiveText(language, key);
 
     return (
-        <section className="free-elective-panel free-elective-filters" aria-labelledby="free-elective-filter-title">
+        <section className="free-elective-panel officer-panel ui-panel" aria-labelledby="free-elective-filter-title">
             <div className="free-elective-panel__heading">
                 <div>
                     <p
