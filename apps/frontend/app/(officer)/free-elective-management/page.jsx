@@ -358,7 +358,7 @@ function FreeElectiveManagementPageContent() {
                 <div className="free-elective-panel__heading">
                     <div>
                         <h2>{labels.courses}</h2>
-                        <p>{labels.roundCardHint}</p>
+                        <p>{labels.courseCatalogHint}</p>
                     </div>
                     <div className="free-elective-inline-actions">
                         <button
