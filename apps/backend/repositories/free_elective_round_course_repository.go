@@ -570,7 +570,20 @@ func (r *FreeElectiveRepository) UpsertRoundCourseGrade(ctx context.Context, rou
 	if err := ensureFreeElectiveRoundEditable(status); err != nil {
 		return err
 	}
-	return r.upsertRoundCourseGradeByEnrollmentKey(ctx, tx, roundID, roundCourseID, roundCourseEnrollmentID, userID, grade, source, sourceReference)
+	if err := r.upsertRoundCourseGradeByEnrollmentKey(
+		ctx,
+		tx,
+		roundID,
+		roundCourseID,
+		roundCourseEnrollmentID,
+		userID,
+		grade,
+		source,
+		sourceReference,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *FreeElectiveRepository) upsertRoundCourseGradeByEnrollmentKey(ctx context.Context, tx *sql.Tx, roundID, roundCourseID, roundCourseEnrollmentID, userID uint64, grade, source string, sourceReference *string) error {
