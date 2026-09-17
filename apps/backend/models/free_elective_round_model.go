@@ -82,6 +82,7 @@ type FreeElectiveRoundFilters struct {
 }
 
 type FreeElectiveRoundCourseInput struct {
+	RoundCourseID        uint64                             `json:"round_course_id"`
 	FreeElectiveCourseID uint64                             `json:"free_elective_course_id"`
 	CourseCode           string                             `json:"course_code"`
 	CourseNameTH         string                             `json:"course_name_th"`

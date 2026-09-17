@@ -15,6 +15,7 @@ import (
 var (
 	ErrFreeElectiveForbidden            = errors.New("insufficient free-elective scope")
 	ErrFreeElectiveCourseNotFound       = errors.New("free-elective course not found")
+	ErrFreeElectiveRoundNotFound        = errors.New("free-elective round not found")
 	ErrFreeElectiveOfferingNotFound     = errors.New("free-elective offering not found")
 	ErrFreeElectiveOfferingLocked       = errors.New("free-elective offering is locked")
 	ErrFreeElectiveStudentGroupNotFound = errors.New("free-elective student group not found")

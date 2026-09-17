@@ -124,6 +124,12 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 
 			pr.Route("/free-electives", func(fer chi.Router) {
 				fer.Use(middleware.RequireRoles("admin", "officer"))
+				fer.Get("/rounds", freeElectiveHandler.ListRounds)
+				fer.Post("/rounds/preview", freeElectiveHandler.PreviewRound)
+				fer.Post("/rounds", freeElectiveHandler.CreateRound)
+				fer.Get("/rounds/{round_id}", freeElectiveHandler.GetRound)
+				fer.Post("/rounds/{round_id}/duplicate", freeElectiveHandler.DuplicateRound)
+				fer.Patch("/rounds/{round_id}/status", freeElectiveHandler.UpdateRoundStatus)
 				fer.Get("/courses", freeElectiveHandler.ListCourses)
 				fer.Post("/courses", freeElectiveHandler.CreateCourse)
 				fer.Get("/courses/{course_id}", freeElectiveHandler.GetCourse)

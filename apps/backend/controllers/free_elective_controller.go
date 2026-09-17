@@ -607,6 +607,10 @@ func writeFreeElectiveError(w http.ResponseWriter, err error) {
 		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_COURSE_NOT_FOUND", err.Error())
 		return
 	}
+	if errors.Is(err, services.ErrFreeElectiveRoundNotFound) {
+		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_ROUND_NOT_FOUND", err.Error())
+		return
+	}
 	if errors.Is(err, services.ErrFreeElectiveOfferingNotFound) {
 		utils.Error(w, http.StatusNotFound, "FREE_ELECTIVE_OFFERING_NOT_FOUND", err.Error())
 		return
