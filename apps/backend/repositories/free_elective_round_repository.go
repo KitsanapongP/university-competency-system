@@ -256,6 +256,19 @@ type freeElectiveRoundMasterCourse struct {
 	FacultyID   uint64
 }
 
+func freeElectiveRoundNullableString(value string) *string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	copy := value
+	return &copy
+}
+
+func freeElectiveRoundSnapshotString(value string) *string {
+	copy := value
+	return &copy
+}
+
 func getFreeElectiveRoundMasterCourse(ctx context.Context, tx *sql.Tx, courseID uint64) (freeElectiveRoundMasterCourse, error) {
 	var course freeElectiveRoundMasterCourse
 	err := tx.QueryRowContext(ctx, `
@@ -280,6 +293,32 @@ func insertFreeElectiveRoundCourse(ctx context.Context, tx *sql.Tx, roundID, use
 	if err != nil {
 		return 0, err
 	}
+	courseCode := input.CourseCode
+	if strings.TrimSpace(courseCode) == "" {
+		courseCode = master.Code
+	}
+	courseNameTH := input.CourseNameTH
+	if strings.TrimSpace(courseNameTH) == "" {
+		courseNameTH = master.NameTH
+	}
+	courseNameEN := input.CourseNameEN
+	if courseNameEN == nil {
+		if master.NameEN.Valid {
+			courseNameEN = freeElectiveRoundNullableString(master.NameEN.String)
+		}
+	}
+	description := input.Description
+	if description == nil && master.Description.Valid {
+		description = freeElectiveRoundNullableString(master.Description.String)
+	}
+	credits := input.Credits
+	if credits == 0 {
+		credits = master.Credits
+	}
+	gradeScheme := input.GradeScheme
+	if strings.TrimSpace(gradeScheme) == "" {
+		gradeScheme = master.GradeScheme
+	}
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO ele_free_elective_round_courses
 			(round_id, free_elective_course_id, course_code, course_name_th,
@@ -288,12 +327,12 @@ func insertFreeElectiveRoundCourse(ctx context.Context, tx *sql.Tx, roundID, use
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
 		roundID,
 		master.ID,
-		master.Code,
-		master.NameTH,
-		master.NameEN,
-		master.Description,
-		master.Credits,
-		master.GradeScheme,
+		courseCode,
+		courseNameTH,
+		courseNameEN,
+		description,
+		credits,
+		gradeScheme,
 		order,
 		userID,
 	)
@@ -389,6 +428,12 @@ func (r *FreeElectiveRepository) DuplicateRound(ctx context.Context, sourceRound
 	for order, course := range source.Courses {
 		input := models.FreeElectiveRoundCourseInput{
 			FreeElectiveCourseID: course.FreeElectiveCourseID,
+			CourseCode:           course.CourseCode,
+			CourseNameTH:         course.CourseNameTH,
+			CourseNameEN:         freeElectiveRoundSnapshotString(course.CourseNameEN),
+			Description:          freeElectiveRoundSnapshotString(course.Description),
+			Credits:              course.Credits,
+			GradeScheme:          course.GradeScheme,
 			Competencies:         make([]models.FreeElectiveRoundCompetencyInput, 0, len(course.Competencies)),
 		}
 		for _, competency := range course.Competencies {
