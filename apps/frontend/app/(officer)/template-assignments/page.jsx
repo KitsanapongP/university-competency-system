@@ -570,8 +570,8 @@ export default function TemplateAssignmentsPage() {
           );
 
   return (
-    <div className="template-assignments-page officer-page">
-      <header className="course-list-header officer-page__header">
+    <div className="template-assignments-page officer-page ui-page">
+      <header className="course-list-header officer-page__header ui-page__header">
         <div className="course-list-header__left">
           <h1 className="course-list-header__title officer-page__title">
             {text(
@@ -612,7 +612,7 @@ export default function TemplateAssignmentsPage() {
       />
 
       <section
-        className="template-assignment-filter officer-panel"
+        className="template-assignment-filter officer-panel ui-panel"
         aria-label={text(language, "ตัวกรองคณะ", "Faculty filter")}
       >
         <label className="course-field">
@@ -646,7 +646,7 @@ export default function TemplateAssignmentsPage() {
         </p>
       </section>
 
-      <section className="template-assignment-section officer-panel">
+      <section className="template-assignment-section officer-panel ui-panel">
         <div className="template-assignment-section__header">
           <div>
             <h2>{text(language, "พร้อมกำหนด", "Ready to assign")}</h2>
@@ -713,7 +713,7 @@ export default function TemplateAssignmentsPage() {
         )}
       </section>
 
-      <section className="template-assignment-section officer-panel">
+      <section className="template-assignment-section officer-panel ui-panel">
         <div className="template-assignment-section__header">
           <div>
             <h2>{text(language, "กำหนดแล้ว", "Current assignments")}</h2>
@@ -738,8 +738,8 @@ export default function TemplateAssignmentsPage() {
             )}
           </div>
         ) : (
-          <div className="template-assignment-table-wrap officer-table-wrap">
-            <table className="template-assignment-table officer-table">
+          <div className="template-assignment-table-wrap officer-table-wrap ui-table-wrap">
+            <table className="template-assignment-table officer-table ui-table">
               <thead>
                 <tr>
                   <th>{text(language, "รุ่นนักศึกษา", "Cohort")}</th>

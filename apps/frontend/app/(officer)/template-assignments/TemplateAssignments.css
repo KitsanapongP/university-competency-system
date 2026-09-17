@@ -188,3 +188,82 @@
 @media (min-width: 721px) and (max-width: 1280px) {
     .template-assignments-page { padding-inline: 2rem; }
 }
+
+/* Curriculum/Template visual tokens */
+.template-assignments-page {
+    padding-inline: var(--ui-page-padding-inline);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+}
+
+.template-assignment-filter,
+.template-assignment-section {
+    border-color: var(--ui-border-strong);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface);
+}
+
+.template-assignment-filter p,
+.template-assignment-section__header p,
+.template-assignment-count,
+.template-assignment-empty,
+.template-assignment-table td > span,
+.template-assignment-template-context span,
+.template-assignment-confirmation-field span,
+.template-assignment-roster-preview__header span,
+.template-assignment-roster-preview__empty,
+.template-assignment-impact,
+.template-assignment-history article > div span,
+.template-assignment-history p {
+    color: var(--ui-text-muted);
+}
+
+.template-assignment-section__header,
+.template-assignment-table th,
+.template-assignment-table td,
+.template-assignment-template-context,
+.template-assignment-roster-preview {
+    border-color: var(--ui-border);
+}
+
+.template-assignment-section__header h2,
+.template-assignment-ready-item strong,
+.template-assignment-table td,
+.template-assignment-template-context strong,
+.template-assignment-confirmation-field strong,
+.template-assignment-roster-preview__header strong,
+.template-assignment-roster-preview__list li strong,
+.template-assignment-choice-list button,
+.template-assignment-impact strong {
+    color: var(--ui-text);
+}
+
+.template-assignment-ready-item,
+.template-assignment-roster-preview__list li,
+.template-assignment-choice-list button {
+    border-color: var(--ui-border);
+}
+
+.template-assignment-ready-item {
+    border-radius: 6px;
+}
+
+.template-assignment-table th {
+    color: var(--ui-text-muted);
+    background: var(--ui-surface-raised);
+}
+
+.template-assignment-state {
+    color: var(--ui-success);
+    background: color-mix(in srgb, var(--ui-success) 18%, transparent);
+}
+
+.template-assignment-state--locked {
+    color: var(--ui-warning);
+    background: color-mix(in srgb, var(--ui-warning) 18%, transparent);
+}
+
+.template-assignment-choice-list button:hover {
+    border-color: var(--ui-primary);
+    background: color-mix(in srgb, var(--ui-primary) 10%, transparent);
+}
