@@ -338,6 +338,18 @@
     line-height: 1.45;
 }
 
+.free-elective-field__error {
+    color: var(--ui-danger, var(--danger, #dc2626));
+    font-size: 0.72rem;
+    line-height: 1.35;
+}
+
+.free-elective-field input[aria-invalid="true"],
+.free-elective-field select[aria-invalid="true"],
+.free-elective-field textarea[aria-invalid="true"] {
+    border-color: var(--ui-danger, var(--danger, #dc2626));
+}
+
 .free-elective-checkbox {
     display: inline-flex;
     gap: 0.55rem;
@@ -2092,6 +2104,33 @@
     align-items: end;
 }
 
+.free-elective-round-course-editor__heading h3 {
+    margin: 0;
+    color: var(--ui-text);
+    font-size: 0.9rem;
+}
+
+.free-elective-round-course-editor__heading p {
+    margin: 0.2rem 0 0;
+    color: var(--ui-text-muted);
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
+
+.free-elective-round-course-editor__fields {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.8rem;
+}
+
+.free-elective-round-course-editor__field--wide {
+    grid-column: span 1;
+}
+
+.free-elective-round-course-editor__field--full {
+    grid-column: 1 / -1;
+}
+
 .free-elective-round-course-editor__meta {
     display: flex;
     flex-wrap: wrap;
@@ -2125,9 +2164,9 @@
 
 .free-elective-round-course-editor__mapping {
     display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(5rem, 0.65fr) 1.1rem auto;
+    grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.45fr) auto;
     gap: 0.55rem;
-    align-items: center;
+    align-items: start;
 }
 
 .free-elective-round-course-editor__mapping > span {
@@ -2144,6 +2183,16 @@
 
 .free-elective-round-course-editor__mapping input {
     width: 100%;
+}
+
+.free-elective-round-course-editor__weight-input {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.free-elective-round-course-editor__weight-input span {
+    flex: 0 0 auto;
 }
 
 .free-elective-round-review-summary {
@@ -2231,10 +2280,23 @@
     }
 
     .free-elective-round-course-editor__mapping {
-        grid-template-columns: minmax(0, 1fr) 5.5rem auto;
+        grid-template-columns: minmax(0, 1fr) auto;
     }
 
     .free-elective-round-course-editor__mapping > span:first-of-type {
+        grid-column: 1 / -1;
+    }
+
+    .free-elective-round-course-editor__fields {
+        grid-template-columns: 1fr;
+    }
+
+    .free-elective-round-course-editor__field--wide,
+    .free-elective-round-course-editor__field--full {
+        grid-column: auto;
+    }
+
+    .free-elective-round-course-editor__mapping .free-elective-field:first-child {
         grid-column: 1 / -1;
     }
 }
