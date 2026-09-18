@@ -243,6 +243,13 @@ func (r *FreeElectiveRepository) AddRoundCourse(ctx context.Context, roundID, us
 	if err := ensureFreeElectiveRoundEditable(status); err != nil {
 		return nil, err
 	}
+	var facultyID uint64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT faculty_id
+		FROM ele_free_elective_rounds
+		WHERE round_id = ? AND deleted_at IS NULL`, roundID).Scan(&facultyID); err != nil {
+		return nil, err
+	}
 	var exists bool
 	if err := tx.QueryRowContext(ctx, `
 		SELECT EXISTS(
@@ -261,7 +268,7 @@ func (r *FreeElectiveRepository) AddRoundCourse(ctx context.Context, roundID, us
 		WHERE round_id = ? AND deleted_at IS NULL`, roundID).Scan(&displayOrder); err != nil {
 		return nil, err
 	}
-	roundCourseID, err := insertFreeElectiveRoundCourse(ctx, tx, roundID, userID, displayOrder, input)
+	roundCourseID, err := insertFreeElectiveRoundCourse(ctx, tx, roundID, facultyID, userID, displayOrder, input)
 	if err != nil {
 		return nil, err
 	}

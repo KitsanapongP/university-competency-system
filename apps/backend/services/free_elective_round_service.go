@@ -173,31 +173,40 @@ func (s *FreeElectiveService) validateAndNormalizeRound(ctx context.Context, cla
 	if len(payload.Courses) == 0 {
 		issues = append(issues, roundValidationIssue("courses", "COURSES_REQUIRED", "at least one free-elective course is required"))
 	}
-	seenCourses := make(map[uint64]struct{}, len(payload.Courses))
+	seenCourses := make(map[string]struct{}, len(payload.Courses))
 	canonical.Courses = make([]models.FreeElectiveRoundCourseInput, 0, len(payload.Courses))
 	for index, input := range payload.Courses {
 		path := fmt.Sprintf("courses[%d]", index)
-		if input.FreeElectiveCourseID == 0 {
-			issues = append(issues, roundValidationIssue(path+".free_elective_course_id", "COURSE_REQUIRED", "choose a free-elective course"))
-			continue
-		}
-		if _, exists := seenCourses[input.FreeElectiveCourseID]; exists {
-			issues = append(issues, roundValidationIssue(path+".free_elective_course_id", "DUPLICATE_COURSE", "the same course cannot be added to a round twice"))
-			continue
-		}
-		seenCourses[input.FreeElectiveCourseID] = struct{}{}
-		course, err := s.GetCourse(ctx, claims, input.FreeElectiveCourseID)
-		if errors.Is(err, ErrFreeElectiveCourseNotFound) {
-			issues = append(issues, roundValidationIssue(path+".free_elective_course_id", "COURSE_NOT_FOUND", "the selected free-elective course was not found"))
-			continue
-		}
+		course, err := s.resolveRoundCourse(ctx, claims, canonical.FacultyID, input)
 		if err != nil {
-			issues = append(issues, roundValidationIssue(path+".free_elective_course_id", "COURSE_UNAVAILABLE", err.Error()))
+			issuePath := path + ".course_code"
+			if input.FreeElectiveCourseID > 0 {
+				issuePath = path + ".free_elective_course_id"
+			}
+			issues = append(issues, roundValidationIssue(issuePath, roundCourseErrorCode(err), err.Error()))
 			continue
 		}
-		if !course.IsActive {
-			issues = append(issues, roundValidationIssue(path+".free_elective_course_id", "COURSE_INACTIVE", "inactive free-elective courses cannot be added to a new round"))
+
+		courseCode := strings.TrimSpace(input.CourseCode)
+		if course != nil {
+			courseCode = course.Code
+		}
+		courseKey := normalizeFreeElectiveCourseCode(courseCode)
+		if courseKey == "" {
+			issues = append(issues, roundValidationIssue(path+".course_code", "COURSE_REQUIRED", "course code is required"))
 			continue
+		}
+		if _, exists := seenCourses[courseKey]; exists {
+			issues = append(issues, roundValidationIssue(path+".course_code", "DUPLICATE_COURSE", "the same course cannot be added to a round twice"))
+			continue
+		}
+		seenCourses[courseKey] = struct{}{}
+
+		if course == nil {
+			if issue := validateNewRoundCourse(input, path); issue != nil {
+				issues = append(issues, *issue)
+				continue
+			}
 		}
 		if len(input.Competencies) == 0 {
 			issues = append(issues, roundValidationIssue(path+".competencies", "COMPETENCIES_REQUIRED", "add at least one competency to this course"))
@@ -221,19 +230,101 @@ func (s *FreeElectiveService) validateAndNormalizeRound(ctx context.Context, cla
 			}
 			validCompetencies = append(validCompetencies, competency)
 		}
-		canonical.Courses = append(canonical.Courses, models.FreeElectiveRoundCourseInput{
-			RoundCourseID:        input.RoundCourseID,
-			FreeElectiveCourseID: course.FreeElectiveCourseID,
-			CourseCode:           course.Code,
-			CourseNameTH:         course.NameTH,
-			CourseNameEN:         nullableRoundString(course.NameEN),
-			Description:          nullableRoundString(course.Description),
-			Credits:              course.Credits,
-			GradeScheme:          course.GradeScheme,
-			Competencies:         validCompetencies,
-		})
+		canonicalCourse := input
+		canonicalCourse.FreeElectiveCourseID = 0
+		canonicalCourse.CourseCode = strings.TrimSpace(input.CourseCode)
+		canonicalCourse.CourseNameTH = strings.TrimSpace(input.CourseNameTH)
+		canonicalCourse.CourseNameEN = nullableRoundString(pointerStringValue(input.CourseNameEN))
+		canonicalCourse.Description = nullableRoundString(pointerStringValue(input.Description))
+		canonicalCourse.GradeScheme = strings.ToLower(strings.TrimSpace(input.GradeScheme))
+		canonicalCourse.Competencies = validCompetencies
+		if course != nil {
+			canonicalCourse.FreeElectiveCourseID = course.FreeElectiveCourseID
+			canonicalCourse.CourseCode = course.Code
+			canonicalCourse.CourseNameTH = course.NameTH
+			canonicalCourse.CourseNameEN = nullableRoundString(course.NameEN)
+			canonicalCourse.Description = nullableRoundString(course.Description)
+			canonicalCourse.Credits = course.Credits
+			canonicalCourse.GradeScheme = course.GradeScheme
+		}
+		canonical.Courses = append(canonical.Courses, canonicalCourse)
 	}
 	return canonical, issues
+}
+
+func (s *FreeElectiveService) resolveRoundCourse(ctx context.Context, claims *utils.Claims, facultyID uint64, input models.FreeElectiveRoundCourseInput) (*models.FreeElectiveCourse, error) {
+	if input.FreeElectiveCourseID > 0 {
+		course, err := s.GetCourse(ctx, claims, input.FreeElectiveCourseID)
+		if errors.Is(err, ErrFreeElectiveCourseNotFound) {
+			return nil, errors.New("the selected free-elective course was not found")
+		}
+		if err != nil {
+			return nil, err
+		}
+		if course.FacultyID != facultyID {
+			return nil, errors.New("the selected course belongs to another faculty")
+		}
+		if !course.IsActive {
+			return nil, errors.New("inactive free-elective courses cannot be added to a new round")
+		}
+		return course, nil
+	}
+
+	code := strings.TrimSpace(input.CourseCode)
+	if code == "" {
+		return nil, nil
+	}
+	existing, err := s.Repo.FindCourseByCode(ctx, facultyID, code)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !existing.IsActive {
+		return nil, errors.New("inactive free-elective courses cannot be added to a new round")
+	}
+	return existing, nil
+}
+
+func validateNewRoundCourse(input models.FreeElectiveRoundCourseInput, path string) *models.FreeElectiveRoundValidationIssue {
+	if strings.TrimSpace(input.CourseNameTH) == "" {
+		issue := roundValidationIssue(path+".course_name_th", "COURSE_NAME_REQUIRED", "course name in Thai is required")
+		return &issue
+	}
+	if input.Credits <= 0 {
+		issue := roundValidationIssue(path+".credits", "INVALID_CREDITS", "credits must be greater than zero")
+		return &issue
+	}
+	if !grading.IsValidScheme(input.GradeScheme) {
+		issue := roundValidationIssue(path+".grade_scheme", "INVALID_GRADE_SCHEME", "grade scheme must be letter or satisfactory")
+		return &issue
+	}
+	return nil
+}
+
+func roundCourseErrorCode(err error) string {
+	switch err.Error() {
+	case "the selected free-elective course was not found":
+		return "COURSE_NOT_FOUND"
+	case "the selected course belongs to another faculty":
+		return "COURSE_FACULTY_MISMATCH"
+	case "inactive free-elective courses cannot be added to a new round":
+		return "COURSE_INACTIVE"
+	default:
+		return "COURSE_UNAVAILABLE"
+	}
+}
+
+func normalizeFreeElectiveCourseCode(code string) string {
+	return strings.ToUpper(strings.TrimSpace(code))
+}
+
+func pointerStringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func validateFreeElectiveRoundPeriod(year *uint64, semester *uint64) error {

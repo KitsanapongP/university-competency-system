@@ -254,6 +254,7 @@ type freeElectiveRoundMasterCourse struct {
 	Credits     int
 	GradeScheme string
 	FacultyID   uint64
+	IsActive    bool
 }
 
 func freeElectiveRoundNullableString(value string) *string {
@@ -273,7 +274,7 @@ func getFreeElectiveRoundMasterCourse(ctx context.Context, tx *sql.Tx, courseID 
 	var course freeElectiveRoundMasterCourse
 	err := tx.QueryRowContext(ctx, `
 		SELECT free_elective_course_id, faculty_id, code, name_th,
-			name_en, description, credits, grade_scheme
+			name_en, description, credits, grade_scheme, is_active
 		FROM ele_free_elective_courses
 		WHERE free_elective_course_id = ? AND deleted_at IS NULL`, courseID).Scan(
 		&course.ID,
@@ -284,14 +285,77 @@ func getFreeElectiveRoundMasterCourse(ctx context.Context, tx *sql.Tx, courseID 
 		&course.Description,
 		&course.Credits,
 		&course.GradeScheme,
+		&course.IsActive,
 	)
 	return course, err
 }
 
-func insertFreeElectiveRoundCourse(ctx context.Context, tx *sql.Tx, roundID, userID uint64, order int, input models.FreeElectiveRoundCourseInput) (uint64, error) {
-	master, err := getFreeElectiveRoundMasterCourse(ctx, tx, input.FreeElectiveCourseID)
+func getFreeElectiveRoundMasterCourseByCode(ctx context.Context, tx *sql.Tx, facultyID uint64, code string) (freeElectiveRoundMasterCourse, error) {
+	var course freeElectiveRoundMasterCourse
+	err := tx.QueryRowContext(ctx, `
+		SELECT free_elective_course_id, faculty_id, code, name_th,
+			name_en, description, credits, grade_scheme, is_active
+		FROM ele_free_elective_courses
+		WHERE faculty_id = ? AND code = ? AND deleted_at IS NULL`,
+		facultyID,
+		strings.TrimSpace(code),
+	).Scan(
+		&course.ID,
+		&course.FacultyID,
+		&course.Code,
+		&course.NameTH,
+		&course.NameEN,
+		&course.Description,
+		&course.Credits,
+		&course.GradeScheme,
+		&course.IsActive,
+	)
+	return course, err
+}
+
+func createFreeElectiveRoundMasterCourse(ctx context.Context, tx *sql.Tx, facultyID, userID uint64, input models.FreeElectiveRoundCourseInput) (freeElectiveRoundMasterCourse, error) {
+	result, err := tx.ExecContext(ctx, `
+		INSERT INTO ele_free_elective_courses
+			(faculty_id, code, name_th, name_en, description, credits, grade_scheme,
+			 is_active, created_by, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, NOW(), NOW())`,
+		facultyID,
+		strings.TrimSpace(input.CourseCode),
+		strings.TrimSpace(input.CourseNameTH),
+		input.CourseNameEN,
+		input.Description,
+		input.Credits,
+		strings.ToLower(strings.TrimSpace(input.GradeScheme)),
+		userID,
+	)
+	if err != nil {
+		return freeElectiveRoundMasterCourse{}, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return freeElectiveRoundMasterCourse{}, err
+	}
+	return getFreeElectiveRoundMasterCourse(ctx, tx, uint64(id))
+}
+
+func insertFreeElectiveRoundCourse(ctx context.Context, tx *sql.Tx, roundID, facultyID, userID uint64, order int, input models.FreeElectiveRoundCourseInput) (uint64, error) {
+	var (
+		master freeElectiveRoundMasterCourse
+		err    error
+	)
+	if input.FreeElectiveCourseID > 0 {
+		master, err = getFreeElectiveRoundMasterCourse(ctx, tx, input.FreeElectiveCourseID)
+	} else {
+		master, err = getFreeElectiveRoundMasterCourseByCode(ctx, tx, facultyID, input.CourseCode)
+		if errors.Is(err, sql.ErrNoRows) {
+			master, err = createFreeElectiveRoundMasterCourse(ctx, tx, facultyID, userID, input)
+		}
+	}
 	if err != nil {
 		return 0, err
+	}
+	if !master.IsActive {
+		return 0, errors.New("free-elective course is inactive")
 	}
 	courseCode := input.CourseCode
 	if strings.TrimSpace(courseCode) == "" {
@@ -384,7 +448,7 @@ func (r *FreeElectiveRepository) CreateRound(ctx context.Context, payload models
 		return nil, err
 	}
 	for order, input := range payload.Courses {
-		roundCourseID, err := insertFreeElectiveRoundCourse(ctx, tx, uint64(roundID), userID, order+1, input)
+		roundCourseID, err := insertFreeElectiveRoundCourse(ctx, tx, uint64(roundID), payload.FacultyID, userID, order+1, input)
 		if err != nil {
 			return nil, err
 		}
@@ -442,7 +506,7 @@ func (r *FreeElectiveRepository) DuplicateRound(ctx context.Context, sourceRound
 				WeightPercent: competency.WeightPercent,
 			})
 		}
-		roundCourseID, err := insertFreeElectiveRoundCourse(ctx, tx, uint64(roundID), userID, order+1, input)
+		roundCourseID, err := insertFreeElectiveRoundCourse(ctx, tx, uint64(roundID), source.Round.FacultyID, userID, order+1, input)
 		if err != nil {
 			return nil, err
 		}

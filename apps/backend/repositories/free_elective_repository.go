@@ -109,6 +109,21 @@ func (r *FreeElectiveRepository) GetCourse(ctx context.Context, courseID uint64)
 	return scanFreeElectiveCourse(r.DB.QueryRowContext(ctx, query, courseID))
 }
 
+func (r *FreeElectiveRepository) FindCourseByCode(ctx context.Context, facultyID uint64, code string) (*models.FreeElectiveCourse, error) {
+	query := freeElectiveCourseSelect + `
+		AND course.faculty_id = ? AND course.code = ?
+	GROUP BY course.free_elective_course_id, course.faculty_id, faculty.name_th,
+		faculty.name_en, course.code, course.name_th, course.name_en,
+		course.description, course.credits, course.grade_scheme, course.is_active,
+		course.created_at, course.updated_at`
+	return scanFreeElectiveCourse(r.DB.QueryRowContext(
+		ctx,
+		query,
+		facultyID,
+		strings.TrimSpace(code),
+	))
+}
+
 func (r *FreeElectiveRepository) CreateCourse(ctx context.Context, payload models.UpsertFreeElectiveCoursePayload, userID uint64) (*models.FreeElectiveCourse, error) {
 	result, err := r.DB.ExecContext(ctx, `
 		INSERT INTO ele_free_elective_courses
