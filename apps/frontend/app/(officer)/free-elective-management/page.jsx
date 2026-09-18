@@ -61,6 +61,7 @@ function FreeElectiveManagementPageContent() {
     const [rounds, setRounds] = useState([]);
     const [loading, setLoading] = useState(true);
     const [catalogLoading, setCatalogLoading] = useState(false);
+    const [catalogLoadedKey, setCatalogLoadedKey] = useState(null);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -70,6 +71,7 @@ function FreeElectiveManagementPageContent() {
     const [courseModalOpen, setCourseModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState(null);
     const [impactConfirmation, setImpactConfirmation] = useState(null);
+    const catalogKey = selectedFacultyId || 'all';
     const wizardFacultyId = selectedFacultyId || accountFacultyId || faculties[0]?.facultyId || '';
 
     const loadRounds = useCallback(async () => {
@@ -80,8 +82,8 @@ function FreeElectiveManagementPageContent() {
         setLoading(true);
         setError('');
         try {
-            const facultyFilter = selectedFacultyId
-                ? { facultyId: selectedFacultyId }
+            const facultyFilter = catalogKey !== 'all'
+                ? { facultyId: catalogKey }
                 : {};
             const [nextFaculties, nextRounds] = await Promise.all([
                 fetchFaculties(),
@@ -100,8 +102,8 @@ function FreeElectiveManagementPageContent() {
             setLoading(false);
         }
     }, [
+        catalogKey,
         labels.roundLoadError,
-        selectedFacultyId,
         selectedSemester,
         selectedStatus,
         selectedYear,
@@ -109,13 +111,13 @@ function FreeElectiveManagementPageContent() {
     ]);
 
     const loadCourseCatalog = useCallback(async (force = false) => {
-        if (!user || (!force && courses.length > 0) || catalogLoading) {
+        if (!user || (!force && catalogLoadedKey === catalogKey) || catalogLoading) {
             return;
         }
         setCatalogLoading(true);
         try {
-            const facultyFilter = selectedFacultyId
-                ? { facultyId: selectedFacultyId }
+            const facultyFilter = catalogKey !== 'all'
+                ? { facultyId: catalogKey }
                 : {};
             const [nextCourses, nextCompetencies] = await Promise.all([
                 fetchFreeElectiveCourses(facultyFilter),
@@ -126,9 +128,12 @@ function FreeElectiveManagementPageContent() {
         } catch (loadError) {
             setError(loadError.message || labels.loadError);
         } finally {
+            // An empty response or a failed request is still a completed attempt.
+            // Mark it so the open-modal effect cannot retry in a loop.
+            setCatalogLoadedKey(catalogKey);
             setCatalogLoading(false);
         }
-    }, [catalogLoading, courses.length, labels.loadError, selectedFacultyId, user]);
+    }, [catalogKey, catalogLoadedKey, catalogLoading, labels.loadError, user]);
 
     useEffect(() => {
         if (!authLoading && user) {
@@ -261,6 +266,7 @@ function FreeElectiveManagementPageContent() {
             await loadRounds();
         } catch (saveError) {
             setError(saveError.message || labels.loadError);
+            throw saveError;
         } finally {
             setSaving(false);
         }
