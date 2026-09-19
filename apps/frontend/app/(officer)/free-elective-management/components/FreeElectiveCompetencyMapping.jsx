@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Copy, Plus, Save, Trash2 } from 'lucide-react';
+import FreeElectiveCompetencySelect from './FreeElectiveCompetencySelect';
 
 function mapRows(competencies) {
     return (competencies || []).map((item) => ({
@@ -17,6 +18,7 @@ export default function FreeElectiveCompetencyMapping({
     labels,
     onSave,
     onCopyPrevious,
+    onRefreshMasterCompetencies,
 }) {
     const [rows, setRows] = useState(mapRows(competencies));
 
@@ -45,6 +47,46 @@ export default function FreeElectiveCompetencyMapping({
     const getCompetencyName = (item) => language === 'en'
         ? item.nameEn || item.nameTh
         : item.nameTh;
+
+    const openCompetencyManagement = async () => {
+        const existingIds = new Set(masterCompetencies.map((item) => String(item.id)));
+        const competencyWindow = window.open(
+            '/competency-management',
+            '_blank',
+            'noopener,noreferrer',
+        );
+
+        if (!competencyWindow || !onRefreshMasterCompetencies) {
+            return;
+        }
+
+        const handleWindowFocus = async () => {
+            window.removeEventListener('focus', handleWindowFocus);
+            const refreshed = await onRefreshMasterCompetencies();
+            const newCompetency = refreshed.find(
+                (item) => !existingIds.has(String(item.id)),
+            );
+            if (!newCompetency) {
+                return;
+            }
+            setRows((current) => {
+                const emptyIndex = current.findIndex((row) => !row.competencyId);
+                if (emptyIndex >= 0) {
+                    return current.map((row, index) => (
+                        index === emptyIndex
+                            ? { ...row, competencyId: newCompetency.id }
+                            : row
+                    ));
+                }
+                return [
+                    ...current,
+                    { competencyId: newCompetency.id, weightPercent: 0 },
+                ];
+            });
+        };
+
+        window.addEventListener('focus', handleWindowFocus);
+    };
 
     return (
         <section className="free-elective-panel">
@@ -77,6 +119,16 @@ export default function FreeElectiveCompetencyMapping({
                             <Plus size={15} aria-hidden="true" />
                             {labels.addCompetency}
                         </button>
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--quiet"
+                            onClick={openCompetencyManagement}
+                            disabled={saving}
+                            title={labels.addNewCompetencyHint}
+                        >
+                            <Plus size={15} aria-hidden="true" />
+                            {labels.addNewCompetency}
+                        </button>
                     </div>
                 )}
             </div>
@@ -89,7 +141,6 @@ export default function FreeElectiveCompetencyMapping({
                     <table className="free-elective-table">
                         <thead>
                             <tr>
-                                <th>{labels.competencyCode}</th>
                                 <th>{labels.competency}</th>
                                 <th>{labels.mappingWeight}</th>
                                 {canEdit && <th>{labels.manage}</th>}
@@ -97,43 +148,24 @@ export default function FreeElectiveCompetencyMapping({
                         </thead>
                         <tbody>
                             {rows.map((row, index) => {
-                                const selectedCompetency = masterCompetencies.find(
-                                    (item) => String(item.id) === String(row.competencyId),
-                                );
-
                                 return (
                                     <tr key={`${row.competencyId || 'new'}-${index}`}>
                                         <td>
                                             {canEdit ? (
-                                                <select
+                                                <FreeElectiveCompetencySelect
+                                                    options={masterCompetencies}
                                                     value={row.competencyId}
-                                                    onChange={(event) => updateRow(index, 'competencyId', event.target.value)}
+                                                    disabledIds={selectedIds}
                                                     disabled={saving}
-                                                >
-                                                    <option value="">{labels.chooseCompetency}</option>
-                                                    {masterCompetencies.map((item) => {
-                                                        const isCurrent = String(item.id) === String(row.competencyId);
-                                                        const isUsed = selectedIds.has(String(item.id)) && !isCurrent;
-                                                        return (
-                                                            <option key={item.id} value={item.id} disabled={isUsed}>
-                                                                {item.code}
-                                                            </option>
-                                                        );
-                                                    })}
-                                                </select>
+                                                    language={language}
+                                                    labels={labels}
+                                                    onChange={(value) => updateRow(index, 'competencyId', value)}
+                                                />
                                             ) : (
-                                                <strong>{competencies[index]?.code || '-'}</strong>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {canEdit ? (
-                                                <span className="free-elective-table__secondary">
-                                                    {selectedCompetency
-                                                        ? getCompetencyName(selectedCompetency)
-                                                        : labels.chooseCompetency}
-                                                </span>
-                                            ) : (
-                                                getCompetencyName(competencies[index] || {})
+                                                <div className="free-elective-competency-cell">
+                                                    <strong>{getCompetencyName(competencies[index] || {})}</strong>
+                                                    <small>{competencies[index]?.code || '-'}</small>
+                                                </div>
                                             )}
                                         </td>
                                         <td>
