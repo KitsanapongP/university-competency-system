@@ -1,5 +1,10 @@
 export const FREE_ELECTIVE_LABELS = {
     th: {
+        searchRoundCourses: 'ค้นหารหัสหรือชื่อวิชา',
+        showIncompleteCourses: 'แสดงเฉพาะรายการที่กรอกไม่ครบ',
+        noMatchingRoundCourses: 'ไม่พบวิชาที่ตรงกับการค้นหา',
+        configureCompetencies: 'กำหนดสมรรถนะ',
+        selectCourseForCompetencies: 'เลือกวิชาจากตารางเพื่อกำหนดสมรรถนะและน้ำหนัก',
         studentAddTitle: 'เพิ่มวิชาเสรีให้ผู้เรียน',
         studentAddHint: 'เลือกวิชาเสรีที่เปิดใช้งานจากคณะใดก็ได้ แล้วเพิ่มให้ผู้เรียนคนนี้',
         studentAddButton: 'เพิ่มวิชาเสรี',
@@ -270,6 +275,11 @@ export const FREE_ELECTIVE_LABELS = {
         roundLoadError: 'ไม่สามารถโหลดข้อมูลรอบเปิดสอนได้',
     },
     en: {
+        searchRoundCourses: 'Search course code or name',
+        showIncompleteCourses: 'Show incomplete rows only',
+        noMatchingRoundCourses: 'No courses match the search',
+        configureCompetencies: 'Configure competencies',
+        selectCourseForCompetencies: 'Select a course from the table to configure competencies and weights',
         studentAddTitle: 'Add free-elective course to learner',
         studentAddHint: 'Choose an active free-elective offering from any faculty for this learner',
         studentAddButton: 'Add free-elective course',

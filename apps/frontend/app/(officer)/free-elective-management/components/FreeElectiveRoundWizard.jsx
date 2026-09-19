@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { ArrowLeft, ArrowRight, BookOpen, Check, Plus, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, BookOpen, Check } from 'lucide-react';
 import BaseModal from '../../../../components/ui/BaseModal';
 import { FREE_ELECTIVE_GRADE_SCHEMES } from '../../../../lib/free-elective';
+import FreeElectiveRoundCompetencyPanel from './FreeElectiveRoundCompetencyPanel';
+import FreeElectiveRoundCourseTable from './FreeElectiveRoundCourseTable';
 
 function initialForm() {
     return {
@@ -66,12 +68,6 @@ function getGradeSchemeLabel(scheme, labels) {
     return scheme === 'satisfactory'
         ? labels.satisfactoryGrades
         : labels.letterGrades;
-}
-
-function getCompetencyName(competency, language) {
-    return language === 'en'
-        ? competency.nameEn || competency.nameTh
-        : competency.nameTh;
 }
 
 function isValidGradeScheme(value) {
@@ -295,6 +291,8 @@ export default function FreeElectiveRoundWizard({
     const [fieldErrors, setFieldErrors] = useState(createFieldErrors());
     const [preview, setPreview] = useState(null);
     const [previewing, setPreviewing] = useState(false);
+    const [selectedCourseIndex, setSelectedCourseIndex] = useState(null);
+    const courseRowRefs = useRef({});
 
     const clearFieldError = (courseIndex, field) => {
         setFieldErrors((current) => ({
@@ -313,6 +311,7 @@ export default function FreeElectiveRoundWizard({
     };
 
     const addCourseRow = () => {
+        const newCourseIndex = form.courses.length;
         setForm((current) => ({
             ...current,
             courses: [...current.courses, createCourseRow()],
@@ -322,6 +321,13 @@ export default function FreeElectiveRoundWizard({
             courses: '',
             rows: [...current.rows, createRowErrors()],
         }));
+        setSelectedCourseIndex(newCourseIndex);
+        requestAnimationFrame(() => {
+            courseRowRefs.current[newCourseIndex]?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest',
+            });
+        });
     };
 
     const removeCourseRow = (index) => {
@@ -333,6 +339,21 @@ export default function FreeElectiveRoundWizard({
             ...current,
             rows: current.rows.filter((_, rowIndex) => rowIndex !== index),
         }));
+        setSelectedCourseIndex((current) => {
+            if (current === index) {
+                return null;
+            }
+            return current > index ? current - 1 : current;
+        });
+        delete courseRowRefs.current[index];
+    };
+
+    const setCourseRowRef = (index, element) => {
+        if (element) {
+            courseRowRefs.current[index] = element;
+            return;
+        }
+        delete courseRowRefs.current[index];
     };
 
     const updateCourseField = (index, field, value) => {
@@ -612,241 +633,44 @@ export default function FreeElectiveRoundWizard({
                                 <h2>{labels.roundStepCourses}</h2>
                                 <p>{labels.roundCourseFieldsHint}</p>
                             </div>
-                            <button
-                                type="button"
-                                className="free-elective-button free-elective-button--secondary"
-                                onClick={addCourseRow}
-                                disabled={saving}
-                            >
-                                <Plus size={16} aria-hidden="true" />
-                                {labels.addCourseToRound}
-                            </button>
                         </div>
                         <FieldError
                             id="free-elective-round-courses-error"
                             message={fieldErrors.courses}
                         />
-                        {!form.courses.length && (
-                            <div className="free-elective-empty">
-                                {labels.noRoundCourses}
-                            </div>
-                        )}
-                        <div className="free-elective-round-course-editor-list">
-                            {form.courses.map((item, courseIndex) => {
-                                const rowErrors = fieldErrors.rows[courseIndex] || createRowErrors();
-                                const selectedCompetencyIds = new Set(
-                                    item.competencies
-                                        .map((competency) => String(competency.competencyId))
-                                        .filter(Boolean),
-                                );
-                                const isCatalogCourse = Boolean(item.freeElectiveCourseId);
-
-                                return (
-                                    <article
-                                        className="free-elective-round-course-editor"
-                                        key={`round-course-${courseIndex}`}
-                                    >
-                                        <div className="free-elective-round-course-editor__heading">
-                                            <div>
-                                                <h3>{labels.course} {courseIndex + 1}</h3>
-                                                <p>{labels.courseFieldsHint}</p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                className="free-elective-icon-button free-elective-icon-button--danger"
-                                                onClick={() => removeCourseRow(courseIndex)}
-                                                title={labels.removeCourse}
-                                                aria-label={labels.removeCourse}
-                                                disabled={saving}
-                                            >
-                                                <Trash2 size={16} aria-hidden="true" />
-                                            </button>
-                                        </div>
-
-                                        <div className="free-elective-round-course-editor__fields">
-                                            <label className="free-elective-field free-elective-field--code">
-                                                <span>{labels.code} *</span>
-                                                <input
-                                                    value={item.courseCode}
-                                                    onChange={(event) => updateCourseField(
-                                                        courseIndex,
-                                                        'courseCode',
-                                                        event.target.value,
-                                                    )}
-                                                    onBlur={() => resolveCatalogCourse(courseIndex)}
-                                                    placeholder={labels.codePlaceholder}
-                                                    disabled={saving}
-                                                    aria-invalid={Boolean(rowErrors.courseCode)}
-                                                />
-                                                <FieldError message={rowErrors.courseCode} />
-                                            </label>
-                                            <label className="free-elective-field">
-                                                <span>{labels.credits} *</span>
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    step="1"
-                                                    value={item.credits}
-                                                    onChange={(event) => updateCourseField(
-                                                        courseIndex,
-                                                        'credits',
-                                                        event.target.value,
-                                                    )}
-                                                    placeholder="1"
-                                                    disabled={saving || isCatalogCourse}
-                                                    aria-invalid={Boolean(rowErrors.credits)}
-                                                />
-                                                <FieldError message={rowErrors.credits} />
-                                            </label>
-                                            <label className="free-elective-field">
-                                                <span>{labels.gradeScheme} *</span>
-                                                <select
-                                                    value={item.gradeScheme}
-                                                    onChange={(event) => updateCourseField(
-                                                        courseIndex,
-                                                        'gradeScheme',
-                                                        event.target.value,
-                                                    )}
-                                                    disabled={saving || isCatalogCourse}
-                                                    aria-invalid={Boolean(rowErrors.gradeScheme)}
-                                                >
-                                                    <option value="">{labels.selectGradeScheme}</option>
-                                                    {FREE_ELECTIVE_GRADE_SCHEMES.map((scheme) => (
-                                                        <option key={scheme.value} value={scheme.value}>
-                                                            {language === 'en' ? scheme.labelEn : scheme.labelTh}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                <small className="free-elective-field__hint">
-                                                    {labels.gradeSchemeHint}: {item.gradeScheme
-                                                        ? getGradeSchemeLabel(item.gradeScheme, labels)
-                                                        : labels.selectGradeScheme}
-                                                </small>
-                                                <FieldError message={rowErrors.gradeScheme} />
-                                            </label>
-                                            <label className="free-elective-field free-elective-round-course-editor__field--wide">
-                                                <span>{labels.courseName} ({labels.thaiLanguage}) *</span>
-                                                <input
-                                                    value={item.courseNameTh}
-                                                    onChange={(event) => updateCourseField(
-                                                        courseIndex,
-                                                        'courseNameTh',
-                                                        event.target.value,
-                                                    )}
-                                                    disabled={saving || isCatalogCourse}
-                                                    aria-invalid={Boolean(rowErrors.courseNameTh)}
-                                                />
-                                                <FieldError message={rowErrors.courseNameTh} />
-                                            </label>
-                                            <label className="free-elective-field free-elective-round-course-editor__field--wide">
-                                                <span>{labels.courseName} ({labels.englishLanguage})</span>
-                                                <input
-                                                    value={item.courseNameEn}
-                                                    onChange={(event) => updateCourseField(
-                                                        courseIndex,
-                                                        'courseNameEn',
-                                                        event.target.value,
-                                                    )}
-                                                    disabled={saving || isCatalogCourse}
-                                                    aria-invalid={Boolean(rowErrors.courseNameEn)}
-                                                />
-                                                <FieldError message={rowErrors.courseNameEn} />
-                                            </label>
-                                        </div>
-
-                                        <div className="free-elective-round-course-editor__competencies">
-                                            <div className="free-elective-round-course-editor__subheading">
-                                                <div>
-                                                    <strong>{labels.courseCompetencies}</strong>
-                                                    <p>{labels.chooseCompetencies}</p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    className="free-elective-button free-elective-button--quiet"
-                                                    onClick={() => addCompetency(courseIndex)}
-                                                    disabled={saving || item.competencies.length >= competencies.length}
-                                                >
-                                                    <Plus size={14} aria-hidden="true" />
-                                                    {labels.addCompetency}
-                                                </button>
-                                            </div>
-                                            <FieldError message={rowErrors.competencies} />
-                                            {item.competencies.map((mapping, competencyIndex) => {
-                                                const mappingErrors = rowErrors.mappings[competencyIndex] || {};
-                                                return (
-                                                    <div
-                                                        className="free-elective-round-course-editor__mapping"
-                                                        key={`${courseIndex}-${competencyIndex}`}
-                                                    >
-                                                        <label className="free-elective-field">
-                                                            <span>{labels.competency} *</span>
-                                                            <select
-                                                                value={mapping.competencyId}
-                                                                onChange={(event) => updateCompetency(
-                                                                    courseIndex,
-                                                                    competencyIndex,
-                                                                    'competencyId',
-                                                                    event.target.value,
-                                                                )}
-                                                                disabled={saving}
-                                                                aria-invalid={Boolean(mappingErrors.competencyId)}
-                                                            >
-                                                                <option value="">{labels.chooseCompetency}</option>
-                                                                {competencies.map((competency) => {
-                                                                    const isCurrent = String(competency.id) === String(mapping.competencyId);
-                                                                    const isUsed = selectedCompetencyIds.has(String(competency.id)) && !isCurrent;
-                                                                    return (
-                                                                        <option
-                                                                            key={competency.id}
-                                                                            value={competency.id}
-                                                                            disabled={isUsed}
-                                                                        >
-                                                                            {competency.code} - {getCompetencyName(competency, language)}
-                                                                        </option>
-                                                                    );
-                                                                })}
-                                                            </select>
-                                                            <FieldError message={mappingErrors.competencyId} />
-                                                        </label>
-                                                        <label className="free-elective-field">
-                                                            <span>{labels.mappingWeight} *</span>
-                                                            <div className="free-elective-round-course-editor__weight-input">
-                                                                <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    max="100"
-                                                                    step="0.01"
-                                                                    value={mapping.weightPercent}
-                                                                    onChange={(event) => updateCompetency(
-                                                                        courseIndex,
-                                                                        competencyIndex,
-                                                                        'weightPercent',
-                                                                        event.target.value,
-                                                                    )}
-                                                                    disabled={saving}
-                                                                    aria-invalid={Boolean(mappingErrors.weightPercent)}
-                                                                />
-                                                                <span>%</span>
-                                                            </div>
-                                                            <FieldError message={mappingErrors.weightPercent} />
-                                                        </label>
-                                                        <button
-                                                            type="button"
-                                                            className="free-elective-icon-button free-elective-icon-button--danger"
-                                                            onClick={() => removeCompetency(courseIndex, competencyIndex)}
-                                                            title={labels.removeCompetency}
-                                                            aria-label={labels.removeCompetency}
-                                                            disabled={saving}
-                                                        >
-                                                            <Trash2 size={15} aria-hidden="true" />
-                                                        </button>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </article>
-                                );
-                            })}
+                        <div className="free-elective-round-course-workspace">
+                            <FreeElectiveRoundCourseTable
+                                courses={form.courses}
+                                fieldErrors={fieldErrors}
+                                language={language}
+                                labels={labels}
+                                saving={saving}
+                                selectedCourseIndex={selectedCourseIndex}
+                                onSelectCourse={setSelectedCourseIndex}
+                                onAddCourse={addCourseRow}
+                                onRemoveCourse={removeCourseRow}
+                                onUpdateCourseField={updateCourseField}
+                                onResolveCatalogCourse={resolveCatalogCourse}
+                                onOpenCompetencies={setSelectedCourseIndex}
+                                rowRefs={setCourseRowRef}
+                            />
+                            <FreeElectiveRoundCompetencyPanel
+                                course={selectedCourseIndex === null
+                                    ? null
+                                    : form.courses[selectedCourseIndex]}
+                                courseIndex={selectedCourseIndex}
+                                rowErrors={selectedCourseIndex === null
+                                    ? createRowErrors()
+                                    : fieldErrors.rows[selectedCourseIndex] || createRowErrors()}
+                                competencies={competencies}
+                                language={language}
+                                labels={labels}
+                                saving={saving}
+                                onAddCompetency={addCompetency}
+                                onUpdateCompetency={updateCompetency}
+                                onRemoveCompetency={removeCompetency}
+                                onClose={() => setSelectedCourseIndex(null)}
+                            />
                         </div>
                     </section>
                 )}
