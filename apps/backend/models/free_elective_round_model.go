@@ -167,5 +167,13 @@ type UpsertFreeElectiveRoundGradePayload struct {
 }
 
 type FreeElectiveRoundLearnerFilters struct {
-	Search string
+	Search       string
+	FacultyID    *uint64
+	MajorID      *uint64
+	CurriculumID *uint64
+	EntryYearBE  *uint64
+}
+
+type FreeElectiveRoundLearnerSummary struct {
+	SelectableCount int `json:"selectable_count"`
 }

@@ -598,6 +598,20 @@ func freeElectiveStudentGroupFilters(w http.ResponseWriter, r *http.Request) (mo
 	return filters, true
 }
 
+func freeElectiveRoundLearnerFilters(w http.ResponseWriter, r *http.Request) (models.FreeElectiveRoundLearnerFilters, bool) {
+	groupFilters, ok := freeElectiveStudentGroupFilters(w, r)
+	if !ok {
+		return models.FreeElectiveRoundLearnerFilters{}, false
+	}
+	return models.FreeElectiveRoundLearnerFilters{
+		Search:       r.URL.Query().Get("search"),
+		FacultyID:    groupFilters.FacultyID,
+		MajorID:      groupFilters.MajorID,
+		CurriculumID: groupFilters.CurriculumID,
+		EntryYearBE:  groupFilters.EntryYearBE,
+	}, true
+}
+
 func writeFreeElectiveError(w http.ResponseWriter, err error) {
 	if errors.Is(err, services.ErrFreeElectiveForbidden) {
 		utils.Error(w, http.StatusForbidden, "FACULTY_SCOPE_FORBIDDEN", err.Error())

@@ -117,7 +117,26 @@ func (s *FreeElectiveService) ListRoundCourseLearners(ctx context.Context, claim
 	if _, err := s.roundCourseInScope(ctx, claims, roundID, roundCourseID); err != nil {
 		return nil, err
 	}
+	filters, err := s.scopeRoundCourseLearnerFilters(claims, filters)
+	if err != nil {
+		return nil, err
+	}
 	return s.Repo.ListRoundCourseLearners(ctx, roundID, roundCourseID, filters)
+}
+
+func (s *FreeElectiveService) GetRoundCourseLearnerSummary(ctx context.Context, claims *utils.Claims, roundID, roundCourseID uint64, filters models.FreeElectiveRoundLearnerFilters) (models.FreeElectiveRoundLearnerSummary, error) {
+	if _, err := s.roundCourseInScope(ctx, claims, roundID, roundCourseID); err != nil {
+		return models.FreeElectiveRoundLearnerSummary{}, err
+	}
+	filters, err := s.scopeRoundCourseLearnerFilters(claims, filters)
+	if err != nil {
+		return models.FreeElectiveRoundLearnerSummary{}, err
+	}
+	count, err := s.Repo.CountRoundCourseLearners(ctx, roundID, roundCourseID, filters)
+	if err != nil {
+		return models.FreeElectiveRoundLearnerSummary{}, err
+	}
+	return models.FreeElectiveRoundLearnerSummary{SelectableCount: count}, nil
 }
 
 func (s *FreeElectiveService) GetRoundCourseEnrollments(ctx context.Context, claims *utils.Claims, roundID, roundCourseID uint64) ([]models.FreeElectiveRoundEnrollment, error) {
@@ -158,6 +177,55 @@ func (s *FreeElectiveService) AddRoundCourseEnrollments(ctx context.Context, cla
 		return nil, err
 	}
 	return s.GetRoundCourseEnrollments(ctx, claims, roundID, roundCourseID)
+}
+
+func (s *FreeElectiveService) AddAllRoundCourseLearners(ctx context.Context, claims *utils.Claims, roundID, roundCourseID uint64, filters models.FreeElectiveRoundLearnerFilters) ([]models.FreeElectiveRoundEnrollment, error) {
+	if _, err := s.roundCourseInScope(ctx, claims, roundID, roundCourseID); err != nil {
+		return nil, err
+	}
+	filters, err := s.scopeRoundCourseLearnerFilters(claims, filters)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateRoundCourseLearnerSelection(filters); err != nil {
+		return nil, err
+	}
+	_, err = s.Repo.AddAllRoundCourseLearners(ctx, roundID, roundCourseID, uint64(claims.UserID), filters)
+	if errors.Is(err, repositories.ErrFreeElectiveRoundLocked) {
+		return nil, ErrFreeElectiveRoundLocked
+	}
+	if errors.Is(err, repositories.ErrFreeElectiveRoundCourseNotFound) {
+		return nil, ErrFreeElectiveRoundCourseNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.GetRoundCourseEnrollments(ctx, claims, roundID, roundCourseID)
+}
+
+func (s *FreeElectiveService) scopeRoundCourseLearnerFilters(claims *utils.Claims, filters models.FreeElectiveRoundLearnerFilters) (models.FreeElectiveRoundLearnerFilters, error) {
+	facultyID, err := s.scopedFaculty(claims, filters.FacultyID)
+	if err != nil {
+		return filters, err
+	}
+	filters.FacultyID = facultyID
+	if filters.MajorID != nil && *filters.MajorID == 0 {
+		filters.MajorID = nil
+	}
+	if filters.CurriculumID != nil && *filters.CurriculumID == 0 {
+		filters.CurriculumID = nil
+	}
+	if filters.EntryYearBE != nil && *filters.EntryYearBE == 0 {
+		filters.EntryYearBE = nil
+	}
+	return filters, nil
+}
+
+func validateRoundCourseLearnerSelection(filters models.FreeElectiveRoundLearnerFilters) error {
+	if filters.CurriculumID == nil || filters.EntryYearBE == nil {
+		return FreeElectiveValidationError{Message: "curriculum_id and entry_year_be are required when selecting all learners"}
+	}
+	return nil
 }
 
 func (s *FreeElectiveService) UpdateRoundCourseEnrollmentStatus(ctx context.Context, claims *utils.Claims, roundID, roundCourseID, roundCourseEnrollmentID uint64, payload models.UpdateFreeElectiveRoundEnrollmentStatusPayload) ([]models.FreeElectiveRoundEnrollment, error) {

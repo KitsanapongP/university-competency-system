@@ -94,18 +94,49 @@ func (c *FreeElectiveController) ListRoundCourseLearners(w http.ResponseWriter, 
 	if !ok {
 		return
 	}
+	filters, ok := freeElectiveRoundLearnerFilters(w, r)
+	if !ok {
+		return
+	}
 	learners, err := c.Service.ListRoundCourseLearners(
 		r.Context(),
 		claims,
 		roundID,
 		roundCourseID,
-		models.FreeElectiveRoundLearnerFilters{Search: r.URL.Query().Get("search")},
+		filters,
 	)
 	if err != nil {
 		writeFreeElectiveError(w, err)
 		return
 	}
 	utils.OK(w, learners)
+}
+
+func (c *FreeElectiveController) GetRoundCourseLearnerSummary(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	roundID, roundCourseID, ok := freeElectiveRoundCourseIDs(w, r)
+	if !ok {
+		return
+	}
+	filters, ok := freeElectiveRoundLearnerFilters(w, r)
+	if !ok {
+		return
+	}
+	summary, err := c.Service.GetRoundCourseLearnerSummary(
+		r.Context(),
+		claims,
+		roundID,
+		roundCourseID,
+		filters,
+	)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, summary)
 }
 
 func (c *FreeElectiveController) GetRoundCourseEnrollments(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +171,33 @@ func (c *FreeElectiveController) AddRoundCourseEnrollments(w http.ResponseWriter
 		return
 	}
 	enrollments, err := c.Service.AddRoundCourseEnrollments(r.Context(), claims, roundID, roundCourseID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, enrollments)
+}
+
+func (c *FreeElectiveController) AddAllRoundCourseLearners(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	roundID, roundCourseID, ok := freeElectiveRoundCourseIDs(w, r)
+	if !ok {
+		return
+	}
+	filters, ok := freeElectiveRoundLearnerFilters(w, r)
+	if !ok {
+		return
+	}
+	enrollments, err := c.Service.AddAllRoundCourseLearners(
+		r.Context(),
+		claims,
+		roundID,
+		roundCourseID,
+		filters,
+	)
 	if err != nil {
 		writeFreeElectiveError(w, err)
 		return

@@ -13,6 +13,7 @@ import { useAuth } from '../../../../../../../providers/auth-provider';
 import { useLanguage } from '../../../../../../../providers/LanguageContext';
 import { fetchCompetenciesForManagement } from '../../../../../../../lib/competency-management';
 import {
+    addAllFreeElectiveRoundCourseLearners,
     addFreeElectiveRoundCourseEnrollments,
     deleteFreeElectiveRoundCourse,
     fetchFreeElectiveRound,
@@ -79,6 +80,13 @@ function FreeElectiveRoundCoursePageContent() {
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [statusTarget, setStatusTarget] = useState(null);
 
+    const refreshMasterCompetencies = useCallback(async () => {
+        const nextCompetencies = await fetchCompetenciesForManagement();
+        const activeCompetencies = nextCompetencies.filter((item) => item.isActive);
+        setMasterCompetencies(activeCompetencies);
+        return activeCompetencies;
+    }, []);
+
     const loadData = useCallback(async () => {
         if (!user || !roundId || !roundCourseId) {
             return;
@@ -112,7 +120,7 @@ function FreeElectiveRoundCoursePageContent() {
     const canEdit = round?.status === 'draft' || round?.status === 'active';
     const canDelete = round?.status === 'draft' && enrollments.length === 0;
     const enrolledIds = useMemo(
-        () => new Set(enrollments.map((enrollment) => enrollment.enrollmentId)),
+        () => new Set(enrollments.map((enrollment) => String(enrollment.enrollmentId))),
         [enrollments],
     );
 
@@ -170,6 +178,28 @@ function FreeElectiveRoundCoursePageContent() {
                 roundId,
                 roundCourseId,
                 learners,
+            );
+            setCourseDetail((current) => ({
+                ...current,
+                enrollments: nextEnrollments,
+            }));
+            setPickerOpen(false);
+            setSuccess(labels.learnerAdded);
+        } catch (enrollmentError) {
+            setError(errorMessage(enrollmentError, labels.loadError));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleAddAllLearners = async (filters) => {
+        setSaving(true);
+        setError('');
+        try {
+            const nextEnrollments = await addAllFreeElectiveRoundCourseLearners(
+                roundId,
+                roundCourseId,
+                filters,
             );
             setCourseDetail((current) => ({
                 ...current,
@@ -332,6 +362,7 @@ function FreeElectiveRoundCoursePageContent() {
                 language={language}
                 labels={labels}
                 onSave={handleSaveMappings}
+                onRefreshMasterCompetencies={refreshMasterCompetencies}
             />
 
             <section className="free-elective-panel">
@@ -381,8 +412,12 @@ function FreeElectiveRoundCoursePageContent() {
                 saving={saving}
                 language={language}
                 labels={labels}
+                isAdmin={Boolean(user?.roles?.includes('admin'))}
+                lockedFacultyId={round.facultyId}
+                lockedFacultyName={getFacultyName(round, language)}
                 onClose={() => setPickerOpen(false)}
                 onSubmit={handleAddLearners}
+                onSubmitAll={handleAddAllLearners}
             />
             <ConfirmActionModal
                 open={deleteOpen}

@@ -379,16 +379,8 @@ func (r *FreeElectiveRepository) DeleteRoundCourse(ctx context.Context, roundID,
 	return tx.Commit()
 }
 
-func (r *FreeElectiveRepository) ListRoundCourseLearners(ctx context.Context, roundID, roundCourseID uint64, filters models.FreeElectiveRoundLearnerFilters) ([]models.FreeElectiveStudent, error) {
-	search := strings.TrimSpace(filters.Search)
-	like := "%" + search + "%"
-	rows, err := r.DB.QueryContext(ctx, `
-		SELECT student.enrollment_id, roster.enrollment_curriculum_id,
-			COALESCE(student.faculty_id, 0), student.student_code,
-			CONCAT_WS(' ', person.first_name_th, person.last_name_th),
-			CONCAT_WS(' ', person.first_name_en, person.last_name_en),
-			curriculum.curriculum_id, curriculum.name_th, COALESCE(curriculum.name_en, ''),
-			COALESCE(cohort.entry_year_be, 0)
+func roundCourseLearnerScope(roundID, roundCourseID uint64, filters models.FreeElectiveRoundLearnerFilters) (string, []any) {
+	query := `
 		FROM ele_free_elective_round_courses roundCourse
 		JOIN ele_free_elective_rounds round
 			ON round.round_id = roundCourse.round_id AND round.deleted_at IS NULL
@@ -410,6 +402,12 @@ func (r *FreeElectiveRepository) ListRoundCourseLearners(ctx context.Context, ro
 			)
 		JOIN edu_curricula curriculum
 			ON curriculum.curriculum_id = roster.curriculum_id AND curriculum.deleted_at IS NULL
+		JOIN edu_majors major
+			ON major.major_id = curriculum.major_id AND major.deleted_at IS NULL
+		JOIN org_departments department
+			ON department.department_id = major.department_id AND department.deleted_at IS NULL
+		JOIN org_faculties faculty
+			ON faculty.faculty_id = department.faculty_id AND faculty.deleted_at IS NULL
 		LEFT JOIN edu_student_cohorts cohort
 			ON cohort.cohort_id = roster.cohort_id AND cohort.deleted_at IS NULL
 		WHERE roundCourse.round_id = ? AND roundCourse.round_course_id = ?
@@ -420,12 +418,46 @@ func (r *FreeElectiveRepository) ListRoundCourseLearners(ctx context.Context, ro
 				WHERE selected.round_course_id = roundCourse.round_course_id
 					AND selected.enrollment_id = student.enrollment_id
 					AND selected.deleted_at IS NULL
-			)
-			AND (? = '' OR student.student_code LIKE ?
-				OR CONCAT_WS(' ', person.first_name_th, person.last_name_th) LIKE ?
-				OR CONCAT_WS(' ', person.first_name_en, person.last_name_en) LIKE ?)
+			)`
+	args := []any{roundID, roundCourseID}
+	if filters.FacultyID != nil {
+		query += " AND faculty.faculty_id = ?"
+		args = append(args, *filters.FacultyID)
+	}
+	if filters.MajorID != nil {
+		query += " AND major.major_id = ?"
+		args = append(args, *filters.MajorID)
+	}
+	if filters.CurriculumID != nil {
+		query += " AND curriculum.curriculum_id = ?"
+		args = append(args, *filters.CurriculumID)
+	}
+	if filters.EntryYearBE != nil {
+		query += " AND cohort.entry_year_be = ?"
+		args = append(args, *filters.EntryYearBE)
+	}
+	search := strings.TrimSpace(filters.Search)
+	if search != "" {
+		like := "%" + search + "%"
+		query += ` AND (student.student_code LIKE ?
+			OR CONCAT_WS(' ', person.first_name_th, person.last_name_th) LIKE ?
+			OR CONCAT_WS(' ', person.first_name_en, person.last_name_en) LIKE ?)`
+		args = append(args, like, like, like)
+	}
+	return query, args
+}
+
+func (r *FreeElectiveRepository) ListRoundCourseLearners(ctx context.Context, roundID, roundCourseID uint64, filters models.FreeElectiveRoundLearnerFilters) ([]models.FreeElectiveStudent, error) {
+	scope, args := roundCourseLearnerScope(roundID, roundCourseID, filters)
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT student.enrollment_id, roster.enrollment_curriculum_id,
+			faculty.faculty_id, student.student_code,
+			CONCAT_WS(' ', person.first_name_th, person.last_name_th),
+			CONCAT_WS(' ', person.first_name_en, person.last_name_en),
+			curriculum.curriculum_id, curriculum.name_th, COALESCE(curriculum.name_en, ''),
+			COALESCE(cohort.entry_year_be, 0)`+scope+`
 		ORDER BY student.student_code
-		LIMIT 100`, roundID, roundCourseID, search, like, like, like)
+		LIMIT 100`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -451,6 +483,15 @@ func (r *FreeElectiveRepository) ListRoundCourseLearners(ctx context.Context, ro
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func (r *FreeElectiveRepository) CountRoundCourseLearners(ctx context.Context, roundID, roundCourseID uint64, filters models.FreeElectiveRoundLearnerFilters) (int, error) {
+	scope, args := roundCourseLearnerScope(roundID, roundCourseID, filters)
+	var count int
+	if err := r.DB.QueryRowContext(ctx, "SELECT COUNT(DISTINCT student.enrollment_id)"+scope, args...).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *FreeElectiveRepository) AddRoundCourseEnrollments(ctx context.Context, roundID, roundCourseID, userID uint64, inputs []models.FreeElectiveEnrollmentInput) error {
@@ -528,6 +569,55 @@ func (r *FreeElectiveRepository) AddRoundCourseEnrollments(ctx context.Context, 
 		return err
 	}
 	return tx.Commit()
+}
+
+func (r *FreeElectiveRepository) AddAllRoundCourseLearners(ctx context.Context, roundID, roundCourseID, userID uint64, filters models.FreeElectiveRoundLearnerFilters) (int, error) {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	status, err := lockFreeElectiveRound(ctx, tx, roundID)
+	if err != nil {
+		return 0, err
+	}
+	if err := ensureFreeElectiveRoundEditable(status); err != nil {
+		return 0, err
+	}
+	var courseExists bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM ele_free_elective_round_courses
+			WHERE round_id = ? AND round_course_id = ? AND deleted_at IS NULL
+		)`, roundID, roundCourseID).Scan(&courseExists); err != nil {
+		return 0, err
+	}
+	if !courseExists {
+		return 0, ErrFreeElectiveRoundCourseNotFound
+	}
+	scope, scopeArgs := roundCourseLearnerScope(roundID, roundCourseID, filters)
+	result, err := tx.ExecContext(ctx, `
+		INSERT INTO ele_free_elective_round_course_enrollments
+			(round_course_id, enrollment_id, enrollment_curriculum_id,
+			 status, enrolled_at, enrolled_by, created_at, updated_at)
+		SELECT ?, student.enrollment_id, roster.enrollment_curriculum_id,
+			'enrolled', NOW(), ?, NOW(), NOW()`+scope, append([]any{roundCourseID, userID}, scopeArgs...)...)
+	if err != nil {
+		return 0, err
+	}
+	added, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if added > 0 {
+		if err := markFreeElectiveRoundScoresRequired(ctx, tx, roundID); err != nil {
+			return 0, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return int(added), nil
 }
 
 func (r *FreeElectiveRepository) UpdateRoundCourseEnrollmentStatus(ctx context.Context, roundID, roundCourseID, enrollmentID uint64, status string) error {

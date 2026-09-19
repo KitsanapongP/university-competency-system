@@ -62,6 +62,7 @@ function buildQuery(filters = {}) {
         academicYearBE: 'academic_year_be',
         semester: 'semester',
         status: 'status',
+        search: 'search',
     };
 
     Object.entries(mappings).forEach(([key, queryKey]) => {
@@ -519,17 +520,26 @@ export async function deleteFreeElectiveRoundCourse(roundId, roundCourseId) {
 export async function fetchFreeElectiveRoundCourseLearners(
     roundId,
     roundCourseId,
-    search = '',
+    filters = {},
 ) {
-    const query = new URLSearchParams();
-    if (search.trim()) {
-        query.set('search', search.trim());
-    }
-    const suffix = query.toString() ? `?${query.toString()}` : '';
     const response = await apiFetch(
-        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/learners${suffix}`,
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/learners${buildQuery(filters)}`,
     );
     return unwrapData(response, []).map(mapFreeElectiveStudent);
+}
+
+export async function fetchFreeElectiveRoundCourseLearnerSummary(
+    roundId,
+    roundCourseId,
+    filters = {},
+) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/learners/summary${buildQuery(filters)}`,
+    );
+    const summary = unwrapData(response, {});
+    return {
+        selectableCount: toNumber(summary.selectable_count),
+    };
 }
 
 export async function fetchFreeElectiveRoundCourseEnrollments(roundId, roundCourseId) {
@@ -557,6 +567,18 @@ export async function addFreeElectiveRoundCourseEnrollments(
                 })),
             }),
         },
+    );
+    return unwrapData(response, []).map(mapFreeElectiveRoundEnrollment);
+}
+
+export async function addAllFreeElectiveRoundCourseLearners(
+    roundId,
+    roundCourseId,
+    filters = {},
+) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/enrollments/select-all${buildQuery(filters)}`,
+        { method: 'POST' },
     );
     return unwrapData(response, []).map(mapFreeElectiveRoundEnrollment);
 }
