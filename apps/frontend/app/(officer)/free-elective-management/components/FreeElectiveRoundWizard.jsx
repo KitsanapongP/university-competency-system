@@ -126,10 +126,6 @@ function validateLocalForm(form, labels) {
             rowErrors.gradeScheme = labels.gradeSchemeRequired;
         }
 
-        if (!course.competencies.length) {
-            rowErrors.competencies = labels.competenciesRequired;
-        }
-
         course.competencies.forEach((mapping, competencyIndex) => {
             const mappingErrors = {
                 competencyId: '',
@@ -190,7 +186,6 @@ function localizeIssue(issue, labels) {
         COURSE_NAME_REQUIRED: labels.courseNameRequired,
         INVALID_CREDITS: labels.creditsInvalid,
         INVALID_GRADE_SCHEME: labels.gradeSchemeRequired,
-        COMPETENCIES_REQUIRED: labels.competenciesRequired,
         COMPETENCY_REQUIRED: labels.competencyRequired,
         DUPLICATE_COMPETENCY: labels.competencyAlreadyAdded,
         INVALID_WEIGHT: labels.weightInvalid,

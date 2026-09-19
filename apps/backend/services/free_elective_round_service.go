@@ -208,9 +208,6 @@ func (s *FreeElectiveService) validateAndNormalizeRound(ctx context.Context, cla
 				continue
 			}
 		}
-		if len(input.Competencies) == 0 {
-			issues = append(issues, roundValidationIssue(path+".competencies", "COMPETENCIES_REQUIRED", "add at least one competency to this course"))
-		}
 		seenCompetencies := make(map[uint64]struct{}, len(input.Competencies))
 		validCompetencies := make([]models.FreeElectiveRoundCompetencyInput, 0, len(input.Competencies))
 		for competencyIndex, competency := range input.Competencies {

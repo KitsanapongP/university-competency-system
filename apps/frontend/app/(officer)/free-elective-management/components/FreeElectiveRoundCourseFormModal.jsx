@@ -61,7 +61,7 @@ export default function FreeElectiveRoundCourseFormModal({
             setLocalError(labels.chooseCourse);
             return;
         }
-        if (!mappings.length || mappings.some((row) => !row.competencyId)) {
+        if (mappings.some((row) => !row.competencyId)) {
             setLocalError(labels.noSelectedCompetencies);
             return;
         }
@@ -238,7 +238,7 @@ export default function FreeElectiveRoundCourseFormModal({
                         type="button"
                         className="free-elective-button free-elective-button--primary"
                         onClick={submit}
-                        disabled={saving || !selectedCourse || !mappings.length}
+                        disabled={saving || !selectedCourse}
                     >
                         <Save size={16} aria-hidden="true" />
                         {saving ? labels.loading : labels.saveCourseInRound}

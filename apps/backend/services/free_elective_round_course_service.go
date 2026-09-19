@@ -253,7 +253,7 @@ func (s *FreeElectiveService) roundCourseInScope(ctx context.Context, claims *ut
 
 func (s *FreeElectiveService) validateRoundCourseCompetencies(ctx context.Context, inputs []models.FreeElectiveRoundCompetencyInput) error {
 	if len(inputs) == 0 {
-		return FreeElectiveValidationError{Message: "at least one competency is required"}
+		return nil
 	}
 	ids := make([]uint64, 0, len(inputs))
 	seen := make(map[uint64]struct{}, len(inputs))

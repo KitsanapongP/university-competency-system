@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -69,6 +70,14 @@ func TestValidateNewRoundCourseAcceptsCompleteInlineCourse(t *testing.T) {
 	}, "courses[0]")
 	if issue != nil {
 		t.Fatalf("validateNewRoundCourse() = %#v, want nil", issue)
+	}
+}
+
+func TestValidateRoundCourseCompetenciesAllowsEmptyMappings(t *testing.T) {
+	service := &FreeElectiveService{}
+
+	if err := service.validateRoundCourseCompetencies(context.Background(), nil); err != nil {
+		t.Fatalf("validateRoundCourseCompetencies() = %v, want nil for an optional mapping", err)
 	}
 }
 
