@@ -2639,6 +2639,14 @@
     justify-content: space-between;
 }
 
+.free-elective-round-competency-panel__subheading-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+    justify-content: flex-end;
+}
+
 .free-elective-round-competency-panel__subheading p {
     margin: 0;
     color: var(--ui-text-muted);
@@ -2769,6 +2777,14 @@
 }
 
 @media (max-width: 720px) {
+    .free-elective-round-competency-panel__subheading {
+        align-items: flex-start;
+    }
+
+    .free-elective-round-competency-panel__subheading-actions {
+        justify-content: flex-start;
+    }
+
     .free-elective-round-course-table__toolbar {
         align-items: stretch;
     }

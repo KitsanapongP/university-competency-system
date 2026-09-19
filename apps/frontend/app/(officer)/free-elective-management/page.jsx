@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, Plus, RefreshCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../providers/auth-provider';
@@ -71,6 +71,7 @@ function FreeElectiveManagementPageContent() {
     const [courseModalOpen, setCourseModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState(null);
     const [impactConfirmation, setImpactConfirmation] = useState(null);
+    const competencyRefreshInFlightRef = useRef(false);
     const catalogKey = selectedFacultyId || 'all';
     const wizardFacultyId = selectedFacultyId || accountFacultyId || faculties[0]?.facultyId || '';
 
@@ -134,6 +135,24 @@ function FreeElectiveManagementPageContent() {
             setCatalogLoading(false);
         }
     }, [catalogKey, catalogLoadedKey, catalogLoading, labels.loadError, user]);
+
+    const refreshCompetencies = useCallback(async () => {
+        if (!user || competencyRefreshInFlightRef.current) {
+            return competencies;
+        }
+
+        competencyRefreshInFlightRef.current = true;
+        try {
+            const nextCompetencies = await fetchCompetenciesForManagement();
+            setCompetencies(nextCompetencies);
+            return nextCompetencies;
+        } catch (loadError) {
+            setError(loadError.message || labels.loadError);
+            throw loadError;
+        } finally {
+            competencyRefreshInFlightRef.current = false;
+        }
+    }, [competencies, labels.loadError, user]);
 
     useEffect(() => {
         if (!authLoading && user) {
@@ -419,6 +438,7 @@ function FreeElectiveManagementPageContent() {
                 saving={saving}
                 onClose={() => setRoundWizardOpen(false)}
                 onPreview={handleRoundPreview}
+                onRefreshCompetencies={refreshCompetencies}
                 onSubmit={handleRoundSubmit}
             />
             <FreeElectiveCourseModal

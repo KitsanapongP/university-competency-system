@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown } from 'lucide-react';
 import BaseModal from '../../../../components/ui/BaseModal';
 import { FREE_ELECTIVE_GRADE_SCHEMES } from '../../../../lib/free-elective';
@@ -389,6 +389,7 @@ export default function FreeElectiveRoundWizard({
     saving,
     onClose,
     onPreview,
+    onRefreshCompetencies,
     onSubmit,
 }) {
     const [step, setStep] = useState(1);
@@ -399,6 +400,8 @@ export default function FreeElectiveRoundWizard({
     const [selectedCourseIndex, setSelectedCourseIndex] = useState(null);
     const [expandedReviewCourses, setExpandedReviewCourses] = useState(() => new Set());
     const courseRowRefs = useRef({});
+    const competencyManagementContextRef = useRef(null);
+    const competencyRefreshInFlightRef = useRef(false);
 
     const clearFieldError = (courseIndex, field) => {
         setFieldErrors((current) => ({
@@ -603,6 +606,125 @@ export default function FreeElectiveRoundWizard({
         }));
     };
 
+    const addCreatedCompetencyToCourse = useCallback((courseIndex, competencyId) => {
+        const currentCourse = form.courses[courseIndex];
+        if (!currentCourse || currentCourse.competencies.some(
+            (mapping) => String(mapping.competencyId) === String(competencyId),
+        )) {
+            return;
+        }
+
+        const blankMappingIndex = currentCourse.competencies.findIndex(
+            (mapping) => !mapping.competencyId,
+        );
+        const mappingIndex = blankMappingIndex >= 0
+            ? blankMappingIndex
+            : currentCourse.competencies.length;
+
+        setForm((current) => ({
+            ...current,
+            courses: current.courses.map((course, rowIndex) => {
+                if (rowIndex !== courseIndex) {
+                    return course;
+                }
+
+                const nextCompetencies = [...course.competencies];
+                if (mappingIndex < nextCompetencies.length) {
+                    nextCompetencies[mappingIndex] = {
+                        ...nextCompetencies[mappingIndex],
+                        competencyId: String(competencyId),
+                    };
+                } else {
+                    nextCompetencies.push({
+                        competencyId: String(competencyId),
+                        weightPercent: 0,
+                    });
+                }
+
+                return { ...course, competencies: nextCompetencies };
+            }),
+        }));
+        setFieldErrors((current) => ({
+            ...current,
+            rows: current.rows.map((row, rowIndex) => {
+                if (rowIndex !== courseIndex) {
+                    return row;
+                }
+
+                const nextMappings = [...row.mappings];
+                if (mappingIndex < nextMappings.length) {
+                    nextMappings[mappingIndex] = {
+                        ...nextMappings[mappingIndex],
+                        competencyId: '',
+                    };
+                } else {
+                    nextMappings.push({ competencyId: '', weightPercent: '' });
+                }
+
+                return {
+                    ...row,
+                    competencies: '',
+                    mappings: nextMappings,
+                };
+            }),
+        }));
+    }, [form]);
+
+    const openCompetencyManagement = () => {
+        if (selectedCourseIndex === null) {
+            return;
+        }
+
+        competencyManagementContextRef.current = {
+            courseIndex: selectedCourseIndex,
+            competencyIds: new Set(
+                competencies.map((competency) => String(competency.id)),
+            ),
+        };
+
+        const competencyWindow = window.open(
+            '/competency-management',
+            '_blank',
+            'noopener,noreferrer',
+        );
+        if (!competencyWindow) {
+            competencyManagementContextRef.current = null;
+        }
+    };
+
+    useEffect(() => {
+        if (!open || !onRefreshCompetencies) {
+            return undefined;
+        }
+
+        const handleWindowFocus = async () => {
+            const context = competencyManagementContextRef.current;
+            if (!context || competencyRefreshInFlightRef.current) {
+                return;
+            }
+
+            competencyRefreshInFlightRef.current = true;
+            try {
+                const refreshedCompetencies = await onRefreshCompetencies();
+                const createdCompetency = (Array.isArray(refreshedCompetencies)
+                    ? refreshedCompetencies
+                    : [])
+                    .filter((competency) => !context.competencyIds.has(String(competency.id)))
+                    .at(-1);
+
+                if (createdCompetency) {
+                    addCreatedCompetencyToCourse(context.courseIndex, createdCompetency.id);
+                }
+            } finally {
+                competencyRefreshInFlightRef.current = false;
+                competencyManagementContextRef.current = null;
+            }
+        };
+
+        window.addEventListener('focus', handleWindowFocus);
+        return () => window.removeEventListener('focus', handleWindowFocus);
+    }, [addCreatedCompetencyToCourse, onRefreshCompetencies, open]);
+
     const goToCourses = () => {
         if (!form.academicYearBE) {
             setFieldErrors((current) => ({
@@ -788,6 +910,7 @@ export default function FreeElectiveRoundWizard({
                                 labels={labels}
                                 saving={saving}
                                 onAddCompetency={addCompetency}
+                                onOpenCompetencyManagement={openCompetencyManagement}
                                 onUpdateCompetency={updateCompetency}
                                 onRemoveCompetency={removeCompetency}
                                 onClose={() => setSelectedCourseIndex(null)}

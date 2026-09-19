@@ -1,4 +1,4 @@
-import { Plus, Trash2, X } from 'lucide-react';
+import { ExternalLink, Plus, Trash2, X } from 'lucide-react';
 
 function getCompetencyName(competency, language) {
     return language === 'en'
@@ -27,6 +27,7 @@ export default function FreeElectiveRoundCompetencyPanel({
     labels,
     saving,
     onAddCompetency,
+    onOpenCompetencyManagement,
     onUpdateCompetency,
     onRemoveCompetency,
     onClose,
@@ -68,15 +69,28 @@ export default function FreeElectiveRoundCompetencyPanel({
             <div className="free-elective-round-competency-panel__body">
                 <div className="free-elective-round-competency-panel__subheading">
                     <p>{labels.chooseCompetencies}</p>
-                    <button
-                        type="button"
-                        className="free-elective-button free-elective-button--quiet"
-                        onClick={() => onAddCompetency(courseIndex)}
-                        disabled={saving || course.competencies.length >= competencies.length}
-                    >
-                        <Plus size={14} aria-hidden="true" />
-                        {labels.addCompetency}
-                    </button>
+                    <div className="free-elective-round-competency-panel__subheading-actions">
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--quiet"
+                            onClick={onOpenCompetencyManagement}
+                            title={labels.addNewCompetencyHint}
+                            aria-label={labels.addNewCompetency}
+                            disabled={saving}
+                        >
+                            <ExternalLink size={14} aria-hidden="true" />
+                            {labels.addNewCompetency}
+                        </button>
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--quiet"
+                            onClick={() => onAddCompetency(courseIndex)}
+                            disabled={saving || course.competencies.length >= competencies.length}
+                        >
+                            <Plus size={14} aria-hidden="true" />
+                            {labels.addCompetency}
+                        </button>
+                    </div>
                 </div>
                 <InlineError message={rowErrors.competencies} />
                 {!course.competencies.length && (
