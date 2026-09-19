@@ -855,6 +855,9 @@
 }
 
 .free-elective-search-field input {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
     min-height: 2.35rem;
     padding: 0;
     border: 0;
@@ -1551,7 +1554,6 @@
 .free-elective-field textarea,
 .free-elective-number-input,
 .free-elective-grade-select,
-.free-elective-search-field input,
 .free-elective-file-input {
     border-color: var(--ui-border);
     border-radius: var(--ui-radius-control);
@@ -1560,13 +1562,23 @@
     font-family: var(--ui-font);
 }
 
+.free-elective-search-field input {
+    color: var(--ui-text);
+    background: transparent;
+    font-family: var(--ui-font);
+}
+
 .free-elective-field input:focus,
 .free-elective-field select:focus,
 .free-elective-field textarea:focus,
 .free-elective-number-input:focus,
-.free-elective-grade-select:focus,
-.free-elective-search-field input:focus {
+.free-elective-grade-select:focus {
     outline: 0;
+    border-color: var(--ui-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 18%, transparent);
+}
+
+.free-elective-search-field:focus-within {
     border-color: var(--ui-primary);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 18%, transparent);
 }
