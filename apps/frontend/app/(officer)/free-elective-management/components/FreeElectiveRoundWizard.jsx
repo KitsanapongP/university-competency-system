@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, BookOpen, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown } from 'lucide-react';
 import BaseModal from '../../../../components/ui/BaseModal';
 import { FREE_ELECTIVE_GRADE_SCHEMES } from '../../../../lib/free-elective';
 import FreeElectiveRoundCompetencyPanel from './FreeElectiveRoundCompetencyPanel';
@@ -68,6 +68,35 @@ function getGradeSchemeLabel(scheme, labels) {
     return scheme === 'satisfactory'
         ? labels.satisfactoryGrades
         : labels.letterGrades;
+}
+
+function getCompetencyName(competency, language, labels) {
+    if (!competency) {
+        return labels.unknownCompetency;
+    }
+
+    return language === 'en'
+        ? competency.nameEn || competency.nameTh || labels.unknownCompetency
+        : competency.nameTh || competency.nameEn || labels.unknownCompetency;
+}
+
+function getReviewCompetencies(course, competencies, language, labels) {
+    return course.competencies
+        .map((mapping, index) => {
+            const competency = competencies.find(
+                (item) => String(item.id) === String(mapping.competencyId),
+            );
+
+            return {
+                id: mapping.competencyId,
+                name: getCompetencyName(competency, language, labels),
+                weightPercent: Number(mapping.weightPercent),
+                index,
+            };
+        })
+        .sort((left, right) => (
+            right.weightPercent - left.weightPercent || left.index - right.index
+        ));
 }
 
 function isValidGradeScheme(value) {
@@ -269,6 +298,87 @@ function FieldError({ id, message }) {
     );
 }
 
+function ReviewCourseItem({
+    course,
+    courseIndex,
+    competencies,
+    language,
+    labels,
+    isExpanded,
+    onToggle,
+}) {
+    const reviewCompetencies = getReviewCompetencies(
+        course,
+        competencies,
+        language,
+        labels,
+    );
+    const competencyPanelId = `free-elective-review-course-${courseIndex}-competencies`;
+
+    return (
+        <article>
+            <button
+                type="button"
+                className="free-elective-round-review-list__course-toggle"
+                onClick={() => onToggle(courseIndex)}
+                aria-expanded={isExpanded}
+                aria-controls={competencyPanelId}
+                title={isExpanded
+                    ? labels.collapseCompetencies
+                    : labels.expandCompetencies}
+                aria-label={`${isExpanded
+                    ? labels.collapseCompetencies
+                    : labels.expandCompetencies}: ${course.courseCode}`}
+            >
+                <span className="free-elective-round-review-list__course-summary">
+                    <strong>{course.courseCode}</strong>
+                    <span>
+                        {language === 'en'
+                            ? course.courseNameEn || course.courseNameTh
+                            : course.courseNameTh}
+                    </span>
+                    <small>
+                        {labels.gradeScheme}:{' '}
+                        {getGradeSchemeLabel(course.gradeScheme, labels)}
+                    </small>
+                </span>
+                <span className="free-elective-round-review-list__course-meta">
+                    <span>
+                        {reviewCompetencies.length} {labels.competencies}
+                    </span>
+                    <ChevronDown
+                        size={18}
+                        aria-hidden="true"
+                        className={isExpanded ? 'is-expanded' : ''}
+                    />
+                </span>
+            </button>
+            {isExpanded && (
+                <div
+                    id={competencyPanelId}
+                    className="free-elective-round-review-list__competencies"
+                >
+                    <span className="free-elective-round-review-list__competencies-heading">
+                        {labels.reviewCompetencies}
+                    </span>
+                    {reviewCompetencies.length ? (
+                        <ul>
+                            {reviewCompetencies.map((item) => (
+                                <li key={`${item.id}-${item.index}`}>
+                                    <span>{item.name}</span>
+                                    <strong>{item.weightPercent}%</strong>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p>{labels.noCompetencies}</p>
+                    )}
+                </div>
+            )}
+        </article>
+    );
+}
+
 export default function FreeElectiveRoundWizard({
     open,
     language,
@@ -287,6 +397,7 @@ export default function FreeElectiveRoundWizard({
     const [preview, setPreview] = useState(null);
     const [previewing, setPreviewing] = useState(false);
     const [selectedCourseIndex, setSelectedCourseIndex] = useState(null);
+    const [expandedReviewCourses, setExpandedReviewCourses] = useState(() => new Set());
     const courseRowRefs = useRef({});
 
     const clearFieldError = (courseIndex, field) => {
@@ -522,6 +633,9 @@ export default function FreeElectiveRoundWizard({
             const normalizedCourses = mapPreviewCourses(result.courses, form.courses);
             setForm((current) => ({ ...current, courses: normalizedCourses }));
             setPreview({ ...result, courses: normalizedCourses });
+            setExpandedReviewCourses(new Set(
+                normalizedCourses.map((_, index) => index),
+            ));
             setStep(3);
         } catch (error) {
             const issues = error?.payload?.data?.errors || error?.payload?.errors;
@@ -548,6 +662,18 @@ export default function FreeElectiveRoundWizard({
                 setStep(2);
             }
         }
+    };
+
+    const toggleReviewCourse = (courseIndex) => {
+        setExpandedReviewCourses((current) => {
+            const next = new Set(current);
+            if (next.has(courseIndex)) {
+                next.delete(courseIndex);
+            } else {
+                next.add(courseIndex);
+            }
+            return next;
+        });
     };
 
     const stepLabels = [
@@ -690,23 +816,16 @@ export default function FreeElectiveRoundWizard({
                         </div>
                         <div className="free-elective-round-review-list">
                             {form.courses.map((course, index) => (
-                                <article key={`${course.courseCode}-${index}`}>
-                                    <div>
-                                        <strong>{course.courseCode}</strong>
-                                        <span>
-                                            {language === 'en'
-                                                ? course.courseNameEn || course.courseNameTh
-                                                : course.courseNameTh}
-                                        </span>
-                                        <small>
-                                            {labels.gradeScheme}:{' '}
-                                            {getGradeSchemeLabel(course.gradeScheme, labels)}
-                                        </small>
-                                    </div>
-                                    <span>
-                                        {course.competencies.length} {labels.competencies}
-                                    </span>
-                                </article>
+                                <ReviewCourseItem
+                                    key={`${course.courseCode}-${index}`}
+                                    course={course}
+                                    courseIndex={index}
+                                    competencies={competencies}
+                                    language={language}
+                                    labels={labels}
+                                    isExpanded={expandedReviewCourses.has(index)}
+                                    onToggle={toggleReviewCourse}
+                                />
                             ))}
                         </div>
                     </section>

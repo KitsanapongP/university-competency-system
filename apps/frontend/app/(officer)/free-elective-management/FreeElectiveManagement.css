@@ -2241,11 +2241,7 @@
 }
 
 .free-elective-round-review-list article {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    align-items: center;
-    padding: 0.75rem 0.85rem;
+    display: block;
     border-bottom: 1px solid var(--ui-border);
     color: var(--ui-text-muted);
     font-size: 0.75rem;
@@ -2255,20 +2251,111 @@
     border-bottom: 0;
 }
 
-.free-elective-round-review-list article > div {
+.free-elective-round-review-list__course-toggle {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0.85rem;
+    border: 0;
+    color: inherit;
+    text-align: left;
+    background: transparent;
+    cursor: pointer;
+}
+
+.free-elective-round-review-list__course-toggle:hover {
+    background: var(--ui-surface-hover);
+}
+
+.free-elective-round-review-list__course-toggle:focus-visible {
+    outline: 2px solid var(--ui-primary);
+    outline-offset: -2px;
+}
+
+.free-elective-round-review-list__course-summary {
     display: grid;
     min-width: 0;
     gap: 0.15rem;
 }
 
-.free-elective-round-review-list article strong {
+.free-elective-round-review-list__course-summary strong {
     color: var(--ui-primary-hover);
 }
 
-.free-elective-round-review-list article span {
+.free-elective-round-review-list__course-summary > span,
+.free-elective-round-review-list__course-summary small {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.free-elective-round-review-list__course-meta {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 0.55rem;
+    align-items: center;
+    color: var(--ui-text-muted);
+}
+
+.free-elective-round-review-list__course-meta svg {
+    transition: transform 160ms ease;
+}
+
+.free-elective-round-review-list__course-meta svg.is-expanded {
+    transform: rotate(180deg);
+}
+
+.free-elective-round-review-list__competencies {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0 0.85rem 0.85rem;
+    border-top: 1px solid var(--ui-border);
+}
+
+.free-elective-round-review-list__competencies-heading {
+    padding-top: 0.65rem;
+    color: var(--ui-text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.free-elective-round-review-list__competencies ul {
+    display: grid;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.free-elective-round-review-list__competencies li {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.45rem 0.55rem;
+    border-radius: var(--ui-radius-control);
+    background: var(--ui-surface);
+}
+
+.free-elective-round-review-list__competencies li span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.free-elective-round-review-list__competencies li strong {
+    flex: 0 0 auto;
+    color: var(--ui-primary-hover);
+    font-variant-numeric: tabular-nums;
+}
+
+.free-elective-round-review-list__competencies p {
+    margin: 0;
+    color: var(--ui-text-muted);
+    font-size: 0.75rem;
 }
 
 @media (max-width: 1100px) {
@@ -2289,6 +2376,20 @@
 
     .free-elective-round-wizard__section-heading {
         display: grid;
+    }
+
+    .free-elective-round-review-list__course-toggle {
+        align-items: flex-start;
+    }
+
+    .free-elective-round-review-list__competencies li {
+        display: grid;
+        gap: 0.2rem;
+        justify-content: start;
+    }
+
+    .free-elective-round-review-list__competencies li strong {
+        justify-self: start;
     }
 
     .free-elective-round-course-editor__mapping {
