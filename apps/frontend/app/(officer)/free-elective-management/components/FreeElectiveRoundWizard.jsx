@@ -17,7 +17,6 @@ function createCourseRow() {
         courseCode: '',
         courseNameTh: '',
         courseNameEn: '',
-        description: '',
         credits: '',
         gradeScheme: '',
         competencies: [],
@@ -166,7 +165,6 @@ function mapPreviewCourse(course, fallback) {
         courseCode: course.course_code ?? fallback.courseCode,
         courseNameTh: course.course_name_th ?? fallback.courseNameTh,
         courseNameEn: course.course_name_en ?? fallback.courseNameEn,
-        description: course.description ?? fallback.description,
         credits: course.credits ?? fallback.credits,
         gradeScheme: course.grade_scheme ?? fallback.gradeScheme,
         competencies: (course.competencies || fallback.competencies || []).map((mapping) => ({
@@ -374,7 +372,6 @@ export default function FreeElectiveRoundWizard({
                         courseCode: catalogCourse.code,
                         courseNameTh: catalogCourse.nameTh,
                         courseNameEn: catalogCourse.nameEn || '',
-                        description: catalogCourse.description || '',
                         credits: catalogCourse.credits,
                         gradeScheme: catalogCourse.gradeScheme,
                     }
@@ -754,19 +751,6 @@ export default function FreeElectiveRoundWizard({
                                                     aria-invalid={Boolean(rowErrors.courseNameEn)}
                                                 />
                                                 <FieldError message={rowErrors.courseNameEn} />
-                                            </label>
-                                            <label className="free-elective-field free-elective-round-course-editor__field--full">
-                                                <span>{labels.description}</span>
-                                                <textarea
-                                                    value={item.description}
-                                                    onChange={(event) => updateCourseField(
-                                                        courseIndex,
-                                                        'description',
-                                                        event.target.value,
-                                                    )}
-                                                    rows="2"
-                                                    disabled={saving || isCatalogCourse}
-                                                />
                                             </label>
                                         </div>
 
