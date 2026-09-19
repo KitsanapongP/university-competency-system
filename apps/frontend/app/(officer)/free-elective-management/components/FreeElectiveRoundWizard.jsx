@@ -566,7 +566,7 @@ export default function FreeElectiveRoundWizard({
             open={open}
             title={labels.createRoundTitle}
             icon={<BookOpen size={18} />}
-            size="xl"
+            size={step === 2 ? 'xxl' : 'lg'}
             onClose={onClose}
             closeDisabled={saving || previewing}
         >

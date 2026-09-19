@@ -2303,7 +2303,7 @@
 
 .free-elective-round-course-workspace {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.38fr);
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
     gap: 0.75rem;
     align-items: start;
 }
@@ -2348,7 +2348,8 @@
 }
 
 .free-elective-round-course-table__grid {
-    min-width: 72rem;
+    min-width: 62rem;
+    table-layout: fixed;
 }
 
 .free-elective-round-course-table__grid th {
@@ -2371,31 +2372,31 @@
 }
 
 .free-elective-round-course-table__col--number {
-    width: 3.2rem;
+    width: 3rem;
 }
 
 .free-elective-round-course-table__col--code {
-    width: 10rem;
+    width: 8rem;
 }
 
 .free-elective-round-course-table__col--name {
-    width: 14rem;
+    width: 12rem;
 }
 
 .free-elective-round-course-table__col--credits {
-    width: 6rem;
+    width: 5rem;
 }
 
 .free-elective-round-course-table__col--scheme {
-    width: 10rem;
+    width: 8rem;
 }
 
 .free-elective-round-course-table__col--competencies {
-    width: 11rem;
+    width: 10rem;
 }
 
 .free-elective-round-course-table__col--actions {
-    width: 4.5rem;
+    width: 4rem;
 }
 
 .free-elective-round-course-table__number {
@@ -2570,13 +2571,87 @@
     margin-top: 1.55rem;
 }
 
-@media (max-width: 1050px) {
+@media (max-width: 1200px) {
     .free-elective-round-course-workspace {
         grid-template-columns: 1fr;
     }
 
     .free-elective-round-competency-panel__body {
         max-height: none;
+    }
+}
+
+@media (max-width: 1100px) {
+    .free-elective-round-course-table__scroll {
+        max-height: none;
+        overflow: visible;
+        border: 0;
+    }
+
+    .free-elective-round-course-table__grid {
+        display: block;
+        min-width: 0;
+    }
+
+    .free-elective-round-course-table__grid colgroup,
+    .free-elective-round-course-table__grid thead {
+        display: none;
+    }
+
+    .free-elective-round-course-table__grid tbody {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .free-elective-round-course-table__grid tbody tr {
+        display: grid;
+        gap: 0.2rem 0.75rem;
+        padding: 0.75rem;
+        border: 1px solid var(--ui-border);
+        border-radius: var(--ui-radius-control);
+        background: var(--ui-surface-raised);
+    }
+
+    .free-elective-round-course-table__grid tbody tr.is-selected td,
+    .free-elective-round-course-table__grid tbody tr:hover td {
+        background: transparent;
+    }
+
+    .free-elective-round-course-table__grid td {
+        display: grid;
+        grid-template-columns: minmax(7rem, 0.35fr) minmax(0, 1fr);
+        gap: 0.75rem;
+        align-items: start;
+        padding: 0.45rem 0;
+        border-bottom: 1px solid var(--ui-border);
+    }
+
+    .free-elective-round-course-table__grid td:last-child {
+        border-bottom: 0;
+    }
+
+    .free-elective-round-course-table__grid td::before {
+        color: var(--ui-text-muted);
+        content: attr(data-label);
+        font-size: 0.72rem;
+        font-weight: 700;
+        line-height: 1.4;
+    }
+
+    .free-elective-round-course-table__number {
+        text-align: left;
+    }
+
+    .free-elective-round-course-table__number::before {
+        text-align: left;
+    }
+
+    .free-elective-round-course-table__competencies {
+        min-width: 0;
+    }
+
+    .free-elective-round-course-table__grid td:last-child > button {
+        justify-self: start;
     }
 }
 

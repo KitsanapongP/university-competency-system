@@ -176,12 +176,12 @@ function getDuplicateCourseIssues(nextCourse, allCourses) {
 function getGradeSchemeLabel(scheme, language = "th") {
   const labels = {
     letter: {
-      th: "เกรดตัวอักษร",
-      en: "Letter grades",
+      th: "เกรดตัวอักษร (A-F)",
+      en: "Letter grades (A-F)",
     },
     satisfactory: {
-      th: "ผ่าน/ไม่ผ่าน",
-      en: "Satisfactory / Unsatisfactory",
+      th: "ผ่าน/ไม่ผ่าน (S/U)",
+      en: "Satisfactory / Unsatisfactory (S/U)",
     },
   };
 

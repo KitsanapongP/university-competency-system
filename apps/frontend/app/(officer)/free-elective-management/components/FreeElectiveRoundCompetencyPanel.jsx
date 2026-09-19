@@ -114,7 +114,7 @@ export default function FreeElectiveRoundCompetencyPanel({
                                                 value={competency.id}
                                                 disabled={isUsed}
                                             >
-                                                {competency.code} - {getCompetencyName(competency, language)}
+                                                {getCompetencyName(competency, language)}
                                             </option>
                                         );
                                     })}

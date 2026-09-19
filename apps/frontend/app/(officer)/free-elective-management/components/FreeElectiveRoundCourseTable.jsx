@@ -159,10 +159,13 @@ export default function FreeElectiveRoundCourseTable({
                                     className={isSelected ? 'is-selected' : ''}
                                     onClick={() => onSelectCourse(courseIndex)}
                                 >
-                                    <td className="free-elective-round-course-table__number">
+                                    <td
+                                        className="free-elective-round-course-table__number"
+                                        data-label={labels.course}
+                                    >
                                         {courseIndex + 1}
                                     </td>
-                                    <td>
+                                    <td data-label={labels.code}>
                                         <label className="free-elective-table-field">
                                             <span className="sr-only">{labels.code}</span>
                                             <input
@@ -180,7 +183,7 @@ export default function FreeElectiveRoundCourseTable({
                                             <InlineError message={rowErrors.courseCode} />
                                         </label>
                                     </td>
-                                    <td>
+                                    <td data-label={`${labels.courseName} (${labels.thaiLanguage})`}>
                                         <label className="free-elective-table-field">
                                             <span className="sr-only">{labels.courseName} ({labels.thaiLanguage})</span>
                                             <input
@@ -196,7 +199,7 @@ export default function FreeElectiveRoundCourseTable({
                                             <InlineError message={rowErrors.courseNameTh} />
                                         </label>
                                     </td>
-                                    <td>
+                                    <td data-label={`${labels.courseName} (${labels.englishLanguage})`}>
                                         <label className="free-elective-table-field">
                                             <span className="sr-only">{labels.courseName} ({labels.englishLanguage})</span>
                                             <input
@@ -212,7 +215,7 @@ export default function FreeElectiveRoundCourseTable({
                                             <InlineError message={rowErrors.courseNameEn} />
                                         </label>
                                     </td>
-                                    <td>
+                                    <td data-label={labels.credits}>
                                         <label className="free-elective-table-field">
                                             <span className="sr-only">{labels.credits}</span>
                                             <input
@@ -232,7 +235,7 @@ export default function FreeElectiveRoundCourseTable({
                                             <InlineError message={rowErrors.credits} />
                                         </label>
                                     </td>
-                                    <td>
+                                    <td data-label={labels.gradeScheme}>
                                         <label className="free-elective-table-field">
                                             <span className="sr-only">{labels.gradeScheme}</span>
                                             <select
@@ -255,7 +258,7 @@ export default function FreeElectiveRoundCourseTable({
                                             <InlineError message={rowErrors.gradeScheme} />
                                         </label>
                                     </td>
-                                    <td>
+                                    <td data-label={labels.courseCompetencies}>
                                         <div className="free-elective-round-course-table__competencies">
                                             <span>
                                                 {item.competencies.length
@@ -278,7 +281,7 @@ export default function FreeElectiveRoundCourseTable({
                                         </div>
                                         <InlineError message={rowErrors.competencies} />
                                     </td>
-                                    <td>
+                                    <td data-label={labels.manage}>
                                         <button
                                             type="button"
                                             className="free-elective-icon-button free-elective-icon-button--danger"
