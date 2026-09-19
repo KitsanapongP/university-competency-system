@@ -442,7 +442,7 @@ function FreeElectiveRoundDetailPageContent() {
             </section>
 
             <FreeElectiveRoundCourseFormModal
-                key={courseFormKey}
+                key={`round-course-form-${courseFormKey}`}
                 open={addCourseOpen}
                 courses={catalogCourses}
                 competencies={masterCompetencies}
@@ -453,7 +453,7 @@ function FreeElectiveRoundDetailPageContent() {
                 onSubmit={handleAddCourse}
             />
             <RoundDuplicateModal
-                key={duplicateKey}
+                key={`round-duplicate-${duplicateKey}`}
                 open={duplicateOpen}
                 initialYear={round.academicYearBE + 1}
                 initialSemester={round.semester}
