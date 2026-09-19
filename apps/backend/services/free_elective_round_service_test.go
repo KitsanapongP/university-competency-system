@@ -81,6 +81,29 @@ func TestValidateRoundCourseCompetenciesAllowsEmptyMappings(t *testing.T) {
 	}
 }
 
+func TestRoundCourseLearnerSelectionRequiresCurriculumAndEntryYear(t *testing.T) {
+	entryYear := uint64(2568)
+	if err := validateRoundCourseLearnerSelection(models.FreeElectiveRoundLearnerFilters{
+		EntryYearBE: &entryYear,
+	}); err == nil {
+		t.Fatal("validateRoundCourseLearnerSelection() = nil, want curriculum validation error")
+	}
+
+	curriculumID := uint64(12)
+	if err := validateRoundCourseLearnerSelection(models.FreeElectiveRoundLearnerFilters{
+		CurriculumID: &curriculumID,
+	}); err == nil {
+		t.Fatal("validateRoundCourseLearnerSelection() = nil, want entry-year validation error")
+	}
+
+	if err := validateRoundCourseLearnerSelection(models.FreeElectiveRoundLearnerFilters{
+		CurriculumID: &curriculumID,
+		EntryYearBE:  &entryYear,
+	}); err != nil {
+		t.Fatalf("validateRoundCourseLearnerSelection() = %v, want nil", err)
+	}
+}
+
 func TestNormalizeFreeElectiveCourseCodeIsCaseInsensitiveAndTrimmed(t *testing.T) {
 	if got := normalizeFreeElectiveCourseCode(" ge101 "); got != "GE101" {
 		t.Fatalf("normalizeFreeElectiveCourseCode() = %q, want GE101", got)
