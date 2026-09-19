@@ -16,6 +16,15 @@ function gradeSchemeLabel(course, labels) {
         : labels.letterGrades;
 }
 
+function getCompetencyKey(competency) {
+    return [
+        'round-course-competency',
+        competency.roundCourseCompetencyId || 'missing-id',
+        competency.competencyId || competency.code || 'unknown-competency',
+        competency.displayOrder || 'unknown-order',
+    ].join('-');
+}
+
 export default function FreeElectiveRoundCourseCard({
     course,
     language,
@@ -60,7 +69,7 @@ export default function FreeElectiveRoundCourseCard({
                 {course.competencies?.length ? (
                     <ul>
                         {course.competencies.map((competency) => (
-                            <li key={competency.id}>
+                            <li key={getCompetencyKey(competency)}>
                                 <span>
                                     <CheckCircle2 size={13} aria-hidden="true" />
                                     {localizedFreeElective(

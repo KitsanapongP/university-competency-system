@@ -40,6 +40,18 @@ function toNullableString(value) {
     return normalized || null;
 }
 
+function getEntityId(item, keys) {
+    for (const key of keys) {
+        const value = item?.[key];
+        const numericValue = Number(value);
+        if (Number.isSafeInteger(numericValue) && numericValue > 0) {
+            return value;
+        }
+    }
+
+    return null;
+}
+
 function buildQuery(filters = {}) {
     const query = new URLSearchParams();
     const mappings = {
@@ -247,11 +259,22 @@ export function mapFreeElectiveRoundCourse(item) {
         return null;
     }
 
+    const roundCourseId = getEntityId(item, [
+        'round_course_id',
+        'roundCourseId',
+        'id',
+    ]);
+    const roundId = getEntityId(item, ['round_id', 'roundId']);
+    const freeElectiveCourseId = getEntityId(item, [
+        'free_elective_course_id',
+        'freeElectiveCourseId',
+    ]);
+
     return {
-        id: item.round_course_id,
-        roundCourseId: item.round_course_id,
-        roundId: item.round_id,
-        freeElectiveCourseId: item.free_elective_course_id,
+        id: roundCourseId,
+        roundCourseId,
+        roundId,
+        freeElectiveCourseId,
         courseCode: item.course_code || '',
         courseNameTh: item.course_name_th || '',
         courseNameEn: item.course_name_en || '',
@@ -261,17 +284,31 @@ export function mapFreeElectiveRoundCourse(item) {
         displayOrder: toNumber(item.display_order),
         studentCount: toNumber(item.student_count),
         gradedStudentCount: toNumber(item.graded_student_count),
-        competencies: (item.competencies || []).map((competency) => ({
-            id: competency.round_course_competency_id,
-            roundCourseCompetencyId: competency.round_course_competency_id,
-            roundCourseId: competency.round_course_id,
-            competencyId: competency.competency_id,
-            code: competency.code || '',
-            nameTh: competency.name_th || '',
-            nameEn: competency.name_en || '',
-            weightPercent: toNumber(competency.weight_percent),
-            displayOrder: toNumber(competency.display_order),
-        })),
+        competencies: (item.competencies || []).map((competency) => {
+            const roundCourseCompetencyId = getEntityId(competency, [
+                'round_course_competency_id',
+                'roundCourseCompetencyId',
+                'id',
+            ]);
+
+            return {
+                id: roundCourseCompetencyId,
+                roundCourseCompetencyId,
+                roundCourseId: getEntityId(competency, [
+                    'round_course_id',
+                    'roundCourseId',
+                ]),
+                competencyId: getEntityId(competency, [
+                    'competency_id',
+                    'competencyId',
+                ]),
+                code: competency.code || '',
+                nameTh: competency.name_th || '',
+                nameEn: competency.name_en || '',
+                weightPercent: toNumber(competency.weight_percent),
+                displayOrder: toNumber(competency.display_order),
+            };
+        }),
         createdAt: item.created_at,
         updatedAt: item.updated_at,
     };

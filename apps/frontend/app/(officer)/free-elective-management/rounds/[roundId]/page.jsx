@@ -52,6 +52,15 @@ function getFacultyName(round, language) {
         : round.facultyNameTh;
 }
 
+function getRoundCourseKey(course) {
+    return [
+        'round-course',
+        course.roundCourseId || 'missing-id',
+        course.freeElectiveCourseId || course.courseCode || 'unknown-course',
+        course.displayOrder || 'unknown-order',
+    ].join('-');
+}
+
 function RoundDuplicateModal({
     open,
     initialYear,
@@ -416,7 +425,7 @@ function FreeElectiveRoundDetailPageContent() {
                         <div className="free-elective-round-course-grid">
                             {courses.map((course) => (
                                 <FreeElectiveRoundCourseCard
-                                    key={course.roundCourseId}
+                                    key={getRoundCourseKey(course)}
                                     course={course}
                                     language={language}
                                     labels={labels}
