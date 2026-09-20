@@ -151,7 +151,6 @@ export default function FreeElectiveCompetencySelect({
                         >
                             <span>
                                 <strong>{competencyName(item, language)}</strong>
-                                <small>{item.code || '-'}</small>
                             </span>
                             {isCurrent && <Check size={15} aria-hidden="true" />}
                         </button>
