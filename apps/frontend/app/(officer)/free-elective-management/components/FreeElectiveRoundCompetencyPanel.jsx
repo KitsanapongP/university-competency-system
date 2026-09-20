@@ -1,6 +1,12 @@
+import { useState } from 'react';
 import { ExternalLink, Plus, Trash2, X } from 'lucide-react';
+import FreeElectiveRemoveCompetencyModal from './FreeElectiveRemoveCompetencyModal';
 
 function getCompetencyName(competency, language) {
+    if (!competency) {
+        return '';
+    }
+
     return language === 'en'
         ? competency.nameEn || competency.nameTh
         : competency.nameTh || competency.nameEn;
@@ -32,6 +38,8 @@ export default function FreeElectiveRoundCompetencyPanel({
     onRemoveCompetency,
     onClose,
 }) {
+    const [deletingMapping, setDeletingMapping] = useState(null);
+
     if (!course) {
         return (
             <aside className="free-elective-round-competency-panel free-elective-round-competency-panel--empty">
@@ -46,6 +54,30 @@ export default function FreeElectiveRoundCompetencyPanel({
             .map((item) => String(item.competencyId))
             .filter(Boolean),
     );
+
+    const confirmRemoveCompetency = () => {
+        if (!deletingMapping) {
+            return;
+        }
+
+        onRemoveCompetency(
+            deletingMapping.courseIndex,
+            deletingMapping.competencyIndex,
+        );
+        setDeletingMapping(null);
+    };
+
+    const pendingCompetency = deletingMapping
+        ? course.competencies[deletingMapping.competencyIndex]
+        : null;
+    const pendingCompetencyName = pendingCompetency
+        ? getCompetencyName(
+            competencies.find(
+                (item) => String(item.id) === String(pendingCompetency.competencyId),
+            ),
+            language,
+        )
+        : '';
 
     return (
         <aside className="free-elective-round-competency-panel">
@@ -160,7 +192,10 @@ export default function FreeElectiveRoundCompetencyPanel({
                             <button
                                 type="button"
                                 className="free-elective-icon-button free-elective-icon-button--danger"
-                                onClick={() => onRemoveCompetency(courseIndex, competencyIndex)}
+                                onClick={() => setDeletingMapping({
+                                    courseIndex,
+                                    competencyIndex,
+                                })}
                                 title={labels.removeCompetency}
                                 aria-label={labels.removeCompetency}
                                 disabled={saving}
@@ -171,6 +206,14 @@ export default function FreeElectiveRoundCompetencyPanel({
                     );
                 })}
             </div>
+            <FreeElectiveRemoveCompetencyModal
+                open={Boolean(deletingMapping)}
+                competencyName={pendingCompetencyName}
+                labels={labels}
+                loading={saving}
+                onCancel={() => setDeletingMapping(null)}
+                onConfirm={confirmRemoveCompetency}
+            />
         </aside>
     );
 }

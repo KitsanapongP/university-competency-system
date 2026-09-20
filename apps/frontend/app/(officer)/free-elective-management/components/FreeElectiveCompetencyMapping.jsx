@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Copy, Plus, Save, Trash2 } from 'lucide-react';
 import FreeElectiveCompetencySelect from './FreeElectiveCompetencySelect';
+import FreeElectiveRemoveCompetencyModal from './FreeElectiveRemoveCompetencyModal';
 
 function mapRows(competencies) {
     return (competencies || []).map((item) => ({
@@ -21,6 +22,7 @@ export default function FreeElectiveCompetencyMapping({
     onRefreshMasterCompetencies,
 }) {
     const [rows, setRows] = useState(mapRows(competencies));
+    const [deletingIndex, setDeletingIndex] = useState(null);
 
     useEffect(() => {
         setRows(mapRows(competencies));
@@ -40,9 +42,21 @@ export default function FreeElectiveCompetencyMapping({
         setRows((current) => [...current, { competencyId: '', weightPercent: 0 }]);
     };
 
-    const removeRow = (index) => {
-        setRows((current) => current.filter((_, rowIndex) => rowIndex !== index));
+    const confirmRemoveRow = () => {
+        if (deletingIndex === null) {
+            return;
+        }
+
+        setRows((current) => current.filter(
+            (_, rowIndex) => rowIndex !== deletingIndex,
+        ));
+        setDeletingIndex(null);
     };
+
+    const pendingRow = deletingIndex === null ? null : rows[deletingIndex];
+    const pendingCompetency = masterCompetencies.find(
+        (item) => String(item.id) === String(pendingRow?.competencyId),
+    );
 
     const getCompetencyName = (item) => language === 'en'
         ? item.nameEn || item.nameTh
@@ -191,7 +205,7 @@ export default function FreeElectiveCompetencyMapping({
                                                 <button
                                                     type="button"
                                                     className="free-elective-icon-button free-elective-icon-button--danger"
-                                                    onClick={() => removeRow(index)}
+                                                    onClick={() => setDeletingIndex(index)}
                                                     disabled={saving}
                                                     title={labels.cancel}
                                                     aria-label={`${labels.cancel}: ${row.competencyId || labels.chooseCompetency}`}
@@ -220,6 +234,14 @@ export default function FreeElectiveCompetencyMapping({
                     </button>
                 </div>
             )}
+            <FreeElectiveRemoveCompetencyModal
+                open={deletingIndex !== null}
+                competencyName={pendingCompetency && getCompetencyName(pendingCompetency)}
+                labels={labels}
+                loading={saving}
+                onCancel={() => setDeletingIndex(null)}
+                onConfirm={confirmRemoveRow}
+            />
         </section>
     );
 }

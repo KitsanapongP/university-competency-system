@@ -3,6 +3,7 @@ import { Plus, Save, Trash2 } from 'lucide-react';
 import BaseModal from '../../../../components/ui/BaseModal';
 import { getFreeElectiveGradeOptions } from '../../../../lib/free-elective';
 import { localizedFreeElective } from '../free-elective-labels';
+import FreeElectiveRemoveCompetencyModal from './FreeElectiveRemoveCompetencyModal';
 
 function emptyMapping() {
     return {
@@ -24,6 +25,7 @@ export default function FreeElectiveRoundCourseFormModal({
     const [courseId, setCourseId] = useState('');
     const [mappings, setMappings] = useState([]);
     const [localError, setLocalError] = useState('');
+    const [deletingIndex, setDeletingIndex] = useState(null);
 
     const selectedCourse = useMemo(
         () => courses.find((course) => String(course.id) === String(courseId)),
@@ -52,8 +54,25 @@ export default function FreeElectiveRoundCourseFormModal({
         setMappings((current) => [...current, emptyMapping()]);
     };
 
-    const removeMapping = (index) => {
-        setMappings((current) => current.filter((_, rowIndex) => rowIndex !== index));
+    const confirmRemoveMapping = () => {
+        if (deletingIndex === null) {
+            return;
+        }
+
+        setMappings((current) => current.filter(
+            (_, rowIndex) => rowIndex !== deletingIndex,
+        ));
+        setDeletingIndex(null);
+    };
+
+    const pendingMapping = deletingIndex === null ? null : mappings[deletingIndex];
+    const pendingCompetency = competencies.find(
+        (item) => String(item.id) === String(pendingMapping?.competencyId),
+    );
+
+    const close = () => {
+        setDeletingIndex(null);
+        onClose();
     };
 
     const submit = () => {
@@ -77,7 +96,7 @@ export default function FreeElectiveRoundCourseFormModal({
             open={open}
             title={labels.addCourseToRound}
             size="xl"
-            onClose={onClose}
+            onClose={close}
             closeDisabled={saving}
         >
             <div className="free-elective-round-course-form">
@@ -208,7 +227,7 @@ export default function FreeElectiveRoundCourseFormModal({
                                     <button
                                         type="button"
                                         className="free-elective-icon-button free-elective-icon-button--danger"
-                                        onClick={() => removeMapping(index)}
+                                        onClick={() => setDeletingIndex(index)}
                                         disabled={saving}
                                         title={labels.removeCourse}
                                         aria-label={labels.removeCourse}
@@ -229,7 +248,7 @@ export default function FreeElectiveRoundCourseFormModal({
                     <button
                         type="button"
                         className="free-elective-button free-elective-button--secondary"
-                        onClick={onClose}
+                        onClick={close}
                         disabled={saving}
                     >
                         {labels.cancel}
@@ -245,6 +264,19 @@ export default function FreeElectiveRoundCourseFormModal({
                     </button>
                 </div>
             </div>
+            <FreeElectiveRemoveCompetencyModal
+                open={deletingIndex !== null}
+                competencyName={pendingCompetency && localizedFreeElective(
+                    pendingCompetency,
+                    language,
+                    'nameTh',
+                    'nameEn',
+                )}
+                labels={labels}
+                loading={saving}
+                onCancel={() => setDeletingIndex(null)}
+                onConfirm={confirmRemoveMapping}
+            />
         </BaseModal>
     );
 }
