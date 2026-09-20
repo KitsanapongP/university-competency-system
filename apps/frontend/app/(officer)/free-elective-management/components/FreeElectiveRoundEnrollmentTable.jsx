@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Save, Trash2 } from 'lucide-react';
 import { getFreeElectiveGradeOptions } from '../../../../lib/free-elective';
 import {
@@ -18,11 +18,25 @@ export default function FreeElectiveRoundEnrollmentTable({
     labels,
     onSaveGrade,
     onDelete,
+    selectedIds = new Set(),
+    allVisibleSelected = false,
+    someVisibleSelected = false,
+    onToggleSelection,
+    onToggleSelectAll,
+    emptyLabel = labels.noRoundLearners,
 }) {
     const [draftGrades, setDraftGrades] = useState({});
+    const selectAllCheckboxRef = useRef(null);
     const gradeOptions = allowedGrades?.length
         ? allowedGrades
         : getFreeElectiveGradeOptions(gradeScheme);
+
+    useEffect(() => {
+        if (selectAllCheckboxRef.current) {
+            selectAllCheckboxRef.current.indeterminate = someVisibleSelected
+                && !allVisibleSelected;
+        }
+    }, [allVisibleSelected, someVisibleSelected]);
 
     const gradeFor = (enrollment) => draftGrades[enrollment.id] ?? enrollment.grade;
 
@@ -45,7 +59,7 @@ export default function FreeElectiveRoundEnrollmentTable({
     if (!enrollments.length) {
         return (
             <div className="free-elective-empty free-elective-panel__content">
-                {labels.noRoundLearners}
+                {emptyLabel}
             </div>
         );
     }
@@ -55,6 +69,19 @@ export default function FreeElectiveRoundEnrollmentTable({
             <table className="free-elective-table free-elective-grade-table">
                 <thead>
                     <tr>
+                        {canEdit && (
+                            <th className="free-elective-round-enrollment-table__selection">
+                                <input
+                                    ref={selectAllCheckboxRef}
+                                    type="checkbox"
+                                    checked={allVisibleSelected}
+                                    onChange={onToggleSelectAll}
+                                    disabled={saving || !enrollments.length}
+                                    aria-label={labels.selectVisibleLearners}
+                                    title={labels.selectVisibleLearners}
+                                />
+                            </th>
+                        )}
                         <th>{labels.sequence}</th>
                         <th>{labels.studentCode}</th>
                         <th>{labels.learnerName}</th>
@@ -80,6 +107,17 @@ export default function FreeElectiveRoundEnrollmentTable({
 
                         return (
                             <tr key={enrollment.id}>
+                                {canEdit && (
+                                    <td className="free-elective-round-enrollment-table__selection">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(String(enrollment.id))}
+                                            onChange={() => onToggleSelection(enrollment)}
+                                            disabled={saving || rowSaving}
+                                            aria-label={`${labels.selectLearner}: ${enrollment.studentCode}`}
+                                        />
+                                    </td>
+                                )}
                                 <td>{index + 1}</td>
                                 <td>
                                     <strong>{enrollment.studentCode}</strong>

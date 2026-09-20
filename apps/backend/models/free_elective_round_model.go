@@ -162,6 +162,10 @@ type AddFreeElectiveRoundEnrollmentsPayload struct {
 	Enrollments []FreeElectiveEnrollmentInput `json:"enrollments"`
 }
 
+type DeleteFreeElectiveRoundEnrollmentsPayload struct {
+	RoundCourseEnrollmentIDs []uint64 `json:"round_course_enrollment_ids"`
+}
+
 type UpsertFreeElectiveRoundGradePayload struct {
 	Grade           string  `json:"grade"`
 	GradeSource     string  `json:"grade_source"`

@@ -3344,8 +3344,13 @@
     min-width: 92rem;
 }
 
-.free-elective-round-enrollment-table-wrap .free-elective-table th:first-child,
-.free-elective-round-enrollment-table-wrap .free-elective-table td:first-child {
+.free-elective-round-enrollment-table__selection {
+    width: 3rem;
+    text-align: center;
+}
+
+.free-elective-round-enrollment-table-wrap .free-elective-table th:first-child:not(.free-elective-round-enrollment-table__selection),
+.free-elective-round-enrollment-table-wrap .free-elective-table td:first-child:not(.free-elective-round-enrollment-table__selection) {
     width: 4rem;
     text-align: center;
 }
@@ -3360,6 +3365,75 @@
     display: inline-flex;
     gap: 0.4rem;
     align-items: center;
+}
+
+.free-elective-round-enrollment-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--ui-border);
+}
+
+.free-elective-round-enrollment-search {
+    display: flex;
+    width: min(100%, 30rem);
+    min-width: 0;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-control);
+    color: var(--ui-text-muted);
+    background: var(--ui-surface-raised);
+}
+
+.free-elective-round-enrollment-search input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    color: var(--ui-text);
+    background: transparent;
+}
+
+.free-elective-round-enrollment-count {
+    flex: 0 0 auto;
+    color: var(--ui-text-muted);
+    font-size: 0.78rem;
+}
+
+.free-elective-selection-toolbar {
+    position: sticky;
+    z-index: 2;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.7rem 1rem;
+    border-top: 1px solid var(--ui-primary);
+    color: var(--ui-text);
+    background: var(--ui-primary-soft);
+    box-shadow: 0 -0.35rem 0.9rem color-mix(in srgb, var(--ui-shadow) 12%, transparent);
+}
+
+.free-elective-selection-toolbar__summary {
+    color: var(--ui-text-muted);
+    font-size: 0.82rem;
+}
+
+.free-elective-selection-toolbar__summary strong {
+    color: var(--ui-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.free-elective-selection-toolbar__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
 }
 
 .free-elective-button--danger {
@@ -3404,6 +3478,24 @@
 
     .free-elective-round-course-grid {
         grid-template-columns: 1fr;
+    }
+
+    .free-elective-round-enrollment-toolbar,
+    .free-elective-selection-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .free-elective-round-enrollment-search {
+        width: 100%;
+    }
+
+    .free-elective-selection-toolbar__actions {
+        justify-content: stretch;
+    }
+
+    .free-elective-selection-toolbar__actions .free-elective-button {
+        flex: 1 1 auto;
     }
 
     .free-elective-round-course-form__section-heading,

@@ -601,6 +601,13 @@ const FREE_ELECTIVE_ROUND_MANAGEMENT_LABELS = {
         roundScoreRecalculation: 'มีการเปลี่ยนแปลงที่ต้องคำนวณคะแนนวิชาเสรีใหม่',
         chooseLearners: 'เลือกผู้เรียน',
         learnerSearch: 'ค้นหารหัสหรือชื่อผู้เรียน',
+        searchRoundLearners: 'ค้นหาผู้เรียนในวิชานี้',
+        selectLearner: 'เลือกผู้เรียน',
+        selectVisibleLearners: 'เลือกผู้เรียนที่แสดงทั้งหมด',
+        clearSelection: 'ล้างการเลือก',
+        deleteSelectedLearners: 'ลบผู้เรียนที่เลือก',
+        bulkDeleteLearnersTitle: 'ยืนยันการลบผู้เรียนหลายคน',
+        bulkDeleteLearnersHint: 'ระบบจะลบแบบ Soft Delete และนำผลการเรียนกับคะแนนที่เกี่ยวข้องออกจากการคำนวณ ผู้เรียนสามารถเพิ่มกลับได้ภายหลัง',
         addLearnersToCourse: 'เพิ่มผู้เรียนในวิชานี้',
         learnerAdded: 'เพิ่มผู้เรียนแล้ว',
         noRoundLearners: 'ยังไม่มีผู้เรียนในวิชานี้',
@@ -645,6 +652,13 @@ const FREE_ELECTIVE_ROUND_MANAGEMENT_LABELS = {
         roundScoreRecalculation: 'Changes require free-elective scores to be recalculated',
         chooseLearners: 'Choose learners',
         learnerSearch: 'Search student code or name',
+        searchRoundLearners: 'Search learners in this course',
+        selectLearner: 'Select learner',
+        selectVisibleLearners: 'Select all visible learners',
+        clearSelection: 'Clear selection',
+        deleteSelectedLearners: 'Remove selected learners',
+        bulkDeleteLearnersTitle: 'Confirm removing multiple learners',
+        bulkDeleteLearnersHint: 'Learners will be soft-deleted, and related grades and scores will be excluded from calculation. They can be added again later.',
         addLearnersToCourse: 'Add learners to this course',
         learnerAdded: 'Learners added',
         noRoundLearners: 'No learners are enrolled in this course yet',
@@ -700,6 +714,20 @@ export function localizedFreeElective(item, language, thKey, enKey) {
     }
 
     return item?.[thKey] || item?.[enKey] || '-';
+}
+
+export function formatFreeElectiveBulkDeleteMessage(language, count) {
+    if (language === 'en') {
+        return `Are you sure you want to remove ${count} selected learners from this free-elective course?`;
+    }
+    return `คุณต้องการลบผู้เรียนที่เลือกจำนวน ${count} คนออกจากวิชาเสรีใช่หรือไม่?`;
+}
+
+export function formatFreeElectiveBulkDeleteSuccess(language, count) {
+    if (language === 'en') {
+        return `Removed ${count} learners successfully. Free-elective scores require recalculation.`;
+    }
+    return `ลบผู้เรียนจำนวน ${count} คนสำเร็จ ระบบตั้งรายการให้คำนวณคะแนนวิชาเสรีใหม่แล้ว`;
 }
 
 export function formatFreeElectiveLearnerDeleteMessage(language, learnerName) {

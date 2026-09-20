@@ -644,7 +644,7 @@ func (r *FreeElectiveRepository) AddAllRoundCourseLearners(ctx context.Context, 
 	return int(added), nil
 }
 
-func (r *FreeElectiveRepository) DeleteRoundCourseEnrollment(ctx context.Context, roundID, roundCourseID, enrollmentID uint64) error {
+func (r *FreeElectiveRepository) DeleteRoundCourseEnrollments(ctx context.Context, roundID, roundCourseID uint64, enrollmentIDs []uint64) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -659,6 +659,25 @@ func (r *FreeElectiveRepository) DeleteRoundCourseEnrollment(ctx context.Context
 		return err
 	}
 
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(enrollmentIDs)), ",")
+	selectionArgs := make([]any, 0, len(enrollmentIDs)+1)
+	selectionArgs = append(selectionArgs, roundCourseID)
+	for _, enrollmentID := range enrollmentIDs {
+		selectionArgs = append(selectionArgs, enrollmentID)
+	}
+	var activeCount int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ele_free_elective_round_course_enrollments
+		WHERE round_course_id = ?
+			AND round_course_enrollment_id IN (`+placeholders+`)
+			AND deleted_at IS NULL`, selectionArgs...).Scan(&activeCount); err != nil {
+		return err
+	}
+	if activeCount != len(enrollmentIDs) {
+		return ErrFreeElectiveRoundEnrollmentNotFound
+	}
+
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE score_free_elective_round_course_competency_scores scores
 		JOIN ele_free_elective_round_course_grade_records grades
@@ -668,9 +687,9 @@ func (r *FreeElectiveRepository) DeleteRoundCourseEnrollment(ctx context.Context
 			AND selected.round_course_id = ?
 			AND selected.deleted_at IS NULL
 		SET scores.deleted_at = NOW(), scores.updated_at = NOW()
-		WHERE grades.round_course_enrollment_id = ?
+		WHERE grades.round_course_enrollment_id IN (`+placeholders+`)
 			AND scores.deleted_at IS NULL
-			AND grades.deleted_at IS NULL`, roundCourseID, enrollmentID); err != nil {
+			AND grades.deleted_at IS NULL`, roundCourseEnrollmentArgs(roundCourseID, enrollmentIDs)...); err != nil {
 		return err
 	}
 
@@ -681,16 +700,16 @@ func (r *FreeElectiveRepository) DeleteRoundCourseEnrollment(ctx context.Context
 			AND selected.round_course_id = ?
 			AND selected.deleted_at IS NULL
 		SET grades.deleted_at = NOW(), grades.updated_at = NOW()
-		WHERE grades.round_course_enrollment_id = ? AND grades.deleted_at IS NULL`, roundCourseID, enrollmentID); err != nil {
+		WHERE grades.round_course_enrollment_id IN (`+placeholders+`) AND grades.deleted_at IS NULL`, roundCourseEnrollmentArgs(roundCourseID, enrollmentIDs)...); err != nil {
 		return err
 	}
 
 	result, err := tx.ExecContext(ctx, `
 		UPDATE ele_free_elective_round_course_enrollments
 		SET deleted_at = NOW(), updated_at = NOW()
-		WHERE round_course_enrollment_id = ?
+		WHERE round_course_enrollment_id IN (`+placeholders+`)
 			AND round_course_id = ?
-			AND deleted_at IS NULL`, enrollmentID, roundCourseID)
+			AND deleted_at IS NULL`, append(enrollmentIDsToArgs(enrollmentIDs), roundCourseID)...)
 	if err != nil {
 		return err
 	}
@@ -698,7 +717,7 @@ func (r *FreeElectiveRepository) DeleteRoundCourseEnrollment(ctx context.Context
 	if err != nil {
 		return err
 	}
-	if affected == 0 {
+	if affected != int64(len(enrollmentIDs)) {
 		return ErrFreeElectiveRoundEnrollmentNotFound
 	}
 
@@ -706,6 +725,27 @@ func (r *FreeElectiveRepository) DeleteRoundCourseEnrollment(ctx context.Context
 		return err
 	}
 	return tx.Commit()
+}
+
+func roundCourseEnrollmentArgs(roundCourseID uint64, enrollmentIDs []uint64) []any {
+	args := make([]any, 0, len(enrollmentIDs)+1)
+	args = append(args, roundCourseID)
+	for _, enrollmentID := range enrollmentIDs {
+		args = append(args, enrollmentID)
+	}
+	return args
+}
+
+func enrollmentIDsToArgs(enrollmentIDs []uint64) []any {
+	args := make([]any, 0, len(enrollmentIDs))
+	for _, enrollmentID := range enrollmentIDs {
+		args = append(args, enrollmentID)
+	}
+	return args
+}
+
+func (r *FreeElectiveRepository) DeleteRoundCourseEnrollment(ctx context.Context, roundID, roundCourseID, enrollmentID uint64) error {
+	return r.DeleteRoundCourseEnrollments(ctx, roundID, roundCourseID, []uint64{enrollmentID})
 }
 
 func (r *FreeElectiveRepository) UpsertRoundCourseGrade(ctx context.Context, roundID, roundCourseID, roundCourseEnrollmentID, userID uint64, grade, source string, sourceReference *string) error {

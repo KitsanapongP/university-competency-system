@@ -105,6 +105,29 @@ func TestRoundCourseLearnerSelectionRequiresAtLeastOneFilter(t *testing.T) {
 	}
 }
 
+func TestValidateRoundCourseEnrollmentIDs(t *testing.T) {
+	valid := []uint64{11, 12, 13}
+	if err := validateRoundCourseEnrollmentIDs(valid); err != nil {
+		t.Fatalf("validateRoundCourseEnrollmentIDs(%v) = %v, want nil", valid, err)
+	}
+
+	tests := []struct {
+		name string
+		ids  []uint64
+	}{
+		{name: "empty", ids: nil},
+		{name: "zero id", ids: []uint64{11, 0}},
+		{name: "duplicate id", ids: []uint64{11, 11}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := validateRoundCourseEnrollmentIDs(test.ids); err == nil {
+				t.Fatalf("validateRoundCourseEnrollmentIDs(%v) = nil, want validation error", test.ids)
+			}
+		})
+	}
+}
+
 func TestNormalizeFreeElectiveCourseCodeIsCaseInsensitiveAndTrimmed(t *testing.T) {
 	if got := normalizeFreeElectiveCourseCode(" ge101 "); got != "GE101" {
 		t.Fatalf("normalizeFreeElectiveCourseCode() = %q, want GE101", got)

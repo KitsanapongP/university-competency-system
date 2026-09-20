@@ -5,8 +5,10 @@ import {
     ArrowLeft,
     BookOpen,
     RefreshCw,
+    Search,
     Trash2,
     Users,
+    X,
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../../../../providers/auth-provider';
@@ -17,6 +19,7 @@ import {
     addFreeElectiveRoundCourseEnrollments,
     deleteFreeElectiveRoundCourse,
     deleteFreeElectiveRoundCourseEnrollment,
+    deleteFreeElectiveRoundCourseEnrollments,
     fetchFreeElectiveRound,
     fetchFreeElectiveRoundCourse,
     upsertFreeElectiveRoundCourseGrade,
@@ -31,6 +34,8 @@ import FreeElectiveStatusBadge from '../../../../components/FreeElectiveStatusBa
 import {
     buildFreeElectiveLabels,
     formatFreeElectiveTerm,
+    formatFreeElectiveBulkDeleteMessage,
+    formatFreeElectiveBulkDeleteSuccess,
     formatFreeElectiveLearnerDeleteMessage,
     localizedFreeElective,
 } from '../../../../free-elective-labels';
@@ -81,6 +86,9 @@ function FreeElectiveRoundCoursePageContent() {
     const [pickerOpen, setPickerOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deleteLearnerTarget, setDeleteLearnerTarget] = useState(null);
+    const [learnerSearch, setLearnerSearch] = useState('');
+    const [selectedEnrollmentIds, setSelectedEnrollmentIds] = useState(new Set());
+    const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
     const refreshMasterCompetencies = useCallback(async () => {
         const nextCompetencies = await fetchCompetenciesForManagement();
@@ -125,6 +133,37 @@ function FreeElectiveRoundCoursePageContent() {
         () => new Set(enrollments.map((enrollment) => String(enrollment.enrollmentId))),
         [enrollments],
     );
+    const filteredEnrollments = useMemo(() => {
+        const query = learnerSearch.trim().toLocaleLowerCase();
+        if (!query) {
+            return enrollments;
+        }
+        return enrollments.filter((enrollment) => [
+            enrollment.studentCode,
+            localizedFreeElective(enrollment, language, 'studentNameTh', 'studentNameEn'),
+            localizedFreeElective(enrollment, language, 'curriculumNameTh', 'curriculumNameEn'),
+            localizedFreeElective(enrollment, language, 'majorNameTh', 'majorNameEn'),
+            localizedFreeElective(enrollment, language, 'facultyNameTh', 'facultyNameEn'),
+            enrollment.entryYearBE,
+        ].some((value) => String(value || '').toLocaleLowerCase().includes(query)));
+    }, [enrollments, language, learnerSearch]);
+    const visibleEnrollmentIds = useMemo(
+        () => filteredEnrollments.map((enrollment) => String(enrollment.id)),
+        [filteredEnrollments],
+    );
+    const allVisibleSelected = visibleEnrollmentIds.length > 0
+        && visibleEnrollmentIds.every((id) => selectedEnrollmentIds.has(id));
+    const someVisibleSelected = visibleEnrollmentIds.some((id) => selectedEnrollmentIds.has(id));
+
+    useEffect(() => {
+        const activeIds = new Set(enrollments.map((enrollment) => String(enrollment.id)));
+        setSelectedEnrollmentIds((current) => {
+            const next = new Set(
+                Array.from(current).filter((id) => activeIds.has(id)),
+            );
+            return next.size === current.size ? current : next;
+        });
+    }, [enrollments]);
 
     const handleSaveMappings = async (rows) => {
         if (!rows.length || rows.some((row) => !row.competencyId)) {
@@ -232,6 +271,58 @@ function FreeElectiveRoundCoursePageContent() {
             setCourseDetail(nextDetail);
             setDeleteLearnerTarget(null);
             setSuccess(labels.learnerDeleted);
+        } catch (deleteError) {
+            setError(errorMessage(deleteError, labels.loadError));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const toggleEnrollmentSelection = (enrollment) => {
+        const id = String(enrollment.id);
+        setSelectedEnrollmentIds((current) => {
+            const next = new Set(current);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const toggleSelectAllVisible = () => {
+        setSelectedEnrollmentIds((current) => {
+            const next = new Set(current);
+            if (allVisibleSelected) {
+                visibleEnrollmentIds.forEach((id) => next.delete(id));
+            } else {
+                visibleEnrollmentIds.forEach((id) => next.add(id));
+            }
+            return next;
+        });
+    };
+
+    const clearEnrollmentSelection = () => setSelectedEnrollmentIds(new Set());
+
+    const confirmBulkDeleteLearners = async () => {
+        const enrollmentIds = Array.from(selectedEnrollmentIds).map(Number);
+        if (!enrollmentIds.length) {
+            return;
+        }
+        setSaving(true);
+        setError('');
+        try {
+            await deleteFreeElectiveRoundCourseEnrollments(
+                roundId,
+                roundCourseId,
+                enrollmentIds,
+            );
+            const nextDetail = await fetchFreeElectiveRoundCourse(roundId, roundCourseId);
+            setCourseDetail(nextDetail);
+            clearEnrollmentSelection();
+            setBulkDeleteOpen(false);
+            setSuccess(formatFreeElectiveBulkDeleteSuccess(language, enrollmentIds.length));
         } catch (deleteError) {
             setError(errorMessage(deleteError, labels.loadError));
         } finally {
@@ -380,8 +471,51 @@ function FreeElectiveRoundCoursePageContent() {
                         </button>
                     )}
                 </div>
+                <div className="free-elective-round-enrollment-toolbar">
+                    <label className="free-elective-round-enrollment-search">
+                        <Search size={16} aria-hidden="true" />
+                        <input
+                            type="search"
+                            value={learnerSearch}
+                            onChange={(event) => setLearnerSearch(event.target.value)}
+                            placeholder={labels.searchRoundLearners}
+                            aria-label={labels.searchRoundLearners}
+                            disabled={saving}
+                        />
+                    </label>
+                    <span className="free-elective-round-enrollment-count">
+                        {filteredEnrollments.length} / {enrollments.length} {labels.courseLearnerCount}
+                    </span>
+                </div>
+                {selectedEnrollmentIds.size > 0 && (
+                    <div className="free-elective-selection-toolbar" role="status">
+                        <span className="free-elective-selection-toolbar__summary">
+                            {labels.selectedLearners}: <strong>{selectedEnrollmentIds.size}</strong>
+                        </span>
+                        <div className="free-elective-selection-toolbar__actions">
+                            <button
+                                type="button"
+                                className="free-elective-button free-elective-button--quiet"
+                                onClick={clearEnrollmentSelection}
+                                disabled={saving}
+                            >
+                                <X size={15} aria-hidden="true" />
+                                {labels.clearSelection}
+                            </button>
+                            <button
+                                type="button"
+                                className="free-elective-button free-elective-button--danger"
+                                onClick={() => setBulkDeleteOpen(true)}
+                                disabled={saving}
+                            >
+                                <Trash2 size={15} aria-hidden="true" />
+                                {labels.deleteSelectedLearners} ({selectedEnrollmentIds.size})
+                            </button>
+                        </div>
+                    </div>
+                )}
                 <FreeElectiveRoundEnrollmentTable
-                    enrollments={enrollments}
+                    enrollments={filteredEnrollments}
                     gradeScheme={course.gradeScheme}
                     allowedGrades={courseDetail.allowedGrades}
                     canEdit={canEdit}
@@ -391,6 +525,12 @@ function FreeElectiveRoundCoursePageContent() {
                     labels={labels}
                     onSaveGrade={handleSaveGrade}
                     onDelete={setDeleteLearnerTarget}
+                    selectedIds={selectedEnrollmentIds}
+                    allVisibleSelected={allVisibleSelected}
+                    someVisibleSelected={someVisibleSelected}
+                    onToggleSelection={toggleEnrollmentSelection}
+                    onToggleSelectAll={toggleSelectAllVisible}
+                    emptyLabel={enrollments.length ? labels.noLearners : labels.noRoundLearners}
                 />
             </section>
 
@@ -441,6 +581,22 @@ function FreeElectiveRoundCoursePageContent() {
                 cancelLabel={labels.cancel}
                 onConfirm={confirmDeleteLearner}
                 onCancel={() => setDeleteLearnerTarget(null)}
+            />
+            <ConfirmActionModal
+                open={bulkDeleteOpen}
+                title={labels.bulkDeleteLearnersTitle}
+                message={formatFreeElectiveBulkDeleteMessage(
+                    language,
+                    selectedEnrollmentIds.size,
+                )}
+                hint={labels.bulkDeleteLearnersHint}
+                variant="danger"
+                size="md"
+                loading={saving}
+                confirmLabel={`${labels.deleteSelectedLearners} (${selectedEnrollmentIds.size})`}
+                cancelLabel={labels.cancel}
+                onConfirm={confirmBulkDeleteLearners}
+                onCancel={() => setBulkDeleteOpen(false)}
             />
             <ToastNotifications
                 success={success}

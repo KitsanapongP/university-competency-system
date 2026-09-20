@@ -374,6 +374,12 @@ export function mapFreeElectiveRoundEnrollment(item) {
         curriculumId: item.curriculum_id,
         curriculumNameTh: item.curriculum_name_th || '',
         curriculumNameEn: item.curriculum_name_en || '',
+        majorId: item.major_id,
+        majorNameTh: item.major_name_th || '',
+        majorNameEn: item.major_name_en || '',
+        facultyId: item.faculty_id,
+        facultyNameTh: item.faculty_name_th || '',
+        facultyNameEn: item.faculty_name_en || '',
         cohortId: item.cohort_id,
         entryYearBE: toNumber(item.entry_year_be),
         enrollmentStatus: item.enrollment_status || '',
@@ -603,6 +609,23 @@ export async function deleteFreeElectiveRoundCourseEnrollment(
         `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/enrollments/${roundCourseEnrollmentId}`,
         {
             method: 'DELETE',
+        },
+    );
+    return unwrapData(response, {});
+}
+
+export async function deleteFreeElectiveRoundCourseEnrollments(
+    roundId,
+    roundCourseId,
+    roundCourseEnrollmentIds,
+) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/enrollments`,
+        {
+            method: 'DELETE',
+            body: JSON.stringify({
+                round_course_enrollment_ids: (roundCourseEnrollmentIds || []).map(toNumber),
+            }),
         },
     );
     return unwrapData(response, {});

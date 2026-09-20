@@ -230,17 +230,51 @@ func validateRoundCourseLearnerSelection(filters models.FreeElectiveRoundLearner
 }
 
 func (s *FreeElectiveService) DeleteRoundCourseEnrollment(ctx context.Context, claims *utils.Claims, roundID, roundCourseID, roundCourseEnrollmentID uint64) error {
+	_, err := s.DeleteRoundCourseEnrollments(
+		ctx,
+		claims,
+		roundID,
+		roundCourseID,
+		[]uint64{roundCourseEnrollmentID},
+	)
+	return err
+}
+
+func (s *FreeElectiveService) DeleteRoundCourseEnrollments(ctx context.Context, claims *utils.Claims, roundID, roundCourseID uint64, enrollmentIDs []uint64) (int, error) {
 	if _, err := s.roundCourseInScope(ctx, claims, roundID, roundCourseID); err != nil {
-		return err
+		return 0, err
 	}
-	err := s.Repo.DeleteRoundCourseEnrollment(ctx, roundID, roundCourseID, roundCourseEnrollmentID)
+	if err := validateRoundCourseEnrollmentIDs(enrollmentIDs); err != nil {
+		return 0, err
+	}
+	err := s.Repo.DeleteRoundCourseEnrollments(ctx, roundID, roundCourseID, enrollmentIDs)
 	if errors.Is(err, repositories.ErrFreeElectiveRoundLocked) {
-		return ErrFreeElectiveRoundLocked
+		return 0, ErrFreeElectiveRoundLocked
 	}
 	if errors.Is(err, repositories.ErrFreeElectiveRoundEnrollmentNotFound) {
-		return ErrFreeElectiveRoundEnrollmentNotFound
+		return 0, ErrFreeElectiveRoundEnrollmentNotFound
 	}
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return len(enrollmentIDs), nil
+}
+
+func validateRoundCourseEnrollmentIDs(enrollmentIDs []uint64) error {
+	if len(enrollmentIDs) == 0 {
+		return FreeElectiveValidationError{Message: "at least one learner must be selected"}
+	}
+	seen := make(map[uint64]struct{}, len(enrollmentIDs))
+	for _, enrollmentID := range enrollmentIDs {
+		if enrollmentID == 0 {
+			return FreeElectiveValidationError{Message: "learner selection contains an invalid id"}
+		}
+		if _, exists := seen[enrollmentID]; exists {
+			return FreeElectiveValidationError{Message: "learner selection contains duplicate ids"}
+		}
+		seen[enrollmentID] = struct{}{}
+	}
+	return nil
 }
 
 func (s *FreeElectiveService) UpsertRoundCourseGrade(ctx context.Context, claims *utils.Claims, roundID, roundCourseID, roundCourseEnrollmentID uint64, payload models.UpsertFreeElectiveRoundGradePayload) ([]models.FreeElectiveRoundEnrollment, error) {
