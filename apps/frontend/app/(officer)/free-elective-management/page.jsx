@@ -379,54 +379,6 @@ function FreeElectiveManagementPageContent() {
                 <div className="free-elective-empty">{labels.noRounds}</div>
             )}
 
-            <section className="free-elective-panel free-elective-course-catalog-panel">
-                <div className="free-elective-panel__heading">
-                    <div>
-                        <h2>{labels.courses}</h2>
-                        <p>{labels.courseCatalogHint}</p>
-                    </div>
-                    <div className="free-elective-inline-actions">
-                        <button
-                            type="button"
-                            className="free-elective-button free-elective-button--secondary"
-                            onClick={openCourseCatalog}
-                        >
-                            {courseCatalogOpen ? labels.close : labels.view}
-                        </button>
-                        <button
-                            type="button"
-                            className="free-elective-button free-elective-button--quiet"
-                            onClick={openCreateCourse}
-                        >
-                            <Plus size={15} aria-hidden="true" />
-                            {labels.addCourse}
-                        </button>
-                    </div>
-                </div>
-                {courseCatalogOpen && (
-                    <div className="free-elective-panel__content">
-                        {catalogLoading ? (
-                            <div className="free-elective-loading" role="status">
-                                {labels.loading}
-                            </div>
-                        ) : courses.length ? (
-                            <div className="free-elective-course-grid">
-                                {courses.map((course) => (
-                                    <FreeElectiveCourseCard
-                                        key={course.id}
-                                        course={course}
-                                        language={language}
-                                        onEdit={openEditCourse}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="free-elective-empty">{labels.noCourses}</div>
-                        )}
-                    </div>
-                )}
-            </section>
-
             <FreeElectiveRoundWizard
                 key={roundWizardKey}
                 open={roundWizardOpen}

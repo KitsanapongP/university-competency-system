@@ -816,13 +816,12 @@
 }
 
 .free-elective-competency-select__menu {
-    position: absolute;
-    z-index: 5;
-    top: calc(100% + 0.25rem);
-    right: 0;
-    left: 0;
+    position: fixed;
+    z-index: 1400;
+    box-sizing: border-box;
     display: grid;
     gap: 0.45rem;
+    max-width: calc(100vw - 1rem);
     padding: 0.45rem;
     border: 1px solid var(--ui-border-strong);
     border-radius: var(--ui-radius-control);
