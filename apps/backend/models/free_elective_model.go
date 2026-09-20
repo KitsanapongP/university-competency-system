@@ -119,6 +119,11 @@ type FreeElectiveStudent struct {
 	EnrollmentID           uint64 `json:"enrollment_id"`
 	EnrollmentCurriculumID uint64 `json:"enrollment_curriculum_id"`
 	FacultyID              uint64 `json:"faculty_id,omitempty"`
+	FacultyNameTH          string `json:"faculty_name_th"`
+	FacultyNameEN          string `json:"faculty_name_en,omitempty"`
+	MajorID                uint64 `json:"major_id"`
+	MajorNameTH            string `json:"major_name_th"`
+	MajorNameEN            string `json:"major_name_en,omitempty"`
 	StudentCode            string `json:"student_code"`
 	StudentNameTH          string `json:"student_name_th"`
 	StudentNameEN          string `json:"student_name_en,omitempty"`

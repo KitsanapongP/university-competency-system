@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckSquare, Search, Users, X } from 'lucide-react';
+import { Lock, Search, Users, X } from 'lucide-react';
 import BaseModal from '../../../../components/ui/BaseModal';
 import {
     fetchFreeElectiveRoundCourseLearnerSummary,
@@ -80,6 +80,7 @@ export default function FreeElectiveRoundLearnerPickerModal({
     const [groupsLoading, setGroupsLoading] = useState(false);
     const [error, setError] = useState('');
     const [summary, setSummary] = useState({ selectableCount: 0 });
+    const [selectAllFilters, setSelectAllFilters] = useState(null);
 
     useEffect(() => {
         if (!open) {
@@ -92,6 +93,7 @@ export default function FreeElectiveRoundLearnerPickerModal({
         setFilters({ ...EMPTY_FILTERS, facultyId: initialFacultyId });
         setSelected({});
         setSummary({ selectableCount: 0 });
+        setSelectAllFilters(null);
         setError('');
 
         let cancelled = false;
@@ -151,10 +153,16 @@ export default function FreeElectiveRoundLearnerPickerModal({
         return Array.from(options).sort((left, right) => Number(right) - Number(left));
     }, [filters, groups]);
 
-    const hasRequiredScope = Boolean(filters.curriculumId && filters.entryYearBE);
+    const hasActiveFilter = Boolean(
+        filters.facultyId
+        || filters.majorId
+        || filters.curriculumId
+        || filters.entryYearBE
+        || search.trim(),
+    );
 
     useEffect(() => {
-        if (!open || !roundId || !roundCourseId || !hasRequiredScope) {
+        if (!open || !roundId || !roundCourseId || !hasActiveFilter) {
             setLearners([]);
             setSummary({ selectableCount: 0 });
             return undefined;
@@ -197,7 +205,7 @@ export default function FreeElectiveRoundLearnerPickerModal({
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [filters, hasRequiredScope, labels.roundLoadError, open, roundCourseId, roundId, search]);
+    }, [filters, hasActiveFilter, labels.roundLoadError, open, roundCourseId, roundId, search]);
 
     const handleFilterChange = (field, value) => {
         setFilters((current) => {
@@ -210,14 +218,37 @@ export default function FreeElectiveRoundLearnerPickerModal({
             if (field === 'majorId') {
                 next.curriculumId = '';
                 next.entryYearBE = '';
+                if (value && !next.facultyId) {
+                    const selectedGroup = groups.find(
+                        (group) => String(group.majorId) === String(value),
+                    );
+                    next.facultyId = selectedGroup
+                        ? String(selectedGroup.facultyId)
+                        : '';
+                }
             }
             if (field === 'curriculumId') {
                 next.entryYearBE = '';
+                if (value) {
+                    const selectedGroup = groups.find(
+                        (group) => String(group.curriculumId) === String(value),
+                    );
+                    if (selectedGroup) {
+                        next.facultyId = String(selectedGroup.facultyId);
+                        next.majorId = String(selectedGroup.majorId);
+                    }
+                }
             }
             return next;
         });
         setSelected({});
+        setSelectAllFilters(null);
         setSearch('');
+    };
+
+    const handleSearchChange = (value) => {
+        setSearch(value);
+        setSelectAllFilters(null);
     };
 
     const toggleLearner = (learner) => {
@@ -234,9 +265,31 @@ export default function FreeElectiveRoundLearnerPickerModal({
     };
 
     const isEnrolled = (learner) => enrolledIds.has(String(learner.enrollmentId));
-    const selectedCount = Object.keys(selected).length;
-    const submit = () => onSubmit(Object.values(selected));
-    const submitAll = () => onSubmitAll({ ...filters, search });
+    const selectedCount = selectAllFilters
+        ? summary.selectableCount
+        : Object.keys(selected).length;
+    const selectAll = () => {
+        const requestFilters = { ...filters, search };
+        const visibleSelection = {};
+        learners.forEach((learner) => {
+            if (!isEnrolled(learner)) {
+                visibleSelection[String(learner.enrollmentId)] = learner;
+            }
+        });
+        setSelected(visibleSelection);
+        setSelectAllFilters(requestFilters);
+    };
+    const clearSelection = () => {
+        setSelected({});
+        setSelectAllFilters(null);
+    };
+    const submit = () => {
+        if (selectAllFilters) {
+            onSubmitAll(selectAllFilters);
+            return;
+        }
+        onSubmit(Object.values(selected));
+    };
 
     const optionLabel = (option) => localizedFreeElective(
         option,
@@ -278,9 +331,18 @@ export default function FreeElectiveRoundLearnerPickerModal({
                                 </select>
                             </label>
                         ) : (
-                            <div className="free-elective-picker__locked-scope">
+                            <div className="free-elective-field">
                                 <span>{labels.faculty}</span>
-                                <strong>{lockedFacultyName || labels.signInScope}</strong>
+                                <div
+                                    className="free-elective-picker__locked-scope"
+                                    role="note"
+                                    aria-disabled="true"
+                                    aria-label={`${labels.faculty}: ${lockedFacultyName || labels.signInScope}`}
+                                    title={labels.signInScope}
+                                >
+                                    <Lock size={14} aria-hidden="true" />
+                                    <strong>{lockedFacultyName || labels.signInScope}</strong>
+                                </div>
                             </div>
                         )}
                         <label className="free-elective-field">
@@ -333,9 +395,9 @@ export default function FreeElectiveRoundLearnerPickerModal({
                     <Search size={16} aria-hidden="true" />
                     <input
                         value={search}
-                        onChange={(event) => setSearch(event.target.value)}
+                        onChange={(event) => handleSearchChange(event.target.value)}
                         placeholder={labels.learnerSearch}
-                        disabled={saving || !hasRequiredScope}
+                        disabled={saving}
                     />
                 </label>
 
@@ -345,7 +407,7 @@ export default function FreeElectiveRoundLearnerPickerModal({
                     </div>
                 )}
 
-                {!hasRequiredScope ? (
+                {!hasActiveFilter ? (
                     <div className="free-elective-empty">
                         {labels.selectLearnerScopeHint}
                     </div>
@@ -358,6 +420,30 @@ export default function FreeElectiveRoundLearnerPickerModal({
                         {learners.map((learner) => {
                             const key = String(learner.enrollmentId);
                             const isSelected = Boolean(selected[key]);
+                            const learnerName = localizedFreeElective(
+                                learner,
+                                language,
+                                'studentNameTh',
+                                'studentNameEn',
+                            );
+                            const curriculumName = localizedFreeElective(
+                                learner,
+                                language,
+                                'curriculumNameTh',
+                                'curriculumNameEn',
+                            );
+                            const majorName = localizedFreeElective(
+                                learner,
+                                language,
+                                'majorNameTh',
+                                'majorNameEn',
+                            );
+                            const facultyName = localizedFreeElective(
+                                learner,
+                                language,
+                                'facultyNameTh',
+                                'facultyNameEn',
+                            );
                             return (
                                 <label
                                     key={key}
@@ -371,15 +457,28 @@ export default function FreeElectiveRoundLearnerPickerModal({
                                         disabled={saving || isEnrolled(learner)}
                                         onChange={() => toggleLearner(learner)}
                                     />
-                                    <span>
-                                        <strong>{learner.studentCode}</strong>
-                                        <small>
-                                            {localizedFreeElective(
-                                                learner,
-                                                language,
-                                                'studentNameTh',
-                                                'studentNameEn',
-                                            )}
+                                    <span className="free-elective-student-option__identity">
+                                        <span className="free-elective-student-option__primary">
+                                            <strong>{learner.studentCode}</strong>
+                                            <span>{learnerName}</span>
+                                        </span>
+                                        <small className="free-elective-student-option__meta">
+                                            <span className="free-elective-student-option__meta-line">
+                                                <span>
+                                                    {labels.curriculum} {curriculumName}
+                                                </span>
+                                                <span>
+                                                    {labels.major} {majorName}
+                                                </span>
+                                            </span>
+                                            <span className="free-elective-student-option__meta-line">
+                                                <span>
+                                                    {labels.faculty} {facultyName}
+                                                </span>
+                                                <span>
+                                                    {learner.entryYearBE || '-'}
+                                                </span>
+                                            </span>
                                         </small>
                                     </span>
                                     {isEnrolled(learner) && (
@@ -399,27 +498,22 @@ export default function FreeElectiveRoundLearnerPickerModal({
                     <button
                         type="button"
                         className="free-elective-button free-elective-button--quiet"
-                        onClick={submitAll}
-                        disabled={saving || !hasRequiredScope || !summary.selectableCount}
+                        onClick={selectAll}
+                        disabled={saving || !hasActiveFilter || !summary.selectableCount}
                     >
                         <Users size={15} aria-hidden="true" />
                         {labels.selectAllFiltered} ({summary.selectableCount})
                     </button>
                     <button
                         type="button"
-                        className="free-elective-button free-elective-button--quiet"
-                        onClick={() => setSelected({})}
+                        className="free-elective-button free-elective-button--danger"
+                        onClick={clearSelection}
                         disabled={saving || !selectedCount}
                     >
                         <X size={15} aria-hidden="true" />
                         {labels.clearAll}
                     </button>
                 </div>
-
-                <p className="free-elective-picker__selection">
-                    <CheckSquare size={15} aria-hidden="true" />
-                    {selectedCount} {labels.selectedLearners}
-                </p>
 
                 <div className="free-elective-modal-actions">
                     <button
@@ -433,12 +527,19 @@ export default function FreeElectiveRoundLearnerPickerModal({
                     </button>
                     <button
                         type="button"
-                        className="free-elective-button free-elective-button--primary"
+                        className="free-elective-button free-elective-button--primary free-elective-button--add-learners"
                         onClick={submit}
                         disabled={saving || !selectedCount}
                     >
                         <Users size={15} aria-hidden="true" />
-                        {saving ? labels.loading : labels.addLearnersToCourse}
+                        <span className="free-elective-button__label">
+                            {saving ? labels.loading : labels.addLearnersToCourse}
+                        </span>
+                        {selectedCount > 0 && (
+                            <span className="free-elective-button__count">
+                                ({selectedCount})
+                            </span>
+                        )}
                     </button>
                 </div>
             </div>

@@ -222,8 +222,9 @@ func (s *FreeElectiveService) scopeRoundCourseLearnerFilters(claims *utils.Claim
 }
 
 func validateRoundCourseLearnerSelection(filters models.FreeElectiveRoundLearnerFilters) error {
-	if filters.CurriculumID == nil || filters.EntryYearBE == nil {
-		return FreeElectiveValidationError{Message: "curriculum_id and entry_year_be are required when selecting all learners"}
+	if filters.FacultyID == nil && filters.MajorID == nil && filters.CurriculumID == nil &&
+		filters.EntryYearBE == nil && strings.TrimSpace(filters.Search) == "" {
+		return FreeElectiveValidationError{Message: "at least one learner filter is required when selecting all learners"}
 	}
 	return nil
 }

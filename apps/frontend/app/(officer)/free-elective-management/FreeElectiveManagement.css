@@ -197,6 +197,14 @@
     background: var(--officer-primary-strong, var(--primary-dark));
 }
 
+.free-elective-button--add-learners {
+    justify-content: center;
+}
+
+.free-elective-button__count {
+    font-variant-numeric: tabular-nums;
+}
+
 .free-elective-button--secondary {
     border-color: var(--officer-border, var(--border));
     color: var(--officer-text, var(--text));
@@ -999,23 +1007,49 @@
     gap: 0.7rem;
 }
 
-.free-elective-picker__locked-scope {
-    display: grid;
-    min-height: 2.5rem;
-    gap: 0.2rem;
-    align-content: center;
-    padding: 0.45rem 0.7rem;
-    border: 1px solid var(--ui-border);
-    border-radius: var(--ui-radius-control);
-    background: var(--ui-surface);
+.free-elective-picker__filter-grid > .free-elective-field {
+    align-self: start;
 }
 
-.free-elective-picker__locked-scope span {
+.free-elective-picker__filter-grid .free-elective-field > span:first-child {
+    display: block;
+    min-height: 1.1rem;
+    line-height: 1.4;
+}
+
+.free-elective-picker__filter-grid .free-elective-field select {
+    display: block;
+    box-sizing: border-box;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    line-height: 1.2;
+}
+
+.free-elective-picker__locked-scope {
+    display: flex;
+    box-sizing: border-box;
+    width: 100%;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    align-items: center;
+    gap: 0.45rem;
+    overflow: hidden;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-control);
     color: var(--ui-text-muted);
-    font-size: 0.7rem;
+    background: var(--ui-surface-raised);
+    cursor: not-allowed;
+    user-select: none;
+}
+
+.free-elective-picker__locked-scope svg {
+    flex: 0 0 auto;
+    color: var(--ui-text-muted);
 }
 
 .free-elective-picker__locked-scope strong {
+    min-width: 0;
     overflow: hidden;
     color: var(--ui-text);
     font-size: 0.78rem;
@@ -1112,16 +1146,45 @@
     font-size: 0.72rem;
 }
 
+.free-elective-student-option__identity {
+    min-width: 0;
+}
+
+.free-elective-student-option__primary {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.free-elective-student-option__primary strong,
+.free-elective-student-option__primary > span {
+    display: inline;
+    overflow-wrap: anywhere;
+}
+
+.free-elective-student-option__meta {
+    display: block;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.free-elective-student-option__meta-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.free-elective-student-option__meta-line + .free-elective-student-option__meta-line {
+    margin-top: 0.1rem;
+}
+
 .free-elective-student-option em {
     color: var(--text-muted);
     font-size: 0.68rem;
     font-style: normal;
-}
-
-.free-elective-picker__selection {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: 0.75rem;
 }
 
 .free-elective-import {

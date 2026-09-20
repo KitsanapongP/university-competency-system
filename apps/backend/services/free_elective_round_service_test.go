@@ -81,26 +81,27 @@ func TestValidateRoundCourseCompetenciesAllowsEmptyMappings(t *testing.T) {
 	}
 }
 
-func TestRoundCourseLearnerSelectionRequiresCurriculumAndEntryYear(t *testing.T) {
+func TestRoundCourseLearnerSelectionRequiresAtLeastOneFilter(t *testing.T) {
+	if err := validateRoundCourseLearnerSelection(models.FreeElectiveRoundLearnerFilters{}); err == nil {
+		t.Fatal("validateRoundCourseLearnerSelection() = nil, want a filter validation error")
+	}
+
 	entryYear := uint64(2568)
-	if err := validateRoundCourseLearnerSelection(models.FreeElectiveRoundLearnerFilters{
-		EntryYearBE: &entryYear,
-	}); err == nil {
-		t.Fatal("validateRoundCourseLearnerSelection() = nil, want curriculum validation error")
-	}
-
 	curriculumID := uint64(12)
-	if err := validateRoundCourseLearnerSelection(models.FreeElectiveRoundLearnerFilters{
-		CurriculumID: &curriculumID,
-	}); err == nil {
-		t.Fatal("validateRoundCourseLearnerSelection() = nil, want entry-year validation error")
+	majorID := uint64(15)
+	facultyID := uint64(20)
+	tests := []models.FreeElectiveRoundLearnerFilters{
+		{FacultyID: &facultyID},
+		{MajorID: &majorID},
+		{CurriculumID: &curriculumID},
+		{EntryYearBE: &entryYear},
+		{Search: "6530"},
+		{CurriculumID: &curriculumID, EntryYearBE: &entryYear},
 	}
-
-	if err := validateRoundCourseLearnerSelection(models.FreeElectiveRoundLearnerFilters{
-		CurriculumID: &curriculumID,
-		EntryYearBE:  &entryYear,
-	}); err != nil {
-		t.Fatalf("validateRoundCourseLearnerSelection() = %v, want nil", err)
+	for _, filters := range tests {
+		if err := validateRoundCourseLearnerSelection(filters); err != nil {
+			t.Fatalf("validateRoundCourseLearnerSelection(%#v) = %v, want nil", filters, err)
+		}
 	}
 }
 

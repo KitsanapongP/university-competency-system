@@ -451,13 +451,14 @@ func (r *FreeElectiveRepository) ListRoundCourseLearners(ctx context.Context, ro
 	scope, args := roundCourseLearnerScope(roundID, roundCourseID, filters)
 	rows, err := r.DB.QueryContext(ctx, `
 		SELECT student.enrollment_id, roster.enrollment_curriculum_id,
-			faculty.faculty_id, student.student_code,
+			faculty.faculty_id, faculty.name_th, COALESCE(faculty.name_en, ''),
+			major.major_id, major.name_th, COALESCE(major.name_en, ''),
+			student.student_code,
 			CONCAT_WS(' ', person.first_name_th, person.last_name_th),
 			CONCAT_WS(' ', person.first_name_en, person.last_name_en),
 			curriculum.curriculum_id, curriculum.name_th, COALESCE(curriculum.name_en, ''),
 			COALESCE(cohort.entry_year_be, 0)`+scope+`
-		ORDER BY student.student_code
-		LIMIT 100`, args...)
+		ORDER BY student.student_code`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -470,6 +471,11 @@ func (r *FreeElectiveRepository) ListRoundCourseLearners(ctx context.Context, ro
 			&item.EnrollmentID,
 			&item.EnrollmentCurriculumID,
 			&item.FacultyID,
+			&item.FacultyNameTH,
+			&item.FacultyNameEN,
+			&item.MajorID,
+			&item.MajorNameTH,
+			&item.MajorNameEN,
 			&item.StudentCode,
 			&item.StudentNameTH,
 			&item.StudentNameEN,
