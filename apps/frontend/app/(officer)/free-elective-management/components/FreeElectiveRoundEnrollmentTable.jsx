@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RotateCcw, Save, Trash2, UserRound } from 'lucide-react';
+import { Save, Trash2 } from 'lucide-react';
 import { getFreeElectiveGradeOptions } from '../../../../lib/free-elective';
 import {
     freeElectiveGradeSourceLabel,
@@ -17,8 +17,7 @@ export default function FreeElectiveRoundEnrollmentTable({
     language,
     labels,
     onSaveGrade,
-    onWithdraw,
-    onRestore,
+    onDelete,
 }) {
     const [draftGrades, setDraftGrades] = useState({});
     const gradeOptions = allowedGrades?.length
@@ -56,9 +55,12 @@ export default function FreeElectiveRoundEnrollmentTable({
             <table className="free-elective-table free-elective-grade-table">
                 <thead>
                     <tr>
+                        <th>{labels.sequence}</th>
                         <th>{labels.studentCode}</th>
                         <th>{labels.learnerName}</th>
                         <th>{labels.curriculum}</th>
+                        <th>{labels.major}</th>
+                        <th>{labels.faculty}</th>
                         <th>{labels.entryYear}</th>
                         <th>{labels.learnerStatus}</th>
                         <th>{labels.grade}</th>
@@ -68,7 +70,7 @@ export default function FreeElectiveRoundEnrollmentTable({
                     </tr>
                 </thead>
                 <tbody>
-                    {enrollments.map((enrollment) => {
+                    {enrollments.map((enrollment, index) => {
                         const rowSaving = savingId === enrollment.id;
                         const hasDraft = Object.prototype.hasOwnProperty.call(
                             draftGrades,
@@ -78,12 +80,12 @@ export default function FreeElectiveRoundEnrollmentTable({
 
                         return (
                             <tr key={enrollment.id}>
+                                <td>{index + 1}</td>
                                 <td>
                                     <strong>{enrollment.studentCode}</strong>
                                 </td>
                                 <td>
                                     <span className="free-elective-table__person">
-                                        <UserRound size={14} aria-hidden="true" />
                                         {localizedFreeElective(
                                             enrollment,
                                             language,
@@ -100,6 +102,26 @@ export default function FreeElectiveRoundEnrollmentTable({
                                             'curriculumNameTh',
                                             'curriculumNameEn',
                                         )}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span className="free-elective-table__secondary">
+                                        {localizedFreeElective(
+                                            enrollment,
+                                            language,
+                                            'majorNameTh',
+                                            'majorNameEn',
+                                        ) || '-'}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span className="free-elective-table__secondary">
+                                        {localizedFreeElective(
+                                            enrollment,
+                                            language,
+                                            'facultyNameTh',
+                                            'facultyNameEn',
+                                        ) || '-'}
                                     </span>
                                 </td>
                                 <td>{enrollment.entryYearBE || '-'}</td>
@@ -168,29 +190,16 @@ export default function FreeElectiveRoundEnrollmentTable({
                                                     <Save size={16} aria-hidden="true" />
                                                 </button>
                                             )}
-                                            {enrollment.status === 'withdrawn' ? (
-                                                <button
-                                                    type="button"
-                                                    className="free-elective-icon-button free-elective-icon-button--success"
-                                                    onClick={() => onRestore(enrollment)}
-                                                    disabled={saving || rowSaving}
-                                                    title={labels.restoreLearner}
-                                                    aria-label={`${labels.restoreLearner}: ${enrollment.studentCode}`}
-                                                >
-                                                    <RotateCcw size={16} aria-hidden="true" />
-                                                </button>
-                                            ) : enrollment.status !== 'completed' ? (
-                                                <button
-                                                    type="button"
-                                                    className="free-elective-icon-button free-elective-icon-button--danger"
-                                                    onClick={() => onWithdraw(enrollment)}
-                                                    disabled={saving || rowSaving}
-                                                    title={labels.withdrawLearner}
-                                                    aria-label={`${labels.withdrawLearner}: ${enrollment.studentCode}`}
-                                                >
-                                                    <Trash2 size={16} aria-hidden="true" />
-                                                </button>
-                                            ) : null}
+                                            <button
+                                                type="button"
+                                                className="free-elective-icon-button free-elective-icon-button--danger"
+                                                onClick={() => onDelete(enrollment)}
+                                                disabled={saving || rowSaving}
+                                                title={labels.deleteLearner}
+                                                aria-label={`${labels.deleteLearner}: ${enrollment.studentCode}`}
+                                            >
+                                                <Trash2 size={16} aria-hidden="true" />
+                                            </button>
                                         </div>
                                     </td>
                                 )}

@@ -604,9 +604,8 @@ const FREE_ELECTIVE_ROUND_MANAGEMENT_LABELS = {
         addLearnersToCourse: 'เพิ่มผู้เรียนในวิชานี้',
         learnerAdded: 'เพิ่มผู้เรียนแล้ว',
         noRoundLearners: 'ยังไม่มีผู้เรียนในวิชานี้',
-        restoreLearner: 'คืนสถานะผู้เรียน',
-        withdrawLearner: 'ถอนผู้เรียนออกจากวิชา',
-        statusUpdated: 'ปรับสถานะผู้เรียนแล้ว',
+        deleteLearner: 'ลบผู้เรียนออกจากวิชา',
+        learnerDeleted: 'ลบผู้เรียนออกจากวิชาสำเร็จ ระบบตั้งรายการให้คำนวณคะแนนใหม่แล้ว',
         roundCourseSaved: 'บันทึกข้อมูลวิชาในรอบแล้ว',
         roundCourseDeleted: 'นำวิชาออกจากรอบแล้ว',
         courseLearnerCount: 'ผู้เรียนที่ลงทะเบียน',
@@ -624,10 +623,7 @@ const FREE_ELECTIVE_ROUND_MANAGEMENT_LABELS = {
         roundCourseFormHint: 'เลือกวิชา และกำหนดสมรรถนะกับน้ำหนักตอนนี้หรือภายหลังก็ได้',
         noSelectedCompetencies: 'ยังไม่ได้กำหนดสมรรถนะ สามารถกำหนดภายหลังได้',
         chooseCourseFirst: 'กรุณาเลือกวิชาก่อนเพิ่มสมรรถนะ',
-        confirmWithdrawLearner: 'ยืนยันการถอนผู้เรียน',
-        confirmWithdrawLearnerMessage: 'ผู้เรียนจะยังคงอยู่ในประวัติ แต่จะไม่นับเป็นผู้เรียนที่กำลังลงทะเบียน',
-        confirmRestoreLearner: 'ยืนยันการคืนสถานะผู้เรียน',
-        confirmRestoreLearnerMessage: 'ผู้เรียนจะกลับมาเป็นผู้เรียนที่กำลังลงทะเบียนในวิชานี้',
+        confirmDeleteLearner: 'ยืนยันการลบผู้เรียนออกจากวิชา',
         gradeNotAllowed: 'เกรดนี้ไม่ตรงกับรูปแบบเกรดของวิชา',
         selectGrade: 'เลือกเกรด',
         sourceRound: 'กรอกโดยเจ้าหน้าที่',
@@ -652,9 +648,8 @@ const FREE_ELECTIVE_ROUND_MANAGEMENT_LABELS = {
         addLearnersToCourse: 'Add learners to this course',
         learnerAdded: 'Learners added',
         noRoundLearners: 'No learners are enrolled in this course yet',
-        restoreLearner: 'Restore learner',
-        withdrawLearner: 'Withdraw learner',
-        statusUpdated: 'Learner status updated',
+        deleteLearner: 'Remove learner from course',
+        learnerDeleted: 'Learner removed. Free-elective scores require recalculation.',
         roundCourseSaved: 'Round course saved',
         roundCourseDeleted: 'Course removed from round',
         courseLearnerCount: 'Enrolled learners',
@@ -672,10 +667,7 @@ const FREE_ELECTIVE_ROUND_MANAGEMENT_LABELS = {
         roundCourseFormHint: 'Choose a course. Competencies and weights can be set now or later',
         noSelectedCompetencies: 'No competencies yet. You can add them later',
         chooseCourseFirst: 'Choose a course before adding competencies',
-        confirmWithdrawLearner: 'Confirm learner withdrawal',
-        confirmWithdrawLearnerMessage: 'The learner remains in history but is no longer enrolled in this course',
-        confirmRestoreLearner: 'Confirm restoring learner',
-        confirmRestoreLearnerMessage: 'The learner will be enrolled in this course again',
+        confirmDeleteLearner: 'Confirm removing learner from course',
         gradeNotAllowed: 'This grade does not match the course grade scheme',
         selectGrade: 'Choose grade',
         sourceRound: 'Entered by officer',
@@ -708,6 +700,19 @@ export function localizedFreeElective(item, language, thKey, enKey) {
     }
 
     return item?.[thKey] || item?.[enKey] || '-';
+}
+
+export function formatFreeElectiveLearnerDeleteMessage(language, learnerName) {
+    const trimmedName = String(learnerName || '').trim();
+    const name = trimmedName && trimmedName !== '-'
+        ? trimmedName
+        : freeElectiveText(language, 'learnerName');
+
+    if (language === 'en') {
+        return `Are you sure you want to remove learner ${name} from this free-elective course? The learner will be removed and can be added again in the future.`;
+    }
+
+    return `คุณต้องการลบผู้เรียนชื่อ ${name} ออกจากวิชาเสรีใช่หรือไม่? ระบบจะลบผู้เรียนออกและผู้เรียนนี้จะสามารถเพิ่มใหม่ได้ในอนาคต`;
 }
 
 export function freeElectiveGradeSourceLabel(source, language) {

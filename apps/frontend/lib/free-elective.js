@@ -594,20 +594,18 @@ export async function addAllFreeElectiveRoundCourseLearners(
     return unwrapData(response, []).map(mapFreeElectiveRoundEnrollment);
 }
 
-export async function updateFreeElectiveRoundCourseEnrollmentStatus(
+export async function deleteFreeElectiveRoundCourseEnrollment(
     roundId,
     roundCourseId,
     roundCourseEnrollmentId,
-    status,
 ) {
     const response = await apiFetch(
         `/api/v1/free-electives/rounds/${roundId}/courses/${roundCourseId}/enrollments/${roundCourseEnrollmentId}`,
         {
-            method: 'PATCH',
-            body: JSON.stringify({ status }),
+            method: 'DELETE',
         },
     );
-    return unwrapData(response, []).map(mapFreeElectiveRoundEnrollment);
+    return unwrapData(response, {});
 }
 
 export async function upsertFreeElectiveRoundCourseGrade(

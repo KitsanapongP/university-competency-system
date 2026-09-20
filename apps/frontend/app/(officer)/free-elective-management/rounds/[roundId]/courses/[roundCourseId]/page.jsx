@@ -16,9 +16,9 @@ import {
     addAllFreeElectiveRoundCourseLearners,
     addFreeElectiveRoundCourseEnrollments,
     deleteFreeElectiveRoundCourse,
+    deleteFreeElectiveRoundCourseEnrollment,
     fetchFreeElectiveRound,
     fetchFreeElectiveRoundCourse,
-    updateFreeElectiveRoundCourseEnrollmentStatus,
     upsertFreeElectiveRoundCourseGrade,
     replaceFreeElectiveRoundCourseCompetencies,
 } from '../../../../../../../lib/free-elective';
@@ -31,6 +31,8 @@ import FreeElectiveStatusBadge from '../../../../components/FreeElectiveStatusBa
 import {
     buildFreeElectiveLabels,
     formatFreeElectiveTerm,
+    formatFreeElectiveLearnerDeleteMessage,
+    localizedFreeElective,
 } from '../../../../free-elective-labels';
 import '../../../../../curriculum-management/CourseLayout.css';
 import '../../../../FreeElectiveManagement.css';
@@ -78,7 +80,7 @@ function FreeElectiveRoundCoursePageContent() {
     const [success, setSuccess] = useState('');
     const [pickerOpen, setPickerOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
-    const [statusTarget, setStatusTarget] = useState(null);
+    const [deleteLearnerTarget, setDeleteLearnerTarget] = useState(null);
 
     const refreshMasterCompetencies = useCallback(async () => {
         const nextCompetencies = await fetchCompetenciesForManagement();
@@ -214,27 +216,24 @@ function FreeElectiveRoundCoursePageContent() {
         }
     };
 
-    const confirmStatusChange = async () => {
-        if (!statusTarget) {
+    const confirmDeleteLearner = async () => {
+        if (!deleteLearnerTarget) {
             return;
         }
         setSaving(true);
         setError('');
         try {
-            const nextEnrollments = await updateFreeElectiveRoundCourseEnrollmentStatus(
+            await deleteFreeElectiveRoundCourseEnrollment(
                 roundId,
                 roundCourseId,
-                statusTarget.enrollment.roundCourseEnrollmentId,
-                statusTarget.status,
+                deleteLearnerTarget.roundCourseEnrollmentId,
             );
-            setCourseDetail((current) => ({
-                ...current,
-                enrollments: nextEnrollments,
-            }));
-            setStatusTarget(null);
-            setSuccess(labels.statusUpdated);
-        } catch (statusError) {
-            setError(errorMessage(statusError, labels.loadError));
+            const nextDetail = await fetchFreeElectiveRoundCourse(roundId, roundCourseId);
+            setCourseDetail(nextDetail);
+            setDeleteLearnerTarget(null);
+            setSuccess(labels.learnerDeleted);
+        } catch (deleteError) {
+            setError(errorMessage(deleteError, labels.loadError));
         } finally {
             setSaving(false);
         }
@@ -270,8 +269,6 @@ function FreeElectiveRoundCoursePageContent() {
             </div>
         );
     }
-
-    const statusIsWithdraw = statusTarget?.status === 'withdrawn';
 
     return (
         <div className="free-elective-page officer-page ui-page">
@@ -393,14 +390,7 @@ function FreeElectiveRoundCoursePageContent() {
                     language={language}
                     labels={labels}
                     onSaveGrade={handleSaveGrade}
-                    onWithdraw={(enrollment) => setStatusTarget({
-                        enrollment,
-                        status: 'withdrawn',
-                    })}
-                    onRestore={(enrollment) => setStatusTarget({
-                        enrollment,
-                        status: 'enrolled',
-                    })}
+                    onDelete={setDeleteLearnerTarget}
                 />
             </section>
 
@@ -433,22 +423,24 @@ function FreeElectiveRoundCoursePageContent() {
                 onCancel={() => setDeleteOpen(false)}
             />
             <ConfirmActionModal
-                open={Boolean(statusTarget)}
-                title={statusIsWithdraw
-                    ? labels.confirmWithdrawLearner
-                    : labels.confirmRestoreLearner}
-                message={statusIsWithdraw
-                    ? labels.confirmWithdrawLearnerMessage
-                    : labels.confirmRestoreLearnerMessage}
-                variant={statusIsWithdraw ? 'danger' : 'info'}
+                open={Boolean(deleteLearnerTarget)}
+                title={labels.confirmDeleteLearner}
+                message={formatFreeElectiveLearnerDeleteMessage(
+                    language,
+                    localizedFreeElective(
+                        deleteLearnerTarget,
+                        language,
+                        'studentNameTh',
+                        'studentNameEn',
+                    ),
+                )}
+                variant="danger"
                 size="md"
                 loading={saving}
-                confirmLabel={statusIsWithdraw
-                    ? labels.withdrawLearner
-                    : labels.restoreLearner}
+                confirmLabel={labels.deleteLearner}
                 cancelLabel={labels.cancel}
-                onConfirm={confirmStatusChange}
-                onCancel={() => setStatusTarget(null)}
+                onConfirm={confirmDeleteLearner}
+                onCancel={() => setDeleteLearnerTarget(null)}
             />
             <ToastNotifications
                 success={success}

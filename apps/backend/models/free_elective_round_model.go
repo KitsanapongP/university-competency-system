@@ -63,6 +63,12 @@ type FreeElectiveRoundEnrollment struct {
 	CurriculumID            uint64     `json:"curriculum_id"`
 	CurriculumNameTH        string     `json:"curriculum_name_th"`
 	CurriculumNameEN        string     `json:"curriculum_name_en,omitempty"`
+	MajorID                 uint64     `json:"major_id"`
+	MajorNameTH             string     `json:"major_name_th"`
+	MajorNameEN             string     `json:"major_name_en,omitempty"`
+	FacultyID               uint64     `json:"faculty_id"`
+	FacultyNameTH           string     `json:"faculty_name_th"`
+	FacultyNameEN           string     `json:"faculty_name_en,omitempty"`
 	CohortID                uint64     `json:"cohort_id"`
 	EntryYearBE             uint64     `json:"entry_year_be"`
 	EnrollmentStatus        string     `json:"enrollment_status"`
@@ -154,10 +160,6 @@ type ReplaceFreeElectiveRoundCourseCompetenciesPayload struct {
 
 type AddFreeElectiveRoundEnrollmentsPayload struct {
 	Enrollments []FreeElectiveEnrollmentInput `json:"enrollments"`
-}
-
-type UpdateFreeElectiveRoundEnrollmentStatusPayload struct {
-	Status string `json:"status"`
 }
 
 type UpsertFreeElectiveRoundGradePayload struct {

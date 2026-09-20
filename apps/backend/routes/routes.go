@@ -139,7 +139,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				fer.Get("/rounds/{round_id}/courses/{round_course_id}/enrollments", freeElectiveHandler.GetRoundCourseEnrollments)
 				fer.Post("/rounds/{round_id}/courses/{round_course_id}/enrollments", freeElectiveHandler.AddRoundCourseEnrollments)
 				fer.Post("/rounds/{round_id}/courses/{round_course_id}/enrollments/select-all", freeElectiveHandler.AddAllRoundCourseLearners)
-				fer.Patch("/rounds/{round_id}/courses/{round_course_id}/enrollments/{round_course_enrollment_id}", freeElectiveHandler.UpdateRoundCourseEnrollmentStatus)
+				fer.Delete("/rounds/{round_id}/courses/{round_course_id}/enrollments/{round_course_enrollment_id}", freeElectiveHandler.DeleteRoundCourseEnrollment)
 				fer.Put("/rounds/{round_id}/courses/{round_course_id}/enrollments/{round_course_enrollment_id}/grade", freeElectiveHandler.UpsertRoundCourseGrade)
 				fer.Get("/courses", freeElectiveHandler.ListCourses)
 				fer.Post("/courses", freeElectiveHandler.CreateCourse)

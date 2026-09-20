@@ -229,25 +229,18 @@ func validateRoundCourseLearnerSelection(filters models.FreeElectiveRoundLearner
 	return nil
 }
 
-func (s *FreeElectiveService) UpdateRoundCourseEnrollmentStatus(ctx context.Context, claims *utils.Claims, roundID, roundCourseID, roundCourseEnrollmentID uint64, payload models.UpdateFreeElectiveRoundEnrollmentStatusPayload) ([]models.FreeElectiveRoundEnrollment, error) {
+func (s *FreeElectiveService) DeleteRoundCourseEnrollment(ctx context.Context, claims *utils.Claims, roundID, roundCourseID, roundCourseEnrollmentID uint64) error {
 	if _, err := s.roundCourseInScope(ctx, claims, roundID, roundCourseID); err != nil {
-		return nil, err
+		return err
 	}
-	status := strings.ToLower(strings.TrimSpace(payload.Status))
-	if status != "enrolled" && status != "withdrawn" && status != "completed" {
-		return nil, FreeElectiveValidationError{Message: "status must be enrolled, withdrawn, or completed"}
-	}
-	err := s.Repo.UpdateRoundCourseEnrollmentStatus(ctx, roundID, roundCourseID, roundCourseEnrollmentID, status)
+	err := s.Repo.DeleteRoundCourseEnrollment(ctx, roundID, roundCourseID, roundCourseEnrollmentID)
 	if errors.Is(err, repositories.ErrFreeElectiveRoundLocked) {
-		return nil, ErrFreeElectiveRoundLocked
+		return ErrFreeElectiveRoundLocked
 	}
 	if errors.Is(err, repositories.ErrFreeElectiveRoundEnrollmentNotFound) {
-		return nil, ErrFreeElectiveRoundEnrollmentNotFound
+		return ErrFreeElectiveRoundEnrollmentNotFound
 	}
-	if err != nil {
-		return nil, err
-	}
-	return s.GetRoundCourseEnrollments(ctx, claims, roundID, roundCourseID)
+	return err
 }
 
 func (s *FreeElectiveService) UpsertRoundCourseGrade(ctx context.Context, claims *utils.Claims, roundID, roundCourseID, roundCourseEnrollmentID uint64, payload models.UpsertFreeElectiveRoundGradePayload) ([]models.FreeElectiveRoundEnrollment, error) {

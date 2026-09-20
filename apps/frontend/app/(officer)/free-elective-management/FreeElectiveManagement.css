@@ -856,6 +856,7 @@
     outline: 0;
     color: var(--ui-text);
     background: transparent;
+    font-size: 0.85rem;
 }
 
 .free-elective-competency-select__options {
@@ -877,6 +878,7 @@
     text-align: left;
     background: transparent;
     cursor: pointer;
+    font-size: 0.85rem;
 }
 
 .free-elective-competency-select__option:hover:not(:disabled) {
@@ -3339,7 +3341,13 @@
 }
 
 .free-elective-round-enrollment-table-wrap .free-elective-table {
-    min-width: 76rem;
+    min-width: 92rem;
+}
+
+.free-elective-round-enrollment-table-wrap .free-elective-table th:first-child,
+.free-elective-round-enrollment-table-wrap .free-elective-table td:first-child {
+    width: 4rem;
+    text-align: center;
 }
 
 .free-elective-round-enrollment-table-wrap .free-elective-table th {

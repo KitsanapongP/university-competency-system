@@ -205,7 +205,7 @@ func (c *FreeElectiveController) AddAllRoundCourseLearners(w http.ResponseWriter
 	utils.OK(w, enrollments)
 }
 
-func (c *FreeElectiveController) UpdateRoundCourseEnrollmentStatus(w http.ResponseWriter, r *http.Request) {
+func (c *FreeElectiveController) DeleteRoundCourseEnrollment(w http.ResponseWriter, r *http.Request) {
 	claims, ok := freeElectiveClaims(w, r)
 	if !ok {
 		return
@@ -218,24 +218,17 @@ func (c *FreeElectiveController) UpdateRoundCourseEnrollmentStatus(w http.Respon
 	if !ok {
 		return
 	}
-	var payload models.UpdateFreeElectiveRoundEnrollmentStatusPayload
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
-		return
-	}
-	enrollments, err := c.Service.UpdateRoundCourseEnrollmentStatus(
+	if err := c.Service.DeleteRoundCourseEnrollment(
 		r.Context(),
 		claims,
 		roundID,
 		roundCourseID,
 		roundCourseEnrollmentID,
-		payload,
-	)
-	if err != nil {
+	); err != nil {
 		writeFreeElectiveError(w, err)
 		return
 	}
-	utils.OK(w, enrollments)
+	utils.OK(w, utils.Envelope{"deleted": true})
 }
 
 func (c *FreeElectiveController) UpsertRoundCourseGrade(w http.ResponseWriter, r *http.Request) {
