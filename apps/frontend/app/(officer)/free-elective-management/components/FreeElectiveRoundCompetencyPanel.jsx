@@ -104,7 +104,17 @@ export default function FreeElectiveRoundCompetencyPanel({
                     <div className="free-elective-round-competency-panel__subheading-actions">
                         <button
                             type="button"
-                            className="free-elective-button free-elective-button--quiet"
+                            className="free-elective-button free-elective-button--primary"
+                            onClick={() => onAddCompetency(courseIndex)}
+                            disabled={saving || course.competencies.length >= competencies.length}
+                            title={labels.addCompetencyHint}
+                        >
+                            <Plus size={14} aria-hidden="true" />
+                            {labels.addCompetency}
+                        </button>
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--secondary"
                             onClick={onOpenCompetencyManagement}
                             title={labels.addNewCompetencyHint}
                             aria-label={labels.addNewCompetency}
@@ -112,15 +122,6 @@ export default function FreeElectiveRoundCompetencyPanel({
                         >
                             <ExternalLink size={14} aria-hidden="true" />
                             {labels.addNewCompetency}
-                        </button>
-                        <button
-                            type="button"
-                            className="free-elective-button free-elective-button--quiet"
-                            onClick={() => onAddCompetency(courseIndex)}
-                            disabled={saving || course.competencies.length >= competencies.length}
-                        >
-                            <Plus size={14} aria-hidden="true" />
-                            {labels.addCompetency}
                         </button>
                     </div>
                 </div>

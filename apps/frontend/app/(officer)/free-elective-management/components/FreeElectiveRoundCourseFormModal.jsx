@@ -163,9 +163,10 @@ export default function FreeElectiveRoundCourseFormModal({
                         </div>
                         <button
                             type="button"
-                            className="free-elective-button free-elective-button--quiet"
+                            className="free-elective-button free-elective-button--primary"
                             onClick={addMapping}
                             disabled={saving || !selectedCourse || mappings.length >= competencies.length}
+                            title={labels.addCompetencyHint}
                         >
                             <Plus size={15} aria-hidden="true" />
                             {labels.addCompetency}

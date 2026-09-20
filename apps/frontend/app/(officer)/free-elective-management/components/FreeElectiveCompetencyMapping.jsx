@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, Plus, Save, Trash2 } from 'lucide-react';
+import { Copy, ExternalLink, Plus, Save, Trash2 } from 'lucide-react';
 import FreeElectiveCompetencySelect from './FreeElectiveCompetencySelect';
 import FreeElectiveRemoveCompetencyModal from './FreeElectiveRemoveCompetencyModal';
 
@@ -125,22 +125,22 @@ export default function FreeElectiveCompetencyMapping({
                         )}
                         <button
                             type="button"
-                            className="free-elective-button free-elective-button--quiet"
+                            className="free-elective-button free-elective-button--primary"
                             onClick={addRow}
                             disabled={saving || rows.length >= masterCompetencies.length}
-                            title={labels.addCompetency}
+                            title={labels.addCompetencyHint}
                         >
                             <Plus size={15} aria-hidden="true" />
                             {labels.addCompetency}
                         </button>
                         <button
                             type="button"
-                            className="free-elective-button free-elective-button--quiet"
+                            className="free-elective-button free-elective-button--secondary"
                             onClick={openCompetencyManagement}
                             disabled={saving}
                             title={labels.addNewCompetencyHint}
                         >
-                            <Plus size={15} aria-hidden="true" />
+                            <ExternalLink size={15} aria-hidden="true" />
                             {labels.addNewCompetency}
                         </button>
                     </div>
