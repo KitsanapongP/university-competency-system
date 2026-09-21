@@ -774,7 +774,7 @@ func (r *FreeElectiveRepository) CountRoundCourseLearners(ctx context.Context, r
 	return count, nil
 }
 
-func (r *FreeElectiveRepository) AddRoundCourseEnrollments(ctx context.Context, roundID, roundCourseID, userID uint64, inputs []models.FreeElectiveEnrollmentInput) error {
+func (r *FreeElectiveRepository) AddRoundCourseEnrollments(ctx context.Context, roundID, roundCourseID, userID uint64, inputs []models.FreeElectiveRoundEnrollmentInput) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err

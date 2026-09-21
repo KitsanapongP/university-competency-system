@@ -22,10 +22,19 @@ func (s *FreeElectiveService) ListRounds(ctx context.Context, claims *utils.Clai
 	if err := validateFreeElectiveRoundFilters(filters); err != nil {
 		return nil, err
 	}
-	if filters.Status != "" && !validFreeElectiveOfferingStatus(filters.Status) {
+	if filters.Status != "" && !validFreeElectiveRoundStatus(filters.Status) {
 		return nil, FreeElectiveValidationError{Message: "status is invalid"}
 	}
 	return s.Repo.ListRounds(ctx, filters)
+}
+
+func validFreeElectiveRoundStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "draft", "active", "finalized", "cancelled":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateFreeElectiveRoundFilters(filters models.FreeElectiveRoundFilters) error {

@@ -126,7 +126,7 @@ func (c *FreeElectiveController) UpdateRoundStatus(w http.ResponseWriter, r *htt
 	if !ok {
 		return
 	}
-	var payload models.UpdateFreeElectiveOfferingStatusPayload
+	var payload models.UpdateFreeElectiveRoundStatusPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
 		return
