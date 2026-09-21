@@ -42,6 +42,23 @@ func (c *FreeElectiveController) GetRound(w http.ResponseWriter, r *http.Request
 	utils.OK(w, detail)
 }
 
+func (c *FreeElectiveController) RecalculateRoundScores(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	roundID, ok := freeElectiveID(w, r, "round_id")
+	if !ok {
+		return
+	}
+	detail, err := c.Service.RecalculateRoundScores(r.Context(), claims, roundID)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, detail)
+}
+
 func (c *FreeElectiveController) PreviewRound(w http.ResponseWriter, r *http.Request) {
 	claims, ok := freeElectiveClaims(w, r)
 	if !ok {

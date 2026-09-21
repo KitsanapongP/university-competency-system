@@ -481,6 +481,16 @@ export async function updateFreeElectiveRoundStatus(roundId, status) {
     return mapFreeElectiveRoundDetail(unwrapData(response, null));
 }
 
+export async function recalculateFreeElectiveRoundScores(roundId) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}/scores/recalculate`,
+        {
+            method: 'POST',
+        },
+    );
+    return mapFreeElectiveRoundDetail(unwrapData(response, null));
+}
+
 function roundCourseMappingPayload(competencies) {
     return (competencies || []).map((item) => ({
         competency_id: toNumber(item.competencyId || item.competency_id),

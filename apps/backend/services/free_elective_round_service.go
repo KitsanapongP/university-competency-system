@@ -52,6 +52,22 @@ func (s *FreeElectiveService) GetRound(ctx context.Context, claims *utils.Claims
 	return detail, nil
 }
 
+func (s *FreeElectiveService) RecalculateRoundScores(ctx context.Context, claims *utils.Claims, roundID uint64) (*models.FreeElectiveRoundDetail, error) {
+	if _, err := s.GetRound(ctx, claims, roundID); err != nil {
+		return nil, err
+	}
+	if err := s.Repo.RecalculateFreeElectiveRoundScores(ctx, roundID, uint64(claims.UserID)); err != nil {
+		if errors.Is(err, repositories.ErrFreeElectiveRoundLocked) {
+			return nil, ErrFreeElectiveRoundLocked
+		}
+		if errors.Is(err, repositories.ErrFreeElectiveRoundNotFound) {
+			return nil, ErrFreeElectiveRoundNotFound
+		}
+		return nil, err
+	}
+	return s.GetRound(ctx, claims, roundID)
+}
+
 func (s *FreeElectiveService) PreviewRound(ctx context.Context, claims *utils.Claims, payload models.PreviewFreeElectiveRoundPayload) (*models.FreeElectiveRoundPreview, error) {
 	canonical, issues := s.validateAndNormalizeRound(ctx, claims, models.CreateFreeElectiveRoundPayload{
 		FacultyID:      payload.FacultyID,
