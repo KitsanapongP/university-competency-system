@@ -33,7 +33,7 @@ export default function FreeElectiveCourseCard({ course, language, onEdit }) {
                 </div>
                 <div className="free-elective-course-card__details">
                     <span>
-                        {label('offerings')}: <strong>{course.offeringCount}</strong>
+                        {label('rounds')}: <strong>{course.roundCount}</strong>
                     </span>
                     <span>{course.isActive ? label('activeCourse') : label('inactiveCourse')}</span>
                 </div>
