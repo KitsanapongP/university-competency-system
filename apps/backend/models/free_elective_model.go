@@ -134,20 +134,26 @@ type FreeElectiveStudent struct {
 }
 
 type FreeElectiveStudentCourse struct {
-	OfferingEnrollmentID uint64 `json:"offering_enrollment_id"`
-	OfferingID           uint64 `json:"offering_id"`
-	CourseCode           string `json:"course_code"`
-	CourseNameTH         string `json:"course_name_th"`
-	CourseNameEN         string `json:"course_name_en,omitempty"`
-	AcademicYearBE       uint64 `json:"academic_year_be"`
-	Semester             uint64 `json:"semester"`
-	SectionNo            string `json:"section_no"`
-	OfferingStatus       string `json:"offering_status"`
-	GradeScheme          string `json:"grade_scheme"`
-	Grade                string `json:"grade,omitempty"`
-	GradeSource          string `json:"grade_source,omitempty"`
-	IsBestGrade          bool   `json:"is_best_grade"`
-	Status               string `json:"status"`
+	RoundCourseEnrollmentID uint64 `json:"round_course_enrollment_id"`
+	RoundCourseID           uint64 `json:"round_course_id"`
+	RoundID                 uint64 `json:"round_id,omitempty"`
+	CourseCode              string `json:"course_code"`
+	CourseNameTH            string `json:"course_name_th"`
+	CourseNameEN            string `json:"course_name_en,omitempty"`
+	AcademicYearBE          uint64 `json:"academic_year_be"`
+	Semester                uint64 `json:"semester"`
+	SectionNo               string `json:"section_no,omitempty"`
+	RoundStatus             string `json:"round_status"`
+	GradeScheme             string `json:"grade_scheme"`
+	Grade                   string `json:"grade,omitempty"`
+	GradeSource             string `json:"grade_source,omitempty"`
+	IsBestGrade             bool   `json:"is_best_grade"`
+	Status                  string `json:"status"`
+
+	// Legacy aliases stay internal while old repository methods are removed.
+	OfferingEnrollmentID uint64 `json:"-"`
+	OfferingID           uint64 `json:"-"`
+	OfferingStatus       string `json:"-"`
 }
 
 type FreeElectiveStudentDetail struct {

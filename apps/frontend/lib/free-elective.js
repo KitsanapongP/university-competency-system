@@ -241,16 +241,28 @@ export function mapFreeElectiveStudent(item) {
 }
 
 export function mapFreeElectiveStudentCourse(item) {
+    const roundCourseEnrollmentId = getEntityId(item, [
+        'round_course_enrollment_id',
+        'roundCourseEnrollmentId',
+        'offering_enrollment_id',
+    ]);
+    const roundCourseId = getEntityId(item, [
+        'round_course_id',
+        'roundCourseId',
+        'offering_id',
+    ]);
+
     return {
-        offeringEnrollmentId: item.offering_enrollment_id,
-        offeringId: item.offering_id,
+        roundCourseEnrollmentId,
+        roundCourseId,
+        roundId: getEntityId(item, ['round_id', 'roundId']),
         courseCode: item.course_code || '',
         courseNameTh: item.course_name_th || '',
         courseNameEn: item.course_name_en || '',
         academicYearBE: toNumber(item.academic_year_be),
         semester: toNumber(item.semester),
         sectionNo: item.section_no || '',
-        offeringStatus: item.offering_status || '',
+        roundStatus: item.round_status || item.offering_status || '',
         gradeScheme: item.grade_scheme || 'letter',
         grade: item.grade || '',
         gradeSource: item.grade_source || '',

@@ -913,15 +913,15 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 	for rows.Next() {
 		var course models.FreeElectiveStudentCourse
 		if err := rows.Scan(
-			&course.OfferingEnrollmentID,
-			&course.OfferingID,
+			&course.RoundCourseEnrollmentID,
+			&course.RoundCourseID,
 			&course.CourseCode,
 			&course.CourseNameTH,
 			&course.CourseNameEN,
 			&course.AcademicYearBE,
 			&course.Semester,
 			&course.SectionNo,
-			&course.OfferingStatus,
+			&course.RoundStatus,
 			&course.GradeScheme,
 			&course.Grade,
 			&course.GradeSource,
@@ -930,6 +930,9 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 		); err != nil {
 			return nil, err
 		}
+		course.OfferingEnrollmentID = course.RoundCourseEnrollmentID
+		course.OfferingID = course.RoundCourseID
+		course.OfferingStatus = course.RoundStatus
 		studentCourses = append(studentCourses, course)
 	}
 	if err := rows.Err(); err != nil {
