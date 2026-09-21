@@ -36,7 +36,7 @@ const freeElectiveCourseSelect = `
 		COALESCE(COUNT(DISTINCT CASE WHEN offering.status <> 'cancelled' THEN offering.offering_id END), 0),
 		COALESCE(COUNT(DISTINCT CASE WHEN offering.status = 'finalized' THEN offering.offering_id END), 0),
 		course.created_at, course.updated_at
-	FROM ele_free_elective_courses course
+	FROM ele_courses course
 	JOIN org_faculties faculty ON faculty.faculty_id = course.faculty_id AND faculty.deleted_at IS NULL
 	LEFT JOIN ele_free_elective_offerings offering
 		ON offering.free_elective_course_id = course.free_elective_course_id
@@ -126,7 +126,7 @@ func (r *FreeElectiveRepository) FindCourseByCode(ctx context.Context, facultyID
 
 func (r *FreeElectiveRepository) CreateCourse(ctx context.Context, payload models.UpsertFreeElectiveCoursePayload, userID uint64) (*models.FreeElectiveCourse, error) {
 	result, err := r.DB.ExecContext(ctx, `
-		INSERT INTO ele_free_elective_courses
+		INSERT INTO ele_courses
 			(faculty_id, code, name_th, name_en, description, credits, grade_scheme, is_active, created_by, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
 		payload.FacultyID,
@@ -163,7 +163,7 @@ func (r *FreeElectiveRepository) UpdateCourse(ctx context.Context, courseID uint
 	}
 
 	result, err := tx.ExecContext(ctx, `
-		UPDATE ele_free_elective_courses
+		UPDATE ele_courses
 		SET faculty_id = ?, code = ?, name_th = ?, name_en = ?, description = ?,
 			credits = ?, grade_scheme = ?, is_active = ?, updated_at = NOW()
 		WHERE free_elective_course_id = ? AND deleted_at IS NULL`,
@@ -198,7 +198,7 @@ func (r *FreeElectiveRepository) GetCourseImpact(ctx context.Context, courseID u
 			COUNT(DISTINCT offering.offering_id),
 			COUNT(DISTINCT CASE WHEN offering.status = 'finalized' THEN offering.offering_id END),
 			COUNT(DISTINCT cohort.cohort_id)
-		FROM ele_free_elective_courses course
+		FROM ele_courses course
 		LEFT JOIN ele_free_elective_offerings offering
 			ON offering.free_elective_course_id = course.free_elective_course_id
 			AND offering.deleted_at IS NULL
@@ -340,7 +340,7 @@ const freeElectiveOfferingSelect = `
 		COALESCE(SUM(mapping.weight_percent), 0),
 		offering.created_at, offering.updated_at
 	FROM ele_free_elective_offerings offering
-	JOIN ele_free_elective_courses course
+	JOIN ele_courses course
 		ON course.free_elective_course_id = offering.free_elective_course_id
 		AND course.deleted_at IS NULL
 	JOIN org_faculties faculty
@@ -501,7 +501,7 @@ func (r *FreeElectiveRepository) GetOfferingReadiness(ctx context.Context, offer
 			 FROM ele_offering_enrollments enrollment
 			 JOIN ele_offering_grade_records grade
 				ON grade.offering_enrollment_id = enrollment.offering_enrollment_id AND grade.deleted_at IS NULL
-			 JOIN ele_free_elective_courses course ON course.free_elective_course_id = offering.free_elective_course_id
+			 JOIN ele_courses course ON course.free_elective_course_id = offering.free_elective_course_id
 			 WHERE enrollment.offering_id = offering.offering_id
 				AND enrollment.deleted_at IS NULL AND enrollment.status IN ('enrolled', 'completed')
 				AND NOT (
@@ -879,7 +879,7 @@ func (r *FreeElectiveRepository) GetStudentDetail(ctx context.Context, enrollmen
 		FROM ele_offering_enrollments selected
 		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
 			AND offering.deleted_at IS NULL
-		JOIN ele_free_elective_courses course ON course.free_elective_course_id = offering.free_elective_course_id
+		JOIN ele_courses course ON course.free_elective_course_id = offering.free_elective_course_id
 			AND course.deleted_at IS NULL
 		LEFT JOIN ele_offering_grade_records grade ON grade.offering_enrollment_id = selected.offering_enrollment_id
 			AND grade.deleted_at IS NULL
@@ -1095,7 +1095,7 @@ func (r *FreeElectiveRepository) GetStudentOfferingTarget(ctx context.Context, e
 		FROM ele_offering_enrollments selected
 		JOIN ele_free_elective_offerings offering
 			ON offering.offering_id = selected.offering_id AND offering.deleted_at IS NULL
-		JOIN ele_free_elective_courses course
+		JOIN ele_courses course
 			ON course.free_elective_course_id = offering.free_elective_course_id AND course.deleted_at IS NULL
 		WHERE selected.offering_enrollment_id = ? AND selected.enrollment_id = ?
 			AND selected.deleted_at IS NULL`, offeringEnrollmentID, enrollmentID).Scan(
@@ -1299,7 +1299,7 @@ func recomputeFreeElectiveBestGradeFlagsTx(ctx context.Context, tx *sql.Tx, enro
 			AND selected.status IN ('enrolled', 'completed')
 		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
 			AND offering.free_elective_course_id = ? AND offering.deleted_at IS NULL
-		JOIN ele_free_elective_courses course ON course.free_elective_course_id = offering.free_elective_course_id
+		JOIN ele_courses course ON course.free_elective_course_id = offering.free_elective_course_id
 		WHERE grade.deleted_at IS NULL`, enrollmentID, courseID)
 	if err != nil {
 		return err
@@ -1501,7 +1501,7 @@ func getFinalizedFreeElectiveCandidates(ctx context.Context, tx *sql.Tx, courseI
 			AND selected.deleted_at IS NULL
 		JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
 			AND offering.status = 'finalized' AND offering.deleted_at IS NULL
-		JOIN ele_free_elective_courses course ON course.free_elective_course_id = offering.free_elective_course_id
+		JOIN ele_courses course ON course.free_elective_course_id = offering.free_elective_course_id
 		JOIN kku_enrollment_curricula roster ON roster.enrollment_curriculum_id = selected.enrollment_curriculum_id
 			AND roster.enrollment_id = selected.enrollment_id AND roster.deleted_at IS NULL
 		JOIN kku_enrollments student ON student.enrollment_id = selected.enrollment_id
