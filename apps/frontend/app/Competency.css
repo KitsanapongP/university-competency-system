@@ -1033,6 +1033,203 @@ body:has(.competency-app) {
   margin-bottom: 4px;
 }
 
+.learner-profile-details {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0 0;
+  text-align: left;
+}
+
+.learner-profile-details div {
+  display: grid;
+  gap: 3px;
+}
+
+.learner-profile-details dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.learner-profile-details dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.learner-profile-state {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.learner-profile-state--error {
+    padding: 32px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+}
+
+.learner-profile-state--error p {
+  margin: 0;
+}
+
+.profile-retry-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  color: white;
+  background: var(--primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.profile-retry-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.learner-course-history {
+  margin-top: 24px;
+  overflow: hidden;
+}
+
+.learner-course-history__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.learner-course-history__header h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.learner-course-history__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.learner-course-history__years {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+
+.learner-course-history__year {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.learner-course-history__year-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.learner-course-history__year-heading strong {
+  font-size: 1rem;
+}
+
+.learner-course-history__year-heading span {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.learner-course-history__terms {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.learner-course-history__term h3 {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.learner-course-history__table {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.learner-course-history__table-header,
+.learner-course-history__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(9rem, 0.25fr);
+  gap: 16px;
+  align-items: center;
+  padding: 12px 16px;
+}
+
+.learner-course-history__table-header {
+  color: var(--text-muted);
+  background: var(--bg);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.learner-course-history__row {
+  border-top: 1px solid var(--border);
+}
+
+.learner-course-history__course {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.learner-course-history__course strong {
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.learner-course-history__course span {
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--primary);
+  background: var(--primary-light);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.learner-course-history__grade {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.learner-course-history__empty {
+  padding: 48px 24px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 .activity-history {
   overflow: hidden;
 }
@@ -1253,6 +1450,33 @@ body:has(.competency-app) {
   .data-table {
     display: block;
     overflow-x: auto;
+  }
+
+  .learner-course-history__header,
+  .learner-course-history__year-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .learner-course-history__years {
+    padding: 16px;
+  }
+
+  .learner-course-history__terms {
+    padding: 16px;
+  }
+
+  .learner-course-history__table-header {
+    display: none;
+  }
+
+  .learner-course-history__row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .learner-course-history__grade {
+    justify-self: start;
   }
 
   .chart-wrapper {
