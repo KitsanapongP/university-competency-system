@@ -4,14 +4,17 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ArrowLeft,
     BookOpen,
+    Check,
     Copy,
     Layers,
+    Pencil,
     Plus,
     RefreshCw,
+    RotateCcw,
     UserRound,
     XCircle,
 } from 'lucide-react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../../../providers/auth-provider';
 import { useLanguage } from '../../../../../providers/LanguageContext';
 import { fetchCompetenciesForManagement } from '../../../../../lib/competency-management';
@@ -145,10 +148,12 @@ function RoundDuplicateModal({
 function FreeElectiveRoundDetailPageContent() {
     const router = useRouter();
     const params = useParams();
+    const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
     const { language } = useLanguage();
     const labels = useMemo(() => buildFreeElectiveLabels(language), [language]);
     const roundId = params?.roundId;
+    const editRequested = searchParams.get('edit') === '1';
 
     const [roundDetail, setRoundDetail] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -188,7 +193,19 @@ function FreeElectiveRoundDetailPageContent() {
 
     const round = roundDetail?.round;
     const courses = roundDetail?.courses || [];
-    const canEdit = round?.status === 'draft' || round?.status === 'active';
+    const editMode = round?.status === 'draft'
+        || (round?.status === 'active' && editRequested);
+    const canEdit = editMode;
+    const canRecalculate = round?.status === 'draft' || round?.status === 'active';
+    const activeReadOnly = round?.status === 'active' && !editMode;
+    const canRevertToDraft = round?.status === 'active'
+        && round.learnerCount === 0
+        && round.gradeCount === 0;
+
+    const setEditMode = (enabled) => {
+        const path = `/free-elective-management/rounds/${roundId}`;
+        router.replace(enabled ? `${path}?edit=1` : path, { scroll: false });
+    };
 
     const loadCourseCatalog = async () => {
         if (!round || catalogLoading) {
@@ -243,7 +260,11 @@ function FreeElectiveRoundDetailPageContent() {
         if (!statusAction) {
             return;
         }
-        const nextStatus = statusAction === 'open' ? 'active' : 'cancelled';
+        const nextStatus = statusAction === 'open'
+            ? 'active'
+            : statusAction === 'cancel'
+                ? 'cancelled'
+                : 'draft';
         setSaving(true);
         setError('');
         try {
@@ -252,7 +273,9 @@ function FreeElectiveRoundDetailPageContent() {
             setSuccess(
                 statusAction === 'open'
                     ? labels.openRound
-                    : labels.cancelRound,
+                    : statusAction === 'cancel'
+                        ? labels.cancelRound
+                        : labels.revertToDraft,
             );
             await loadData();
         } catch (statusError) {
@@ -310,17 +333,23 @@ function FreeElectiveRoundDetailPageContent() {
         );
     }
 
-    const statusMessage = statusAction === 'open'
+    const statusMessage = statusAction === 'revert-draft'
         ? {
-            title: labels.openRoundTitle,
-            message: labels.openRoundMessage,
-            confirm: labels.confirmOpenRound,
+            title: labels.revertToDraftTitle,
+            message: labels.revertToDraftMessage,
+            confirm: labels.confirmRevertToDraft,
         }
-        : {
-            title: labels.cancelRoundTitle,
-            message: labels.cancelRoundMessage,
-            confirm: labels.confirmCancelRound,
-        };
+        : statusAction === 'open'
+            ? {
+                title: labels.openRoundTitle,
+                message: labels.openRoundMessage,
+                confirm: labels.confirmOpenRound,
+            }
+            : {
+                title: labels.cancelRoundTitle,
+                message: labels.cancelRoundMessage,
+                confirm: labels.confirmCancelRound,
+            };
 
     return (
         <div className="free-elective-page officer-page ui-page">
@@ -377,7 +406,39 @@ function FreeElectiveRoundDetailPageContent() {
                         <RefreshCw size={16} aria-hidden="true" />
                         {labels.refresh}
                     </button>
-                    {round.scoresRecalculationRequired && canEdit && (
+                    {round.status === 'active' && !editMode && (
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--primary"
+                            onClick={() => (canRevertToDraft
+                                ? setStatusAction('revert-draft')
+                                : setEditMode(true))}
+                            disabled={saving || loading}
+                            title={canRevertToDraft
+                                ? labels.revertToDraft
+                                : labels.enterEditMode}
+                        >
+                            {canRevertToDraft
+                                ? <RotateCcw size={16} aria-hidden="true" />
+                                : <Pencil size={16} aria-hidden="true" />}
+                            {canRevertToDraft
+                                ? labels.revertToDraft
+                                : labels.enterEditMode}
+                        </button>
+                    )}
+                    {round.status === 'active' && editMode && (
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--secondary"
+                            onClick={() => setEditMode(false)}
+                            disabled={saving || loading}
+                            title={labels.finishEditMode}
+                        >
+                            <Check size={16} aria-hidden="true" />
+                            {labels.finishEditMode}
+                        </button>
+                    )}
+                    {round.scoresRecalculationRequired && canRecalculate && (
                         <button
                             type="button"
                             className="free-elective-button free-elective-button--primary"
@@ -431,6 +492,17 @@ function FreeElectiveRoundDetailPageContent() {
                 </div>
             )}
 
+            {activeReadOnly && (
+                <div className="free-elective-notice" role="status">
+                    <span>{labels.activeEditModeHint}</span>
+                </div>
+            )}
+            {!activeReadOnly && !canEdit && (
+                <div className="free-elective-notice" role="status">
+                    <span>{labels.roundNotEditable}</span>
+                </div>
+            )}
+
             <section className="free-elective-panel">
                 <div className="free-elective-panel__heading">
                     <div>
@@ -459,7 +531,7 @@ function FreeElectiveRoundDetailPageContent() {
                                     language={language}
                                     labels={labels}
                                     onManage={(roundCourseIdValue) => router.push(
-                                        `/free-elective-management/rounds/${roundId}/courses/${roundCourseIdValue}`,
+                                        `/free-elective-management/rounds/${roundId}/courses/${roundCourseIdValue}${editMode ? '?edit=1' : ''}`,
                                     )}
                                 />
                             ))}

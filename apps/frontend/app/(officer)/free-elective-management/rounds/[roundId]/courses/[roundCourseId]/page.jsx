@@ -4,13 +4,15 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ArrowLeft,
     BookOpen,
+    Check,
+    Pencil,
     RefreshCw,
     Search,
     Trash2,
     Users,
     X,
 } from 'lucide-react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../../../../../providers/auth-provider';
 import { useLanguage } from '../../../../../../../providers/LanguageContext';
 import { fetchCompetenciesForManagement } from '../../../../../../../lib/competency-management';
@@ -70,11 +72,13 @@ function gradeSchemeLabel(course, labels) {
 function FreeElectiveRoundCoursePageContent() {
     const router = useRouter();
     const params = useParams();
+    const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
     const { language } = useLanguage();
     const labels = useMemo(() => buildFreeElectiveLabels(language), [language]);
     const roundId = params?.roundId;
     const roundCourseId = params?.roundCourseId;
+    const editRequested = searchParams.get('edit') === '1';
 
     const [round, setRound] = useState(null);
     const [courseDetail, setCourseDetail] = useState(null);
@@ -129,8 +133,16 @@ function FreeElectiveRoundCoursePageContent() {
 
     const course = courseDetail?.course;
     const enrollments = courseDetail?.enrollments ?? EMPTY_ENROLLMENTS;
-    const canEdit = round?.status === 'draft' || round?.status === 'active';
+    const editMode = round?.status === 'draft'
+        || (round?.status === 'active' && editRequested);
+    const canEdit = editMode;
+    const canRecalculate = round?.status === 'draft' || round?.status === 'active';
     const canDelete = round?.status === 'draft' && enrollments.length === 0;
+
+    const setEditMode = (enabled) => {
+        const path = `/free-elective-management/rounds/${roundId}/courses/${roundCourseId}`;
+        router.replace(enabled ? `${path}?edit=1` : path, { scroll: false });
+    };
     const enrolledIds = useMemo(
         () => new Set(enrollments.map((enrollment) => String(enrollment.enrollmentId))),
         [enrollments],
@@ -383,7 +395,9 @@ function FreeElectiveRoundCoursePageContent() {
             <button
                 type="button"
                 className="free-elective-back-button"
-                onClick={() => router.push(`/free-elective-management/rounds/${roundId}`)}
+                onClick={() => router.push(
+                    `/free-elective-management/rounds/${roundId}${editMode ? '?edit=1' : ''}`,
+                )}
             >
                 <ArrowLeft size={16} aria-hidden="true" />
                 {labels.backToRound}
@@ -432,6 +446,30 @@ function FreeElectiveRoundCoursePageContent() {
                         <RefreshCw size={16} aria-hidden="true" />
                         {labels.refresh}
                     </button>
+                    {round.status === 'active' && !editMode && (
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--primary"
+                            onClick={() => setEditMode(true)}
+                            disabled={saving || loading}
+                            title={labels.enterCourseEditMode}
+                        >
+                            <Pencil size={16} aria-hidden="true" />
+                            {labels.enterCourseEditMode}
+                        </button>
+                    )}
+                    {round.status === 'active' && editMode && (
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--secondary"
+                            onClick={() => setEditMode(false)}
+                            disabled={saving || loading}
+                            title={labels.finishCourseEditMode}
+                        >
+                            <Check size={16} aria-hidden="true" />
+                            {labels.finishCourseEditMode}
+                        </button>
+                    )}
                     {canDelete && (
                         <button
                             type="button"
@@ -450,7 +488,7 @@ function FreeElectiveRoundCoursePageContent() {
                 <div className="free-elective-notice free-elective-notice--warning" role="status">
                     <RefreshCw size={16} aria-hidden="true" />
                     <span>{labels.roundScoreRecalculation}</span>
-                    {canEdit && (
+                    {canRecalculate && (
                         <button
                             type="button"
                             className="free-elective-button free-elective-button--primary free-elective-notice__action"
@@ -464,7 +502,12 @@ function FreeElectiveRoundCoursePageContent() {
                 </div>
             )}
 
-            {!canEdit && (
+            {round.status === 'active' && !editMode && (
+                <div className="free-elective-notice" role="status">
+                    <span>{labels.courseEditModeHint}</span>
+                </div>
+            )}
+            {round.status !== 'draft' && round.status !== 'active' && (
                 <div className="free-elective-notice" role="status">
                     <span>{labels.roundNotEditable}</span>
                 </div>
