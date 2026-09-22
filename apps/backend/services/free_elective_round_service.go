@@ -22,10 +22,19 @@ func (s *FreeElectiveService) ListRounds(ctx context.Context, claims *utils.Clai
 	if err := validateFreeElectiveRoundFilters(filters); err != nil {
 		return nil, err
 	}
-	if filters.Status != "" && !validFreeElectiveOfferingStatus(filters.Status) {
+	if filters.Status != "" && !validFreeElectiveRoundStatus(filters.Status) {
 		return nil, FreeElectiveValidationError{Message: "status is invalid"}
 	}
 	return s.Repo.ListRounds(ctx, filters)
+}
+
+func validFreeElectiveRoundStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "draft", "active", "finalized", "cancelled":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateFreeElectiveRoundFilters(filters models.FreeElectiveRoundFilters) error {
@@ -50,6 +59,22 @@ func (s *FreeElectiveService) GetRound(ctx context.Context, claims *utils.Claims
 		return nil, err
 	}
 	return detail, nil
+}
+
+func (s *FreeElectiveService) RecalculateRoundScores(ctx context.Context, claims *utils.Claims, roundID uint64) (*models.FreeElectiveRoundDetail, error) {
+	if _, err := s.GetRound(ctx, claims, roundID); err != nil {
+		return nil, err
+	}
+	if err := s.Repo.RecalculateFreeElectiveRoundScores(ctx, roundID, uint64(claims.UserID)); err != nil {
+		if errors.Is(err, repositories.ErrFreeElectiveRoundLocked) {
+			return nil, ErrFreeElectiveRoundLocked
+		}
+		if errors.Is(err, repositories.ErrFreeElectiveRoundNotFound) {
+			return nil, ErrFreeElectiveRoundNotFound
+		}
+		return nil, err
+	}
+	return s.GetRound(ctx, claims, roundID)
 }
 
 func (s *FreeElectiveService) PreviewRound(ctx context.Context, claims *utils.Claims, payload models.PreviewFreeElectiveRoundPayload) (*models.FreeElectiveRoundPreview, error) {

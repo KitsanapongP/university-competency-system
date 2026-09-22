@@ -20,6 +20,7 @@ import {
     duplicateFreeElectiveRound,
     fetchFreeElectiveCourses,
     fetchFreeElectiveRound,
+    recalculateFreeElectiveRoundScores,
     updateFreeElectiveRoundStatus,
 } from '../../../../../lib/free-elective';
 import BaseModal from '../../../../../components/ui/BaseModal';
@@ -155,6 +156,7 @@ function FreeElectiveRoundDetailPageContent() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [statusAction, setStatusAction] = useState('');
+    const [recalculateOpen, setRecalculateOpen] = useState(false);
     const [duplicateOpen, setDuplicateOpen] = useState(false);
     const [duplicateKey, setDuplicateKey] = useState(0);
     const [addCourseOpen, setAddCourseOpen] = useState(false);
@@ -260,6 +262,21 @@ function FreeElectiveRoundDetailPageContent() {
         }
     };
 
+    const handleRecalculate = async () => {
+        setSaving(true);
+        setError('');
+        try {
+            await recalculateFreeElectiveRoundScores(roundId);
+            setRecalculateOpen(false);
+            setSuccess(labels.recalculateRoundScoresSuccess);
+            await loadData();
+        } catch (recalculateError) {
+            setError(recalculateError.message || labels.loadError);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const handleDuplicate = async (form) => {
         setSaving(true);
         setError('');
@@ -360,6 +377,18 @@ function FreeElectiveRoundDetailPageContent() {
                         <RefreshCw size={16} aria-hidden="true" />
                         {labels.refresh}
                     </button>
+                    {round.scoresRecalculationRequired && canEdit && (
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--primary"
+                            onClick={() => setRecalculateOpen(true)}
+                            disabled={saving || loading}
+                            title={labels.recalculateRoundScores}
+                        >
+                            <RefreshCw size={16} aria-hidden="true" />
+                            {labels.recalculateRoundScores}
+                        </button>
+                    )}
                     <button
                         type="button"
                         className="free-elective-button free-elective-button--secondary"
@@ -473,6 +502,19 @@ function FreeElectiveRoundDetailPageContent() {
                 cancelLabel={labels.cancel}
                 onConfirm={handleStatusChange}
                 onCancel={() => setStatusAction('')}
+            />
+            <ConfirmActionModal
+                open={recalculateOpen}
+                title={labels.recalculateRoundScoresTitle}
+                message={labels.recalculateRoundScoresMessage}
+                hint={labels.recalculateRoundScoresHint}
+                variant="info"
+                size="md"
+                loading={saving}
+                confirmLabel={labels.recalculateRoundScores}
+                cancelLabel={labels.cancel}
+                onConfirm={handleRecalculate}
+                onCancel={() => setRecalculateOpen(false)}
             />
             <ToastNotifications
                 success={success}

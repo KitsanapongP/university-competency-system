@@ -1509,7 +1509,7 @@
 
 .free-elective-student-course-list__header {
     display: grid;
-    grid-template-columns: minmax(14rem, 1.6fr) minmax(5rem, 0.7fr) minmax(5rem, 0.5fr) minmax(9rem, 0.9fr) auto;
+    grid-template-columns: minmax(16rem, 2fr) minmax(5rem, 0.6fr) minmax(8rem, 1fr) minmax(9rem, 1fr);
     gap: 1rem;
     padding: 0.7rem 1rem;
     border-bottom: 1px solid var(--border);
@@ -1521,7 +1521,7 @@
 
 .free-elective-student-course-row {
     display: grid;
-    grid-template-columns: minmax(14rem, 1.6fr) minmax(5rem, 0.7fr) minmax(5rem, 0.5fr) minmax(9rem, 0.9fr) auto;
+    grid-template-columns: minmax(16rem, 2fr) minmax(5rem, 0.6fr) minmax(8rem, 1fr) minmax(9rem, 1fr);
     gap: 1rem;
     align-items: center;
     padding: 0.8rem 1rem;
@@ -1611,6 +1611,12 @@
     line-height: 1.5;
 }
 
+.free-elective-notice__action {
+    flex: 0 0 auto;
+    margin-left: auto;
+    margin-top: -0.2rem;
+}
+
 .free-elective-loading {
     display: flex;
     min-height: 12rem;
@@ -1674,11 +1680,11 @@
     }
 
     .free-elective-student-course-row {
-        min-width: 48rem;
+        min-width: 42rem;
     }
 
     .free-elective-student-course-list__header {
-        min-width: 48rem;
+        min-width: 42rem;
     }
 
     .free-elective-student-course-list {
@@ -3464,6 +3470,12 @@
 }
 
 @media (max-width: 720px) {
+
+    .free-elective-notice__action {
+        width: 100%;
+        margin-top: 0.25rem;
+        margin-left: 0;
+    }
     .free-elective-picker__filter-grid {
         grid-template-columns: 1fr;
     }

@@ -28,13 +28,13 @@ const freeElectiveRoundCourseSelect = `
 		COUNT(DISTINCT CASE WHEN enrollment.status IN ('enrolled', 'completed') THEN enrollment.enrollment_id END),
 		COUNT(DISTINCT grade.grade_record_id),
 		roundCourse.created_at, roundCourse.updated_at
-	FROM ele_free_elective_round_courses roundCourse
-	JOIN ele_free_elective_rounds round
+	FROM ele_round_courses roundCourse
+	JOIN ele_rounds round
 		ON round.round_id = roundCourse.round_id AND round.deleted_at IS NULL
-	LEFT JOIN ele_free_elective_round_course_enrollments enrollment
+	LEFT JOIN ele_course_enrollments enrollment
 		ON enrollment.round_course_id = roundCourse.round_course_id
 		AND enrollment.deleted_at IS NULL
-	LEFT JOIN ele_free_elective_round_course_grade_records grade
+	LEFT JOIN ele_course_grades grade
 		ON grade.round_course_enrollment_id = enrollment.round_course_enrollment_id
 		AND grade.deleted_at IS NULL
 	WHERE roundCourse.deleted_at IS NULL`
@@ -94,11 +94,11 @@ func (r *FreeElectiveRepository) GetRoundCourseEnrollments(ctx context.Context, 
 			COALESCE(cohort.entry_year_be, 0), student.enrollment_status,
 			selected.status, grade.grade_record_id, grade.grade, grade.grade_source,
 			COALESCE(grade.is_best_grade, 0), grade.updated_at
-		FROM ele_free_elective_round_course_enrollments selected
-		JOIN ele_free_elective_round_courses roundCourse
+		FROM ele_course_enrollments selected
+		JOIN ele_round_courses roundCourse
 			ON roundCourse.round_course_id = selected.round_course_id
 			AND roundCourse.round_id = ? AND roundCourse.deleted_at IS NULL
-		JOIN ele_free_elective_rounds round
+		JOIN ele_rounds round
 			ON round.round_id = roundCourse.round_id AND round.deleted_at IS NULL
 		JOIN kku_enrollments student
 			ON student.enrollment_id = selected.enrollment_id
@@ -123,7 +123,7 @@ func (r *FreeElectiveRepository) GetRoundCourseEnrollments(ctx context.Context, 
 			AND faculty.deleted_at IS NULL
 		LEFT JOIN edu_student_cohorts cohort
 			ON cohort.cohort_id = roster.cohort_id AND cohort.deleted_at IS NULL
-		LEFT JOIN ele_free_elective_round_course_grade_records grade
+		LEFT JOIN ele_course_grades grade
 			ON grade.round_course_enrollment_id = selected.round_course_enrollment_id
 			AND grade.deleted_at IS NULL
 		WHERE selected.round_course_id = ? AND selected.deleted_at IS NULL
@@ -223,7 +223,7 @@ func lockFreeElectiveRound(ctx context.Context, tx *sql.Tx, roundID uint64) (str
 	var status string
 	err := tx.QueryRowContext(ctx, `
 		SELECT status
-		FROM ele_free_elective_rounds
+		FROM ele_rounds
 		WHERE round_id = ? AND deleted_at IS NULL
 		FOR UPDATE`, roundID).Scan(&status)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -241,10 +241,266 @@ func ensureFreeElectiveRoundEditable(status string) error {
 
 func markFreeElectiveRoundScoresRequired(ctx context.Context, tx *sql.Tx, roundID uint64) error {
 	_, err := tx.ExecContext(ctx, `
-		UPDATE ele_free_elective_rounds
+		UPDATE ele_rounds
 		SET scores_recalculation_required = 1, updated_at = NOW()
 		WHERE round_id = ? AND deleted_at IS NULL`, roundID)
 	return err
+}
+
+// RecalculateFreeElectiveRoundScores rebuilds the active competency scores for
+// every offering round that contains the same master courses as the selected
+// round. Best grades are recalculated first so repeated free-elective courses
+// use one consistent result across rounds.
+func (r *FreeElectiveRepository) RecalculateFreeElectiveRoundScores(ctx context.Context, roundID, userID uint64) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	status, err := lockFreeElectiveRound(ctx, tx, roundID)
+	if err != nil {
+		return err
+	}
+	if err := ensureFreeElectiveRoundEditable(status); err != nil {
+		return err
+	}
+
+	type gradeCandidate struct {
+		gradeRecordID  uint64
+		enrollmentID   uint64
+		masterCourseID uint64
+		grade          string
+		gradeScheme    string
+		academicYearBE uint64
+		semester       uint64
+		attempt        grading.GradeAttempt
+	}
+
+	rows, err := tx.QueryContext(ctx, `
+		SELECT grade.grade_record_id, selected.enrollment_id,
+			roundCourse.free_elective_course_id, grade.grade,
+			roundCourse.grade_scheme, round.academic_year_be,
+			round.semester
+		FROM ele_course_grades grade
+		JOIN ele_course_enrollments selected
+			ON selected.round_course_enrollment_id = grade.round_course_enrollment_id
+			AND selected.deleted_at IS NULL
+			AND selected.status IN ('enrolled', 'completed')
+		JOIN ele_round_courses roundCourse
+			ON roundCourse.round_course_id = selected.round_course_id
+			AND roundCourse.deleted_at IS NULL
+		JOIN ele_rounds round
+			ON round.round_id = roundCourse.round_id
+			AND round.deleted_at IS NULL
+		JOIN ele_round_courses sourceCourse
+			ON sourceCourse.round_id = ?
+			AND sourceCourse.free_elective_course_id = roundCourse.free_elective_course_id
+			AND sourceCourse.deleted_at IS NULL
+		WHERE grade.deleted_at IS NULL
+		ORDER BY selected.enrollment_id, roundCourse.free_elective_course_id,
+			round.academic_year_be, round.semester, grade.grade_record_id
+		FOR UPDATE`, roundID)
+	if err != nil {
+		return err
+	}
+
+	candidates := make([]gradeCandidate, 0)
+	for rows.Next() {
+		var item gradeCandidate
+		if err := rows.Scan(
+			&item.gradeRecordID,
+			&item.enrollmentID,
+			&item.masterCourseID,
+			&item.grade,
+			&item.gradeScheme,
+			&item.academicYearBE,
+			&item.semester,
+		); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		item.attempt = grading.GradeAttempt{
+			Evaluation:     grading.Evaluate(item.gradeScheme, item.grade),
+			AcademicYearBE: item.academicYearBE,
+			Semester:       item.semester,
+		}
+		candidates = append(candidates, item)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+
+	type gradeKey struct {
+		enrollmentID   uint64
+		masterCourseID uint64
+	}
+	bestByKey := make(map[gradeKey]gradeCandidate, len(candidates))
+	for _, candidate := range candidates {
+		key := gradeKey{
+			enrollmentID:   candidate.enrollmentID,
+			masterCourseID: candidate.masterCourseID,
+		}
+		current, exists := bestByKey[key]
+		if !exists || grading.IsBetterAttempt(candidate.attempt, current.attempt) {
+			bestByKey[key] = candidate
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_course_grades grade
+		JOIN ele_course_enrollments selected
+			ON selected.round_course_enrollment_id = grade.round_course_enrollment_id
+			AND selected.deleted_at IS NULL
+			AND selected.status IN ('enrolled', 'completed')
+		JOIN ele_round_courses roundCourse
+			ON roundCourse.round_course_id = selected.round_course_id
+			AND roundCourse.deleted_at IS NULL
+		JOIN ele_round_courses sourceCourse
+			ON sourceCourse.round_id = ?
+			AND sourceCourse.free_elective_course_id = roundCourse.free_elective_course_id
+			AND sourceCourse.deleted_at IS NULL
+		SET grade.is_best_grade = 0, grade.updated_at = NOW()
+		WHERE grade.deleted_at IS NULL`, roundID); err != nil {
+		return err
+	}
+
+	for _, candidate := range bestByKey {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE ele_course_grades
+			SET is_best_grade = 1, updated_at = NOW()
+			WHERE grade_record_id = ? AND deleted_at IS NULL`, candidate.gradeRecordID); err != nil {
+			return err
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_course_scores scores
+		JOIN ele_course_grades grade
+			ON grade.grade_record_id = scores.grade_record_id
+		JOIN ele_course_enrollments selected
+			ON selected.round_course_enrollment_id = grade.round_course_enrollment_id
+		JOIN ele_round_courses roundCourse
+			ON roundCourse.round_course_id = selected.round_course_id
+			AND roundCourse.deleted_at IS NULL
+		JOIN ele_round_courses sourceCourse
+			ON sourceCourse.round_id = ?
+			AND sourceCourse.free_elective_course_id = roundCourse.free_elective_course_id
+			AND sourceCourse.deleted_at IS NULL
+		SET scores.deleted_at = NOW(), scores.updated_at = NOW()
+		WHERE scores.deleted_at IS NULL AND grade.deleted_at IS NULL`, roundID); err != nil {
+		return err
+	}
+
+	scoreRows, err := tx.QueryContext(ctx, `
+		SELECT grade.grade_record_id, mapping.round_course_competency_id,
+			grade.grade, roundCourse.grade_scheme, mapping.weight_percent
+		FROM ele_course_grades grade
+		JOIN ele_course_enrollments selected
+			ON selected.round_course_enrollment_id = grade.round_course_enrollment_id
+			AND selected.deleted_at IS NULL
+			AND selected.status IN ('enrolled', 'completed')
+		JOIN ele_round_courses roundCourse
+			ON roundCourse.round_course_id = selected.round_course_id
+			AND roundCourse.deleted_at IS NULL
+		JOIN ele_round_courses sourceCourse
+			ON sourceCourse.round_id = ?
+			AND sourceCourse.free_elective_course_id = roundCourse.free_elective_course_id
+			AND sourceCourse.deleted_at IS NULL
+		JOIN ele_round_course_competencies mapping
+			ON mapping.round_course_id = roundCourse.round_course_id
+			AND mapping.deleted_at IS NULL
+		WHERE grade.deleted_at IS NULL AND grade.is_best_grade = 1`, roundID)
+	if err != nil {
+		return err
+	}
+	type scoreCandidate struct {
+		gradeRecordID uint64
+		mappingID     uint64
+		grade         string
+		gradeScheme   string
+		weight        float64
+	}
+	scoreCandidates := make([]scoreCandidate, 0)
+	for scoreRows.Next() {
+		var candidate scoreCandidate
+		if err := scoreRows.Scan(
+			&candidate.gradeRecordID,
+			&candidate.mappingID,
+			&candidate.grade,
+			&candidate.gradeScheme,
+			&candidate.weight,
+		); err != nil {
+			_ = scoreRows.Close()
+			return err
+		}
+		scoreCandidates = append(scoreCandidates, candidate)
+	}
+	if err := scoreRows.Err(); err != nil {
+		_ = scoreRows.Close()
+		return err
+	}
+	if err := scoreRows.Close(); err != nil {
+		return err
+	}
+
+	for _, candidate := range scoreCandidates {
+		evaluation := grading.Evaluate(candidate.gradeScheme, candidate.grade)
+		if !evaluation.HasScore {
+			continue
+		}
+		weightedScore := evaluation.Score * candidate.weight / 100
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO ele_course_scores
+				(grade_record_id, round_course_competency_id, raw_score,
+				 weighted_score, weight_snapshot, grade_snapshot,
+				 grade_scheme_snapshot, calculated_by, calculated_at,
+				 created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())`,
+			candidate.gradeRecordID,
+			candidate.mappingID,
+			evaluation.Score,
+			weightedScore,
+			candidate.weight,
+			grading.Normalize(candidate.grade),
+			grading.NormalizeScheme(candidate.gradeScheme),
+			userID,
+		); err != nil {
+			return err
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_rounds target
+		JOIN ele_round_courses affectedCourse
+			ON affectedCourse.round_id = target.round_id
+			AND affectedCourse.deleted_at IS NULL
+		JOIN ele_round_courses sourceCourse
+			ON sourceCourse.round_id = ?
+			AND sourceCourse.free_elective_course_id = affectedCourse.free_elective_course_id
+			AND sourceCourse.deleted_at IS NULL
+		SET target.scores_recalculation_required = 0,
+			target.scores_recalculated_at = NOW(),
+			target.scores_recalculated_by = ?,
+			target.updated_at = NOW()
+		WHERE target.deleted_at IS NULL`, roundID, userID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_rounds
+		SET scores_recalculation_required = 0,
+			scores_recalculated_at = NOW(),
+			scores_recalculated_by = ?,
+			updated_at = NOW()
+		WHERE round_id = ? AND deleted_at IS NULL`, userID, roundID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (r *FreeElectiveRepository) AddRoundCourse(ctx context.Context, roundID, userID uint64, input models.FreeElectiveRoundCourseInput) (*models.FreeElectiveRoundCourse, error) {
@@ -264,14 +520,14 @@ func (r *FreeElectiveRepository) AddRoundCourse(ctx context.Context, roundID, us
 	var facultyID uint64
 	if err := tx.QueryRowContext(ctx, `
 		SELECT faculty_id
-		FROM ele_free_elective_rounds
+		FROM ele_rounds
 		WHERE round_id = ? AND deleted_at IS NULL`, roundID).Scan(&facultyID); err != nil {
 		return nil, err
 	}
 	var exists bool
 	if err := tx.QueryRowContext(ctx, `
 		SELECT EXISTS(
-			SELECT 1 FROM ele_free_elective_round_courses
+			SELECT 1 FROM ele_round_courses
 			WHERE round_id = ? AND free_elective_course_id = ? AND deleted_at IS NULL
 		)`, roundID, input.FreeElectiveCourseID).Scan(&exists); err != nil {
 		return nil, err
@@ -282,7 +538,7 @@ func (r *FreeElectiveRepository) AddRoundCourse(ctx context.Context, roundID, us
 	var displayOrder int
 	if err := tx.QueryRowContext(ctx, `
 		SELECT COALESCE(MAX(display_order), 0) + 1
-		FROM ele_free_elective_round_courses
+		FROM ele_round_courses
 		WHERE round_id = ? AND deleted_at IS NULL`, roundID).Scan(&displayOrder); err != nil {
 		return nil, err
 	}
@@ -319,7 +575,7 @@ func (r *FreeElectiveRepository) ReplaceRoundCourseCompetencies(ctx context.Cont
 	var exists bool
 	if err := tx.QueryRowContext(ctx, `
 		SELECT EXISTS(
-			SELECT 1 FROM ele_free_elective_round_courses
+			SELECT 1 FROM ele_round_courses
 			WHERE round_id = ? AND round_course_id = ? AND deleted_at IS NULL
 		)`, roundID, roundCourseID).Scan(&exists); err != nil {
 		return err
@@ -328,15 +584,15 @@ func (r *FreeElectiveRepository) ReplaceRoundCourseCompetencies(ctx context.Cont
 		return ErrFreeElectiveRoundCourseNotFound
 	}
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE score_free_elective_round_course_competency_scores score
-		JOIN ele_free_elective_round_course_competencies mapping
+		UPDATE ele_course_scores score
+		JOIN ele_round_course_competencies mapping
 			ON mapping.round_course_competency_id = score.round_course_competency_id
 		SET score.deleted_at = NOW(), score.updated_at = NOW()
 		WHERE mapping.round_course_id = ? AND score.deleted_at IS NULL`, roundCourseID); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE ele_free_elective_round_course_competencies
+		UPDATE ele_round_course_competencies
 		SET deleted_at = NOW(), updated_at = NOW()
 		WHERE round_course_id = ? AND deleted_at IS NULL`, roundCourseID); err != nil {
 		return err
@@ -367,7 +623,7 @@ func (r *FreeElectiveRepository) DeleteRoundCourse(ctx context.Context, roundID,
 	var learnerCount int
 	if err := tx.QueryRowContext(ctx, `
 		SELECT COUNT(*)
-		FROM ele_free_elective_round_course_enrollments
+		FROM ele_course_enrollments
 		WHERE round_course_id = ? AND deleted_at IS NULL`, roundCourseID).Scan(&learnerCount); err != nil {
 		return err
 	}
@@ -375,7 +631,7 @@ func (r *FreeElectiveRepository) DeleteRoundCourse(ctx context.Context, roundID,
 		return ErrFreeElectiveRoundCourseUsed
 	}
 	result, err := tx.ExecContext(ctx, `
-		UPDATE ele_free_elective_round_courses
+		UPDATE ele_round_courses
 		SET deleted_at = NOW(), updated_at = NOW()
 		WHERE round_id = ? AND round_course_id = ? AND deleted_at IS NULL`, roundID, roundCourseID)
 	if err != nil {
@@ -389,7 +645,7 @@ func (r *FreeElectiveRepository) DeleteRoundCourse(ctx context.Context, roundID,
 		return ErrFreeElectiveRoundCourseNotFound
 	}
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE ele_free_elective_round_course_competencies
+		UPDATE ele_round_course_competencies
 		SET deleted_at = NOW(), updated_at = NOW()
 		WHERE round_course_id = ? AND deleted_at IS NULL`, roundCourseID); err != nil {
 		return err
@@ -399,8 +655,8 @@ func (r *FreeElectiveRepository) DeleteRoundCourse(ctx context.Context, roundID,
 
 func roundCourseLearnerScope(roundID, roundCourseID uint64, filters models.FreeElectiveRoundLearnerFilters) (string, []any) {
 	query := `
-		FROM ele_free_elective_round_courses roundCourse
-		JOIN ele_free_elective_rounds round
+		FROM ele_round_courses roundCourse
+		JOIN ele_rounds round
 			ON round.round_id = roundCourse.round_id AND round.deleted_at IS NULL
 		JOIN kku_enrollments student
 			ON student.deleted_at IS NULL AND student.enrollment_status = 'student'
@@ -432,7 +688,7 @@ func roundCourseLearnerScope(roundID, roundCourseID uint64, filters models.FreeE
 			AND roundCourse.deleted_at IS NULL
 			AND NOT EXISTS (
 				SELECT 1
-				FROM ele_free_elective_round_course_enrollments selected
+				FROM ele_course_enrollments selected
 				WHERE selected.round_course_id = roundCourse.round_course_id
 					AND selected.enrollment_id = student.enrollment_id
 					AND selected.deleted_at IS NULL
@@ -518,7 +774,7 @@ func (r *FreeElectiveRepository) CountRoundCourseLearners(ctx context.Context, r
 	return count, nil
 }
 
-func (r *FreeElectiveRepository) AddRoundCourseEnrollments(ctx context.Context, roundID, roundCourseID, userID uint64, inputs []models.FreeElectiveEnrollmentInput) error {
+func (r *FreeElectiveRepository) AddRoundCourseEnrollments(ctx context.Context, roundID, roundCourseID, userID uint64, inputs []models.FreeElectiveRoundEnrollmentInput) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -534,7 +790,7 @@ func (r *FreeElectiveRepository) AddRoundCourseEnrollments(ctx context.Context, 
 	var courseExists bool
 	if err := tx.QueryRowContext(ctx, `
 		SELECT EXISTS(
-			SELECT 1 FROM ele_free_elective_round_courses
+			SELECT 1 FROM ele_round_courses
 			WHERE round_id = ? AND round_course_id = ? AND deleted_at IS NULL
 		)`, roundID, roundCourseID).Scan(&courseExists); err != nil {
 		return err
@@ -572,7 +828,7 @@ func (r *FreeElectiveRepository) AddRoundCourseEnrollments(ctx context.Context, 
 		if err := tx.QueryRowContext(ctx, `
 			SELECT EXISTS(
 				SELECT 1
-				FROM ele_free_elective_round_course_enrollments
+				FROM ele_course_enrollments
 				WHERE round_course_id = ? AND enrollment_id = ? AND deleted_at IS NULL
 			)`, roundCourseID, input.EnrollmentID).Scan(&existing); err != nil {
 			return err
@@ -581,7 +837,7 @@ func (r *FreeElectiveRepository) AddRoundCourseEnrollments(ctx context.Context, 
 			return ErrFreeElectiveRoundEnrollmentExists
 		}
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO ele_free_elective_round_course_enrollments
+			INSERT INTO ele_course_enrollments
 				(round_course_id, enrollment_id, enrollment_curriculum_id,
 				 status, enrolled_at, enrolled_by, created_at, updated_at)
 			VALUES (?, ?, ?, 'enrolled', NOW(), ?, NOW(), NOW())`,
@@ -611,7 +867,7 @@ func (r *FreeElectiveRepository) AddAllRoundCourseLearners(ctx context.Context, 
 	var courseExists bool
 	if err := tx.QueryRowContext(ctx, `
 		SELECT EXISTS(
-			SELECT 1 FROM ele_free_elective_round_courses
+			SELECT 1 FROM ele_round_courses
 			WHERE round_id = ? AND round_course_id = ? AND deleted_at IS NULL
 		)`, roundID, roundCourseID).Scan(&courseExists); err != nil {
 		return 0, err
@@ -621,7 +877,7 @@ func (r *FreeElectiveRepository) AddAllRoundCourseLearners(ctx context.Context, 
 	}
 	scope, scopeArgs := roundCourseLearnerScope(roundID, roundCourseID, filters)
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO ele_free_elective_round_course_enrollments
+		INSERT INTO ele_course_enrollments
 			(round_course_id, enrollment_id, enrollment_curriculum_id,
 			 status, enrolled_at, enrolled_by, created_at, updated_at)
 		SELECT ?, student.enrollment_id, roster.enrollment_curriculum_id,
@@ -668,7 +924,7 @@ func (r *FreeElectiveRepository) DeleteRoundCourseEnrollments(ctx context.Contex
 	var activeCount int
 	if err := tx.QueryRowContext(ctx, `
 		SELECT COUNT(*)
-		FROM ele_free_elective_round_course_enrollments
+		FROM ele_course_enrollments
 		WHERE round_course_id = ?
 			AND round_course_enrollment_id IN (`+placeholders+`)
 			AND deleted_at IS NULL`, selectionArgs...).Scan(&activeCount); err != nil {
@@ -679,10 +935,10 @@ func (r *FreeElectiveRepository) DeleteRoundCourseEnrollments(ctx context.Contex
 	}
 
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE score_free_elective_round_course_competency_scores scores
-		JOIN ele_free_elective_round_course_grade_records grades
+		UPDATE ele_course_scores scores
+		JOIN ele_course_grades grades
 			ON grades.grade_record_id = scores.grade_record_id
-		JOIN ele_free_elective_round_course_enrollments selected
+		JOIN ele_course_enrollments selected
 			ON selected.round_course_enrollment_id = grades.round_course_enrollment_id
 			AND selected.round_course_id = ?
 			AND selected.deleted_at IS NULL
@@ -694,8 +950,8 @@ func (r *FreeElectiveRepository) DeleteRoundCourseEnrollments(ctx context.Contex
 	}
 
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE ele_free_elective_round_course_grade_records grades
-		JOIN ele_free_elective_round_course_enrollments selected
+		UPDATE ele_course_grades grades
+		JOIN ele_course_enrollments selected
 			ON selected.round_course_enrollment_id = grades.round_course_enrollment_id
 			AND selected.round_course_id = ?
 			AND selected.deleted_at IS NULL
@@ -705,7 +961,7 @@ func (r *FreeElectiveRepository) DeleteRoundCourseEnrollments(ctx context.Contex
 	}
 
 	result, err := tx.ExecContext(ctx, `
-		UPDATE ele_free_elective_round_course_enrollments
+		UPDATE ele_course_enrollments
 		SET deleted_at = NOW(), updated_at = NOW()
 		WHERE round_course_enrollment_id IN (`+placeholders+`)
 			AND round_course_id = ?
@@ -782,10 +1038,10 @@ func (r *FreeElectiveRepository) upsertRoundCourseGradeByEnrollmentKey(ctx conte
 	var targetStatus, enrollmentStatus string
 	if err := tx.QueryRowContext(ctx, `
 		SELECT roundCourse.round_id, round.status, selected.status
-		FROM ele_free_elective_round_course_enrollments selected
-		JOIN ele_free_elective_round_courses roundCourse
+		FROM ele_course_enrollments selected
+		JOIN ele_round_courses roundCourse
 			ON roundCourse.round_course_id = selected.round_course_id
-		JOIN ele_free_elective_rounds round
+		JOIN ele_rounds round
 			ON round.round_id = roundCourse.round_id
 		WHERE selected.round_course_enrollment_id = ?
 			AND selected.round_course_id = ? AND roundCourse.round_id = ?
@@ -808,7 +1064,7 @@ func (r *FreeElectiveRepository) upsertRoundCourseGradeByEnrollmentKey(ctx conte
 		return ErrFreeElectiveRoundEnrollmentInvalid
 	}
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO ele_free_elective_round_course_grade_records
+		INSERT INTO ele_course_grades
 			(round_course_enrollment_id, grade, grade_source, source_reference,
 			 is_best_grade, recorded_by, recorded_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, 0, ?, NOW(), NOW(), NOW())
@@ -828,15 +1084,15 @@ func (r *FreeElectiveRepository) RecalculateRoundCourseBestGrade(ctx context.Con
 	rows, err := r.DB.QueryContext(ctx, `
 		SELECT grade.grade_record_id, grade.grade, roundCourse.grade_scheme,
 			round.academic_year_be, round.semester
-		FROM ele_free_elective_round_course_grade_records grade
-		JOIN ele_free_elective_round_course_enrollments selected
+		FROM ele_course_grades grade
+		JOIN ele_course_enrollments selected
 			ON selected.round_course_enrollment_id = grade.round_course_enrollment_id
 			AND selected.enrollment_id = ? AND selected.deleted_at IS NULL
 			AND selected.status IN ('enrolled', 'completed')
-		JOIN ele_free_elective_round_courses roundCourse
+		JOIN ele_round_courses roundCourse
 			ON roundCourse.round_course_id = selected.round_course_id
 			AND roundCourse.free_elective_course_id = ? AND roundCourse.deleted_at IS NULL
-		JOIN ele_free_elective_rounds round
+		JOIN ele_rounds round
 			ON round.round_id = roundCourse.round_id AND round.deleted_at IS NULL
 		WHERE grade.deleted_at IS NULL`, enrollmentID, masterCourseID)
 	if err != nil {
@@ -884,10 +1140,10 @@ func (r *FreeElectiveRepository) RecalculateRoundCourseBestGrade(ctx context.Con
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE ele_free_elective_round_course_grade_records grade
-		JOIN ele_free_elective_round_course_enrollments selected
+		UPDATE ele_course_grades grade
+		JOIN ele_course_enrollments selected
 			ON selected.round_course_enrollment_id = grade.round_course_enrollment_id
-		JOIN ele_free_elective_round_courses roundCourse
+		JOIN ele_round_courses roundCourse
 			ON roundCourse.round_course_id = selected.round_course_id
 		SET grade.is_best_grade = CASE WHEN grade.grade_record_id = ? THEN 1 ELSE 0 END,
 			grade.updated_at = NOW()

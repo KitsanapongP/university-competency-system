@@ -52,15 +52,15 @@ const freeElectiveRoundSelect = `
 		COUNT(DISTINCT CASE WHEN enrollment.status IN ('enrolled', 'completed') THEN enrollment.enrollment_id END),
 		COUNT(DISTINCT grade.grade_record_id),
 		round.created_at, round.updated_at
-	FROM ele_free_elective_rounds round
+	FROM ele_rounds round
 	JOIN org_faculties faculty
 		ON faculty.faculty_id = round.faculty_id AND faculty.deleted_at IS NULL
-	LEFT JOIN ele_free_elective_round_courses roundCourse
+	LEFT JOIN ele_round_courses roundCourse
 		ON roundCourse.round_id = round.round_id AND roundCourse.deleted_at IS NULL
-	LEFT JOIN ele_free_elective_round_course_enrollments enrollment
+	LEFT JOIN ele_course_enrollments enrollment
 		ON enrollment.round_course_id = roundCourse.round_course_id
 		AND enrollment.deleted_at IS NULL
-	LEFT JOIN ele_free_elective_round_course_grade_records grade
+	LEFT JOIN ele_course_grades grade
 		ON grade.round_course_enrollment_id = enrollment.round_course_enrollment_id
 		AND grade.deleted_at IS NULL
 	WHERE round.deleted_at IS NULL`
@@ -122,7 +122,7 @@ func (r *FreeElectiveRepository) RoundExists(ctx context.Context, facultyID, aca
 	err := r.DB.QueryRowContext(ctx, `
 		SELECT EXISTS(
 			SELECT 1
-			FROM ele_free_elective_rounds
+			FROM ele_rounds
 			WHERE faculty_id = ? AND academic_year_be = ? AND semester = ?
 				AND deleted_at IS NULL
 		)`, facultyID, academicYearBE, semester).Scan(&exists)
@@ -162,11 +162,11 @@ func (r *FreeElectiveRepository) GetRoundCourses(ctx context.Context, roundID ui
 			COUNT(DISTINCT CASE WHEN enrollment.status IN ('enrolled', 'completed') THEN enrollment.enrollment_id END),
 			COUNT(DISTINCT grade.grade_record_id),
 			roundCourse.created_at, roundCourse.updated_at
-		FROM ele_free_elective_round_courses roundCourse
-		LEFT JOIN ele_free_elective_round_course_enrollments enrollment
+		FROM ele_round_courses roundCourse
+		LEFT JOIN ele_course_enrollments enrollment
 			ON enrollment.round_course_id = roundCourse.round_course_id
 			AND enrollment.deleted_at IS NULL
-		LEFT JOIN ele_free_elective_round_course_grade_records grade
+		LEFT JOIN ele_course_grades grade
 			ON grade.round_course_enrollment_id = enrollment.round_course_enrollment_id
 			AND grade.deleted_at IS NULL
 		WHERE roundCourse.round_id = ? AND roundCourse.deleted_at IS NULL
@@ -214,7 +214,7 @@ func (r *FreeElectiveRepository) GetRoundCourseCompetencies(ctx context.Context,
 			mapping.competency_id, competency.code, competency.name_th,
 			COALESCE(competency.name_en, ''), mapping.weight_percent,
 			mapping.display_order
-		FROM ele_free_elective_round_course_competencies mapping
+		FROM ele_round_course_competencies mapping
 		JOIN comp_competencies competency
 			ON competency.competency_id = mapping.competency_id
 			AND competency.deleted_at IS NULL
@@ -275,7 +275,7 @@ func getFreeElectiveRoundMasterCourse(ctx context.Context, tx *sql.Tx, courseID 
 	err := tx.QueryRowContext(ctx, `
 		SELECT free_elective_course_id, faculty_id, code, name_th,
 			name_en, description, credits, grade_scheme, is_active
-		FROM ele_free_elective_courses
+		FROM ele_courses
 		WHERE free_elective_course_id = ? AND deleted_at IS NULL`, courseID).Scan(
 		&course.ID,
 		&course.FacultyID,
@@ -295,7 +295,7 @@ func getFreeElectiveRoundMasterCourseByCode(ctx context.Context, tx *sql.Tx, fac
 	err := tx.QueryRowContext(ctx, `
 		SELECT free_elective_course_id, faculty_id, code, name_th,
 			name_en, description, credits, grade_scheme, is_active
-		FROM ele_free_elective_courses
+		FROM ele_courses
 		WHERE faculty_id = ? AND code = ? AND deleted_at IS NULL`,
 		facultyID,
 		strings.TrimSpace(code),
@@ -315,7 +315,7 @@ func getFreeElectiveRoundMasterCourseByCode(ctx context.Context, tx *sql.Tx, fac
 
 func createFreeElectiveRoundMasterCourse(ctx context.Context, tx *sql.Tx, facultyID, userID uint64, input models.FreeElectiveRoundCourseInput) (freeElectiveRoundMasterCourse, error) {
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO ele_free_elective_courses
+		INSERT INTO ele_courses
 			(faculty_id, code, name_th, name_en, description, credits, grade_scheme,
 			 is_active, created_by, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, NOW(), NOW())`,
@@ -384,7 +384,7 @@ func insertFreeElectiveRoundCourse(ctx context.Context, tx *sql.Tx, roundID, fac
 		gradeScheme = master.GradeScheme
 	}
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO ele_free_elective_round_courses
+		INSERT INTO ele_round_courses
 			(round_id, free_elective_course_id, course_code, course_name_th,
 			 course_name_en, description, credits, grade_scheme, display_order,
 			 created_by, created_at, updated_at)
@@ -410,7 +410,7 @@ func insertFreeElectiveRoundCourse(ctx context.Context, tx *sql.Tx, roundID, fac
 func insertFreeElectiveRoundCourseCompetencies(ctx context.Context, tx *sql.Tx, roundCourseID uint64, competencies []models.FreeElectiveRoundCompetencyInput) error {
 	for order, competency := range competencies {
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO ele_free_elective_round_course_competencies
+			INSERT INTO ele_round_course_competencies
 				(round_course_id, competency_id, weight_percent, display_order, created_at, updated_at)
 			VALUES (?, ?, ?, ?, NOW(), NOW())`,
 			roundCourseID,
@@ -432,7 +432,7 @@ func (r *FreeElectiveRepository) CreateRound(ctx context.Context, payload models
 	defer func() { _ = tx.Rollback() }()
 
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO ele_free_elective_rounds
+		INSERT INTO ele_rounds
 			(faculty_id, academic_year_be, semester, status, created_by, created_at, updated_at)
 		VALUES (?, ?, ?, 'draft', ?, NOW(), NOW())`,
 		payload.FacultyID,
@@ -474,7 +474,7 @@ func (r *FreeElectiveRepository) DuplicateRound(ctx context.Context, sourceRound
 	defer func() { _ = tx.Rollback() }()
 
 	result, err := tx.ExecContext(ctx, `
-		INSERT INTO ele_free_elective_rounds
+		INSERT INTO ele_rounds
 			(faculty_id, academic_year_be, semester, status, created_by, created_at, updated_at)
 		VALUES (?, ?, ?, 'draft', ?, NOW(), NOW())`,
 		source.Round.FacultyID,
@@ -522,7 +522,7 @@ func (r *FreeElectiveRepository) DuplicateRound(ctx context.Context, sourceRound
 
 func (r *FreeElectiveRepository) UpdateRoundStatus(ctx context.Context, roundID uint64, status string, userID uint64) error {
 	result, err := r.DB.ExecContext(ctx, `
-		UPDATE ele_free_elective_rounds
+		UPDATE ele_rounds
 		SET status = ?,
 			finalized_at = CASE WHEN ? = 'finalized' THEN NOW() ELSE finalized_at END,
 			finalized_by = CASE WHEN ? = 'finalized' THEN ? ELSE finalized_by END,

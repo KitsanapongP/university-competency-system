@@ -21,16 +21,18 @@ func recomputeCompetencyResultsTx(ctx context.Context, tx *sql.Tx, cohortID uint
 		LEFT JOIN score_course_competency_scores score ON score.course_student_id = courseEnrollment.course_student_id AND score.competency_id = requirement.competency_id AND score.deleted_at IS NULL
 		LEFT JOIN (
 			SELECT selected.enrollment_id, mapping.competency_id, SUM(score.weighted_score) AS free_elective_score
-			FROM score_free_elective_competency_scores score
-			JOIN ele_offering_grade_records grade ON grade.grade_record_id = score.grade_record_id
+			FROM ele_course_scores score
+			JOIN ele_course_grades grade ON grade.grade_record_id = score.grade_record_id
 				AND grade.deleted_at IS NULL
-			JOIN ele_offering_enrollments selected ON selected.offering_enrollment_id = grade.offering_enrollment_id
+			JOIN ele_course_enrollments selected ON selected.round_course_enrollment_id = grade.round_course_enrollment_id
 				AND selected.deleted_at IS NULL AND selected.status IN ('enrolled', 'completed')
 			JOIN kku_enrollments freeElectiveStudent ON freeElectiveStudent.enrollment_id = selected.enrollment_id
 				AND freeElectiveStudent.enrollment_status = 'student' AND freeElectiveStudent.deleted_at IS NULL
-			JOIN ele_free_elective_offerings offering ON offering.offering_id = selected.offering_id
-				AND offering.deleted_at IS NULL AND offering.status = 'finalized'
-			JOIN ele_offering_competencies mapping ON mapping.offering_competency_id = score.offering_competency_id
+			JOIN ele_round_courses roundCourse ON roundCourse.round_course_id = selected.round_course_id
+				AND roundCourse.deleted_at IS NULL
+			JOIN ele_rounds round ON round.round_id = roundCourse.round_id
+				AND round.deleted_at IS NULL AND round.status = 'finalized'
+			JOIN ele_round_course_competencies mapping ON mapping.round_course_competency_id = score.round_course_competency_id
 				AND mapping.deleted_at IS NULL
 			WHERE score.deleted_at IS NULL
 			GROUP BY selected.enrollment_id, mapping.competency_id

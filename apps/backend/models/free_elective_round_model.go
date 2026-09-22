@@ -149,6 +149,10 @@ type DuplicateFreeElectiveRoundPayload struct {
 	Semester       uint64 `json:"semester"`
 }
 
+type UpdateFreeElectiveRoundStatusPayload struct {
+	Status string `json:"status"`
+}
+
 type AddFreeElectiveRoundCoursePayload struct {
 	FreeElectiveCourseID uint64                             `json:"free_elective_course_id"`
 	Competencies         []FreeElectiveRoundCompetencyInput `json:"competencies"`
@@ -159,7 +163,7 @@ type ReplaceFreeElectiveRoundCourseCompetenciesPayload struct {
 }
 
 type AddFreeElectiveRoundEnrollmentsPayload struct {
-	Enrollments []FreeElectiveEnrollmentInput `json:"enrollments"`
+	Enrollments []FreeElectiveRoundEnrollmentInput `json:"enrollments"`
 }
 
 type DeleteFreeElectiveRoundEnrollmentsPayload struct {

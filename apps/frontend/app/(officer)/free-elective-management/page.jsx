@@ -8,18 +8,12 @@ import { useLanguage } from '../../../providers/LanguageContext';
 import { fetchCompetenciesForManagement } from '../../../lib/competency-management';
 import { fetchFaculties } from '../../../lib/curriculum';
 import {
-    createFreeElectiveCourse,
     createFreeElectiveRound,
     fetchFreeElectiveCourses,
     fetchFreeElectiveRounds,
-    getFreeElectiveImpactFromError,
     previewFreeElectiveRound,
-    updateFreeElectiveCourse,
 } from '../../../lib/free-elective';
-import ConfirmActionModal from '../../../components/ui/ConfirmActionModal';
 import ToastNotifications from '../../../components/ui/ToastNotifications';
-import FreeElectiveCourseCard from './components/FreeElectiveCourseCard';
-import FreeElectiveCourseModal from './components/FreeElectiveCourseModal';
 import FreeElectiveFilters from './components/FreeElectiveFilters';
 import FreeElectiveRoundCard from './components/FreeElectiveRoundCard';
 import FreeElectiveRoundWizard from './components/FreeElectiveRoundWizard';
@@ -29,15 +23,6 @@ import './FreeElectiveManagement.css';
 
 function getDefaultFacultyId(user) {
     return user?.faculty_id || '';
-}
-
-function ImpactStat({ label, value }) {
-    return (
-        <div>
-            <span>{label}</span>
-            <strong>{value}</strong>
-        </div>
-    );
 }
 
 function FreeElectiveManagementPageContent() {
@@ -65,12 +50,8 @@ function FreeElectiveManagementPageContent() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
-    const [courseCatalogOpen, setCourseCatalogOpen] = useState(false);
     const [roundWizardOpen, setRoundWizardOpen] = useState(false);
     const [roundWizardKey, setRoundWizardKey] = useState(0);
-    const [courseModalOpen, setCourseModalOpen] = useState(false);
-    const [editingCourse, setEditingCourse] = useState(null);
-    const [impactConfirmation, setImpactConfirmation] = useState(null);
     const competencyRefreshInFlightRef = useRef(false);
     const catalogKey = selectedFacultyId || 'all';
     const wizardFacultyId = selectedFacultyId || accountFacultyId || faculties[0]?.facultyId || '';
@@ -161,10 +142,10 @@ function FreeElectiveManagementPageContent() {
     }, [authLoading, loadRounds, user]);
 
     useEffect(() => {
-        if (roundWizardOpen || courseCatalogOpen) {
+        if (roundWizardOpen) {
             loadCourseCatalog();
         }
-    }, [courseCatalogOpen, loadCourseCatalog, roundWizardOpen]);
+    }, [loadCourseCatalog, roundWizardOpen]);
 
     const availableYears = useMemo(() => (
         Array.from(
@@ -195,76 +176,9 @@ function FreeElectiveManagementPageContent() {
         setQueryValue(queryKey, value);
     };
 
-    const openCourseCatalog = () => {
-        setCourseCatalogOpen((current) => !current);
-    };
-
-    const openCreateCourse = () => {
-        setEditingCourse(null);
-        setCourseModalOpen(true);
-    };
-
     const openRoundWizard = () => {
         setRoundWizardKey((current) => current + 1);
         setRoundWizardOpen(true);
-    };
-
-    const openEditCourse = (course) => {
-        setEditingCourse(course);
-        setCourseModalOpen(true);
-    };
-
-    const handleCourseSubmit = async (form) => {
-        setSaving(true);
-        setError('');
-        try {
-            if (editingCourse) {
-                await updateFreeElectiveCourse(editingCourse.id, form);
-                setSuccess(labels.saveSuccess);
-            } else {
-                await createFreeElectiveCourse(form);
-                setSuccess(labels.courseCreated);
-            }
-            setCourseModalOpen(false);
-            setEditingCourse(null);
-            setCourses([]);
-            await loadCourseCatalog(true);
-        } catch (saveError) {
-            const impact = getFreeElectiveImpactFromError(saveError);
-            if (saveError.code === 'GRADE_SCHEME_CHANGE_REQUIRES_CONFIRMATION' && impact) {
-                setImpactConfirmation({ form, impact });
-            } else {
-                setError(saveError.message || labels.loadError);
-            }
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const confirmCourseSchemeChange = async () => {
-        if (!editingCourse || !impactConfirmation) {
-            return;
-        }
-
-        setSaving(true);
-        setError('');
-        try {
-            await updateFreeElectiveCourse(
-                editingCourse.id,
-                impactConfirmation.form,
-                true,
-            );
-            setImpactConfirmation(null);
-            setCourseModalOpen(false);
-            setEditingCourse(null);
-            setSuccess(labels.saveSuccess);
-            setCourses([]);
-            await loadCourseCatalog(true);
-        } catch (saveError) {
-            setError(saveError.message || labels.loadError);
-        } finally {
-            setSaving(false);
-        }
     };
 
     const handleRoundPreview = async (form) => {
@@ -298,8 +212,6 @@ function FreeElectiveManagementPageContent() {
     const goToGroups = () => {
         router.push('/free-elective-management/groups');
     };
-
-    const impact = impactConfirmation?.impact;
 
     return (
         <div className="free-elective-page officer-page ui-page">
@@ -392,45 +304,6 @@ function FreeElectiveManagementPageContent() {
                 onPreview={handleRoundPreview}
                 onRefreshCompetencies={refreshCompetencies}
                 onSubmit={handleRoundSubmit}
-            />
-            <FreeElectiveCourseModal
-                key={`${editingCourse?.id || 'new'}-${courseModalOpen ? 'open' : 'closed'}`}
-                open={courseModalOpen}
-                course={editingCourse}
-                faculties={faculties}
-                defaultFacultyId={accountFacultyId}
-                language={language}
-                labels={labels}
-                saving={saving}
-                onClose={() => {
-                    setCourseModalOpen(false);
-                    setEditingCourse(null);
-                }}
-                onSubmit={handleCourseSubmit}
-            />
-            <ConfirmActionModal
-                open={Boolean(impactConfirmation)}
-                title={labels.schemeChangeTitle}
-                message={labels.schemeChangeMessage}
-                variant="warning"
-                size="md"
-                loading={saving}
-                confirmLabel={labels.confirmChange}
-                cancelLabel={labels.cancel}
-                onConfirm={confirmCourseSchemeChange}
-                onCancel={() => setImpactConfirmation(null)}
-                impact={impact && (
-                    <div className="free-elective-impact-list">
-                        <ImpactStat label={labels.gradeRecordCount} value={impact.grade_record_count} />
-                        <ImpactStat label={labels.learnerCount} value={impact.learner_count} />
-                        <ImpactStat label={labels.offeringCount} value={impact.offering_count} />
-                        <ImpactStat
-                            label={labels.finalizedOfferingCount}
-                            value={impact.finalized_offering_count}
-                        />
-                        <ImpactStat label={labels.cohortCount} value={impact.cohort_count} />
-                    </div>
-                )}
             />
             <ToastNotifications
                 success={success}
