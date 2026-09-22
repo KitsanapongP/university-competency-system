@@ -37,6 +37,10 @@ func validFreeElectiveRoundStatus(status string) bool {
 	}
 }
 
+func canRevertActiveRoundToDraft(round models.FreeElectiveRound) bool {
+	return round.Status == "active" && round.LearnerCount == 0 && round.GradeCount == 0
+}
+
 func validateFreeElectiveRoundFilters(filters models.FreeElectiveRoundFilters) error {
 	if filters.AcademicYearBE != nil && *filters.AcademicYearBE == 0 {
 		return FreeElectiveValidationError{Message: "academic_year_be must be greater than zero"}
@@ -160,11 +164,23 @@ func (s *FreeElectiveService) UpdateRoundStatus(ctx context.Context, claims *uti
 		return nil, err
 	}
 	nextStatus := strings.ToLower(strings.TrimSpace(status))
-	if nextStatus != "active" && nextStatus != "cancelled" && nextStatus != "finalized" {
-		return nil, FreeElectiveValidationError{Message: "status must be active, finalized, or cancelled"}
+	if nextStatus != "draft" && nextStatus != "active" && nextStatus != "cancelled" && nextStatus != "finalized" {
+		return nil, FreeElectiveValidationError{Message: "status must be draft, active, finalized, or cancelled"}
 	}
 	if detail.Round.Status == "finalized" || detail.Round.Status == "cancelled" {
 		return nil, FreeElectiveConflictError{Code: "ROUND_NOT_EDITABLE", Message: "finalized or cancelled round cannot change status"}
+	}
+	if nextStatus == "draft" {
+		if !canRevertActiveRoundToDraft(detail.Round) {
+			return nil, FreeElectiveConflictError{
+				Code:    "ROUND_REVERT_DRAFT_REQUIRES_EMPTY",
+				Message: "an active round can return to draft only when it has no learners or grades",
+				Data: map[string]int{
+					"learner_count": detail.Round.LearnerCount,
+					"grade_count":   detail.Round.GradeCount,
+				},
+			}
+		}
 	}
 	if nextStatus == "active" && len(detail.Courses) == 0 {
 		return nil, FreeElectiveConflictError{Code: "COURSES_REQUIRED", Message: "add at least one course before opening the round"}

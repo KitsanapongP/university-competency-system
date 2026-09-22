@@ -61,6 +61,43 @@ func TestValidateNewRoundCourseRequiresInlineFields(t *testing.T) {
 	}
 }
 
+func TestCanRevertActiveRoundToDraftOnlyWhenEmpty(t *testing.T) {
+	tests := []struct {
+		name   string
+		round  models.FreeElectiveRound
+		wanted bool
+	}{
+		{
+			name:   "active round without learners or grades",
+			round:  models.FreeElectiveRound{Status: "active"},
+			wanted: true,
+		},
+		{
+			name:   "active round with learners",
+			round:  models.FreeElectiveRound{Status: "active", LearnerCount: 1},
+			wanted: false,
+		},
+		{
+			name:   "active round with grades",
+			round:  models.FreeElectiveRound{Status: "active", GradeCount: 1},
+			wanted: false,
+		},
+		{
+			name:   "draft round",
+			round:  models.FreeElectiveRound{Status: "draft"},
+			wanted: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := canRevertActiveRoundToDraft(test.round); got != test.wanted {
+				t.Fatalf("canRevertActiveRoundToDraft(%#v) = %v, want %v", test.round, got, test.wanted)
+			}
+		})
+	}
+}
+
 func TestValidateNewRoundCourseAcceptsCompleteInlineCourse(t *testing.T) {
 	issue := validateNewRoundCourse(models.FreeElectiveRoundCourseInput{
 		CourseCode:   "GE101",
