@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, use } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-    Award,
     BookOpenText,
     Activity,
     Brain,
@@ -27,6 +26,7 @@ import CompetencyRadarChart from '../components/competency/CompetencyRadarChart'
 import ActivityDetailPanel from '../components/competency/ActivityDetailPanel';
 import GapAnalysis from '../components/competency/GapAnalysis';
 import LoadingSkeleton from '../components/competency/LoadingSkeleton';
+import LearnerAcademicProfile from '../components/learner/LearnerAcademicProfile';
 import { useAuth } from '../providers/auth-provider';
 import { useLanguage } from '../providers/LanguageContext';
 
@@ -63,9 +63,6 @@ export default function CompetencyPage() {
     // Category: 'activity' | 'course'
     const [category, setCategory] = useState('course');
 
-    // Course History States
-    const[courseHistory, setCourseHistoryMap] = useState([]);
-    
     // Activity History States
     const [activityHistory, setActivityHistoryMap] = useState([]);
 
@@ -177,8 +174,6 @@ export default function CompetencyPage() {
                 const years = normalizeYears(payload.available_years || [], historyMap);
                 if (category === 'activity') {
                     setActivityHistoryMap(historyMap);
-                } else {
-                    setCourseHistoryMap(historyMap);
                 }
 
                 setCompetencies(styledCompetencies);
@@ -555,74 +550,7 @@ export default function CompetencyPage() {
 
             {/* PROFILE PAGE */}
             {activePage === 'profile' && (
-                <div className="profile-page">
-                    <div className="profile-grid">
-                        <div className="profile-card card">
-                            <div className="profile-avatar">KP</div>
-                            <h3>Learner Dev</h3>
-                            <p>Student ID: 6530xxxxx</p>
-                            <p>Faculty of Engineering</p>
-                            <p>Computer Engineering</p>
-                        </div>
-
-                        <div className="activity-history card">
-                            <div className="card-header">
-                                <h2>
-                                    <Award size={20} className="section-icon" />
-                                    {t('activity_history')}
-                                </h2>
-                            </div>
-                            <div className="activity-list">
-                                {Object.values(activityHistory).flat()
-                                .filter(act => act.type != 'course')
-                                .slice(0, 5)
-                                .map(act => (
-                                    <div key={act.id} className="activity-item">
-                                        <div className="activity-badge">{(act.type || 'A').charAt(0)}</div>
-                                        <div className="activity-info">
-                                            <h4>{act.title}</h4>
-                                            <span>{act.date}</span>
-                                        </div>
-                                        <div className="activity-status verified">
-                                            {t('verified')}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className='course-history-card'>
-                                <div className="card-header" style={{ marginTop: '1.5rem' }}>
-                                    <h2>
-                                        <BookOpenText size={20} className="section-icon" />
-                                        {t('course_history')}
-                                    </h2>
-                                </div>
-                                <div className="course-history-list">
-                                    {Object.values(courseHistory).flat().length === 0 ? (
-                                        <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8' }}>
-                                            {t('no_course_history')}
-                                        </div>
-                                    ) : (
-                                        // ใช้ Set กรอง title ซ้ำออก
-                                        [...new Map(
-                                            Object.values(courseHistory).flat().map(c => [c.title, c])
-                                        ).values()].map(course => (
-                                            <div key={course.id} className="activity-item">
-                                                <div className="activity-badge">C</div>
-                                                <div className="activity-info">
-                                                    <h4>{course.title}</h4>
-                                                    <span>{course.year}</span>
-                                                </div>
-                                                <div className="activity-status verified">
-                                                    {t('verified')}
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <LearnerAcademicProfile activityHistory={activityHistory} />
             )}
 
             {/* VERIFY PAGE */}
