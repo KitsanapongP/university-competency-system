@@ -16,7 +16,6 @@ import {
     fetchFreeElectiveStudentDetail,
 } from '../../../../../lib/free-elective';
 import ToastNotifications from '../../../../../components/ui/ToastNotifications';
-import FreeElectiveEnrollmentStatusBadge from '../../components/FreeElectiveEnrollmentStatusBadge';
 import {
     FREE_ELECTIVE_LABELS,
     freeElectiveGradeSourceLabel,
@@ -210,10 +209,9 @@ export default function FreeElectiveStudentDetailPage() {
                         <div className="free-elective-student-course-list">
                             <div className="free-elective-student-course-list__header">
                                 <span>{labels.course}</span>
-                                <span>{labels.sectionNo}</span>
                                 <span>{labels.grade}</span>
                                 <span>{labels.gradeSource}</span>
-                                <span>{labels.enrollmentStatus}</span>
+                                <span>{labels.calculationStatus}</span>
                             </div>
                             {term.courses.map((course) => {
                                 const key = `${course.roundCourseEnrollmentId}-${course.courseCode}`;
@@ -224,9 +222,6 @@ export default function FreeElectiveStudentDetailPage() {
                                             <strong>{course.courseCode}</strong>
                                             <span>{courseName(course, language)}</span>
                                         </div>
-                                        <span>
-                                            {labels.sectionNo} {course.sectionNo}
-                                        </span>
                                         <strong className="free-elective-grade-value">
                                             {course.grade || labels.noGrade}
                                         </strong>
@@ -234,17 +229,17 @@ export default function FreeElectiveStudentDetailPage() {
                                             {course.grade
                                                 ? freeElectiveGradeSourceLabel(course.gradeSource, language)
                                                 : labels.noGrade}
-                                            {course.isBestGrade && (
+                                        </span>
+                                        <span>
+                                            {course.isBestGrade ? (
                                                 <span className="free-elective-best-badge">
                                                     <Check size={13} aria-hidden="true" />
                                                     {labels.usedForCalculation}
                                                 </span>
+                                            ) : (
+                                                '-'
                                             )}
                                         </span>
-                                        <FreeElectiveEnrollmentStatusBadge
-                                            status={course.status}
-                                            language={language}
-                                        />
                                     </div>
                                 );
                             })}
