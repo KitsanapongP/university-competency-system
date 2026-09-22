@@ -98,6 +98,9 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	freeElectiveRepo := repositories.NewFreeElectiveRepository(db)
 	freeElectiveSvc := services.NewFreeElectiveService(freeElectiveRepo)
 	freeElectiveHandler := &controllers.FreeElectiveController{Service: freeElectiveSvc}
+	learnerProfileRepo := repositories.NewLearnerProfileRepository(db)
+	learnerProfileSvc := services.NewLearnerProfileService(learnerProfileRepo)
+	learnerProfileHandler := &controllers.LearnerProfileController{Service: learnerProfileSvc}
 
 	// Versioned API routes
 	r.Route("/api/v1", func(api chi.Router) {
@@ -153,6 +156,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			})
 
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)
+			pr.With(middleware.RequireRoles("learner")).Get("/learner/academic-profile", learnerProfileHandler.GetAcademicProfile)
 			pr.Get("/competencies", competencyHandler.GetAll)
 
 			pr.With(middleware.RequireRoles("admin", "officer")).Post("/competencies", competencyHandler.Create)
