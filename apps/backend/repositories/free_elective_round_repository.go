@@ -6,14 +6,17 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/spw32767/university-competency-system-backend/models"
 )
 
 var (
-	ErrFreeElectiveRoundLocked       = errors.New("free-elective round is locked")
-	ErrFreeElectiveRoundCourseUsed   = errors.New("free-elective round course has enrollments")
-	ErrFreeElectiveRoundNotFound     = errors.New("free-elective round not found")
-	ErrFreeElectiveRoundCourseExists = errors.New("free-elective course is already in this round")
+	ErrFreeElectiveRoundLocked                     = errors.New("free-elective round is locked")
+	ErrFreeElectiveRoundCourseUsed                 = errors.New("free-elective round course has enrollments")
+	ErrFreeElectiveRoundNotFound                   = errors.New("free-elective round not found")
+	ErrFreeElectiveRoundCourseExists               = errors.New("free-elective course is already in this round")
+	ErrFreeElectiveRoundFacultyChangeRequiresEmpty = errors.New("faculty can change only on an empty draft round")
+	ErrFreeElectiveRoundPeriodExists               = errors.New("free-elective round already exists for this period")
 )
 
 func scanFreeElectiveRound(scanner interface{ Scan(...any) error }) (models.FreeElectiveRound, error) {
@@ -539,4 +542,109 @@ func (r *FreeElectiveRepository) UpdateRoundStatus(ctx context.Context, roundID 
 		return ErrFreeElectiveRoundNotFound
 	}
 	return nil
+}
+
+func (r *FreeElectiveRepository) UpdateRoundMetadata(ctx context.Context, roundID uint64, payload models.UpdateFreeElectiveRoundPayload, userID uint64) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var status string
+	var currentFacultyID, currentYear, currentSemester uint64
+	var courseCount, learnerCount, gradeCount int
+	err = tx.QueryRowContext(ctx, `
+		SELECT round.status, round.faculty_id, round.academic_year_be, round.semester,
+			(SELECT COUNT(*) FROM ele_round_courses course
+				WHERE course.round_id = round.round_id AND course.deleted_at IS NULL),
+			(SELECT COUNT(*) FROM ele_course_enrollments enrollment
+				JOIN ele_round_courses course ON course.round_course_id = enrollment.round_course_id
+				WHERE course.round_id = round.round_id AND course.deleted_at IS NULL
+					AND enrollment.deleted_at IS NULL),
+			(SELECT COUNT(*) FROM ele_course_grades grade
+				JOIN ele_course_enrollments enrollment
+					ON enrollment.round_course_enrollment_id = grade.round_course_enrollment_id
+				JOIN ele_round_courses course ON course.round_course_id = enrollment.round_course_id
+				WHERE course.round_id = round.round_id AND course.deleted_at IS NULL
+					AND enrollment.deleted_at IS NULL AND grade.deleted_at IS NULL)
+		FROM ele_rounds round
+		WHERE round.round_id = ? AND round.deleted_at IS NULL
+		FOR UPDATE`, roundID).Scan(
+		&status,
+		&currentFacultyID,
+		&currentYear,
+		&currentSemester,
+		&courseCount,
+		&learnerCount,
+		&gradeCount,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrFreeElectiveRoundNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if err := ensureFreeElectiveRoundEditable(status); err != nil {
+		return err
+	}
+	if status != "draft" && status != "active" {
+		return ErrFreeElectiveRoundLocked
+	}
+
+	facultyChanged := currentFacultyID != payload.FacultyID
+	periodChanged := currentYear != payload.AcademicYearBE || currentSemester != payload.Semester
+	if facultyChanged && (status != "draft" || courseCount > 0 || learnerCount > 0 || gradeCount > 0) {
+		return ErrFreeElectiveRoundFacultyChangeRequiresEmpty
+	}
+	if facultyChanged {
+		var duplicate bool
+		if err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM ele_rounds
+				WHERE faculty_id = ? AND academic_year_be = ? AND semester = ?
+					AND round_id <> ? AND deleted_at IS NULL
+			)`, payload.FacultyID, payload.AcademicYearBE, payload.Semester, roundID).Scan(&duplicate); err != nil {
+			return err
+		}
+		if duplicate {
+			return ErrFreeElectiveRoundPeriodExists
+		}
+	} else if periodChanged {
+		var duplicate bool
+		if err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM ele_rounds
+				WHERE faculty_id = ? AND academic_year_be = ? AND semester = ?
+					AND round_id <> ? AND deleted_at IS NULL
+			)`, currentFacultyID, payload.AcademicYearBE, payload.Semester, roundID).Scan(&duplicate); err != nil {
+			return err
+		}
+		if duplicate {
+			return ErrFreeElectiveRoundPeriodExists
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE ele_rounds
+		SET faculty_id = ?, academic_year_be = ?, semester = ?, updated_at = NOW()
+		WHERE round_id = ? AND deleted_at IS NULL`,
+		payload.FacultyID,
+		payload.AcademicYearBE,
+		payload.Semester,
+		roundID,
+	); err != nil {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+			return ErrFreeElectiveRoundPeriodExists
+		}
+		return err
+	}
+
+	if periodChanged && gradeCount > 0 {
+		if err := r.recalculateFreeElectiveRoundScoresTx(ctx, tx, roundID, userID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

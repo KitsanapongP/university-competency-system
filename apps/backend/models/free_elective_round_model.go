@@ -149,6 +149,12 @@ type DuplicateFreeElectiveRoundPayload struct {
 	Semester       uint64 `json:"semester"`
 }
 
+type UpdateFreeElectiveRoundPayload struct {
+	FacultyID      uint64 `json:"faculty_id"`
+	AcademicYearBE uint64 `json:"academic_year_be"`
+	Semester       uint64 `json:"semester"`
+}
+
 type UpdateFreeElectiveRoundStatusPayload struct {
 	Status string `json:"status"`
 }

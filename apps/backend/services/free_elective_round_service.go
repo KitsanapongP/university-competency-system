@@ -41,6 +41,17 @@ func canRevertActiveRoundToDraft(round models.FreeElectiveRound) bool {
 	return round.Status == "active" && round.LearnerCount == 0 && round.GradeCount == 0
 }
 
+func canChangeFreeElectiveRoundFaculty(round models.FreeElectiveRound) bool {
+	return round.Status == "draft" && round.CourseCount == 0 && round.LearnerCount == 0 && round.GradeCount == 0
+}
+
+func validateFreeElectiveRoundMetadata(payload models.UpdateFreeElectiveRoundPayload) error {
+	if payload.FacultyID == 0 {
+		return FreeElectiveValidationError{Message: "faculty_id is required"}
+	}
+	return validateFreeElectiveRoundPeriod(&payload.AcademicYearBE, &payload.Semester)
+}
+
 func validateFreeElectiveRoundFilters(filters models.FreeElectiveRoundFilters) error {
 	if filters.AcademicYearBE != nil && *filters.AcademicYearBE == 0 {
 		return FreeElectiveValidationError{Message: "academic_year_be must be greater than zero"}
@@ -156,6 +167,55 @@ func (s *FreeElectiveService) DuplicateRound(ctx context.Context, claims *utils.
 		}
 	}
 	return s.Repo.DuplicateRound(ctx, roundID, payload, uint64(claims.UserID))
+}
+
+func (s *FreeElectiveService) UpdateRoundMetadata(ctx context.Context, claims *utils.Claims, roundID uint64, payload models.UpdateFreeElectiveRoundPayload) (*models.FreeElectiveRoundDetail, error) {
+	existing, err := s.GetRound(ctx, claims, roundID)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateFreeElectiveRoundMetadata(payload); err != nil {
+		return nil, err
+	}
+	if _, err := s.scopedFaculty(claims, &payload.FacultyID); err != nil {
+		return nil, err
+	}
+	if existing.Round.Status != "draft" && existing.Round.Status != "active" {
+		return nil, ErrFreeElectiveRoundLocked
+	}
+	if payload.FacultyID != existing.Round.FacultyID && !freeElectiveHasRole(claims, "admin") {
+		return nil, ErrFreeElectiveForbidden
+	}
+	if payload.FacultyID != existing.Round.FacultyID && !canChangeFreeElectiveRoundFaculty(existing.Round) {
+		return nil, FreeElectiveConflictError{
+			Code:    "ROUND_FACULTY_CHANGE_REQUIRES_EMPTY",
+			Message: "the faculty can be changed only while a draft round has no courses, learners, or grades",
+		}
+	}
+
+	err = s.Repo.UpdateRoundMetadata(ctx, roundID, payload, uint64(claims.UserID))
+	if errors.Is(err, repositories.ErrFreeElectiveRoundNotFound) {
+		return nil, ErrFreeElectiveRoundNotFound
+	}
+	if errors.Is(err, repositories.ErrFreeElectiveRoundLocked) {
+		return nil, ErrFreeElectiveRoundLocked
+	}
+	if errors.Is(err, repositories.ErrFreeElectiveRoundFacultyChangeRequiresEmpty) {
+		return nil, FreeElectiveConflictError{
+			Code:    "ROUND_FACULTY_CHANGE_REQUIRES_EMPTY",
+			Message: "the faculty can be changed only while a draft round has no courses, learners, or grades",
+		}
+	}
+	if errors.Is(err, repositories.ErrFreeElectiveRoundPeriodExists) {
+		return nil, FreeElectiveConflictError{
+			Code:    "ROUND_ALREADY_EXISTS",
+			Message: "a free-elective round already exists for this faculty, academic year, and semester",
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.GetRound(ctx, claims, roundID)
 }
 
 func (s *FreeElectiveService) UpdateRoundStatus(ctx context.Context, claims *utils.Claims, roundID uint64, status string) (*models.FreeElectiveRoundDetail, error) {

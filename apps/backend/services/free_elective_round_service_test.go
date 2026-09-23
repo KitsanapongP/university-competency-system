@@ -98,6 +98,75 @@ func TestCanRevertActiveRoundToDraftOnlyWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestCanChangeFreeElectiveRoundFacultyOnlyOnEmptyDraft(t *testing.T) {
+	tests := []struct {
+		name   string
+		round  models.FreeElectiveRound
+		wanted bool
+	}{
+		{
+			name:   "empty draft",
+			round:  models.FreeElectiveRound{Status: "draft"},
+			wanted: true,
+		},
+		{
+			name:   "draft with a course",
+			round:  models.FreeElectiveRound{Status: "draft", CourseCount: 1},
+			wanted: false,
+		},
+		{
+			name:   "draft with learners",
+			round:  models.FreeElectiveRound{Status: "draft", LearnerCount: 1},
+			wanted: false,
+		},
+		{
+			name:   "draft with grades",
+			round:  models.FreeElectiveRound{Status: "draft", GradeCount: 1},
+			wanted: false,
+		},
+		{
+			name:   "active round",
+			round:  models.FreeElectiveRound{Status: "active"},
+			wanted: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := canChangeFreeElectiveRoundFaculty(test.round); got != test.wanted {
+				t.Fatalf("canChangeFreeElectiveRoundFaculty(%#v) = %v, want %v", test.round, got, test.wanted)
+			}
+		})
+	}
+}
+
+func TestValidateFreeElectiveRoundMetadata(t *testing.T) {
+	valid := models.UpdateFreeElectiveRoundPayload{
+		FacultyID:      1,
+		AcademicYearBE: 2569,
+		Semester:       2,
+	}
+	if err := validateFreeElectiveRoundMetadata(valid); err != nil {
+		t.Fatalf("validateFreeElectiveRoundMetadata(valid) = %v, want nil", err)
+	}
+
+	tests := []struct {
+		name    string
+		payload models.UpdateFreeElectiveRoundPayload
+	}{
+		{name: "missing faculty", payload: models.UpdateFreeElectiveRoundPayload{AcademicYearBE: 2569, Semester: 2}},
+		{name: "missing year", payload: models.UpdateFreeElectiveRoundPayload{FacultyID: 1, Semester: 2}},
+		{name: "invalid semester", payload: models.UpdateFreeElectiveRoundPayload{FacultyID: 1, AcademicYearBE: 2569, Semester: 4}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := validateFreeElectiveRoundMetadata(test.payload); err == nil {
+				t.Fatal("validateFreeElectiveRoundMetadata() = nil, want validation error")
+			}
+		})
+	}
+}
+
 func TestValidateNewRoundCourseAcceptsCompleteInlineCourse(t *testing.T) {
 	issue := validateNewRoundCourse(models.FreeElectiveRoundCourseInput{
 		CourseCode:   "GE101",

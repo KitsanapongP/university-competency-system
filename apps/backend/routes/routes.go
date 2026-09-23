@@ -131,6 +131,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				fer.Post("/rounds/preview", freeElectiveHandler.PreviewRound)
 				fer.Post("/rounds", freeElectiveHandler.CreateRound)
 				fer.Get("/rounds/{round_id}", freeElectiveHandler.GetRound)
+				fer.Patch("/rounds/{round_id}", freeElectiveHandler.UpdateRoundMetadata)
 				fer.Post("/rounds/{round_id}/scores/recalculate", freeElectiveHandler.RecalculateRoundScores)
 				fer.Post("/rounds/{round_id}/duplicate", freeElectiveHandler.DuplicateRound)
 				fer.Patch("/rounds/{round_id}/status", freeElectiveHandler.UpdateRoundStatus)

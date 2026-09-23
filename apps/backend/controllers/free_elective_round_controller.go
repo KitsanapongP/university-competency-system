@@ -42,6 +42,28 @@ func (c *FreeElectiveController) GetRound(w http.ResponseWriter, r *http.Request
 	utils.OK(w, detail)
 }
 
+func (c *FreeElectiveController) UpdateRoundMetadata(w http.ResponseWriter, r *http.Request) {
+	claims, ok := freeElectiveClaims(w, r)
+	if !ok {
+		return
+	}
+	roundID, ok := freeElectiveID(w, r, "round_id")
+	if !ok {
+		return
+	}
+	var payload models.UpdateFreeElectiveRoundPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
+		return
+	}
+	detail, err := c.Service.UpdateRoundMetadata(r.Context(), claims, roundID, payload)
+	if err != nil {
+		writeFreeElectiveError(w, err)
+		return
+	}
+	utils.OK(w, detail)
+}
+
 func (c *FreeElectiveController) RecalculateRoundScores(w http.ResponseWriter, r *http.Request) {
 	claims, ok := freeElectiveClaims(w, r)
 	if !ok {
