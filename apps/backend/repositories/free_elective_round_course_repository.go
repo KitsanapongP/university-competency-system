@@ -265,10 +265,17 @@ func (r *FreeElectiveRepository) RecalculateFreeElectiveRoundScores(ctx context.
 	if err := ensureFreeElectiveRoundEditable(status); err != nil {
 		return err
 	}
+	if err := r.recalculateFreeElectiveRoundScoresTx(ctx, tx, roundID, userID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
+func (r *FreeElectiveRepository) recalculateFreeElectiveRoundScoresTx(ctx context.Context, tx *sql.Tx, roundID, userID uint64) error {
 	type gradeCandidate struct {
 		gradeRecordID  uint64
 		enrollmentID   uint64
+		cohortID       uint64
 		masterCourseID uint64
 		grade          string
 		gradeScheme    string
@@ -278,7 +285,7 @@ func (r *FreeElectiveRepository) RecalculateFreeElectiveRoundScores(ctx context.
 	}
 
 	rows, err := tx.QueryContext(ctx, `
-		SELECT grade.grade_record_id, selected.enrollment_id,
+		SELECT grade.grade_record_id, selected.enrollment_id, roster.cohort_id,
 			roundCourse.free_elective_course_id, grade.grade,
 			roundCourse.grade_scheme, round.academic_year_be,
 			round.semester
@@ -287,6 +294,10 @@ func (r *FreeElectiveRepository) RecalculateFreeElectiveRoundScores(ctx context.
 			ON selected.round_course_enrollment_id = grade.round_course_enrollment_id
 			AND selected.deleted_at IS NULL
 			AND selected.status IN ('enrolled', 'completed')
+		JOIN kku_enrollment_curricula roster
+			ON roster.enrollment_curriculum_id = selected.enrollment_curriculum_id
+			AND roster.enrollment_id = selected.enrollment_id
+			AND roster.deleted_at IS NULL
 		JOIN ele_round_courses roundCourse
 			ON roundCourse.round_course_id = selected.round_course_id
 			AND roundCourse.deleted_at IS NULL
@@ -311,6 +322,7 @@ func (r *FreeElectiveRepository) RecalculateFreeElectiveRoundScores(ctx context.
 		if err := rows.Scan(
 			&item.gradeRecordID,
 			&item.enrollmentID,
+			&item.cohortID,
 			&item.masterCourseID,
 			&item.grade,
 			&item.gradeScheme,
@@ -340,7 +352,11 @@ func (r *FreeElectiveRepository) RecalculateFreeElectiveRoundScores(ctx context.
 		masterCourseID uint64
 	}
 	bestByKey := make(map[gradeKey]gradeCandidate, len(candidates))
+	affectedCohorts := make(map[uint64]struct{})
 	for _, candidate := range candidates {
+		if candidate.cohortID > 0 {
+			affectedCohorts[candidate.cohortID] = struct{}{}
+		}
 		key := gradeKey{
 			enrollmentID:   candidate.enrollmentID,
 			masterCourseID: candidate.masterCourseID,
@@ -499,8 +515,13 @@ func (r *FreeElectiveRepository) RecalculateFreeElectiveRoundScores(ctx context.
 		WHERE round_id = ? AND deleted_at IS NULL`, userID, roundID); err != nil {
 		return err
 	}
+	for cohortID := range affectedCohorts {
+		if err := recomputeCompetencyResultsTx(ctx, tx, cohortID); err != nil {
+			return err
+		}
+	}
 
-	return tx.Commit()
+	return nil
 }
 
 func (r *FreeElectiveRepository) AddRoundCourse(ctx context.Context, roundID, userID uint64, input models.FreeElectiveRoundCourseInput) (*models.FreeElectiveRoundCourse, error) {
