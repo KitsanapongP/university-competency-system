@@ -268,8 +268,8 @@ func (r *CourseCompetencyScoringRepository) GetSummary(ctx context.Context, coho
 	const query = `
 		SELECT roster.enrollment_id, enrollment.student_code, CONCAT_WS(' ', person.first_name_th, person.last_name_th), requirement.competency_id, competency.code, competency.name_th,
 			requirement.target_score, COALESCE(result.core_score, 0), COALESCE(result.course_bonus_score, 0), COALESCE(result.free_elective_score, 0),
-			COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0), COALESCE(result.activity_score, 0), COALESCE(result.final_score, 0),
-			CASE WHEN requirement.is_required = 0 OR COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) >= requirement.target_score THEN 1 ELSE 0 END
+			COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) + COALESCE(result.free_elective_score, 0), COALESCE(result.activity_score, 0), COALESCE(result.final_score, 0),
+			CASE WHEN requirement.is_required = 0 OR COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) + COALESCE(result.free_elective_score, 0) >= requirement.target_score THEN 1 ELSE 0 END
 		FROM kku_enrollment_curricula roster
 		JOIN kku_enrollments enrollment ON enrollment.enrollment_id = roster.enrollment_id AND enrollment.deleted_at IS NULL
 		JOIN persons person ON person.person_id = enrollment.person_id AND person.deleted_at IS NULL

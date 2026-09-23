@@ -171,6 +171,7 @@ func (r *ExecutiveAnalyticsRepository) GetCohortSummaries(ctx context.Context, f
 				FROM score_course_competency_scores course_score
 				JOIN crs_course_enrollment course_enrollment
 					ON course_enrollment.course_student_id = course_score.course_student_id
+					AND course_enrollment.is_best_grade = 1
 					AND course_enrollment.deleted_at IS NULL
 				JOIN kku_enrollment_curricula score_roster
 					ON score_roster.enrollment_curriculum_id = course_enrollment.student_curricula_id
@@ -181,8 +182,43 @@ func (r *ExecutiveAnalyticsRepository) GetCohortSummaries(ctx context.Context, f
 					AND score_student.enrollment_status = 'student'
 					AND score_student.deleted_at IS NULL
 				WHERE course_score.deleted_at IS NULL
+			) OR EXISTS (
+				SELECT 1
+				FROM ele_course_scores elective_score
+				JOIN ele_course_grades elective_grade
+					ON elective_grade.grade_record_id = elective_score.grade_record_id
+					AND elective_grade.is_best_grade = 1
+					AND elective_grade.deleted_at IS NULL
+				JOIN ele_course_enrollments selected
+					ON selected.round_course_enrollment_id = elective_grade.round_course_enrollment_id
+					AND selected.status IN ('enrolled', 'completed')
+					AND selected.deleted_at IS NULL
+				JOIN kku_enrollment_curricula score_roster
+					ON score_roster.enrollment_curriculum_id = selected.enrollment_curriculum_id
+					AND score_roster.cohort_id = sc.cohort_id
+					AND score_roster.deleted_at IS NULL
+				JOIN kku_enrollments score_student
+					ON score_student.enrollment_id = score_roster.enrollment_id
+					AND score_student.enrollment_status = 'student'
+					AND score_student.deleted_at IS NULL
+				JOIN ele_round_courses elective_course
+					ON elective_course.round_course_id = selected.round_course_id
+					AND elective_course.deleted_at IS NULL
+				JOIN ele_rounds elective_round
+					ON elective_round.round_id = elective_course.round_id
+					AND elective_round.status = 'finalized'
+					AND elective_round.deleted_at IS NULL
+				JOIN ele_round_course_competencies elective_mapping
+					ON elective_mapping.round_course_competency_id = elective_score.round_course_competency_id
+					AND elective_mapping.deleted_at IS NULL
+				JOIN comp_curriculum_requirements elective_requirement
+					ON elective_requirement.cohort_id = sc.cohort_id
+					AND elective_requirement.competency_id = elective_mapping.competency_id
+					AND elective_requirement.deleted_at IS NULL
+				WHERE elective_score.deleted_at IS NULL
 			) THEN 1 ELSE 0 END,
-			COALESCE(sc.course_scores_recalculation_required, 0)
+			CASE WHEN COALESCE(sc.course_scores_recalculation_required, 0) = 1
+				OR COALESCE(sc.free_elective_scores_recalculation_required, 0) = 1 THEN 1 ELSE 0 END
 		FROM edu_student_cohorts sc
 		JOIN edu_curricula c ON c.curriculum_id = sc.curriculum_id
 		JOIN edu_majors m ON m.major_id = c.major_id
@@ -192,7 +228,8 @@ func (r *ExecutiveAnalyticsRepository) GetCohortSummaries(ctx context.Context, f
 		LEFT JOIN kku_enrollments e ON e.enrollment_id = ec.enrollment_id AND e.deleted_at IS NULL
 		WHERE ` + where + `
 		GROUP BY sc.cohort_id, c.curriculum_id, c.code, c.name_th, c.name_en, m.major_id, m.name_th,
-			fac.faculty_id, fac.name_th, sc.entry_year_be, sc.course_scores_recalculation_required
+			fac.faculty_id, fac.name_th, sc.entry_year_be, sc.course_scores_recalculation_required,
+			sc.free_elective_scores_recalculation_required
 		ORDER BY sc.entry_year_be DESC, c.code`
 	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -242,7 +279,10 @@ func (r *ExecutiveAnalyticsRepository) GetAggregates(ctx context.Context, cohort
 	}
 	query := `SELECT req.cohort_id, cohort.entry_year_be, req.competency_id, comp.code, comp.name_th, COALESCE(comp.name_en, ''), req.target_score, req.is_required,
 			COUNT(DISTINCT course_score.enrollment_id),
-			COALESCE(SUM(CASE WHEN course_score.enrollment_id IS NOT NULL THEN COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) ELSE 0 END), 0)
+			COALESCE(SUM(CASE WHEN course_score.enrollment_id IS NOT NULL THEN COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) + COALESCE(result.free_elective_score, 0) ELSE 0 END), 0),
+			COUNT(DISTINCT CASE WHEN course_score.enrollment_id IS NOT NULL
+				AND COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) + COALESCE(result.free_elective_score, 0) >= req.target_score
+				THEN roster.enrollment_id END)
 		FROM comp_curriculum_requirements req
 		JOIN edu_student_cohorts cohort ON cohort.cohort_id = req.cohort_id AND cohort.deleted_at IS NULL
 		JOIN comp_competencies comp ON comp.competency_id = req.competency_id AND comp.deleted_at IS NULL
@@ -250,20 +290,52 @@ func (r *ExecutiveAnalyticsRepository) GetAggregates(ctx context.Context, cohort
 		JOIN kku_enrollments student ON student.enrollment_id = roster.enrollment_id
 			AND student.enrollment_status = 'student' AND student.deleted_at IS NULL
 		LEFT JOIN (
-			SELECT score_roster.cohort_id, score_roster.enrollment_id, course_score.competency_id
-			FROM score_course_competency_scores course_score
-			JOIN crs_course_enrollment course_enrollment
-				ON course_enrollment.course_student_id = course_score.course_student_id
-				AND course_enrollment.deleted_at IS NULL
-			JOIN kku_enrollment_curricula score_roster
-				ON score_roster.enrollment_curriculum_id = course_enrollment.student_curricula_id
-				AND score_roster.deleted_at IS NULL
-			JOIN kku_enrollments score_student
-				ON score_student.enrollment_id = score_roster.enrollment_id
-				AND score_student.enrollment_status = 'student'
-				AND score_student.deleted_at IS NULL
-			WHERE course_score.deleted_at IS NULL
-			GROUP BY score_roster.cohort_id, score_roster.enrollment_id, course_score.competency_id
+			SELECT score_pairs.cohort_id, score_pairs.enrollment_id, score_pairs.competency_id
+			FROM (
+				SELECT score_roster.cohort_id, score_roster.enrollment_id, course_score.competency_id
+				FROM score_course_competency_scores course_score
+				JOIN crs_course_enrollment course_enrollment
+					ON course_enrollment.course_student_id = course_score.course_student_id
+					AND course_enrollment.is_best_grade = 1
+					AND course_enrollment.deleted_at IS NULL
+				JOIN kku_enrollment_curricula score_roster
+					ON score_roster.enrollment_curriculum_id = course_enrollment.student_curricula_id
+					AND score_roster.deleted_at IS NULL
+				JOIN kku_enrollments score_student
+					ON score_student.enrollment_id = score_roster.enrollment_id
+					AND score_student.enrollment_status = 'student'
+					AND score_student.deleted_at IS NULL
+				WHERE course_score.deleted_at IS NULL
+				UNION
+				SELECT score_roster.cohort_id, score_roster.enrollment_id, mapping.competency_id
+				FROM ele_course_scores elective_score
+				JOIN ele_course_grades elective_grade
+					ON elective_grade.grade_record_id = elective_score.grade_record_id
+					AND elective_grade.is_best_grade = 1
+					AND elective_grade.deleted_at IS NULL
+				JOIN ele_course_enrollments selected
+					ON selected.round_course_enrollment_id = elective_grade.round_course_enrollment_id
+					AND selected.status IN ('enrolled', 'completed')
+					AND selected.deleted_at IS NULL
+				JOIN kku_enrollment_curricula score_roster
+					ON score_roster.enrollment_curriculum_id = selected.enrollment_curriculum_id
+					AND score_roster.deleted_at IS NULL
+				JOIN kku_enrollments score_student
+					ON score_student.enrollment_id = score_roster.enrollment_id
+					AND score_student.enrollment_status = 'student'
+					AND score_student.deleted_at IS NULL
+				JOIN ele_round_courses elective_course
+					ON elective_course.round_course_id = selected.round_course_id
+					AND elective_course.deleted_at IS NULL
+				JOIN ele_rounds elective_round
+					ON elective_round.round_id = elective_course.round_id
+					AND elective_round.status = 'finalized'
+					AND elective_round.deleted_at IS NULL
+				JOIN ele_round_course_competencies mapping
+					ON mapping.round_course_competency_id = elective_score.round_course_competency_id
+					AND mapping.deleted_at IS NULL
+				WHERE elective_score.deleted_at IS NULL
+			) score_pairs
 		) course_score ON course_score.cohort_id = req.cohort_id
 			AND course_score.enrollment_id = roster.enrollment_id
 			AND course_score.competency_id = req.competency_id
@@ -279,35 +351,18 @@ func (r *ExecutiveAnalyticsRepository) GetAggregates(ctx context.Context, cohort
 	items := make([]models.ExecutiveCompetencyAggregate, 0)
 	for rows.Next() {
 		var item models.ExecutiveCompetencyAggregate
-		var required int
+		var required, passed int
 		if err := rows.Scan(&item.CohortID, &item.EntryYearBE, &item.CompetencyID, &item.Code, &item.NameTH, &item.NameEN, &item.TargetScore,
-			&required, &item.EvaluatedCount, &item.AverageScore); err != nil {
+			&required, &item.EvaluatedCount, &item.AverageScore, &passed); err != nil {
 			return nil, err
 		}
 		item.IsRequired = required == 1
 		if item.EvaluatedCount > 0 {
 			item.AverageScore /= float64(item.EvaluatedCount)
+			item.PassRate = float64(passed) * 100 / float64(item.EvaluatedCount)
 		}
+		item.PassedCount = passed
 		items = append(items, item)
-	}
-	for i := range items {
-		var passed int
-		err := r.DB.QueryRowContext(ctx, `SELECT COUNT(*)
-			FROM score_competency_result result
-			JOIN kku_enrollment_curricula roster ON roster.enrollment_id = result.enrollment_id
-				AND roster.cohort_id = ? AND roster.deleted_at IS NULL
-			JOIN kku_enrollments student ON student.enrollment_id = roster.enrollment_id
-				AND student.enrollment_status = 'student' AND student.deleted_at IS NULL
-			WHERE result.competency_id = ? AND result.deleted_at IS NULL
-				AND COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) >= ?`,
-			items[i].CohortID, items[i].CompetencyID, items[i].TargetScore).Scan(&passed)
-		if err != nil {
-			return nil, err
-		}
-		items[i].PassedCount = passed
-		if items[i].EvaluatedCount > 0 {
-			items[i].PassRate = float64(passed) * 100 / float64(items[i].EvaluatedCount)
-		}
 	}
 	return items, nil
 }
@@ -327,7 +382,7 @@ func (r *ExecutiveAnalyticsRepository) GetStudentFacts(ctx context.Context, f mo
 			CONCAT_WS(' ', p.first_name_en, p.last_name_en), sc.cohort_id, c.code, c.name_th, sc.entry_year_be,
 			COALESCE(req.competency_id, 0), COALESCE(comp.code, ''), COALESCE(comp.name_th, ''),
 			COALESCE(comp.name_en, ''), COALESCE(req.target_score, 0), COALESCE(req.is_required, 0),
-			COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0),
+			COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) + COALESCE(result.free_elective_score, 0),
 			CASE WHEN result.enrollment_id IS NULL THEN 0 ELSE 1 END
 		FROM edu_student_cohorts sc
 		JOIN edu_curricula c ON c.curriculum_id = sc.curriculum_id
@@ -341,16 +396,43 @@ func (r *ExecutiveAnalyticsRepository) GetStudentFacts(ctx context.Context, f mo
 		LEFT JOIN comp_competencies comp ON comp.competency_id = req.competency_id AND comp.deleted_at IS NULL
 		LEFT JOIN score_competency_result result ON result.enrollment_id = e.enrollment_id
 			AND result.competency_id = req.competency_id AND result.deleted_at IS NULL
-			AND EXISTS (
+			AND (EXISTS (
 				SELECT 1
 				FROM score_course_competency_scores course_score
 				JOIN crs_course_enrollment course_enrollment
 					ON course_enrollment.course_student_id = course_score.course_student_id
+					AND course_enrollment.is_best_grade = 1
 					AND course_enrollment.deleted_at IS NULL
 				WHERE course_enrollment.student_curricula_id = roster.enrollment_curriculum_id
 					AND course_score.competency_id = req.competency_id
 					AND course_score.deleted_at IS NULL
 			)
+			OR EXISTS (
+				SELECT 1
+				FROM ele_course_scores elective_score
+				JOIN ele_course_grades elective_grade
+					ON elective_grade.grade_record_id = elective_score.grade_record_id
+					AND elective_grade.is_best_grade = 1
+					AND elective_grade.deleted_at IS NULL
+				JOIN ele_course_enrollments selected
+					ON selected.round_course_enrollment_id = elective_grade.round_course_enrollment_id
+					AND selected.enrollment_id = e.enrollment_id
+					AND selected.enrollment_curriculum_id = roster.enrollment_curriculum_id
+					AND selected.status IN ('enrolled', 'completed')
+					AND selected.deleted_at IS NULL
+				JOIN ele_round_courses elective_course
+					ON elective_course.round_course_id = selected.round_course_id
+					AND elective_course.deleted_at IS NULL
+				JOIN ele_rounds elective_round
+					ON elective_round.round_id = elective_course.round_id
+					AND elective_round.status = 'finalized'
+					AND elective_round.deleted_at IS NULL
+				JOIN ele_round_course_competencies mapping
+					ON mapping.round_course_competency_id = elective_score.round_course_competency_id
+					AND mapping.competency_id = req.competency_id
+					AND mapping.deleted_at IS NULL
+				WHERE elective_score.deleted_at IS NULL
+			))
 		WHERE ` + where + ` ORDER BY sc.entry_year_be, e.student_code, req.display_order`
 	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
