@@ -85,8 +85,70 @@ function courseSourceLabel(source, labels) {
         : labels.learnerCurriculumCourse;
 }
 
-function AcademicHistory({ courses, language, labels }) {
+function GradeSummary({ summary, title, language, labels }) {
+    const numberLocale = language === 'en' ? 'en-US' : 'th-TH';
+    const wholeNumber = new Intl.NumberFormat(numberLocale, {
+        maximumFractionDigits: 0,
+    });
+    const decimalNumber = new Intl.NumberFormat(numberLocale, {
+        maximumFractionDigits: 2,
+    });
+    const gpaNumber = new Intl.NumberFormat(numberLocale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+    const metrics = [
+        { key: 'cr', code: 'CR', title: labels.learnerCRTitle },
+        { key: 'cp', code: 'CP', title: labels.learnerCPTitle },
+        { key: 'ca', code: 'CA', title: labels.learnerCATitle },
+        { key: 'gp', code: 'GP', title: labels.learnerGPTitle },
+        { key: 'gpa', code: 'GPA', title: labels.learnerGPATitle },
+    ];
+
+    return (
+        <section className="learner-course-history__summary-group">
+            <h4>{title}</h4>
+            <div className="learner-course-history__summary-metrics">
+                {metrics.map((metric) => {
+                    const value = summary[metric.key];
+                    let formattedValue = '-';
+                    if (value != null) {
+                        if (metric.key === 'gpa') {
+                            formattedValue = gpaNumber.format(value);
+                        } else if (metric.key === 'gp') {
+                            formattedValue = decimalNumber.format(value);
+                        } else {
+                            formattedValue = wholeNumber.format(value);
+                        }
+                    }
+
+                    return (
+                        <div
+                            className="learner-course-history__summary-metric"
+                            key={metric.key}
+                            role="group"
+                            title={metric.title}
+                            aria-label={`${metric.code}: ${metric.title}`}
+                        >
+                            <span>{metric.code}</span>
+                            <strong>{formattedValue}</strong>
+                        </div>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
+function AcademicHistory({ courses, termSummaries, language, labels }) {
     const yearGroups = useMemo(() => groupCourseHistory(courses), [courses]);
+    const summariesByTerm = useMemo(
+        () => new Map((termSummaries || []).map((summary) => [
+            `${summary.academicYearBE}-${summary.semester}`,
+            summary,
+        ])),
+        [termSummaries],
+    );
 
     if (!yearGroups.length) {
         return (
@@ -123,7 +185,9 @@ function AcademicHistory({ courses, language, labels }) {
                                 <h3>{semesterLabel(term.semester, labels)}</h3>
                                 <div className="learner-course-history__table">
                                     <div className="learner-course-history__table-header">
+                                        <span>{labels.learnerCourseCode}</span>
                                         <span>{labels.learnerCourseName}</span>
+                                        <span>{labels.learnerCredits}</span>
                                         <span>{labels.learnerGrade}</span>
                                     </div>
                                     {term.courses.map((course) => (
@@ -131,6 +195,9 @@ function AcademicHistory({ courses, language, labels }) {
                                             className="learner-course-history__row"
                                             key={`${course.source}-${course.recordId}`}
                                         >
+                                            <strong className="learner-course-history__code">
+                                                {course.courseCode || '-'}
+                                            </strong>
                                             <div className="learner-course-history__course">
                                                 <strong>
                                                     {localizedValue(
@@ -143,12 +210,37 @@ function AcademicHistory({ courses, language, labels }) {
                                                     {courseSourceLabel(course.source, labels)}
                                                 </span>
                                             </div>
-                                            <strong className="learner-course-history__grade">
+                                            <span
+                                                className="learner-course-history__credits"
+                                                aria-label={`${labels.learnerCredits}: ${course.credits}`}
+                                            >
+                                                {course.credits}
+                                            </span>
+                                            <strong
+                                                className="learner-course-history__grade"
+                                                aria-label={`${labels.learnerGrade}: ${course.grade || labels.learnerNoGrade}`}
+                                            >
                                                 {course.grade || labels.learnerNoGrade}
                                             </strong>
                                         </div>
                                     ))}
                                 </div>
+                                {summariesByTerm.has(`${year.academicYearBE}-${term.semester}`) && (
+                                    <div className="learner-course-history__summaries">
+                                        <GradeSummary
+                                            summary={summariesByTerm.get(`${year.academicYearBE}-${term.semester}`).term}
+                                            title={labels.learnerThisSemester}
+                                            language={language}
+                                            labels={labels}
+                                        />
+                                        <GradeSummary
+                                            summary={summariesByTerm.get(`${year.academicYearBE}-${term.semester}`).cumulative}
+                                            title={labels.learnerCumulativeToSemester}
+                                            language={language}
+                                            labels={labels}
+                                        />
+                                    </div>
+                                )}
                             </section>
                         ))}
                     </div>
@@ -171,6 +263,15 @@ export default function LearnerAcademicProfile({ activityHistory }) {
         verified: t('verified'),
         learnerAcademicYear: t('learner_academic_year'),
         learnerCourseName: t('learner_course_name'),
+        learnerCourseCode: t('learner_course_code'),
+        learnerCredits: t('learner_credits'),
+        learnerThisSemester: t('learner_this_semester'),
+        learnerCumulativeToSemester: t('learner_cumulative_to_semester'),
+        learnerCRTitle: t('learner_cr_title'),
+        learnerCPTitle: t('learner_cp_title'),
+        learnerCATitle: t('learner_ca_title'),
+        learnerGPTitle: t('learner_gp_title'),
+        learnerGPATitle: t('learner_gpa_title'),
         learnerCurriculumCourse: t('learner_curriculum_course'),
         learnerEntryYear: t('learner_entry_year'),
         learnerFaculty: t('learner_faculty'),
@@ -233,7 +334,7 @@ export default function LearnerAcademicProfile({ activityHistory }) {
         );
     }
 
-    const { profile, courseHistory } = data;
+    const { profile, courseHistory, termSummaries } = data;
     const learnerName = localizedValue(profile.nameEn, profile.nameTh, language);
     const learnerInitials = getInitials(learnerName);
 
@@ -328,6 +429,7 @@ export default function LearnerAcademicProfile({ activityHistory }) {
                 </div>
                 <AcademicHistory
                     courses={courseHistory}
+                    termSummaries={termSummaries}
                     language={language}
                     labels={labels}
                 />

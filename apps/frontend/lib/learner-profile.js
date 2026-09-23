@@ -18,6 +18,7 @@ function mapProfile(item = {}) {
 function mapCourse(item = {}) {
     return {
         recordId: item.record_id || 0,
+        courseId: Number(item.course_id || 0),
         source: item.source || 'curriculum',
         academicYearBE: Number(item.academic_year_be || 0),
         studyYear: Number(item.study_year || 0),
@@ -25,7 +26,29 @@ function mapCourse(item = {}) {
         courseCode: item.course_code || '',
         courseNameTh: item.course_name_th || '',
         courseNameEn: item.course_name_en || '',
+        credits: Number(item.credits || 0),
+        gradeScheme: item.grade_scheme || 'letter',
         grade: item.grade || '',
+    };
+}
+
+function mapGradeSummary(item = {}) {
+    return {
+        cr: Number(item.cr || 0),
+        cp: Number(item.cp || 0),
+        ca: Number(item.ca || 0),
+        gp: Number(item.gp || 0),
+        gpa: item.gpa == null ? null : Number(item.gpa),
+    };
+}
+
+function mapTermSummary(item = {}) {
+    return {
+        studyYear: Number(item.study_year || 0),
+        academicYearBE: Number(item.academic_year_be || 0),
+        semester: Number(item.semester || 0),
+        term: mapGradeSummary(item.term),
+        cumulative: mapGradeSummary(item.cumulative),
     };
 }
 
@@ -36,5 +59,6 @@ export async function fetchLearnerAcademicProfile() {
     return {
         profile: mapProfile(payload.profile),
         courseHistory: (payload.course_history || []).map(mapCourse),
+        termSummaries: (payload.term_summaries || []).map(mapTermSummary),
     };
 }

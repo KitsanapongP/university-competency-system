@@ -1179,7 +1179,7 @@ body:has(.competency-app) {
 .learner-course-history__table-header,
 .learner-course-history__row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(9rem, 0.25fr);
+  grid-template-columns: minmax(6.5rem, 0.8fr) minmax(0, 3fr) minmax(4.5rem, 0.55fr) minmax(4rem, 0.45fr);
   gap: 16px;
   align-items: center;
   padding: 12px 16px;
@@ -1202,6 +1202,17 @@ body:has(.competency-app) {
   min-width: 0;
 }
 
+.learner-course-history__code,
+.learner-course-history__credits {
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.learner-course-history__credits,
+.learner-course-history__grade {
+  text-align: center;
+}
+
 .learner-course-history__course strong {
   color: var(--text);
   font-size: 0.88rem;
@@ -1222,6 +1233,58 @@ body:has(.competency-app) {
 .learner-course-history__grade {
   color: var(--text);
   font-size: 0.95rem;
+}
+
+.learner-course-history__summaries {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.learner-course-history__summary-group + .learner-course-history__summary-group {
+  border-left: 1px solid var(--border);
+}
+
+.learner-course-history__summary-group h4 {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--text);
+  background: var(--bg);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.learner-course-history__summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.learner-course-history__summary-metric {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 6px;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  color: var(--text);
+  text-align: center;
+}
+
+.learner-course-history__summary-metric:first-child {
+  border-left: 0;
+}
+
+.learner-course-history__summary-metric span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.learner-course-history__summary-metric strong {
+  font-size: 0.88rem;
 }
 
 .learner-course-history__empty {
@@ -1471,12 +1534,46 @@ body:has(.competency-app) {
   }
 
   .learner-course-history__row {
-    grid-template-columns: 1fr;
-    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "code credits grade"
+      "course course course";
+    gap: 6px 10px;
+    align-items: start;
+  }
+
+  .learner-course-history__code {
+    grid-area: code;
+  }
+
+  .learner-course-history__course {
+    grid-area: course;
+  }
+
+  .learner-course-history__credits {
+    grid-area: credits;
   }
 
   .learner-course-history__grade {
+    grid-area: grade;
     justify-self: start;
+  }
+
+  .learner-course-history__summaries {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .learner-course-history__summary-group + .learner-course-history__summary-group {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .learner-course-history__summary-metric {
+    padding: 8px 3px;
+  }
+
+  .learner-course-history__summary-metric strong {
+    font-size: 0.8rem;
   }
 
   .chart-wrapper {
