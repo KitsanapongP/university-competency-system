@@ -1369,6 +1369,37 @@ body:has(.competency-app) {
   overflow: hidden;
 }
 
+.verify-list + .verify-list {
+  margin-top: 3rem;
+}
+
+.verify-empty-state {
+  color: var(--text-muted);
+  text-align: center !important;
+}
+
+.verify-source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--control-bg-soft);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.verify-source-badge.free_elective {
+  border-color: color-mix(in srgb, var(--accent-purple) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent-purple) 10%, var(--card));
+  color: var(--accent-purple);
+}
+
+.verify-recalculation-notice {
+  margin: 0 24px 16px;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;

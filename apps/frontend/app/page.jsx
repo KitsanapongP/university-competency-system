@@ -65,6 +65,10 @@ export default function CompetencyPage() {
 
     // Activity History States
     const [activityHistory, setActivityHistoryMap] = useState([]);
+    const [verificationData, setVerificationData] = useState({
+        activity: { loading: false, error: null, payload: null },
+        course: { loading: false, error: null, payload: null },
+    });
 
     const showRequirement = category === 'course';
     const [dashboardStatus, setDashboardStatus] = useState(null);
@@ -141,7 +145,11 @@ export default function CompetencyPage() {
                 Object.entries(progress).forEach(([key, value]) => {
                     const courseTotal = Number(
                         value.course_total_score ??
-                        (Number(value.core_score || 0) + Number(value.course_bonus_score || 0))
+                        (
+                            Number(value.core_score || 0)
+                            + Number(value.course_bonus_score || 0)
+                            + Number(value.free_elective_score || 0)
+                        )
                     );
                     const activityScore = Number(value.activity_score || 0);
                     const score = category === 'course' ? courseTotal : activityScore;
@@ -206,6 +214,56 @@ export default function CompetencyPage() {
 
         loadDashboard();
     }, [user, logout, router, category, language]);
+
+    useEffect(() => {
+        if (!user || activePage !== 'verify') return undefined;
+
+        let isCurrent = true;
+        setVerificationData({
+            activity: { loading: true, error: null, payload: null },
+            course: { loading: true, error: null, payload: null },
+        });
+
+        const loadCategory = async (selectedCategory) => {
+            try {
+                const response = await fetchCompetencyDashboard(selectedCategory);
+                return { payload: response?.data || response, error: null };
+            } catch (error) {
+                return { payload: null, error };
+            }
+        };
+
+        Promise.all([loadCategory('activity'), loadCategory('course')]).then(
+            async ([activityResult, courseResult]) => {
+                if (!isCurrent) return;
+
+                const unauthorized = [activityResult, courseResult]
+                    .some((result) => result.error?.status === 401);
+                if (unauthorized) {
+                    await logout();
+                    router.replace('/login');
+                    return;
+                }
+
+                setVerificationData({
+                    activity: {
+                        loading: false,
+                        error: activityResult.error,
+                        payload: activityResult.payload,
+                    },
+                    course: {
+                        loading: false,
+                        error: courseResult.error,
+                        payload: courseResult.payload,
+                    },
+                });
+            },
+        );
+
+        return () => {
+            isCurrent = false;
+        };
+    }, [activePage, user, logout, router]);
 
 
     useEffect(() => {
@@ -450,11 +508,21 @@ export default function CompetencyPage() {
         if (dashboardStatus.code === 'NO_ACTIVE_TEMPLATE') return t('dashboard_no_active_template');
         if (dashboardStatus.code === 'NO_TEMPLATE_COMPETENCIES') return t('dashboard_no_template_competencies');
         if (dashboardStatus.code === 'NO_REQUIREMENTS') return t('dashboard_no_requirements');
+        if (dashboardStatus.recalculation_required) return t('dashboard_scores_recalculation_required');
         if (!dashboardStatus.hasScores) return t('dashboard_scores_pending');
         return category === 'course'
             ? t('dashboard_course_score_mode')
             : t('dashboard_activity_score_mode');
     })();
+
+    const activityVerificationRows = mapVerificationRows(
+        verificationData.activity.payload,
+        language,
+    );
+    const courseVerificationRows = mapVerificationRows(
+        verificationData.course.payload,
+        language,
+    );
 
     if (dataLoading) {
         return <LoadingSkeleton />;
@@ -560,75 +628,113 @@ export default function CompetencyPage() {
                         <div className="card-header">
                             <h2>
                                 <Activity size={20} className="section-icon" />
-                                {t('activities')}
+                                {t('verify_activity_scores')}
                             </h2>
                         </div>
                         <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>{t('activities')}</th>
+                                    <th>{t('verify_activity_name')}</th>
                                     <th>{t('date')}</th>
-                                    <th>{t('type')}</th>
+                                    <th>{t('verify_activity_type')}</th>
+                                    <th>{t('verify_competency')}</th>
                                     <th>{t('score')}</th>
-                                    <th>{t('verified')}</th>
+                                    <th>{t('verify_score_state')}</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {Object.entries(radarChartByCompetency).flatMap(([compId, acts]) =>
-                                    acts.map(act => {
-                                        const comp = competencies.find(c => c.id === Number(compId));
-                                        const Icon = comp?.icon;
-                                        return (
-                                            <tr key={act.id}>
-                                                <td>{act.title}</td>
-                                                <td>{act.date}</td>
-                                                <td>
-                                                    <span className="comp-badge" style={{ backgroundColor: `${comp?.color || '#64748b'}15`, color: comp?.color || '#64748b' }}>
-                                                        {Icon && <Icon size={14} />}
-                                                        <span>{comp?.name || 'สมรรถนะ'}</span>
-                                                    </span>
-                                                </td>
-                                                <td><strong>+{formatNumber(act.score, 2)}</strong></td>
-                                                <td>
-                                                    <span className="status-badge verified">
-                                                        ✓ {t('verified')}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
+                                {verificationData.activity.loading ? (
+                                    <VerificationState colSpan={6}>
+                                        {t('loading')}
+                                    </VerificationState>
+                                ) : verificationData.activity.error ? (
+                                    <VerificationState colSpan={6}>
+                                        {t('verify_load_error')}
+                                    </VerificationState>
+                                ) : activityVerificationRows.length === 0 ? (
+                                    <VerificationState colSpan={6}>
+                                        {t('verify_no_activity_scores')}
+                                    </VerificationState>
+                                ) : activityVerificationRows.map((act) => (
+                                    <tr key={`activity-${act.id}-${act.competency_id}`}>
+                                        <td>{act.title}</td>
+                                        <td>{act.date}</td>
+                                        <td>{act.type || '-'}</td>
+                                        <td>{act.competencyName}</td>
+                                        <td>
+                                            <strong>
+                                                {formatNumber(act.score, 2)} / {formatNumber(act.max_score, 2)}
+                                            </strong>
+                                        </td>
+                                        <td>
+                                            <span className="status-badge verified">
+                                                {t('verify_activity_recorded')}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
 
                     {/* Course Verify Table */}
-                    <div className="verify-list card" style={{ marginTop: '3rem' }}>
+                    <div className="verify-list card">
                         <div className="card-header">
                             <h2>
                                 <BookOpenText size={20} className="section-icon" />
-                                {t('courses')}
+                                {t('verify_course_scores')}
                             </h2>
                         </div>
+                        {verificationData.course.payload?.status?.recalculation_required && (
+                            <div className="dashboard-status-notice warning verify-recalculation-notice">
+                                {t('dashboard_scores_recalculation_required')}
+                            </div>
+                        )}
                         <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>{t('courses')}</th>
-                                    <th>{t('year')}</th>
-                                    <th>{t('score')}</th>
-                                    <th>{t('verified')}</th>
+                                    <th>{t('verify_course_name')}</th>
+                                    <th>{t('verify_academic_period')}</th>
+                                    <th>{t('verify_source')}</th>
+                                    <th>{t('verify_competency')}</th>
+                                    <th>{t('verify_contribution')}</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {Object.values(radarChartByCompetency).flat().map(course => (
-                                    <tr key={course.id}>
-                                        <td>{course.title}</td>
-                                        <td>{course.year}</td>
-                                        <td><strong>+{formatNumber(course.score, 2)}</strong></td>
+                                {verificationData.course.loading ? (
+                                    <VerificationState colSpan={5}>
+                                        {t('loading')}
+                                    </VerificationState>
+                                ) : verificationData.course.error ? (
+                                    <VerificationState colSpan={5}>
+                                        {t('verify_load_error')}
+                                    </VerificationState>
+                                ) : courseVerificationRows.length === 0 ? (
+                                    <VerificationState colSpan={5}>
+                                        {t('verify_no_course_scores')}
+                                    </VerificationState>
+                                ) : courseVerificationRows.map((course) => (
+                                    <tr key={`course-${course.source}-${course.id}-${course.competency_id}`}>
                                         <td>
-                                            <span className="status-badge verified">
-                                                ✓ {t('verified')}
+                                            <strong>{course.course_code || '-'}</strong>
+                                            <br />
+                                            {course.title}
+                                        </td>
+                                        <td>
+                                            {course.year || '-'}
+                                            {course.semester ? ` / ${course.semester}` : ''}
+                                        </td>
+                                        <td>
+                                            <span className={`verify-source-badge ${course.source}`}>
+                                                {course.source === 'free_elective'
+                                                    ? t('verify_free_elective')
+                                                    : t('verify_curriculum_course')}
                                             </span>
+                                        </td>
+                                        <td>{course.competencyName}</td>
+                                        <td>
+                                            <strong>{formatNumber(course.score, 2)}</strong>
+                                            {' '}{t('verify_points')}
                                         </td>
                                     </tr>
                                 ))}
@@ -736,4 +842,47 @@ function roundNumber(value, decimals) {
 function formatNumber(value, decimals) {
     if (Number.isNaN(value)) return '0';
     return roundNumber(value, decimals).toFixed(decimals);
+}
+
+function mapVerificationRows(payload, language) {
+    const competencies = new Map(
+        (payload?.competencies || []).map((competency) => [
+            Number(competency.id),
+            competency,
+        ]),
+    );
+
+    return Object.entries(payload?.activities || {})
+        .flatMap(([competencyId, records]) => records.map((record) => {
+            const competency = competencies.get(Number(competencyId));
+            const competencyName = language === 'en'
+                ? competency?.name_en || competency?.name_th || competency?.code
+                : competency?.name_th || competency?.name_en || competency?.code;
+            const title = language === 'en'
+                ? record.title_en || record.title
+                : record.title || record.title_en;
+
+            return {
+                ...record,
+                competencyName: competencyName || '-',
+                title: title || '-',
+            };
+        }))
+        .sort((left, right) => {
+            const yearDifference = Number(right.year || 0) - Number(left.year || 0);
+            if (yearDifference) return yearDifference;
+            const semesterDifference = Number(right.semester || 0) - Number(left.semester || 0);
+            if (semesterDifference) return semesterDifference;
+            return new Date(right.date || 0) - new Date(left.date || 0);
+        });
+}
+
+function VerificationState({ colSpan, children }) {
+    return (
+        <tr>
+            <td colSpan={colSpan} className="verify-empty-state">
+                {children}
+            </td>
+        </tr>
+    );
 }
