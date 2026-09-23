@@ -378,6 +378,21 @@ export async function duplicateFreeElectiveRound(roundId, form) {
     return mapFreeElectiveRoundDetail(unwrapData(response, null));
 }
 
+export async function updateFreeElectiveRoundMetadata(roundId, form) {
+    const response = await apiFetch(
+        `/api/v1/free-electives/rounds/${roundId}`,
+        {
+            method: 'PATCH',
+            body: JSON.stringify({
+                faculty_id: toNumber(form.facultyId),
+                academic_year_be: toNumber(form.academicYearBE),
+                semester: toNumber(form.semester),
+            }),
+        },
+    );
+    return mapFreeElectiveRoundDetail(unwrapData(response, null));
+}
+
 export async function updateFreeElectiveRoundStatus(roundId, status) {
     const response = await apiFetch(
         `/api/v1/free-electives/rounds/${roundId}/status`,

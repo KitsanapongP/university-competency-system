@@ -4,6 +4,8 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ArrowLeft,
     BookOpen,
+    Building2,
+    CalendarDays,
     Check,
     Copy,
     Layers,
@@ -18,12 +20,14 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../../../providers/auth-provider';
 import { useLanguage } from '../../../../../providers/LanguageContext';
 import { fetchCompetenciesForManagement } from '../../../../../lib/competency-management';
+import { fetchFaculties } from '../../../../../lib/curriculum';
 import {
     addFreeElectiveRoundCourse,
     duplicateFreeElectiveRound,
     fetchFreeElectiveCourses,
     fetchFreeElectiveRound,
     recalculateFreeElectiveRoundScores,
+    updateFreeElectiveRoundMetadata,
     updateFreeElectiveRoundStatus,
 } from '../../../../../lib/free-elective';
 import BaseModal from '../../../../../components/ui/BaseModal';
@@ -145,6 +149,206 @@ function RoundDuplicateModal({
     );
 }
 
+function RoundMetadataModal({
+    open,
+    round,
+    faculties,
+    facultyLoading,
+    canChangeFaculty,
+    saving,
+    language,
+    labels,
+    serverPeriodError,
+    onClearServerError,
+    onClose,
+    onSubmit,
+}) {
+    const [facultyId, setFacultyId] = useState(String(round?.facultyId || ''));
+    const [academicYearBE, setAcademicYearBE] = useState(String(round?.academicYearBE || ''));
+    const [semester, setSemester] = useState(String(round?.semester || ''));
+    const [fieldErrors, setFieldErrors] = useState({});
+
+    const selectedFaculty = faculties.find(
+        (faculty) => String(faculty.facultyId) === facultyId,
+    );
+    const selectedFacultyName = language === 'en'
+        ? selectedFaculty?.nameEn || selectedFaculty?.nameTh
+        : selectedFaculty?.nameTh || selectedFaculty?.nameEn;
+    const currentFacultyName = getFacultyName(round, language);
+
+    const handleSubmit = (event) => {
+        event.preventDefault();
+        const nextErrors = {};
+        if (canChangeFaculty && !facultyId) {
+            nextErrors.faculty = labels.selectFaculty;
+        }
+        if (!academicYearBE || Number(academicYearBE) < 1) {
+            nextErrors.academicYearBE = labels.roundAcademicYearRequired;
+        }
+        if (![1, 2, 3].includes(Number(semester))) {
+            nextErrors.semester = labels.roundSemesterRequired;
+        }
+        setFieldErrors(nextErrors);
+        if (Object.keys(nextErrors).length) {
+            return;
+        }
+
+        onSubmit({
+            facultyId: canChangeFaculty ? facultyId : String(round.facultyId),
+            academicYearBE,
+            semester,
+        });
+    };
+
+    const handlePeriodChange = (setter) => (event) => {
+        setter(event.target.value);
+        if (serverPeriodError) {
+            onClearServerError();
+        }
+    };
+
+    return (
+        <BaseModal
+            open={open}
+            title={labels.editRoundMetadataTitle}
+            icon={<Pencil size={18} />}
+            size="md"
+            onClose={onClose}
+            closeDisabled={saving}
+        >
+            <form
+                className="free-elective-round-duplicate-form"
+                onSubmit={handleSubmit}
+            >
+                <label className="free-elective-field">
+                    <span>{labels.faculty} *</span>
+                    <select
+                        value={facultyId}
+                        onChange={(event) => {
+                            setFacultyId(event.target.value);
+                            setFieldErrors((current) => ({ ...current, faculty: '' }));
+                        }}
+                        disabled={!canChangeFaculty || facultyLoading || saving}
+                        aria-invalid={Boolean(fieldErrors.faculty)}
+                        aria-describedby={fieldErrors.faculty
+                            ? 'free-elective-round-metadata-faculty-error'
+                            : undefined}
+                    >
+                        {facultyLoading && <option value="">{labels.loading}</option>}
+                        {!facultyLoading && !canChangeFaculty && (
+                            <option value={round?.facultyId}>{currentFacultyName}</option>
+                        )}
+                        {!facultyLoading && canChangeFaculty && (
+                            <>
+                                <option value="">{labels.selectFaculty}</option>
+                                {faculties.map((faculty) => {
+                                    const name = language === 'en'
+                                        ? faculty.nameEn || faculty.nameTh
+                                        : faculty.nameTh || faculty.nameEn;
+                                    return (
+                                        <option
+                                            key={faculty.facultyId}
+                                            value={faculty.facultyId}
+                                        >
+                                            {name}
+                                        </option>
+                                    );
+                                })}
+                            </>
+                        )}
+                    </select>
+                    {!canChangeFaculty && (
+                        <small className="free-elective-field__hint">
+                            {labels.roundFacultyLockedHint}
+                        </small>
+                    )}
+                    {fieldErrors.faculty && (
+                        <small
+                            className="free-elective-field__error"
+                            id="free-elective-round-metadata-faculty-error"
+                        >
+                            {fieldErrors.faculty}
+                        </small>
+                    )}
+                    {canChangeFaculty && selectedFacultyName && (
+                        <span className="free-elective-field__hint">
+                            <Building2 size={13} aria-hidden="true" />
+                            {selectedFacultyName}
+                        </span>
+                    )}
+                </label>
+                <label className="free-elective-field">
+                    <span>{labels.academicYear} *</span>
+                    <input
+                        type="number"
+                        min="1"
+                        value={academicYearBE}
+                        onChange={handlePeriodChange(setAcademicYearBE)}
+                        disabled={saving}
+                        aria-invalid={Boolean(fieldErrors.academicYearBE)}
+                        aria-describedby={fieldErrors.academicYearBE
+                            ? 'free-elective-round-metadata-year-error'
+                            : undefined}
+                        required
+                    />
+                    {fieldErrors.academicYearBE && (
+                        <small
+                            className="free-elective-field__error"
+                            id="free-elective-round-metadata-year-error"
+                        >
+                            {fieldErrors.academicYearBE}
+                        </small>
+                    )}
+                </label>
+                <label className="free-elective-field">
+                    <span>{labels.semester} *</span>
+                    <select
+                        value={semester}
+                        onChange={handlePeriodChange(setSemester)}
+                        disabled={saving}
+                        aria-invalid={Boolean(fieldErrors.semester || serverPeriodError)}
+                        aria-describedby={fieldErrors.semester || serverPeriodError
+                            ? 'free-elective-round-metadata-semester-error'
+                            : undefined}
+                    >
+                        <option value="">{labels.roundSemesterRequired}</option>
+                        <option value="1">{labels.semesterOne}</option>
+                        <option value="2">{labels.semesterTwo}</option>
+                        <option value="3">{labels.semesterThree}</option>
+                    </select>
+                    {(fieldErrors.semester || serverPeriodError) && (
+                        <small
+                            className="free-elective-field__error"
+                            id="free-elective-round-metadata-semester-error"
+                        >
+                            {fieldErrors.semester || serverPeriodError}
+                        </small>
+                    )}
+                </label>
+                <div className="free-elective-modal-actions">
+                    <button
+                        type="button"
+                        className="free-elective-button free-elective-button--secondary"
+                        onClick={onClose}
+                        disabled={saving}
+                    >
+                        <XCircle size={15} aria-hidden="true" />
+                        {labels.cancel}
+                    </button>
+                    <button
+                        type="submit"
+                        className="free-elective-button free-elective-button--primary"
+                        disabled={saving || facultyLoading || !academicYearBE || !semester}
+                    >
+                        <Check size={15} aria-hidden="true" />
+                        {saving ? labels.loading : labels.save}
+                    </button>
+                </div>
+            </form>
+        </BaseModal>
+    );
+}
+
 function FreeElectiveRoundDetailPageContent() {
     const router = useRouter();
     const params = useParams();
@@ -162,6 +366,13 @@ function FreeElectiveRoundDetailPageContent() {
     const [success, setSuccess] = useState('');
     const [statusAction, setStatusAction] = useState('');
     const [recalculateOpen, setRecalculateOpen] = useState(false);
+    const [metadataOpen, setMetadataOpen] = useState(false);
+    const [metadataFormKey, setMetadataFormKey] = useState(0);
+    const [periodImpactOpen, setPeriodImpactOpen] = useState(false);
+    const [pendingMetadata, setPendingMetadata] = useState(null);
+    const [faculties, setFaculties] = useState([]);
+    const [facultyLoading, setFacultyLoading] = useState(false);
+    const [metadataPeriodError, setMetadataPeriodError] = useState('');
     const [duplicateOpen, setDuplicateOpen] = useState(false);
     const [duplicateKey, setDuplicateKey] = useState(0);
     const [addCourseOpen, setAddCourseOpen] = useState(false);
@@ -193,12 +404,18 @@ function FreeElectiveRoundDetailPageContent() {
 
     const round = roundDetail?.round;
     const courses = roundDetail?.courses || [];
+    const isAdmin = user?.roles?.includes('admin') || false;
     const editMode = round?.status === 'draft'
         || (round?.status === 'active' && editRequested);
     const canEdit = editMode;
     const canRecalculate = round?.status === 'draft' || round?.status === 'active';
     const activeReadOnly = round?.status === 'active' && !editMode;
     const canRevertToDraft = round?.status === 'active'
+        && round.learnerCount === 0
+        && round.gradeCount === 0;
+    const canChangeFaculty = isAdmin
+        && round?.status === 'draft'
+        && round.courseCount === 0
         && round.learnerCount === 0
         && round.gradeCount === 0;
 
@@ -239,6 +456,66 @@ function FreeElectiveRoundDetailPageContent() {
     const openDuplicate = () => {
         setDuplicateKey((current) => current + 1);
         setDuplicateOpen(true);
+    };
+
+    const openMetadataEditor = async () => {
+        setMetadataFormKey((current) => current + 1);
+        setMetadataPeriodError('');
+        setMetadataOpen(true);
+        if (!canChangeFaculty || facultyLoading) {
+            return;
+        }
+        setFacultyLoading(true);
+        try {
+            setFaculties(await fetchFaculties());
+        } catch (facultyError) {
+            setError(facultyError.message || labels.loadError);
+        } finally {
+            setFacultyLoading(false);
+        }
+    };
+
+    const saveRoundMetadata = async (form) => {
+        if (!form) {
+            return;
+        }
+        setSaving(true);
+        setError('');
+        try {
+            await updateFreeElectiveRoundMetadata(roundId, form);
+            setMetadataOpen(false);
+            setPeriodImpactOpen(false);
+            setPendingMetadata(null);
+            setSuccess(labels.roundMetadataSaved);
+            await loadData();
+        } catch (saveError) {
+            if (saveError.code === 'ROUND_ALREADY_EXISTS') {
+                setMetadataPeriodError(labels.roundPeriodAlreadyExists);
+                setPeriodImpactOpen(false);
+                setMetadataOpen(true);
+            } else if (saveError.code === 'ROUND_FACULTY_CHANGE_REQUIRES_EMPTY') {
+                setError(labels.roundFacultyLockedHint);
+                setMetadataOpen(true);
+            } else {
+                setError(saveError.message || labels.roundMetadataSaveError);
+                setMetadataOpen(true);
+            }
+            setPendingMetadata(null);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleMetadataSubmit = (form) => {
+        const periodChanged = Number(form.academicYearBE) !== round.academicYearBE
+            || Number(form.semester) !== round.semester;
+        if (periodChanged && round.gradeCount > 0) {
+            setPendingMetadata(form);
+            setMetadataOpen(false);
+            setPeriodImpactOpen(true);
+            return;
+        }
+        saveRoundMetadata(form);
     };
 
     const handleAddCourse = async ({ courseId, competencies }) => {
@@ -410,20 +687,24 @@ function FreeElectiveRoundDetailPageContent() {
                         <button
                             type="button"
                             className="free-elective-button free-elective-button--primary"
-                            onClick={() => (canRevertToDraft
-                                ? setStatusAction('revert-draft')
-                                : setEditMode(true))}
+                            onClick={() => setEditMode(true)}
                             disabled={saving || loading}
-                            title={canRevertToDraft
-                                ? labels.revertToDraft
-                                : labels.enterEditMode}
+                            title={labels.enterEditMode}
                         >
-                            {canRevertToDraft
-                                ? <RotateCcw size={16} aria-hidden="true" />
-                                : <Pencil size={16} aria-hidden="true" />}
-                            {canRevertToDraft
-                                ? labels.revertToDraft
-                                : labels.enterEditMode}
+                            <Pencil size={16} aria-hidden="true" />
+                            {labels.enterEditMode}
+                        </button>
+                    )}
+                    {canRevertToDraft && !editMode && (
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--secondary"
+                            onClick={() => setStatusAction('revert-draft')}
+                            disabled={saving || loading}
+                            title={labels.revertToDraft}
+                        >
+                            <RotateCcw size={16} aria-hidden="true" />
+                            {labels.revertToDraft}
                         </button>
                     )}
                     {round.status === 'active' && editMode && (
@@ -436,6 +717,18 @@ function FreeElectiveRoundDetailPageContent() {
                         >
                             <Check size={16} aria-hidden="true" />
                             {labels.finishEditMode}
+                        </button>
+                    )}
+                    {canEdit && (
+                        <button
+                            type="button"
+                            className="free-elective-button free-elective-button--secondary"
+                            onClick={openMetadataEditor}
+                            disabled={saving || facultyLoading}
+                            title={labels.editRoundMetadata}
+                        >
+                            <CalendarDays size={16} aria-hidden="true" />
+                            {labels.editRoundMetadata}
                         </button>
                     )}
                     {round.scoresRecalculationRequired && canRecalculate && (
@@ -563,6 +856,21 @@ function FreeElectiveRoundDetailPageContent() {
                 onClose={() => setDuplicateOpen(false)}
                 onSubmit={handleDuplicate}
             />
+            <RoundMetadataModal
+                key={`round-metadata-${metadataFormKey}`}
+                open={metadataOpen}
+                round={round}
+                faculties={faculties}
+                facultyLoading={facultyLoading}
+                canChangeFaculty={canChangeFaculty}
+                saving={saving}
+                language={language}
+                labels={labels}
+                serverPeriodError={metadataPeriodError}
+                onClearServerError={() => setMetadataPeriodError('')}
+                onClose={() => setMetadataOpen(false)}
+                onSubmit={handleMetadataSubmit}
+            />
             <ConfirmActionModal
                 open={Boolean(statusAction)}
                 title={statusMessage.title}
@@ -574,6 +882,41 @@ function FreeElectiveRoundDetailPageContent() {
                 cancelLabel={labels.cancel}
                 onConfirm={handleStatusChange}
                 onCancel={() => setStatusAction('')}
+            />
+            <ConfirmActionModal
+                open={periodImpactOpen}
+                title={labels.roundPeriodImpactTitle}
+                message={labels.roundPeriodImpactMessage}
+                impact={(
+                    <div>
+                        <strong>
+                            {labels.roundPeriodImpactCount}: {round.gradeCount}
+                        </strong>
+                        <p>
+                            {formatFreeElectiveTerm(
+                                round.academicYearBE,
+                                round.semester,
+                                language,
+                            )}
+                            {' -> '}
+                            {formatFreeElectiveTerm(
+                                pendingMetadata?.academicYearBE,
+                                pendingMetadata?.semester,
+                                language,
+                            )}
+                        </p>
+                    </div>
+                )}
+                variant="info"
+                size="md"
+                loading={saving}
+                confirmLabel={labels.save}
+                cancelLabel={labels.cancel}
+                onConfirm={() => saveRoundMetadata(pendingMetadata)}
+                onCancel={() => {
+                    setPeriodImpactOpen(false);
+                    setMetadataOpen(true);
+                }}
             />
             <ConfirmActionModal
                 open={recalculateOpen}
