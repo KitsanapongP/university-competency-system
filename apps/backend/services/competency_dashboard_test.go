@@ -124,3 +124,48 @@ func TestProcessCoursesUsesScoreSnapshotAndAcademicYear(t *testing.T) {
 		t.Fatalf("course history did not preserve snapshot data: %#v", item)
 	}
 }
+
+func TestProcessCoursesPreservesFreeElectivePeriodAndSource(t *testing.T) {
+	service := &CompetencyService{}
+	rows := []repositories.CourseRecord{
+		{
+			RecordID:     801,
+			CourseID:     36,
+			CompetencyID: 7,
+			CourseCode:   "GE123",
+			CourseName:   "วิชาเสรี",
+			CourseNameEN: "Free elective",
+			AcademicYear: "2569",
+			Semester:     2,
+			Source:       "free_elective",
+			Score:        sql.NullFloat64{Float64: 12.5, Valid: true},
+		},
+	}
+
+	item := service.processCourses(rows)[7][0]
+	if item.Source != "free_elective" || item.CourseCode != "GE123" || item.Semester != 2 {
+		t.Fatalf("free-elective source details were lost: %#v", item)
+	}
+	if item.Title != "วิชาเสรี" || item.TitleEN != "Free elective" || item.Score != 12.5 {
+		t.Fatalf("free-elective score details were lost: %#v", item)
+	}
+}
+
+func TestLearnerCourseTotalIncludesFreeElectiveContribution(t *testing.T) {
+	progress := mapLearnerCompetencyProgress(repositories.LearnerCompetencyProgressRecord{
+		CoreScore:         68,
+		CourseBonusScore:  4,
+		FreeElectiveScore: 9,
+		ActivityScore:     30,
+		AccumulatedScore:  111,
+		TargetScore:       80,
+		Passed:            true,
+	})
+
+	if progress.CourseTotalScore != 81 {
+		t.Fatalf("expected course total to include free electives, got %v", progress.CourseTotalScore)
+	}
+	if progress.ActivityScore != 30 || !progress.Passed {
+		t.Fatalf("activity score or target result was not preserved: %#v", progress)
+	}
+}
