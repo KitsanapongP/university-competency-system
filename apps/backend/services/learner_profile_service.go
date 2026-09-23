@@ -55,6 +55,7 @@ func (s *LearnerProfileService) GetAcademicProfile(ctx context.Context, userID i
 	return &models.LearnerAcademicProfileResponse{
 		Profile:       profile,
 		CourseHistory: courses,
+		TermSummaries: buildLearnerAcademicTermSummaries(courses),
 	}, nil
 }
 

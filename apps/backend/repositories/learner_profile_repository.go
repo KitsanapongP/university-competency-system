@@ -104,11 +104,14 @@ func (r *LearnerProfileRepository) GetCurriculumCourseHistory(ctx context.Contex
 	rows, err := r.DB.QueryContext(ctx, `
 		SELECT
 			courseEnrollment.course_student_id,
+			courseEnrollment.course_id,
 			courseEnrollment.academic_year_be,
 			courseEnrollment.semester,
 			COALESCE(course.code, ''),
 			COALESCE(course.name_th, ''),
 			COALESCE(course.name_en, ''),
+			COALESCE(course.credits, 0),
+			COALESCE(course.grade_scheme, 'letter'),
 			COALESCE(courseEnrollment.grade, '')
 		FROM kku_enrollments enrollment
 		JOIN crs_course_enrollment courseEnrollment
@@ -135,11 +138,14 @@ func (r *LearnerProfileRepository) GetFreeElectiveCourseHistory(ctx context.Cont
 	rows, err := r.DB.QueryContext(ctx, `
 		SELECT
 			enrollment.round_course_enrollment_id,
+			roundCourse.free_elective_course_id,
 			round.academic_year_be,
 			round.semester,
 			COALESCE(roundCourse.course_code, ''),
 			COALESCE(roundCourse.course_name_th, ''),
 			COALESCE(roundCourse.course_name_en, ''),
+			COALESCE(roundCourse.credits, 0),
+			COALESCE(roundCourse.grade_scheme, 'letter'),
 			COALESCE(grade.grade, '')
 		FROM kku_enrollments learnerEnrollment
 		JOIN ele_course_enrollments enrollment
@@ -174,11 +180,14 @@ func scanLearnerAcademicCourses(rows *sql.Rows, source string) ([]models.Learner
 		var course models.LearnerAcademicCourse
 		if err := rows.Scan(
 			&course.RecordID,
+			&course.CourseID,
 			&course.AcademicYearBE,
 			&course.Semester,
 			&course.CourseCode,
 			&course.CourseNameTH,
 			&course.CourseNameEN,
+			&course.Credits,
+			&course.GradeScheme,
 			&course.Grade,
 		); err != nil {
 			return nil, err
