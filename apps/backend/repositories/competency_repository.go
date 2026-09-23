@@ -43,16 +43,22 @@ type CourseRecord struct {
 	RecordID     int64
 	CourseID     int64
 	CompetencyID int64
+	CourseCode   string
 	CourseName   string
+	CourseNameEN string
 	AcademicYear string // ปีการศึกษา (Buddhist Era)
+	Semester     int
+	Source       string
 	Score        sql.NullFloat64
 }
 
 type LearnerDashboardScope struct {
-	CohortID     int64
-	TemplateID   int64
-	TemplateName string
-	Competencies []CompetencyRecord
+	CohortID                                int64
+	TemplateID                              int64
+	TemplateName                            string
+	CourseScoresRecalculationRequired       bool
+	FreeElectiveScoresRecalculationRequired bool
+	Competencies                            []CompetencyRecord
 }
 
 func (r *CompetencyRepository) ResolvePersonID(ctx context.Context, userID int64) (int64, error) {
@@ -100,9 +106,13 @@ func (r *CompetencyRepository) GetLearnerDashboardScope(ctx context.Context, per
 	var cohortID sql.NullInt64
 	var templateID sql.NullInt64
 	var templateName sql.NullString
+	var courseScoresRecalculationRequired int
+	var freeElectiveScoresRecalculationRequired int
 
 	err := r.DB.QueryRowContext(ctx, `
-SELECT cohort.cohort_id, template.template_id, template.name
+SELECT cohort.cohort_id, template.template_id, template.name,
+	COALESCE(cohort.course_scores_recalculation_required, 0),
+	COALESCE(cohort.free_elective_scores_recalculation_required, 0)
 FROM kku_enrollments enrollment
 JOIN kku_enrollment_curricula enrollmentCurriculum
 	ON enrollmentCurriculum.enrollment_id = enrollment.enrollment_id
@@ -122,7 +132,13 @@ LEFT JOIN comp_templates template
 WHERE enrollment.person_id = ?
 	AND enrollment.deleted_at IS NULL
 ORDER BY cohort.entry_year_be DESC, assignment.assigned_at DESC
-LIMIT 1`, personID).Scan(&cohortID, &templateID, &templateName)
+LIMIT 1`, personID).Scan(
+		&cohortID,
+		&templateID,
+		&templateName,
+		&courseScoresRecalculationRequired,
+		&freeElectiveScoresRecalculationRequired,
+	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return scope, nil
@@ -138,6 +154,8 @@ LIMIT 1`, personID).Scan(&cohortID, &templateID, &templateName)
 	if templateName.Valid {
 		scope.TemplateName = templateName.String
 	}
+	scope.CourseScoresRecalculationRequired = courseScoresRecalculationRequired == 1
+	scope.FreeElectiveScoresRecalculationRequired = freeElectiveScoresRecalculationRequired == 1
 	if scope.TemplateID == 0 {
 		return scope, nil
 	}
@@ -398,11 +416,12 @@ JOIN score_session_competency_scores scc
 	AND scc.person_id = ?
 	AND scc.is_locked = 1
 	AND scc.deleted_at IS NULL
-JOIN score_session_competency_results csr
-  ON csr.score_id = scc.session_competency_score_id
-  AND csr.is_locked = 1
-  AND csr.deleted_at IS NULL
+	JOIN score_session_competency_results csr
+		ON csr.score_id = scc.session_competency_score_id
+		AND csr.is_locked = 1
+		AND csr.deleted_at IS NULL
 WHERE sc.deleted_at IS NULL
+	AND csr.earned_percent IS NOT NULL
 ORDER BY s.start_at DESC
 `, personID)
 	if err != nil {
@@ -467,7 +486,7 @@ func (r *CompetencyRepository) GetLearnerCompetencyProgress(ctx context.Context,
 	rows, err := r.DB.QueryContext(ctx, `
 		SELECT requirement.competency_id, COALESCE(result.core_score, 0), COALESCE(result.course_bonus_score, 0),
 			COALESCE(result.free_elective_score, 0), COALESCE(result.activity_score, 0), COALESCE(result.final_score, 0), requirement.target_score,
-			CASE WHEN requirement.is_required = 0 OR COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) >= requirement.target_score THEN 1 ELSE 0 END,
+			CASE WHEN requirement.is_required = 0 OR COALESCE(result.core_score, 0) + COALESCE(result.course_bonus_score, 0) + COALESCE(result.free_elective_score, 0) >= requirement.target_score THEN 1 ELSE 0 END,
 			CASE WHEN result.competency_result_id IS NULL THEN 0 ELSE 1 END
 		FROM kku_enrollments enrollment
 		JOIN kku_enrollment_curricula cohortEnrollment ON cohortEnrollment.enrollment_id = enrollment.enrollment_id AND cohortEnrollment.deleted_at IS NULL
@@ -534,8 +553,11 @@ SELECT
 	score.score_id,
 	grade.course_id,
 	score.competency_id,
+	course.code,
 	course.name_th,
+	COALESCE(course.name_en, ''),
 	COALESCE(grade.academic_year_be, 0),
+	COALESCE(grade.semester, 0),
 	COALESCE(score.weighted_score, 0)
 FROM kku_enrollments enrollment
 JOIN kku_enrollment_curricula enrollmentCurriculum
@@ -570,12 +592,16 @@ ORDER BY grade.academic_year_be DESC, course.name_th ASC, score.score_id`, perso
 		var rec CourseRecord
 		var yearBE int64
 		var weightedScore float64
+		rec.Source = "curriculum"
 		if err := rows.Scan(
 			&rec.RecordID,
 			&rec.CourseID,
 			&rec.CompetencyID,
+			&rec.CourseCode,
 			&rec.CourseName,
+			&rec.CourseNameEN,
 			&yearBE,
+			&rec.Semester,
 			&weightedScore,
 		); err != nil {
 			return nil, err
@@ -586,6 +612,91 @@ ORDER BY grade.academic_year_be DESC, course.name_th ASC, score.score_id`, perso
 		items = append(items, rec)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (r *CompetencyRepository) GetFreeElectiveCourseScoresByPerson(ctx context.Context, personID int64) ([]CourseRecord, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+SELECT
+	score.free_elective_score_id,
+	course.free_elective_course_id,
+	mapping.competency_id,
+	course.course_code,
+	course.course_name_th,
+	COALESCE(course.course_name_en, ''),
+	round.academic_year_be,
+	round.semester,
+	score.weighted_score
+FROM kku_enrollments enrollment
+JOIN kku_enrollment_curricula currentCurriculum
+	ON currentCurriculum.enrollment_id = enrollment.enrollment_id
+	AND currentCurriculum.is_current = 1
+	AND currentCurriculum.deleted_at IS NULL
+JOIN edu_student_cohorts cohort
+	ON cohort.cohort_id = currentCurriculum.cohort_id
+	AND cohort.status = 'active'
+	AND cohort.deleted_at IS NULL
+JOIN comp_curriculum_requirements requirement
+	ON requirement.cohort_id = cohort.cohort_id
+	AND requirement.deleted_at IS NULL
+JOIN ele_course_enrollments selected
+	ON selected.enrollment_id = enrollment.enrollment_id
+	AND selected.enrollment_curriculum_id = currentCurriculum.enrollment_curriculum_id
+	AND selected.status IN ('enrolled', 'completed')
+	AND selected.deleted_at IS NULL
+JOIN ele_course_grades grade
+	ON grade.round_course_enrollment_id = selected.round_course_enrollment_id
+	AND grade.is_best_grade = 1
+	AND grade.deleted_at IS NULL
+JOIN ele_round_courses course
+	ON course.round_course_id = selected.round_course_id
+	AND course.deleted_at IS NULL
+JOIN ele_rounds round
+	ON round.round_id = course.round_id
+	AND round.status = 'finalized'
+	AND round.deleted_at IS NULL
+JOIN ele_round_course_competencies mapping
+	ON mapping.round_course_id = course.round_course_id
+	AND mapping.competency_id = requirement.competency_id
+	AND mapping.deleted_at IS NULL
+JOIN ele_course_scores score
+	ON score.grade_record_id = grade.grade_record_id
+	AND score.round_course_competency_id = mapping.round_course_competency_id
+	AND score.deleted_at IS NULL
+WHERE enrollment.person_id = ?
+	AND enrollment.enrollment_status = 'student'
+	AND enrollment.deleted_at IS NULL
+ORDER BY round.academic_year_be DESC, round.semester DESC, course.course_code, score.free_elective_score_id`, personID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]CourseRecord, 0)
+	for rows.Next() {
+		var item CourseRecord
+		var academicYear int64
+		if err := rows.Scan(
+			&item.RecordID,
+			&item.CourseID,
+			&item.CompetencyID,
+			&item.CourseCode,
+			&item.CourseName,
+			&item.CourseNameEN,
+			&academicYear,
+			&item.Semester,
+			&item.Score.Float64,
+		); err != nil {
+			return nil, err
+		}
+		item.AcademicYear = strconv.FormatInt(academicYear, 10)
+		item.Source = "free_elective"
+		item.Score.Valid = true
+		items = append(items, item)
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}

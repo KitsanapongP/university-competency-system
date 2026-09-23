@@ -52,13 +52,17 @@ type Competency struct {
 type Activity struct {
 	ID           int64   `json:"id"`
 	Title        string  `json:"title"`
+	TitleEN      string  `json:"title_en,omitempty"`
 	Date         string  `json:"date"`
 	Year         string  `json:"year"`
+	Semester     int     `json:"semester,omitempty"`
 	Month        int     `json:"month"`
 	Score        float64 `json:"score"`
 	MaxScore     float64 `json:"max_score"`
 	Type         string  `json:"type"`
 	Status       string  `json:"status"`
+	Source       string  `json:"source"`
+	CourseCode   string  `json:"course_code,omitempty"`
 	CompetencyID int64   `json:"competency_id"`
 }
 
@@ -72,13 +76,14 @@ type DashboardData struct {
 }
 
 type DashboardStatus struct {
-	Code            string `json:"code"`
-	Ready           bool   `json:"ready"`
-	CohortID        int64  `json:"cohort_id,omitempty"`
-	TemplateID      int64  `json:"template_id,omitempty"`
-	TemplateName    string `json:"template_name,omitempty"`
-	HasRequirements bool   `json:"has_requirements"`
-	HasScores       bool   `json:"has_scores"`
+	Code                  string `json:"code"`
+	Ready                 bool   `json:"ready"`
+	RecalculationRequired bool   `json:"recalculation_required"`
+	CohortID              int64  `json:"cohort_id,omitempty"`
+	TemplateID            int64  `json:"template_id,omitempty"`
+	TemplateName          string `json:"template_name,omitempty"`
+	HasRequirements       bool   `json:"has_requirements"`
+	HasScores             bool   `json:"has_scores"`
 }
 
 type LearnerCompetencyProgress struct {
@@ -226,11 +231,12 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 		AvailableYear: []string{},
 		Progress:      make(map[int64]LearnerCompetencyProgress),
 		Status: DashboardStatus{
-			Code:         "READY",
-			Ready:        len(scope.Competencies) > 0,
-			CohortID:     scope.CohortID,
-			TemplateID:   scope.TemplateID,
-			TemplateName: scope.TemplateName,
+			Code:                  "READY",
+			Ready:                 len(scope.Competencies) > 0,
+			RecalculationRequired: scope.CourseScoresRecalculationRequired || scope.FreeElectiveScoresRecalculationRequired,
+			CohortID:              scope.CohortID,
+			TemplateID:            scope.TemplateID,
+			TemplateName:          scope.TemplateName,
 		},
 	}
 
@@ -246,17 +252,7 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 			NameEN: comp.NameEN,
 		})
 
-		progress := progressRows[comp.ID]
-		data.Progress[comp.ID] = LearnerCompetencyProgress{
-			CoreScore:         progress.CoreScore,
-			CourseBonusScore:  progress.CourseBonusScore,
-			FreeElectiveScore: progress.FreeElectiveScore,
-			CourseTotalScore:  progress.CoreScore + progress.CourseBonusScore,
-			ActivityScore:     progress.ActivityScore,
-			AccumulatedScore:  progress.AccumulatedScore,
-			TargetScore:       progress.TargetScore,
-			Passed:            progress.Passed,
-		}
+		data.Progress[comp.ID] = mapLearnerCompetencyProgress(progressRows[comp.ID])
 		if requirement, exists := progressRows[comp.ID]; exists {
 			data.Requirements[comp.ID] = requirement.TargetScore
 		}
@@ -272,6 +268,8 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 		data.Status.Code = "NO_TEMPLATE_COMPETENCIES"
 	} else if len(progressRows) == 0 {
 		data.Status.Code = "NO_REQUIREMENTS"
+	} else if data.Status.RecalculationRequired {
+		data.Status.Code = "RECALCULATION_REQUIRED"
 	}
 
 	if category == "course" {
@@ -279,6 +277,12 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 		if err != nil {
 			return nil, err
 		}
+		freeElectiveRows, err := s.Repo.GetFreeElectiveCourseScoresByPerson(ctx, personID)
+		if err != nil {
+			return nil, err
+		}
+		courseRows = append(courseRows, freeElectiveRows...)
+		data.Status.HasScores = len(courseRows) > 0
 
 		activitiesByCompetency := s.processCourses(filterCourseRecords(courseRows, scope.Competencies))
 		data.Activities = activitiesByCompetency
@@ -288,6 +292,7 @@ func (s *CompetencyService) BuildDashboard(ctx context.Context, userID int64, ca
 			data.AvailableYear = append(data.AvailableYear, year)
 		}
 	}
+	data.Status.Ready = data.Status.Code == "READY" && data.Status.HasScores && !data.Status.RecalculationRequired
 
 	return data, nil
 }
@@ -378,6 +383,19 @@ func hasAnyResult(progress map[int64]repositories.LearnerCompetencyProgressRecor
 	return false
 }
 
+func mapLearnerCompetencyProgress(record repositories.LearnerCompetencyProgressRecord) LearnerCompetencyProgress {
+	return LearnerCompetencyProgress{
+		CoreScore:         record.CoreScore,
+		CourseBonusScore:  record.CourseBonusScore,
+		FreeElectiveScore: record.FreeElectiveScore,
+		CourseTotalScore:  record.CoreScore + record.CourseBonusScore + record.FreeElectiveScore,
+		ActivityScore:     record.ActivityScore,
+		AccumulatedScore:  record.AccumulatedScore,
+		TargetScore:       record.TargetScore,
+		Passed:            record.Passed,
+	}
+}
+
 func filterActivityRecords(records []repositories.ActivityRecord, competencies []repositories.CompetencyRecord) []repositories.ActivityRecord {
 	allowed := make(map[int64]struct{}, len(competencies))
 	for _, competency := range competencies {
@@ -445,6 +463,7 @@ func (s *CompetencyService) processActivities(activityRows []repositories.Activi
 			MaxScore:     row.MaxPercent,
 			Type:         actType,
 			Status:       status,
+			Source:       "activity",
 			CompetencyID: row.CompetencyID,
 		})
 	}
@@ -473,16 +492,24 @@ func (s *CompetencyService) processCourses(courseRows []repositories.CourseRecor
 		if activityID == 0 {
 			activityID = row.CourseID
 		}
+		source := row.Source
+		if source == "" {
+			source = "curriculum"
+		}
 		activitiesByCompetency[row.CompetencyID] = append(activitiesByCompetency[row.CompetencyID], Activity{
 			ID:           activityID,
 			Title:        row.CourseName,
+			TitleEN:      row.CourseNameEN,
 			Date:         date,
 			Year:         year,
+			Semester:     row.Semester,
 			Month:        month,
 			Score:        score,
 			MaxScore:     100.0, // หรือดึงจาก database ถ้ามี
 			Type:         actType,
 			Status:       status,
+			Source:       source,
+			CourseCode:   row.CourseCode,
 			CompetencyID: row.CompetencyID,
 		})
 	}
