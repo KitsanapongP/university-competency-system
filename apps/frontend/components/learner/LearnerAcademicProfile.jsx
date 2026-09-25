@@ -259,6 +259,7 @@ export default function LearnerAcademicProfile({ activityHistory }) {
 
     const labels = useMemo(() => ({
         activityHistory: t('activity_history'),
+        learnerNoActivityHistory: t('learner_no_activity_history'),
         courseHistory: t('course_history'),
         verified: t('verified'),
         learnerAcademicYear: t('learner_academic_year'),
@@ -337,6 +338,10 @@ export default function LearnerAcademicProfile({ activityHistory }) {
     const { profile, courseHistory, termSummaries } = data;
     const learnerName = localizedValue(profile.nameEn, profile.nameTh, language);
     const learnerInitials = getInitials(learnerName);
+    const recentActivities = Object.values(activityHistory || {})
+        .flat()
+        .filter((activity) => activity.type !== 'course')
+        .slice(0, 5);
 
     return (
         <div className="profile-page">
@@ -393,12 +398,9 @@ export default function LearnerAcademicProfile({ activityHistory }) {
                             {labels.activityHistory}
                         </h2>
                     </div>
-                    <div className="activity-list">
-                        {Object.values(activityHistory || {})
-                            .flat()
-                            .filter((activity) => activity.type !== 'course')
-                            .slice(0, 5)
-                            .map((activity) => (
+                    <div className={`activity-list${recentActivities.length === 0 ? ' activity-list--empty' : ''}`}>
+                        {recentActivities.length > 0 ? (
+                            recentActivities.map((activity) => (
                                 <div key={activity.id} className="activity-item">
                                     <div className="activity-badge">
                                         {(activity.type || 'A').charAt(0)}
@@ -411,7 +413,12 @@ export default function LearnerAcademicProfile({ activityHistory }) {
                                         {labels.verified}
                                     </div>
                                 </div>
-                            ))}
+                            ))
+                        ) : (
+                            <p className="activity-empty-state" role="status">
+                                {labels.learnerNoActivityHistory}
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>
