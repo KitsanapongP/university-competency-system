@@ -79,12 +79,6 @@ function semesterLabel(semester, labels) {
     return `${labels.learnerSemester} ${semester || '-'}`;
 }
 
-function courseSourceLabel(source, labels) {
-    return source === 'free_elective'
-        ? labels.learnerFreeElectiveCourse
-        : labels.learnerCurriculumCourse;
-}
-
 function GradeSummary({ summary, title, language, labels }) {
     const numberLocale = language === 'en' ? 'en-US' : 'th-TH';
     const wholeNumber = new Intl.NumberFormat(numberLocale, {
@@ -206,9 +200,6 @@ function AcademicHistory({ courses, termSummaries, language, labels }) {
                                                         language,
                                                     )}
                                                 </strong>
-                                                <span>
-                                                    {courseSourceLabel(course.source, labels)}
-                                                </span>
                                             </div>
                                             <span
                                                 className="learner-course-history__credits"
@@ -288,7 +279,7 @@ export default function LearnerAcademicProfile({ activityHistory }) {
         learnerSemesterTwo: t('learner_semester_two'),
         learnerStudentID: t('learner_student_id'),
         learnerStudyYear: t('learner_study_year'),
-        learnerSummer: t('learner_summer'),
+        learnerSummer: t('learner_semester_three'),
         learnerCurriculum: t('learner_curriculum'),
     }), [t]);
 
