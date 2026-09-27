@@ -13,6 +13,7 @@ const (
 type CooperativeRequirementSet struct {
 	RequirementSetID uint64                   `json:"requirement_set_id"`
 	CurriculumID     uint64                   `json:"curriculum_id"`
+	Semester         uint                     `json:"semester"`
 	Revision         uint64                   `json:"revision"`
 	Status           string                   `json:"status"`
 	CreatedAt        time.Time                `json:"created_at"`

@@ -35,14 +35,14 @@ func NewCooperativeReadinessService(repo *repositories.CooperativeReadinessRepos
 	return &CooperativeReadinessService{Repo: repo, Curriculums: curriculums}
 }
 
-func (s *CooperativeReadinessService) GetRequirements(ctx context.Context, curriculumID uint64, roles []string, facultyID *int64) (*models.CooperativeRequirementsResponse, error) {
+func (s *CooperativeReadinessService) GetRequirements(ctx context.Context, curriculumID uint64, semester uint, roles []string, facultyID *int64) (*models.CooperativeRequirementsResponse, error) {
 	if _, err := s.curriculumScope(ctx, curriculumID, roles, facultyID); err != nil {
 		return nil, err
 	}
-	return s.Repo.GetRequirementSets(ctx, curriculumID)
+	return s.Repo.GetRequirementSets(ctx, curriculumID, semester)
 }
 
-func (s *CooperativeReadinessService) SaveDraft(ctx context.Context, curriculumID, userID uint64, payload models.ReplaceCooperativeRequirementsPayload, roles []string, facultyID *int64) (*models.CooperativeRequirementsResponse, error) {
+func (s *CooperativeReadinessService) SaveDraft(ctx context.Context, curriculumID uint64, semester uint, userID uint64, payload models.ReplaceCooperativeRequirementsPayload, roles []string, facultyID *int64) (*models.CooperativeRequirementsResponse, error) {
 	curriculum, err := s.curriculumScope(ctx, curriculumID, roles, facultyID)
 	if err != nil {
 		return nil, err
@@ -50,18 +50,18 @@ func (s *CooperativeReadinessService) SaveDraft(ctx context.Context, curriculumI
 	if err := validateCooperativeRequirements(curriculum.Categories, payload.Requirements, false); err != nil {
 		return nil, err
 	}
-	if err := s.Repo.ReplaceDraft(ctx, curriculumID, userID, payload.Requirements); err != nil {
+	if err := s.Repo.ReplaceDraft(ctx, curriculumID, semester, userID, payload.Requirements); err != nil {
 		return nil, err
 	}
-	return s.Repo.GetRequirementSets(ctx, curriculumID)
+	return s.Repo.GetRequirementSets(ctx, curriculumID, semester)
 }
 
-func (s *CooperativeReadinessService) PublishDraft(ctx context.Context, curriculumID, userID uint64, roles []string, facultyID *int64) (*models.CooperativeRequirementsResponse, error) {
+func (s *CooperativeReadinessService) PublishDraft(ctx context.Context, curriculumID uint64, semester uint, userID uint64, roles []string, facultyID *int64) (*models.CooperativeRequirementsResponse, error) {
 	curriculum, err := s.curriculumScope(ctx, curriculumID, roles, facultyID)
 	if err != nil {
 		return nil, err
 	}
-	sets, err := s.Repo.GetRequirementSets(ctx, curriculumID)
+	sets, err := s.Repo.GetRequirementSets(ctx, curriculumID, semester)
 	if err != nil {
 		return nil, err
 	}
@@ -71,10 +71,10 @@ func (s *CooperativeReadinessService) PublishDraft(ctx context.Context, curricul
 	if err := validateCooperativeRequirements(curriculum.Categories, sets.Draft.Requirements, true); err != nil {
 		return nil, err
 	}
-	if err := s.Repo.PublishDraft(ctx, curriculumID, userID, sets.Draft.Requirements); err != nil {
+	if err := s.Repo.PublishDraft(ctx, curriculumID, semester, userID, sets.Draft.Requirements); err != nil {
 		return nil, err
 	}
-	return s.Repo.GetRequirementSets(ctx, curriculumID)
+	return s.Repo.GetRequirementSets(ctx, curriculumID, semester)
 }
 
 func (s *CooperativeReadinessService) GetReadiness(ctx context.Context, userID uint64, semester uint) (*models.CooperativeReadinessResult, error) {
@@ -92,7 +92,7 @@ func (s *CooperativeReadinessService) GetReadiness(ctx context.Context, userID u
 		return nil, CooperativeReadinessValidationError{Message: "learner curriculum and entry year are required"}
 	}
 
-	sets, err := s.Repo.GetRequirementSets(ctx, learner.CurriculumID)
+	sets, err := s.Repo.GetRequirementSets(ctx, learner.CurriculumID, semester)
 	if err != nil {
 		return nil, err
 	}

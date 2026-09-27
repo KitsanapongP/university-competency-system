@@ -183,14 +183,14 @@ func (r *CooperativeReadinessRepository) getFreeElectiveAcademicRecords(ctx cont
 	return result, rows.Err()
 }
 
-func (r *CooperativeReadinessRepository) GetRequirementSets(ctx context.Context, curriculumID uint64) (*models.CooperativeRequirementsResponse, error) {
+func (r *CooperativeReadinessRepository) GetRequirementSets(ctx context.Context, curriculumID uint64, semester uint) (*models.CooperativeRequirementsResponse, error) {
 	response := &models.CooperativeRequirementsResponse{CurriculumID: curriculumID}
 	rows, err := r.DB.QueryContext(ctx, `
-		SELECT requirement_set_id, curriculum_id, revision, status,
+		SELECT requirement_set_id, curriculum_id, semester, revision, status,
 			created_at, updated_at, published_at
 		FROM crs_coop_requirement_sets
-		WHERE curriculum_id = ? AND status IN ('draft', 'published')
-		ORDER BY FIELD(status, 'draft', 'published')`, curriculumID)
+		WHERE curriculum_id = ? AND semester = ? AND status IN ('draft', 'published')
+		ORDER BY FIELD(status, 'draft', 'published')`, curriculumID, semester)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +203,7 @@ func (r *CooperativeReadinessRepository) GetRequirementSets(ctx context.Context,
 		if err := rows.Scan(
 			&set.RequirementSetID,
 			&set.CurriculumID,
+			&set.Semester,
 			&set.Revision,
 			&set.Status,
 			&set.CreatedAt,
@@ -303,7 +304,7 @@ func scanCooperativeRequirement(scanner cooperativeRequirementScanner) (models.C
 	return requirement, nil
 }
 
-func (r *CooperativeReadinessRepository) ReplaceDraft(ctx context.Context, curriculumID, userID uint64, requirements []models.CooperativeRequirement) error {
+func (r *CooperativeReadinessRepository) ReplaceDraft(ctx context.Context, curriculumID uint64, semester uint, userID uint64, requirements []models.CooperativeRequirement) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -322,18 +323,18 @@ func (r *CooperativeReadinessRepository) ReplaceDraft(ctx context.Context, curri
 	err = tx.QueryRowContext(ctx, `
 		SELECT requirement_set_id, revision
 		FROM crs_coop_requirement_sets
-		WHERE curriculum_id = ? AND status = 'draft' FOR UPDATE`, curriculumID,
+		WHERE curriculum_id = ? AND semester = ? AND status = 'draft' FOR UPDATE`, curriculumID, semester,
 	).Scan(&setID, &revision)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := tx.QueryRowContext(ctx, `
 			SELECT COALESCE(MAX(revision), 0) + 1
-			FROM crs_coop_requirement_sets WHERE curriculum_id = ?`, curriculumID,
+			FROM crs_coop_requirement_sets WHERE curriculum_id = ? AND semester = ?`, curriculumID, semester,
 		).Scan(&revision); err != nil {
 			return err
 		}
 		result, err := tx.ExecContext(ctx, `
-			INSERT INTO crs_coop_requirement_sets (curriculum_id, revision, status, created_by)
-			VALUES (?, ?, 'draft', NULLIF(?, 0))`, curriculumID, revision, userID)
+			INSERT INTO crs_coop_requirement_sets (curriculum_id, semester, revision, status, created_by)
+			VALUES (?, ?, ?, 'draft', NULLIF(?, 0))`, curriculumID, semester, revision, userID)
 		if err != nil {
 			return err
 		}
@@ -380,7 +381,7 @@ func (r *CooperativeReadinessRepository) ReplaceDraft(ctx context.Context, curri
 	return tx.Commit()
 }
 
-func (r *CooperativeReadinessRepository) PublishDraft(ctx context.Context, curriculumID, userID uint64, expected []models.CooperativeRequirement) error {
+func (r *CooperativeReadinessRepository) PublishDraft(ctx context.Context, curriculumID uint64, semester uint, userID uint64, expected []models.CooperativeRequirement) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -398,7 +399,7 @@ func (r *CooperativeReadinessRepository) PublishDraft(ctx context.Context, curri
 	var draftID uint64
 	if err := tx.QueryRowContext(ctx, `
 		SELECT requirement_set_id FROM crs_coop_requirement_sets
-		WHERE curriculum_id = ? AND status = 'draft' FOR UPDATE`, curriculumID,
+		WHERE curriculum_id = ? AND semester = ? AND status = 'draft' FOR UPDATE`, curriculumID, semester,
 	).Scan(&draftID); err != nil {
 		return err
 	}
@@ -417,7 +418,7 @@ func (r *CooperativeReadinessRepository) PublishDraft(ctx context.Context, curri
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE crs_coop_requirement_sets
 		SET status = 'archived'
-		WHERE curriculum_id = ? AND status = 'published'`, curriculumID); err != nil {
+		WHERE curriculum_id = ? AND semester = ? AND status = 'published'`, curriculumID, semester); err != nil {
 		return err
 	}
 	result, err := tx.ExecContext(ctx, `

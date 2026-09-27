@@ -21,13 +21,17 @@ func (h *CooperativeReadinessController) GetRequirements(w http.ResponseWriter, 
 	if !ok {
 		return
 	}
+	semester, ok := cooperativeSemester(w, r)
+	if !ok {
+		return
+	}
 	claims, ok := utils.ClaimsFromContext(r.Context())
 	if !ok {
 		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
 		return
 	}
 
-	response, err := h.Service.GetRequirements(r.Context(), curriculumID, claims.Roles, claims.FacultyID)
+	response, err := h.Service.GetRequirements(r.Context(), curriculumID, semester, claims.Roles, claims.FacultyID)
 	if err != nil {
 		writeCooperativeReadinessError(w, err)
 		return
@@ -37,6 +41,10 @@ func (h *CooperativeReadinessController) GetRequirements(w http.ResponseWriter, 
 
 func (h *CooperativeReadinessController) SaveDraft(w http.ResponseWriter, r *http.Request) {
 	curriculumID, ok := cooperativeCurriculumID(w, r)
+	if !ok {
+		return
+	}
+	semester, ok := cooperativeSemester(w, r)
 	if !ok {
 		return
 	}
@@ -51,7 +59,7 @@ func (h *CooperativeReadinessController) SaveDraft(w http.ResponseWriter, r *htt
 		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
 		return
 	}
-	response, err := h.Service.SaveDraft(r.Context(), curriculumID, uint64(max(claims.UserID, 0)), payload, claims.Roles, claims.FacultyID)
+	response, err := h.Service.SaveDraft(r.Context(), curriculumID, semester, uint64(max(claims.UserID, 0)), payload, claims.Roles, claims.FacultyID)
 	if err != nil {
 		writeCooperativeReadinessError(w, err)
 		return
@@ -64,13 +72,17 @@ func (h *CooperativeReadinessController) PublishDraft(w http.ResponseWriter, r *
 	if !ok {
 		return
 	}
+	semester, ok := cooperativeSemester(w, r)
+	if !ok {
+		return
+	}
 	claims, ok := utils.ClaimsFromContext(r.Context())
 	if !ok {
 		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
 		return
 	}
 
-	response, err := h.Service.PublishDraft(r.Context(), curriculumID, uint64(max(claims.UserID, 0)), claims.Roles, claims.FacultyID)
+	response, err := h.Service.PublishDraft(r.Context(), curriculumID, semester, uint64(max(claims.UserID, 0)), claims.Roles, claims.FacultyID)
 	if err != nil {
 		writeCooperativeReadinessError(w, err)
 		return
@@ -104,6 +116,15 @@ func cooperativeCurriculumID(w http.ResponseWriter, r *http.Request) (uint64, bo
 		return 0, false
 	}
 	return curriculumID, true
+}
+
+func cooperativeSemester(w http.ResponseWriter, r *http.Request) (uint, bool) {
+	semester, err := strconv.ParseUint(r.URL.Query().Get("semester"), 10, 8)
+	if err != nil || (semester != 1 && semester != 2) {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "semester must be 1 or 2")
+		return 0, false
+	}
+	return uint(semester), true
 }
 
 func writeCooperativeReadinessError(w http.ResponseWriter, err error) {
