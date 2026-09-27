@@ -101,6 +101,9 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	learnerProfileRepo := repositories.NewLearnerProfileRepository(db)
 	learnerProfileSvc := services.NewLearnerProfileService(learnerProfileRepo)
 	learnerProfileHandler := &controllers.LearnerProfileController{Service: learnerProfileSvc}
+	cooperativeReadinessRepo := repositories.NewCooperativeReadinessRepository(db)
+	cooperativeReadinessSvc := services.NewCooperativeReadinessService(cooperativeReadinessRepo, curriculumSvc)
+	cooperativeReadinessHandler := &controllers.CooperativeReadinessController{Service: cooperativeReadinessSvc}
 
 	// Versioned API routes
 	r.Route("/api/v1", func(api chi.Router) {
@@ -251,6 +254,9 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				cr.Route("/{id}", func(cir chi.Router) {
 					cir.Delete("/", curriculumHandler.DeleteCurriculum)
 					cir.Get("/", curriculumHandler.GetByID)
+					cir.Get("/cooperative-requirements", cooperativeReadinessHandler.GetRequirements)
+					cir.Put("/cooperative-requirements/draft", cooperativeReadinessHandler.SaveDraft)
+					cir.Post("/cooperative-requirements/publish", cooperativeReadinessHandler.PublishDraft)
 					cir.Patch("/", curriculumHandler.UpdateMetadata)
 					cir.Post("/duplicate", curriculumHandler.DuplicateCurriculum)
 					cir.Patch("/status", curriculumHandler.UpdateStatus)
