@@ -41,6 +41,7 @@ import {
 import { getDisplayCourses } from "../../../lib/curriculum-structure";
 import CurriculumCourseEditorPanel from "./components/CurriculumCourseEditorPanel";
 import CurriculumMetadataPanel from "./components/CurriculumMetadataPanel";
+import CooperativeRequirementsEditor from "./components/CooperativeRequirementsEditor";
 import CurriculumStructureSidebar from "./components/CurriculumStructureSidebar";
 import CurriculumStructureImportModal from "./components/CurriculumStructureImportModal";
 import ToastNotifications from "../../../components/ui/ToastNotifications";
@@ -711,6 +712,10 @@ export default function CurriculumManagementPage() {
     editing: false,
     dirty: false,
   });
+  const [cooperativeRequirementsDirty, setCooperativeRequirementsDirty] =
+    useState(false);
+  const [cooperativeRequirementsResetVersion, setCooperativeRequirementsResetVersion] =
+    useState(0);
   const [metadataResetVersion, setMetadataResetVersion] = useState(0);
   const [metadataImpactConfirmation, setMetadataImpactConfirmation] =
     useState(null);
@@ -856,6 +861,8 @@ export default function CurriculumManagementPage() {
       setDetailTab("structure");
       setMetadataFieldErrors({});
       setMetadataEditState({ editing: false, dirty: false });
+      setCooperativeRequirementsDirty(false);
+      setCooperativeRequirementsResetVersion((current) => current + 1);
       setView("editor");
     } catch (err) {
       const mapped = mapCurriculumError(err);
@@ -875,15 +882,16 @@ export default function CurriculumManagementPage() {
     setDetailTab("structure");
     setMetadataFieldErrors({});
     setMetadataEditState({ editing: false, dirty: false });
+    setCooperativeRequirementsDirty(false);
   }, []);
 
   const handleBackToList = useCallback(() => {
-    if (metadataEditState.dirty) {
-      setDiscardConfirmation({ action: "list" });
+    if (metadataEditState.dirty || cooperativeRequirementsDirty) {
+      setDiscardConfirmation({ action: "list", fromTab: detailTab });
       return;
     }
     returnToList();
-  }, [metadataEditState.dirty, returnToList]);
+  }, [cooperativeRequirementsDirty, detailTab, metadataEditState.dirty, returnToList]);
 
   const handleCreateCourse = useCallback(() => {
     router.push("/curriculum-management/create");
@@ -1787,24 +1795,24 @@ export default function CurriculumManagementPage() {
   const handleDetailTabChange = useCallback(
     (nextTab) => {
       if (nextTab === detailTab) return;
-      if (metadataEditState.dirty) {
-        setDiscardConfirmation({ action: "tab", nextTab });
+      if (metadataEditState.dirty || cooperativeRequirementsDirty) {
+        setDiscardConfirmation({ action: "tab", nextTab, fromTab: detailTab });
         return;
       }
       setDetailTab(nextTab);
     },
-    [detailTab, metadataEditState.dirty],
+    [cooperativeRequirementsDirty, detailTab, metadataEditState.dirty],
   );
 
   const handleRequestChangeStatus = useCallback(
     (nextStatus) => {
-      if (metadataEditState.dirty) {
-        setDiscardConfirmation({ action: "status", nextStatus });
+      if (metadataEditState.dirty || cooperativeRequirementsDirty) {
+        setDiscardConfirmation({ action: "status", nextStatus, fromTab: detailTab });
         return;
       }
       handleChangeStatus(nextStatus);
     },
-    [handleChangeStatus, metadataEditState.dirty],
+    [cooperativeRequirementsDirty, detailTab, handleChangeStatus, metadataEditState.dirty],
   );
 
   const handleConfirmDiscard = useCallback(() => {
@@ -1817,10 +1825,23 @@ export default function CurriculumManagementPage() {
       return;
     }
     if (pending.action === "tab") {
+      if (pending.fromTab === "cooperative-requirements") {
+        setCooperativeRequirementsDirty(false);
+      }
+      if (pending.fromTab === "metadata") {
+        setMetadataEditState({ editing: false, dirty: false });
+      }
       setDetailTab(pending.nextTab);
       return;
     }
     if (pending.action === "status") {
+      if (pending.fromTab === "cooperative-requirements") {
+        setCooperativeRequirementsDirty(false);
+        setCooperativeRequirementsResetVersion((current) => current + 1);
+      }
+      if (pending.fromTab === "metadata") {
+        setMetadataEditState({ editing: false, dirty: false });
+      }
       handleChangeStatus(pending.nextStatus);
     }
   }, [discardConfirmation, handleChangeStatus, returnToList]);
@@ -2006,6 +2027,15 @@ export default function CurriculumManagementPage() {
             >
               {t("curriculum_detail_tab_metadata")}
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={detailTab === "cooperative-requirements"}
+              className={`curriculum-detail-tabs__tab ${detailTab === "cooperative-requirements" ? "curriculum-detail-tabs__tab--active" : ""}`}
+              onClick={() => handleDetailTabChange("cooperative-requirements")}
+            >
+              {t("curriculum_detail_tab_coop_requirements")}
+            </button>
           </div>
 
           {detailTab === "structure" ? (
@@ -2126,7 +2156,7 @@ export default function CurriculumManagementPage() {
                 </div>
               </div>
             </>
-          ) : (
+          ) : detailTab === "metadata" ? (
             <CurriculumMetadataPanel
               curriculum={selectedCourse}
               majors={majorOptions}
@@ -2141,6 +2171,12 @@ export default function CurriculumManagementPage() {
               onFieldChange={handleMetadataFieldChange}
               onEditingStateChange={setMetadataEditState}
               onManageStructure={() => handleDetailTabChange("structure")}
+            />
+          ) : (
+            <CooperativeRequirementsEditor
+              key={`${selectedCourse.curriculumId || selectedCourse.id}:${cooperativeRequirementsResetVersion}`}
+              curriculum={selectedCourse}
+              onDirtyChange={setCooperativeRequirementsDirty}
             />
           )}
         </div>
@@ -2357,10 +2393,11 @@ export default function CurriculumManagementPage() {
 
       <ConfirmActionModal
         open={Boolean(discardConfirmation)}
-        title="ยกเลิกการแก้ไขข้อมูลหลักสูตร"
-        message="มีข้อมูลที่ยังไม่ได้บันทึก ต้องการละทิ้งการแก้ไขหรือไม่?"
-        hint="ข้อมูลที่กรอกไว้ในแบบฟอร์มจะไม่ถูกบันทึก"
-        confirmLabel="ละทิ้งการแก้ไข"
+        title={t("curriculum_discard_title")}
+        message={t("curriculum_discard_message")}
+        hint={t("curriculum_discard_hint")}
+        confirmLabel={t("curriculum_discard_confirm")}
+        cancelLabel={t("curriculum_cancel")}
         variant="warning"
         onConfirm={handleConfirmDiscard}
         onCancel={() => setDiscardConfirmation(null)}
