@@ -150,3 +150,105 @@ func TestCooperativeGPARoundsBeforeComparingThreshold(t *testing.T) {
 		t.Fatalf("GPA 2.996 status = %s, want met after rounding", result.Status)
 	}
 }
+
+func TestReadinessEvaluatesAllFiveCriterionTypesTogether(t *testing.T) {
+	minimumGPA := 3.25
+	minimumCourseGrade := "D+"
+	minimumCategoryCredits := 6.0
+	minimumFreeElectiveCredits := 3.0
+	categoryID := uint64(1)
+	courseID := uint64(10)
+	set := &models.CooperativeRequirementSet{
+		Requirements: []models.CooperativeRequirement{
+			{RequirementID: 1, CriterionType: models.CoopCriterionOverallGPA, NameTH: "GPA รวม", MinimumValue: &minimumGPA},
+			{RequirementID: 2, CriterionType: models.CoopCriterionCategoryGPA, NameTH: "GPA หมวด", MinimumValue: &minimumGPA, CategoryID: &categoryID},
+			{RequirementID: 3, CriterionType: models.CoopCriterionCourseGrade, NameTH: "สัมมนา", CourseID: &courseID, MinimumGrade: &minimumCourseGrade},
+			{RequirementID: 4, CriterionType: models.CoopCriterionCategoryCredits, NameTH: "หน่วยกิตหมวด", MinimumValue: &minimumCategoryCredits, CategoryID: &categoryID},
+			{RequirementID: 5, CriterionType: models.CoopCriterionFreeElectiveCredit, NameTH: "หน่วยกิตวิชาเสรี", MinimumValue: &minimumFreeElectiveCredits},
+		},
+	}
+	categories := []*models.CourseCategoryNode{{
+		CategoryID: 1,
+		NameTH:     "หมวดวิชา",
+		IsActive:   true,
+		Courses: []*models.CurriculumCourseRow{
+			{CourseID: 10, NameTH: "สัมมนา", Credits: 3, IsActive: true, GradeScheme: "letter"},
+			{CourseID: 11, NameTH: "รายวิชา", Credits: 3, IsActive: true, GradeScheme: "letter"},
+		},
+	}}
+	learner := repositories.CooperativeLearnerContext{CurriculumID: 20, EntryYearBE: 2566}
+	records := []repositories.CooperativeAcademicRecord{
+		{RecordID: 1, CourseID: 10, Source: "curriculum", AcademicYear: 2568, Semester: 1, Credits: 3, GradeScheme: "letter", Grade: "B", CategoryIDs: []uint64{1}},
+		{RecordID: 2, CourseID: 11, Source: "curriculum", AcademicYear: 2568, Semester: 1, Credits: 3, GradeScheme: "letter", Grade: "A", CategoryIDs: []uint64{1}},
+		{RecordID: 3, CourseID: 40, Source: "free_elective", AcademicYear: 2568, Semester: 1, Credits: 3, GradeScheme: "satisfactory", Grade: "S"},
+	}
+
+	result := evaluateCooperativeReadiness(set, categories, learner, 1, records)
+	if result.Status != CooperativeReadinessReady || result.PassedCount != 5 || result.RequirementCount != 5 {
+		t.Fatalf("all-five readiness = %s, passed %d/%d; want ready and 5/5", result.Status, result.PassedCount, result.RequirementCount)
+	}
+}
+
+func TestSatisfactoryCourseGradeRequirementAcceptsOnlyS(t *testing.T) {
+	minimumGrade := "S"
+	courseID := uint64(30)
+	set := &models.CooperativeRequirementSet{Requirements: []models.CooperativeRequirement{{
+		RequirementID: 1,
+		CriterionType: models.CoopCriterionCourseGrade,
+		NameTH:        "วิชาแบบผ่าน/ไม่ผ่าน",
+		CourseID:      &courseID,
+		MinimumGrade:  &minimumGrade,
+	}}}
+	categories := []*models.CourseCategoryNode{{
+		CategoryID: 1,
+		IsActive:   true,
+		Courses:    []*models.CurriculumCourseRow{{CourseID: courseID, NameTH: "วิชาเสรี", IsActive: true, GradeScheme: "satisfactory"}},
+	}}
+	learner := repositories.CooperativeLearnerContext{CurriculumID: 20, EntryYearBE: 2566}
+
+	for _, testCase := range []struct {
+		grade string
+		want  string
+	}{{grade: "U", want: CooperativeCriterionNotMet}, {grade: "S", want: CooperativeCriterionMet}} {
+		result := evaluateCooperativeReadiness(set, categories, learner, 1, []repositories.CooperativeAcademicRecord{{
+			RecordID: 1, CourseID: courseID, Source: "curriculum", AcademicYear: 2568, Semester: 1, Credits: 3, GradeScheme: "satisfactory", Grade: testCase.grade,
+		}})
+		if got := result.Results[0].Status; got != testCase.want {
+			t.Errorf("grade %s status = %s, want %s", testCase.grade, got, testCase.want)
+		}
+	}
+}
+
+func TestOverallGPAIncludesLetterGradesFromFreeElectiveModule(t *testing.T) {
+	minimum := 3.0
+	set := &models.CooperativeRequirementSet{Requirements: []models.CooperativeRequirement{{
+		CriterionType: models.CoopCriterionOverallGPA,
+		NameTH:        "GPA รวม",
+		MinimumValue:  &minimum,
+	}}}
+	learner := repositories.CooperativeLearnerContext{CurriculumID: 20, EntryYearBE: 2566}
+	records := []repositories.CooperativeAcademicRecord{
+		{RecordID: 1, CourseID: 10, Source: "curriculum", AcademicYear: 2568, Semester: 1, Credits: 3, GradeScheme: "letter", Grade: "C"},
+		{RecordID: 2, CourseID: 40, Source: "free_elective", AcademicYear: 2568, Semester: 1, Credits: 3, GradeScheme: "letter", Grade: "A"},
+	}
+
+	result := evaluateCooperativeReadiness(set, nil, learner, 1, records)
+	if got := *result.Results[0].CurrentValue; got != 3.0 {
+		t.Fatalf("overall GPA = %.2f, want 3.00 including free-elective module", got)
+	}
+}
+
+func TestOverallGPARemainsMissingWhenThereAreNoGradedRecords(t *testing.T) {
+	minimum := 3.0
+	set := &models.CooperativeRequirementSet{Requirements: []models.CooperativeRequirement{{
+		CriterionType: models.CoopCriterionOverallGPA,
+		NameTH:        "GPA รวม",
+		MinimumValue:  &minimum,
+	}}}
+	learner := repositories.CooperativeLearnerContext{CurriculumID: 20, EntryYearBE: 2566}
+
+	result := evaluateCooperativeReadiness(set, nil, learner, 1, nil)
+	if result.Results[0].Status != CooperativeCriterionMissing || result.Results[0].CurrentValue != nil {
+		t.Fatalf("empty GPA result = %#v, want missing with no value", result.Results[0])
+	}
+}
