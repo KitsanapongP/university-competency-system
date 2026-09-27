@@ -18,8 +18,169 @@ type CooperativeReadinessRepository struct {
 	DB *sql.DB
 }
 
+type CooperativeLearnerContext struct {
+	EnrollmentID uint64
+	CurriculumID uint64
+	EntryYearBE  uint64
+}
+
+type CooperativeAcademicRecord struct {
+	RecordID     uint64
+	CourseID     uint64
+	Source       string
+	AcademicYear uint64
+	Semester     uint64
+	Credits      int
+	GradeScheme  string
+	Grade        string
+	CategoryIDs  []uint64
+}
+
 func NewCooperativeReadinessRepository(db *sql.DB) *CooperativeReadinessRepository {
 	return &CooperativeReadinessRepository{DB: db}
+}
+
+func (r *CooperativeReadinessRepository) GetLearnerContext(ctx context.Context, userID uint64) (CooperativeLearnerContext, error) {
+	var learner CooperativeLearnerContext
+	var entryYear sql.NullInt64
+	err := r.DB.QueryRowContext(ctx, `
+		SELECT enrollment.enrollment_id, enrollmentCurriculum.curriculum_id, enrollment.entry_year_be
+		FROM auth_users account
+		JOIN kku_enrollments enrollment
+			ON enrollment.person_id = account.person_id AND enrollment.deleted_at IS NULL
+		JOIN kku_enrollment_curricula enrollmentCurriculum
+			ON enrollmentCurriculum.enrollment_id = enrollment.enrollment_id
+			AND enrollmentCurriculum.is_current = 1
+			AND enrollmentCurriculum.deleted_at IS NULL
+		WHERE account.user_id = ?
+		ORDER BY enrollment.updated_at DESC, enrollment.enrollment_id DESC
+		LIMIT 1`, userID).Scan(&learner.EnrollmentID, &learner.CurriculumID, &entryYear)
+	if err != nil {
+		return CooperativeLearnerContext{}, err
+	}
+	if entryYear.Valid && entryYear.Int64 > 0 {
+		learner.EntryYearBE = uint64(entryYear.Int64)
+	}
+	return learner, nil
+}
+
+func (r *CooperativeReadinessRepository) GetAcademicRecords(ctx context.Context, enrollmentID, curriculumID uint64) ([]CooperativeAcademicRecord, error) {
+	categoryByCourse, err := r.getCourseCategories(ctx, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	records, err := r.getCurriculumAcademicRecords(ctx, enrollmentID, categoryByCourse)
+	if err != nil {
+		return nil, err
+	}
+	freeElectiveRecords, err := r.getFreeElectiveAcademicRecords(ctx, enrollmentID)
+	if err != nil {
+		return nil, err
+	}
+	records = append(records, freeElectiveRecords...)
+	return records, nil
+}
+
+func (r *CooperativeReadinessRepository) getCourseCategories(ctx context.Context, curriculumID uint64) (map[uint64][]uint64, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT placement.course_id, category.category_id
+		FROM crs_curriculum_courses placement
+		JOIN crs_course_categories category
+			ON category.category_id = placement.category_id
+			AND category.curriculum_id = ?
+			AND category.deleted_at IS NULL AND category.is_active = 1
+		WHERE placement.deleted_at IS NULL AND placement.is_active = 1`, curriculumID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[uint64][]uint64)
+	for rows.Next() {
+		var courseID, categoryID uint64
+		if err := rows.Scan(&courseID, &categoryID); err != nil {
+			return nil, err
+		}
+		result[courseID] = append(result[courseID], categoryID)
+	}
+	return result, rows.Err()
+}
+
+func (r *CooperativeReadinessRepository) getCurriculumAcademicRecords(ctx context.Context, enrollmentID uint64, categoryByCourse map[uint64][]uint64) ([]CooperativeAcademicRecord, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT grade.course_student_id, grade.course_id, grade.academic_year_be,
+			grade.semester, COALESCE(course.credits, 0),
+			COALESCE(course.grade_scheme, 'letter'), COALESCE(grade.grade, '')
+		FROM crs_course_enrollment grade
+		JOIN crs_courses course ON course.course_id = grade.course_id AND course.deleted_at IS NULL
+		WHERE grade.enrollment_id = ? AND grade.deleted_at IS NULL
+		ORDER BY grade.academic_year_be, grade.semester, grade.course_student_id`, enrollmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]CooperativeAcademicRecord, 0)
+	for rows.Next() {
+		var record CooperativeAcademicRecord
+		record.Source = "curriculum"
+		if err := rows.Scan(
+			&record.RecordID,
+			&record.CourseID,
+			&record.AcademicYear,
+			&record.Semester,
+			&record.Credits,
+			&record.GradeScheme,
+			&record.Grade,
+		); err != nil {
+			return nil, err
+		}
+		record.CategoryIDs = categoryByCourse[record.CourseID]
+		result = append(result, record)
+	}
+	return result, rows.Err()
+}
+
+func (r *CooperativeReadinessRepository) getFreeElectiveAcademicRecords(ctx context.Context, enrollmentID uint64) ([]CooperativeAcademicRecord, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT selected.round_course_enrollment_id, roundCourse.free_elective_course_id,
+			round.academic_year_be, round.semester, COALESCE(roundCourse.credits, 0),
+			COALESCE(roundCourse.grade_scheme, 'letter'), COALESCE(grade.grade, '')
+		FROM ele_course_enrollments selected
+		JOIN ele_round_courses roundCourse
+			ON roundCourse.round_course_id = selected.round_course_id
+			AND roundCourse.deleted_at IS NULL
+		JOIN ele_rounds round
+			ON round.round_id = roundCourse.round_id
+			AND round.deleted_at IS NULL AND round.status <> 'cancelled'
+		LEFT JOIN ele_course_grades grade
+			ON grade.round_course_enrollment_id = selected.round_course_enrollment_id
+			AND grade.deleted_at IS NULL
+		WHERE selected.enrollment_id = ? AND selected.deleted_at IS NULL
+		ORDER BY round.academic_year_be, round.semester, selected.round_course_enrollment_id`, enrollmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]CooperativeAcademicRecord, 0)
+	for rows.Next() {
+		var record CooperativeAcademicRecord
+		record.Source = "free_elective"
+		if err := rows.Scan(
+			&record.RecordID,
+			&record.CourseID,
+			&record.AcademicYear,
+			&record.Semester,
+			&record.Credits,
+			&record.GradeScheme,
+			&record.Grade,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, record)
+	}
+	return result, rows.Err()
 }
 
 func (r *CooperativeReadinessRepository) GetRequirementSets(ctx context.Context, curriculumID uint64) (*models.CooperativeRequirementsResponse, error) {

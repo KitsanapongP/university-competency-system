@@ -161,6 +161,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)
 			pr.With(middleware.RequireRoles("learner")).Get("/learner/academic-profile", learnerProfileHandler.GetAcademicProfile)
+			pr.With(middleware.RequireRoles("learner")).Get("/learner/cooperative-readiness", cooperativeReadinessHandler.GetLearnerReadiness)
 			pr.Get("/competencies", competencyHandler.GetAll)
 
 			pr.With(middleware.RequireRoles("admin", "officer")).Post("/competencies", competencyHandler.Create)

@@ -78,6 +78,25 @@ func (h *CooperativeReadinessController) PublishDraft(w http.ResponseWriter, r *
 	utils.OK(w, response)
 }
 
+func (h *CooperativeReadinessController) GetLearnerReadiness(w http.ResponseWriter, r *http.Request) {
+	claims, ok := utils.ClaimsFromContext(r.Context())
+	if !ok {
+		utils.Error(w, http.StatusUnauthorized, "AUTH_MISSING", "missing auth")
+		return
+	}
+	semester, err := strconv.ParseUint(r.URL.Query().Get("semester"), 10, 8)
+	if err != nil {
+		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", "semester must be 1 or 2")
+		return
+	}
+	result, err := h.Service.GetReadiness(r.Context(), uint64(max(claims.UserID, 0)), uint(semester))
+	if err != nil {
+		writeCooperativeReadinessError(w, err)
+		return
+	}
+	utils.OK(w, result)
+}
+
 func cooperativeCurriculumID(w http.ResponseWriter, r *http.Request) (uint64, bool) {
 	curriculumID, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
 	if err != nil || curriculumID == 0 {
@@ -94,7 +113,7 @@ func writeCooperativeReadinessError(w http.ResponseWriter, err error) {
 		utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", validationErr.Message)
 	case errors.Is(err, services.ErrCooperativeRequirementsEmpty):
 		utils.Error(w, http.StatusBadRequest, "REQUIREMENTS_EMPTY", err.Error())
-	case errors.Is(err, services.ErrCooperativeRequirementsNotFound), errors.Is(err, services.ErrCurriculumNotFound):
+	case errors.Is(err, services.ErrCooperativeRequirementsNotFound), errors.Is(err, services.ErrCurriculumNotFound), errors.Is(err, services.ErrLearnerProfileNotFound):
 		utils.Error(w, http.StatusNotFound, "NOT_FOUND", "curriculum or cooperative requirements not found")
 	case errors.Is(err, services.ErrCurriculumForbidden):
 		utils.Error(w, http.StatusForbidden, "FORBIDDEN", "insufficient curriculum scope")

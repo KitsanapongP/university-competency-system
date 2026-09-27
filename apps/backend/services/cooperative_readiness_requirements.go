@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"math"
@@ -74,6 +75,53 @@ func (s *CooperativeReadinessService) PublishDraft(ctx context.Context, curricul
 		return nil, err
 	}
 	return s.Repo.GetRequirementSets(ctx, curriculumID)
+}
+
+func (s *CooperativeReadinessService) GetReadiness(ctx context.Context, userID uint64, semester uint) (*models.CooperativeReadinessResult, error) {
+	if semester != 1 && semester != 2 {
+		return nil, CooperativeReadinessValidationError{Message: "semester must be 1 or 2"}
+	}
+	learner, err := s.Repo.GetLearnerContext(ctx, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrLearnerProfileNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if learner.EntryYearBE == 0 || learner.CurriculumID == 0 {
+		return nil, CooperativeReadinessValidationError{Message: "learner curriculum and entry year are required"}
+	}
+
+	sets, err := s.Repo.GetRequirementSets(ctx, learner.CurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	if sets.Published == nil {
+		return &models.CooperativeReadinessResult{
+			CurriculumID:   learner.CurriculumID,
+			EntryYearBE:    learner.EntryYearBE,
+			TargetYearBE:   learner.EntryYearBE + 3,
+			TargetSemester: semester,
+			Status:         CooperativeReadinessNotConfigured,
+			Results:        make([]models.CooperativeRequirementResult, 0),
+		}, nil
+	}
+
+	curriculum, err := s.Curriculums.Repo.GetCurriculumByID(ctx, learner.CurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	categories, err := s.Curriculums.Repo.GetCurriculumCategoryTree(ctx, learner.CurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	records, err := s.Repo.GetAcademicRecords(ctx, learner.EnrollmentID, learner.CurriculumID)
+	if err != nil {
+		return nil, err
+	}
+	result := evaluateCooperativeReadiness(sets.Published, categories, learner, semester, records)
+	result.CurriculumID = curriculum.CurriculumID
+	return &result, nil
 }
 
 func (s *CooperativeReadinessService) curriculumScope(ctx context.Context, curriculumID uint64, roles []string, facultyID *int64) (*models.CurriculumDetail, error) {
