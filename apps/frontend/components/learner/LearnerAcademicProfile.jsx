@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../../providers/auth-provider';
 import { useLanguage } from '../../providers/LanguageContext';
 import { fetchLearnerAcademicProfile } from '../../lib/learner-profile';
+import CooperativeReadinessPanel from './CooperativeReadinessPanel';
 
 function localizedValue(valueEN, valueTH, language, fallback = '-') {
     const english = String(valueEN || '').trim();
@@ -413,6 +414,8 @@ export default function LearnerAcademicProfile({ activityHistory }) {
                     </div>
                 </div>
             </div>
+
+            <CooperativeReadinessPanel />
 
             <section className="learner-course-history card">
                 <div className="card-header learner-course-history__header">
