@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS crs_coop_requirement_sets (
     KEY idx_crs_coop_set_status (curriculum_id, status),
     CONSTRAINT fk_crs_coop_set_curriculum
         FOREIGN KEY (curriculum_id) REFERENCES edu_curricula (curriculum_id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
+        -- MySQL forbids cascading updates of a stored generated column's base column.
+        ON UPDATE RESTRICT ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS crs_coop_requirements (

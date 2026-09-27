@@ -135,7 +135,7 @@ function validateRequirementRows(requirements) {
     };
 }
 
-export default function CooperativeRequirementsEditor({ curriculum }) {
+export default function CooperativeRequirementsEditor({ curriculum, onDirtyChange }) {
     const { language, t } = useLanguage();
     const nextClientId = useRef(1);
     const translateRef = useRef(t);
@@ -188,7 +188,7 @@ export default function CooperativeRequirementsEditor({ curriculum }) {
         return () => {
             active = false;
         };
-    }, [curriculum.curriculumId, curriculum.id]);
+    }, [curriculum.curriculumId, curriculum.id, onDirtyChange]);
 
     const startEditing = () => {
         const current = draft || published;
