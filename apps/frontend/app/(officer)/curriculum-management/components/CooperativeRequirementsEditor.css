@@ -15,6 +15,46 @@
   gap: 0.75rem;
 }
 
+.coop-requirements__semester-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--course-border);
+}
+
+.coop-requirements__semester-tab {
+  min-height: 40px;
+  padding: 0.55rem 1rem;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--course-text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.coop-requirements__semester-tab:hover:not(:disabled) {
+  background: var(--course-panel-selected-bg);
+  color: var(--course-text);
+}
+
+.coop-requirements__semester-tab--active {
+  border-color: var(--course-border);
+  background: var(--course-card-bg);
+  color: var(--course-title);
+}
+
+.coop-requirements__semester-tab:focus-visible {
+  outline: 2px solid var(--course-accent);
+  outline-offset: 2px;
+}
+
+.coop-requirements__semester-tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .coop-requirements__header {
   align-items: flex-start;
   padding: 1rem 1.1rem;
@@ -228,6 +268,15 @@
 
   .coop-requirements__badges {
     justify-content: flex-start;
+  }
+
+  .coop-requirements__semester-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .coop-requirements__semester-tab {
+    padding-inline: 0.5rem;
   }
 
   .coop-requirements__grid,

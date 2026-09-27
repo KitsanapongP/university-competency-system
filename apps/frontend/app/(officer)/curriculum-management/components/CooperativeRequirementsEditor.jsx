@@ -144,11 +144,16 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
     const [requirements, setRequirements] = useState([]);
     const [editing, setEditing] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [loadedSemester, setLoadedSemester] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
     const [fieldErrors, setFieldErrors] = useState({});
     const [publishConfirmation, setPublishConfirmation] = useState(false);
+    const [pendingSemester, setPendingSemester] = useState(null);
+    const [semesterChangeConfirmation, setSemesterChangeConfirmation] = useState(false);
+    const [semester, setSemester] = useState(1);
 
     translateRef.current = t;
 
@@ -169,7 +174,14 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
         let active = true;
         setLoading(true);
         setError('');
-        fetchCooperativeRequirements(curriculum.curriculumId || curriculum.id)
+        setMessage('');
+        setDraft(null);
+        setPublished(null);
+        setRequirements([]);
+        setEditing(false);
+        setHasUnsavedChanges(false);
+        onDirtyChange?.(false);
+        fetchCooperativeRequirements(curriculum.curriculumId || curriculum.id, semester)
             .then((data) => {
                 if (!active) return;
                 setDraft(data.draft);
@@ -183,12 +195,52 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                 if (active) setError(translateRef.current('coop_requirements_load_error'));
             })
             .finally(() => {
-                if (active) setLoading(false);
+                if (active) {
+                    setLoadedSemester(semester);
+                    setLoading(false);
+                }
             });
         return () => {
             active = false;
         };
-    }, [curriculum.curriculumId, curriculum.id, onDirtyChange]);
+    }, [curriculum.curriculumId, curriculum.id, semester, onDirtyChange]);
+
+    const switchSemester = (nextSemester) => {
+        setLoading(true);
+        setLoadedSemester(null);
+        setDraft(null);
+        setPublished(null);
+        setRequirements([]);
+        setEditing(false);
+        setError('');
+        setMessage('');
+        setFieldErrors({});
+        setHasUnsavedChanges(false);
+        onDirtyChange?.(false);
+        setSemester(nextSemester);
+    };
+
+    const requestSemesterChange = (nextSemester) => {
+        if (nextSemester === semester || loading || saving) return;
+        if (hasUnsavedChanges) {
+            setPendingSemester(nextSemester);
+            setSemesterChangeConfirmation(true);
+            return;
+        }
+        switchSemester(nextSemester);
+    };
+
+    const confirmSemesterChange = () => {
+        if (!pendingSemester) return;
+        setSemesterChangeConfirmation(false);
+        switchSemester(pendingSemester);
+        setPendingSemester(null);
+    };
+
+    const cancelSemesterChange = () => {
+        setSemesterChangeConfirmation(false);
+        setPendingSemester(null);
+    };
 
     const startEditing = () => {
         const current = draft || published;
@@ -196,6 +248,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
         setEditing(true);
         setError('');
         setMessage('');
+        setHasUnsavedChanges(false);
         onDirtyChange?.(false);
     };
 
@@ -206,6 +259,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
         setFieldErrors((current) => ({ ...current, [clientId]: {} }));
         setError('');
         setMessage('');
+        setHasUnsavedChanges(true);
         onDirtyChange?.(true);
     };
 
@@ -223,6 +277,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
         setRequirements((current) => [...current, newRequirement(makeClientId())]);
         setEditing(true);
         setMessage('');
+        setHasUnsavedChanges(true);
         onDirtyChange?.(true);
     };
 
@@ -233,6 +288,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
             delete next[clientId];
             return next;
         });
+        setHasUnsavedChanges(true);
         onDirtyChange?.(true);
     };
 
@@ -243,6 +299,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
         setError('');
         setMessage('');
         setFieldErrors({});
+        setHasUnsavedChanges(false);
         onDirtyChange?.(false);
     };
 
@@ -253,12 +310,14 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
         try {
             const data = await saveCooperativeRequirementsDraft(
                 curriculum.curriculumId || curriculum.id,
+                semester,
                 requirements,
             );
             setDraft(data.draft);
             setPublished(data.published);
             setRequirements(withClientIds(data.draft?.requirements, makeClientId));
             setEditing(true);
+            setHasUnsavedChanges(false);
             onDirtyChange?.(false);
             setMessage(t('coop_requirements_save_success'));
         } catch {
@@ -285,12 +344,13 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
         setPublishConfirmation(false);
         setError('');
         try {
-            const data = await publishCooperativeRequirements(curriculum.curriculumId || curriculum.id);
+            const data = await publishCooperativeRequirements(curriculum.curriculumId || curriculum.id, semester);
             setDraft(data.draft);
             setPublished(data.published);
             setRequirements(withClientIds(data.published?.requirements, makeClientId));
             setEditing(false);
             setFieldErrors({});
+            setHasUnsavedChanges(false);
             onDirtyChange?.(false);
             setMessage(t('coop_requirements_publish_success'));
         } catch {
@@ -301,10 +361,10 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
     };
 
     const activeSet = published;
-
-    if (loading) {
-        return <div className="coop-requirements__state" role="status">{t('coop_requirements_loading')}</div>;
-    }
+    const isLoadingSemester = loading || loadedSemester !== semester;
+    const semesterLabel = t(semester === 1 ? 'learner_semester_one' : 'learner_semester_two');
+    const publishMessage = t('coop_requirements_confirm_message').replace('{semester}', semesterLabel);
+    const publishHint = t('coop_requirements_confirm_hint').replace('{semester}', semesterLabel);
 
     return (
         <section className="coop-requirements" aria-labelledby="coop-requirements-title">
@@ -328,133 +388,207 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                 </div>
             </header>
 
-            {!published && !editing && (
-                <div className="coop-requirements__empty">
-                    <p>{t('coop_requirements_not_configured')}</p>
-                    <button type="button" className="course-btn course-btn--primary" onClick={startEditing}>
-                        <Plus size={16} aria-hidden="true" /> {t('coop_requirements_start')}
+            <div className="coop-requirements__semester-tabs" role="tablist" aria-label={t('coop_requirements_semester_label')}>
+                {[1, 2].map((term) => (
+                    <button
+                        key={term}
+                        id={`coop-requirements-semester-${term}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={semester === term}
+                        aria-controls="coop-requirements-semester-panel"
+                        className={`coop-requirements__semester-tab ${semester === term ? 'coop-requirements__semester-tab--active' : ''}`}
+                        onClick={() => requestSemesterChange(term)}
+                        disabled={isLoadingSemester || saving}
+                    >
+                        {t(term === 1 ? 'learner_semester_one' : 'learner_semester_two')}
                     </button>
-                </div>
-            )}
+                ))}
+            </div>
 
-            {!editing && published && (
-                <div className="coop-requirements__list">
-                    {published.requirements.map((item) => (
-                        <article className="coop-requirements__summary" key={item.requirementId}>
-                            <strong>
-                                {localizedValue(
-                                    item.nameEn,
-                                    item.nameTh,
-                                    language,
-                                    criterionTitle(item.criterionType, t),
+            <div
+                id="coop-requirements-semester-panel"
+                role="tabpanel"
+                aria-labelledby={`coop-requirements-semester-${semester}`}
+            >
+                {isLoadingSemester ? (
+                    <div className="coop-requirements__state" role="status">
+                        {t('coop_requirements_loading')}
+                    </div>
+                ) : (
+                    <>
+                        {!published && !editing && !error && (
+                            <div className="coop-requirements__empty">
+                                <p>{t('coop_requirements_not_configured')}</p>
+                                <button
+                                    type="button"
+                                    className="course-btn course-btn--primary"
+                                    onClick={startEditing}
+                                >
+                                    <Plus size={16} aria-hidden="true" />
+                                    {t('coop_requirements_start')}
+                                </button>
+                            </div>
+                        )}
+
+                        {!editing && published && (
+                            <div className="coop-requirements__list">
+                                {published.requirements.map((item) => (
+                                    <article
+                                        className="coop-requirements__summary"
+                                        key={item.requirementId}
+                                    >
+                                        <strong>
+                                            {localizedValue(
+                                                item.nameEn,
+                                                item.nameTh,
+                                                language,
+                                                criterionTitle(item.criterionType, t),
+                                            )}
+                                        </strong>
+                                        <span>{criterionTitle(item.criterionType, t)}</span>
+                                        <span>{minimumSummary(item, categories, courses, t)}</span>
+                                    </article>
+                                ))}
+                                <button
+                                    type="button"
+                                    className="course-btn course-btn--secondary"
+                                    onClick={startEditing}
+                                >
+                                    {t('coop_requirements_edit')}
+                                </button>
+                            </div>
+                        )}
+
+                        {editing && (
+                            <>
+                                {published && (
+                                    <div className="coop-requirements__current-note">
+                                        <Check size={16} aria-hidden="true" />
+                                        <span>{publishHint}</span>
+                                    </div>
                                 )}
-                            </strong>
-                            <span>{criterionTitle(item.criterionType, t)}</span>
-                            <span>{minimumSummary(item, categories, courses, t)}</span>
-                        </article>
-                    ))}
-                    <button type="button" className="course-btn course-btn--secondary" onClick={startEditing}>
-                        {t('coop_requirements_edit')}
-                    </button>
-                </div>
+
+                                <div className="coop-requirements__toolbar">
+                                    <button
+                                        type="button"
+                                        className="course-btn course-btn--secondary"
+                                        onClick={handleAddRequirement}
+                                        disabled={saving}
+                                    >
+                                        <Plus size={16} aria-hidden="true" />
+                                        {t('coop_requirements_add')}
+                                    </button>
+                                </div>
+
+                                {requirements.length === 0 && (
+                                    <p className="coop-requirements__empty-inline">
+                                        {t('coop_requirements_empty_draft')}
+                                    </p>
+                                )}
+
+                                <div className="coop-requirements__rows">
+                                    {requirements.map((requirement) => (
+                                        <RequirementRow
+                                            key={requirement.clientId}
+                                            requirement={requirement}
+                                            categories={categories}
+                                            courses={courses}
+                                            errors={fieldErrors[requirement.clientId] || {}}
+                                            saving={saving}
+                                            t={t}
+                                            onChange={updateRequirement}
+                                            onTypeChange={handleTypeChange}
+                                            onRemove={handleRemoveRequirement}
+                                        />
+                                    ))}
+                                </div>
+
+                                {error && (
+                                    <p className="coop-requirements__alert" role="alert">
+                                        {error}
+                                    </p>
+                                )}
+                                {message && (
+                                    <p className="coop-requirements__success" role="status">
+                                        {message}
+                                    </p>
+                                )}
+
+                                <footer className="coop-requirements__actions">
+                                    <button
+                                        type="button"
+                                        className="course-btn course-btn--ghost"
+                                        onClick={handleCancelEditing}
+                                        disabled={saving}
+                                    >
+                                        {t('coop_requirements_cancel')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="course-btn course-btn--secondary"
+                                        onClick={handleSaveDraft}
+                                        disabled={saving}
+                                    >
+                                        {saving ? (
+                                            <LoaderCircle
+                                                size={16}
+                                                className="coop-requirements__spin"
+                                                aria-hidden="true"
+                                            />
+                                        ) : (
+                                            <Save size={16} aria-hidden="true" />
+                                        )}
+                                        {t('coop_requirements_save_draft')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="course-btn course-btn--primary"
+                                        onClick={handleRequestPublish}
+                                        disabled={saving}
+                                    >
+                                        <Send size={16} aria-hidden="true" />
+                                        {t('coop_requirements_publish')}
+                                    </button>
+                                </footer>
+                            </>
+                        )}
+
+                        {!editing && error && (
+                            <p className="coop-requirements__alert" role="alert">
+                                {error}
+                            </p>
+                        )}
+                        {!editing && message && (
+                            <p className="coop-requirements__success" role="status">
+                                {message}
+                            </p>
+                        )}
+                    </>
             )}
-
-            {editing && (
-                <>
-                    {published && (
-                        <div className="coop-requirements__current-note">
-                            <Check size={16} aria-hidden="true" />
-                            <span>{t('coop_requirements_confirm_hint')}</span>
-                        </div>
-                    )}
-
-                    <div className="coop-requirements__toolbar">
-                        <button
-                            type="button"
-                            className="course-btn course-btn--secondary"
-                            onClick={handleAddRequirement}
-                            disabled={saving}
-                        >
-                            <Plus size={16} aria-hidden="true" /> {t('coop_requirements_add')}
-                        </button>
-                    </div>
-
-                    {requirements.length === 0 && (
-                        <p className="coop-requirements__empty-inline">{t('coop_requirements_empty_draft')}</p>
-                    )}
-
-                    <div className="coop-requirements__rows">
-                        {requirements.map((requirement) => (
-                            <RequirementRow
-                                key={requirement.clientId}
-                                requirement={requirement}
-                                categories={categories}
-                                courses={courses}
-                                errors={fieldErrors[requirement.clientId] || {}}
-                                saving={saving}
-                                t={t}
-                                onChange={updateRequirement}
-                                onTypeChange={handleTypeChange}
-                                onRemove={handleRemoveRequirement}
-                            />
-                        ))}
-                    </div>
-
-                    {error && <p className="coop-requirements__alert" role="alert">{error}</p>}
-                    {message && <p className="coop-requirements__success" role="status">{message}</p>}
-
-                    <footer className="coop-requirements__actions">
-                        <button
-                            type="button"
-                            className="course-btn course-btn--ghost"
-                            onClick={handleCancelEditing}
-                            disabled={saving}
-                        >
-                            {t('coop_requirements_cancel')}
-                        </button>
-                        <button
-                            type="button"
-                            className="course-btn course-btn--secondary"
-                            onClick={handleSaveDraft}
-                            disabled={saving}
-                        >
-                            {saving ? (
-                                <LoaderCircle
-                                    size={16}
-                                    className="coop-requirements__spin"
-                                    aria-hidden="true"
-                                />
-                            ) : (
-                                <Save size={16} aria-hidden="true" />
-                            )}
-                            {t('coop_requirements_save_draft')}
-                        </button>
-                        <button
-                            type="button"
-                            className="course-btn course-btn--primary"
-                            onClick={handleRequestPublish}
-                            disabled={saving}
-                        >
-                            <Send size={16} aria-hidden="true" />
-                            {t('coop_requirements_publish')}
-                        </button>
-                    </footer>
-                </>
-            )}
-
-            {!editing && error && <p className="coop-requirements__alert" role="alert">{error}</p>}
-            {!editing && message && <p className="coop-requirements__success" role="status">{message}</p>}
+            </div>
 
             <ConfirmActionModal
                 open={publishConfirmation}
                 title={t('coop_requirements_confirm_title')}
-                message={t('coop_requirements_confirm_message')}
-                hint={t('coop_requirements_confirm_hint')}
+                message={publishMessage}
+                hint={publishHint}
                 confirmLabel={t('coop_requirements_publish')}
                 cancelLabel={t('curriculum_cancel')}
                 loading={saving}
                 onConfirm={handlePublish}
                 onCancel={() => setPublishConfirmation(false)}
+            />
+
+            <ConfirmActionModal
+                open={semesterChangeConfirmation}
+                title={t('coop_requirements_discard_semester_title')}
+                message={t('coop_requirements_discard_semester_message')}
+                hint={t('coop_requirements_discard_semester_hint')}
+                confirmLabel={t('coop_requirements_discard_semester_confirm')}
+                cancelLabel={t('curriculum_cancel')}
+                onConfirm={confirmSemesterChange}
+                onCancel={cancelSemesterChange}
             />
         </section>
     );

@@ -23,6 +23,7 @@ function mapSet(item) {
     return {
         requirementSetId: Number(item.requirement_set_id || 0),
         curriculumId: Number(item.curriculum_id || 0),
+        semester: Number(item.semester || 0),
         revision: Number(item.revision || 0),
         status: item.status || '',
         createdAt: item.created_at || null,
@@ -32,8 +33,10 @@ function mapSet(item) {
     };
 }
 
-export async function fetchCooperativeRequirements(curriculumId) {
-    const response = await apiFetch(`/api/v1/curricula/${curriculumId}/cooperative-requirements`);
+export async function fetchCooperativeRequirements(curriculumId, semester) {
+    const response = await apiFetch(
+        `/api/v1/curricula/${curriculumId}/cooperative-requirements?semester=${semester}`,
+    );
     const data = unwrap(response);
     return {
         curriculumId: Number(data.curriculum_id || curriculumId),
@@ -59,16 +62,19 @@ function serializeRequirement(item, displayOrder) {
     };
 }
 
-export async function saveCooperativeRequirementsDraft(curriculumId, requirements) {
+export async function saveCooperativeRequirementsDraft(curriculumId, semester, requirements) {
     const payload = {
         requirements: requirements
             .filter((item) => item.criterionType)
             .map(serializeRequirement),
     };
-    const response = await apiFetch(`/api/v1/curricula/${curriculumId}/cooperative-requirements/draft`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-    });
+    const response = await apiFetch(
+        `/api/v1/curricula/${curriculumId}/cooperative-requirements/draft?semester=${semester}`,
+        {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        },
+    );
     const data = unwrap(response);
     return {
         curriculumId: Number(data.curriculum_id || curriculumId),
@@ -77,11 +83,14 @@ export async function saveCooperativeRequirementsDraft(curriculumId, requirement
     };
 }
 
-export async function publishCooperativeRequirements(curriculumId) {
-    const response = await apiFetch(`/api/v1/curricula/${curriculumId}/cooperative-requirements/publish`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-    });
+export async function publishCooperativeRequirements(curriculumId, semester) {
+    const response = await apiFetch(
+        `/api/v1/curricula/${curriculumId}/cooperative-requirements/publish?semester=${semester}`,
+        {
+            method: 'POST',
+            body: JSON.stringify({}),
+        },
+    );
     const data = unwrap(response);
     return {
         curriculumId: Number(data.curriculum_id || curriculumId),
