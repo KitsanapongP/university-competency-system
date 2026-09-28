@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:officer-ui": "node scripts/verify-officer-ui.mjs"
+    "test:officer-ui": "node scripts/verify-officer-ui.mjs",
+    "test:cooperative-requirement-copy": "node --test lib/cooperative-requirement-copy.test.mjs"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
