@@ -4,12 +4,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy, LoaderCircle, Pencil, Plus, Save, Send, Trash2 } from 'lucide-react';
 import ConfirmActionModal from '../../../../components/ui/ConfirmActionModal';
 import { useLanguage } from '../../../../providers/LanguageContext';
-import { cloneCooperativeRequirement } from '../../../../lib/cooperative-requirement-copy.mjs';
+import {
+    cloneSelectedCooperativeRequirements,
+    duplicateCooperativeRequirement,
+    isCopyableCooperativeRequirement,
+    preferredCooperativeRequirementCopySource,
+} from '../../../../lib/cooperative-requirement-copy.mjs';
 import {
     fetchCooperativeRequirements,
     publishCooperativeRequirements,
     saveCooperativeRequirementsDraft,
 } from '../../../../lib/cooperative-readiness';
+import CooperativeRequirementCopyModal from './CooperativeRequirementCopyModal';
 import './CooperativeRequirementsEditor.css';
 
 const CRITERION_TYPES = [
@@ -80,6 +86,13 @@ function withClientIds(requirements, makeId) {
         ...item,
         clientId: makeId(),
     }));
+}
+
+function mapRequirementCopySource(draft, published, makeId) {
+    const source = preferredCooperativeRequirementCopySource(draft, published);
+    return source
+        ? { ...source, requirements: withClientIds(source.requirements, makeId) }
+        : null;
 }
 
 function criterionTitle(type, t) {
@@ -201,6 +214,12 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
     const [semester, setSemester] = useState(1);
     const [pendingFocusClientId, setPendingFocusClientId] = useState('');
     const requirementRowRefs = useRef(new Map());
+    const copyRequestId = useRef(0);
+    const [copyDialog, setCopyDialog] = useState(null);
+    const [copyLoading, setCopyLoading] = useState(false);
+    const [copySaving, setCopySaving] = useState(false);
+    const [copyLoadError, setCopyLoadError] = useState('');
+    const [copySaveError, setCopySaveError] = useState('');
 
     translateRef.current = t;
 
@@ -340,21 +359,12 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
         const originalIndex = requirements.findIndex((item) => item.clientId === clientId);
         if (originalIndex < 0 || !requirements[originalIndex].criterionType || saving) return;
 
-        const duplicate = cloneCooperativeRequirement(
-            requirements[originalIndex],
-            makeClientId(),
-        );
-        setRequirements((current) => {
-            const currentIndex = current.findIndex((item) => item.clientId === clientId);
-            if (currentIndex < 0) return current;
-            return [
-                ...current.slice(0, currentIndex + 1),
-                duplicate,
-                ...current.slice(currentIndex + 1),
-            ];
-        });
-        setFieldErrors((current) => ({ ...current, [duplicate.clientId]: {} }));
-        setPendingFocusClientId(duplicate.clientId);
+        const duplicate = duplicateCooperativeRequirement(requirements, clientId, makeClientId);
+        if (!duplicate.duplicateClientId) return;
+
+        setRequirements(duplicate.requirements);
+        setFieldErrors((current) => ({ ...current, [duplicate.duplicateClientId]: {} }));
+        setPendingFocusClientId(duplicate.duplicateClientId);
         setError('');
         setMessage('');
         setHasUnsavedChanges(true);
@@ -373,6 +383,139 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
 
         return () => cancelAnimationFrame(frame);
     }, [requirements, pendingFocusClientId]);
+
+    const loadCopyDialog = async (direction, sourceSnapshot = null, targetWasUnsaved = false) => {
+        if (loading || saving || copyLoading || copySaving) return;
+
+        const requestId = ++copyRequestId.current;
+        const sourceSemester = direction === 'to-other' ? semester : 3 - semester;
+        const targetSemester = direction === 'to-other' ? 3 - semester : semester;
+
+        setCopyDialog({
+            requestId,
+            direction,
+            sourceSemester,
+            targetSemester,
+            sourceSet: sourceSnapshot,
+            targetDraft: null,
+            targetPublished: null,
+            targetWasUnsaved,
+        });
+        setCopyLoading(true);
+        setCopyLoadError('');
+        setCopySaveError('');
+
+        try {
+            if (direction === 'to-other') {
+                const targetData = await fetchCooperativeRequirements(
+                    curriculum.curriculumId || curriculum.id,
+                    targetSemester,
+                );
+                if (copyRequestId.current !== requestId) return;
+                setCopyDialog((current) => current?.requestId === requestId
+                    ? { ...current, targetDraft: targetData.draft, targetPublished: targetData.published }
+                    : current);
+                return;
+            }
+
+            const [sourceData, targetData] = await Promise.all([
+                fetchCooperativeRequirements(curriculum.curriculumId || curriculum.id, sourceSemester),
+                fetchCooperativeRequirements(curriculum.curriculumId || curriculum.id, targetSemester),
+            ]);
+            if (copyRequestId.current !== requestId) return;
+            setCopyDialog((current) => current?.requestId === requestId
+                ? {
+                    ...current,
+                    sourceSet: mapRequirementCopySource(
+                        sourceData.draft,
+                        sourceData.published,
+                        makeClientId,
+                    ),
+                    targetDraft: targetData.draft,
+                    targetPublished: targetData.published,
+                }
+                : current);
+        } catch {
+            if (copyRequestId.current === requestId) {
+                setCopyLoadError(t('coop_requirements_copy_load_error'));
+            }
+        } finally {
+            if (copyRequestId.current === requestId) setCopyLoading(false);
+        }
+    };
+
+    const openCopyToOtherSemester = () => {
+        const currentSet = draft || published;
+        if (!currentSet || loading || saving || copyLoading || copySaving) return;
+
+        loadCopyDialog('to-other', {
+            ...currentSet,
+            status: draft ? 'draft' : 'published',
+            requirements: requirements.map((item) => ({ ...item })),
+        });
+    };
+
+    const openImportFromOtherSemester = () => {
+        loadCopyDialog('from-other', null, hasUnsavedChanges);
+    };
+
+    const retryCopyDialogLoad = () => {
+        if (!copyDialog) return;
+        loadCopyDialog(
+            copyDialog.direction,
+            copyDialog.direction === 'to-other' ? copyDialog.sourceSet : null,
+            copyDialog.targetWasUnsaved,
+        );
+    };
+
+    const closeCopyDialog = () => {
+        if (copySaving) return;
+        copyRequestId.current += 1;
+        setCopyDialog(null);
+        setCopyLoading(false);
+        setCopyLoadError('');
+        setCopySaveError('');
+    };
+
+    const handleCopyRequirements = async (selectedClientIds) => {
+        if (!copyDialog || copyLoading || copySaving || copyLoadError) return;
+        const copiedRequirements = cloneSelectedCooperativeRequirements(
+            copyDialog.sourceSet?.requirements || [],
+            selectedClientIds,
+            makeClientId,
+        );
+        if (!copiedRequirements.length) return;
+
+        setCopySaving(true);
+        setCopySaveError('');
+        try {
+            const data = await saveCooperativeRequirementsDraft(
+                curriculum.curriculumId || curriculum.id,
+                copyDialog.targetSemester,
+                copiedRequirements,
+            );
+            if (copyDialog.targetSemester === semester) {
+                setDraft(data.draft);
+                setPublished(data.published);
+                setRequirements(withClientIds(data.draft?.requirements, makeClientId));
+                setEditing(true);
+                setFieldErrors({});
+                setHasUnsavedChanges(false);
+                onDirtyChange?.(false);
+            }
+            setError('');
+            setMessage(t('coop_requirements_copy_success')
+                .replace('{semester}', t(copyDialog.targetSemester === 1
+                    ? 'learner_semester_one'
+                    : 'learner_semester_two')));
+            copyRequestId.current += 1;
+            setCopyDialog(null);
+        } catch {
+            setCopySaveError(t('coop_requirements_copy_save_error'));
+        } finally {
+            setCopySaving(false);
+        }
+    };
 
     const handleRemoveRequirement = (clientId) => {
         setRequirements((current) => current.filter((item) => item.clientId !== clientId));
@@ -460,6 +603,10 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
     const visibleRequirementCount = editing
         ? requirements.length
         : published?.requirements?.length || 0;
+    const hasCopyableRequirements = requirements.some(isCopyableCooperativeRequirement);
+    const otherSemesterLabel = t(semester === 1
+        ? 'learner_semester_two'
+        : 'learner_semester_one');
 
     return (
         <section className="coop-requirements" aria-labelledby="coop-requirements-title">
@@ -521,22 +668,36 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                         </div>
                     )}
                 </div>
-                {!isLoadingSemester && !editing && (
-                    <button
-                        type="button"
-                        className="course-btn course-btn--primary coop-requirements__primary-action"
-                        onClick={startEditing}
-                    >
-                        {published ? (
-                            <Pencil size={16} aria-hidden="true" />
-                        ) : (
-                            <Plus size={16} aria-hidden="true" />
-                        )}
-                        {published
-                            ? t('coop_requirements_edit')
-                            : t('coop_requirements_define')}
-                    </button>
-                )}
+                <div className="coop-requirements__semester-actions">
+                    {!isLoadingSemester && hasCopyableRequirements && (
+                        <button
+                            type="button"
+                            className="course-btn course-btn--ghost coop-requirements__secondary-action"
+                            onClick={openCopyToOtherSemester}
+                            disabled={saving || copyLoading || copySaving}
+                        >
+                            <Copy size={16} aria-hidden="true" />
+                            {t('coop_requirements_copy_to_semester')
+                                .replace('{semester}', otherSemesterLabel)}
+                        </button>
+                    )}
+                    {!isLoadingSemester && !editing && (
+                        <button
+                            type="button"
+                            className="course-btn course-btn--primary coop-requirements__primary-action"
+                            onClick={startEditing}
+                        >
+                            {published ? (
+                                <Pencil size={16} aria-hidden="true" />
+                            ) : (
+                                <Plus size={16} aria-hidden="true" />
+                            )}
+                            {published
+                                ? t('coop_requirements_edit')
+                                : t('coop_requirements_define')}
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div
@@ -553,6 +714,16 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                         {!published && !editing && !error && (
                             <div className="coop-requirements__empty">
                                 <p>{t('coop_requirements_not_configured')}</p>
+                                <button
+                                    type="button"
+                                    className="course-btn course-btn--ghost coop-requirements__secondary-action"
+                                    onClick={openImportFromOtherSemester}
+                                    disabled={saving || copyLoading || copySaving}
+                                >
+                                    <Copy size={16} aria-hidden="true" />
+                                    {t('coop_requirements_import_from_semester')
+                                        .replace('{semester}', otherSemesterLabel)}
+                                </button>
                             </div>
                         )}
 
@@ -617,10 +788,20 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                                     </div>
                                 )}
 
-                                {requirements.length === 0 && (
-                                    <p className="coop-requirements__empty-inline">
-                                        {t('coop_requirements_empty_draft')}
-                                    </p>
+                                {!hasCopyableRequirements && (
+                                    <div className="coop-requirements__empty-inline coop-requirements__empty-inline--actions">
+                                        <p>{t('coop_requirements_empty_draft')}</p>
+                                        <button
+                                            type="button"
+                                            className="course-btn course-btn--ghost coop-requirements__secondary-action"
+                                            onClick={openImportFromOtherSemester}
+                                            disabled={saving || copyLoading || copySaving}
+                                        >
+                                            <Copy size={16} aria-hidden="true" />
+                                            {t('coop_requirements_import_from_semester')
+                                                .replace('{semester}', otherSemesterLabel)}
+                                        </button>
+                                    </div>
                                 )}
 
                                 <div className="coop-requirements__rows">
@@ -717,6 +898,38 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                     </>
             )}
             </div>
+
+            <CooperativeRequirementCopyModal
+                key={copyDialog?.requestId || 'closed'}
+                open={Boolean(copyDialog)}
+                sourceSemester={copyDialog?.sourceSemester || semester}
+                targetSemester={copyDialog?.targetSemester || 3 - semester}
+                sourceSet={copyDialog?.sourceSet || null}
+                targetDraft={copyDialog?.targetDraft || null}
+                targetPublished={copyDialog?.targetPublished || null}
+                loading={copyLoading}
+                saving={copySaving}
+                loadError={copyLoadError}
+                saveError={copySaveError}
+                sourceWasUnsaved={copyDialog?.direction === 'to-other' && hasUnsavedChanges}
+                targetWasUnsaved={copyDialog?.direction === 'from-other' && copyDialog?.targetWasUnsaved}
+                getRequirementSummary={(item) => ({
+                    name: localizedValue(
+                        item.nameEn,
+                        item.nameTh,
+                        language,
+                        criterionTitle(item.criterionType, t),
+                    ),
+                    scope: requirementScope(item, categories, courses, t),
+                    threshold: requirementThreshold(item, courses.find(
+                        (course) => course.id === item.courseId,
+                    ), language, t),
+                })}
+                onRetry={retryCopyDialogLoad}
+                onConfirm={handleCopyRequirements}
+                onClose={closeCopyDialog}
+                t={t}
+            />
 
             <ConfirmActionModal
                 open={publishConfirmation}

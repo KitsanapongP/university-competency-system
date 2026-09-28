@@ -94,6 +94,18 @@
   gap: 0.45rem;
 }
 
+.coop-requirements__semester-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.coop-requirements__secondary-action {
+  white-space: nowrap;
+}
+
 .coop-requirements__semester-summary-heading {
   display: flex;
   align-items: center;
@@ -165,6 +177,13 @@
 .coop-requirements__empty p,
 .coop-requirements__empty-inline {
   margin: 0;
+}
+
+.coop-requirements__empty-inline--actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .coop-requirements__current-note {
@@ -458,6 +477,23 @@
 @media (max-width: 640px) {
   .coop-requirements__header,
   .coop-requirements__empty {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .coop-requirements__semester-actions {
+    justify-content: stretch;
+  }
+
+  .coop-requirements__semester-actions > button,
+  .coop-requirements__empty > button,
+  .coop-requirements__empty-inline--actions > button {
+    width: 100%;
+    justify-content: center;
+    white-space: normal;
+  }
+
+  .coop-requirements__empty-inline--actions {
     align-items: stretch;
     flex-direction: column;
   }
