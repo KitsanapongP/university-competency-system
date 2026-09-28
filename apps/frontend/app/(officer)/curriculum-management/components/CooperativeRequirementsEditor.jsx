@@ -21,17 +21,19 @@ const CRITERION_TYPES = [
 
 const LETTER_GRADES = ['A', 'B+', 'B', 'C+', 'C', 'D+', 'D'];
 
-function flattenCategories(nodes, language, level = 0, result = []) {
+function flattenCategories(nodes, language, level = 0, result = [], parentPath = []) {
     for (const category of nodes || []) {
         if (!category.isActive) continue;
         const name = language === 'en'
             ? category.nameEn || category.name
             : category.name || category.nameEn;
+        const path = [...parentPath, name].filter(Boolean);
         result.push({
             id: String(category.id),
             label: `${'— '.repeat(level)}${name || ''}`,
+            path: path.join(' / '),
         });
-        flattenCategories(category.children, language, level + 1, result);
+        flattenCategories(category.children, language, level + 1, result, path);
     }
     return result;
 }
@@ -95,19 +97,55 @@ function localizedValue(valueEn, valueTh, language, fallback = '-') {
     return language === 'en' ? english || thai || fallback : thai || english || fallback;
 }
 
-function minimumSummary(requirement, categories, courses, t) {
-    const category = categories.find((item) => item.id === requirement.categoryId);
-    const course = courses.find((item) => item.id === requirement.courseId);
-    const selectedName = course
-        ? `${course.code} · ${course.name}`
-        : category?.label;
-    const value = requirement.minimumGrade
-        ? `${t('coop_requirements_grade')}: ${requirement.minimumGrade}`
-        : requirement.minimumValue !== ''
-            ? `${t('coop_requirements_minimum')}: ${requirement.minimumValue}`
-            : '';
-    if (selectedName && value) return `${selectedName} · ${value}`;
-    return selectedName || value;
+function requirementScope(requirement, categories, courses, t) {
+    if (requirement.criterionType === 'overall_gpa') {
+        return t('coop_requirements_scope_overall_gpa');
+    }
+
+    if (requirement.criterionType.startsWith('category_')) {
+        const category = categories.find((item) => item.id === requirement.categoryId);
+        if (!category) return t('coop_requirements_scope_missing_category');
+        return t('coop_requirements_scope_category')
+            .replace('{category}', category.path);
+    }
+
+    if (requirement.criterionType === 'course_grade') {
+        const course = courses.find((item) => item.id === requirement.courseId);
+        if (!course) return t('coop_requirements_scope_missing_course');
+        return [course.code, course.name].filter(Boolean).join(' · ');
+    }
+
+    if (requirement.criterionType === 'free_elective_credits') {
+        return t('coop_requirements_scope_free_electives');
+    }
+
+    return '-';
+}
+
+function formatRequirementValue(value, isGpa, language) {
+    if (value === '' || value == null || !Number.isFinite(Number(value))) return '-';
+    const locale = language === 'en' ? 'en-US' : 'th-TH';
+    return new Intl.NumberFormat(locale, {
+        maximumFractionDigits: 2,
+        minimumFractionDigits: isGpa ? 2 : 0,
+        useGrouping: true,
+    }).format(Number(value));
+}
+
+function requirementThreshold(requirement, course, language, t) {
+    if (requirement.criterionType === 'course_grade') {
+        const key = course?.gradeScheme === 'satisfactory'
+            ? 'coop_requirements_threshold_satisfactory'
+            : 'coop_requirements_threshold_letter_grade';
+        return t(key).replace('{grade}', requirement.minimumGrade || '-');
+    }
+
+    const isGpa = requirement.criterionType.includes('gpa');
+    const value = formatRequirementValue(requirement.minimumValue, isGpa, language);
+    const key = isGpa
+        ? 'coop_requirements_threshold_gpa'
+        : 'coop_requirements_threshold_credits';
+    return t(key).replace('{value}', value);
 }
 
 function validateRequirementRows(requirements) {
@@ -471,23 +509,53 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
 
                         {!editing && published && (
                             <div className="coop-requirements__list">
-                                {published.requirements.map((item) => (
-                                    <article
-                                        className="coop-requirements__summary"
-                                        key={item.requirementId}
-                                    >
-                                        <strong>
-                                            {localizedValue(
-                                                item.nameEn,
-                                                item.nameTh,
-                                                language,
-                                                criterionTitle(item.criterionType, t),
-                                            )}
-                                        </strong>
-                                        <span>{criterionTitle(item.criterionType, t)}</span>
-                                        <span>{minimumSummary(item, categories, courses, t)}</span>
-                                    </article>
-                                ))}
+                                <table className="coop-requirements__summary-table">
+                                    <caption className="coop-requirements__sr-only">
+                                        {t('coop_requirements_summary_caption')}
+                                    </caption>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">{t('coop_requirements_column_number')}</th>
+                                            <th scope="col">{t('coop_requirements_column_name')}</th>
+                                            <th scope="col">{t('coop_requirements_column_scope')}</th>
+                                            <th scope="col">{t('coop_requirements_column_threshold')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {published.requirements.map((item, index) => {
+                                            const selectedCourse = courses.find(
+                                                (course) => course.id === item.courseId,
+                                            );
+
+                                            return (
+                                                <tr key={item.requirementId}>
+                                                    <th
+                                                        scope="row"
+                                                        data-label={t('coop_requirements_column_number')}
+                                                    >
+                                                        {index + 1}
+                                                    </th>
+                                                    <td data-label={t('coop_requirements_column_name')}>
+                                                        <strong>
+                                                            {localizedValue(
+                                                                item.nameEn,
+                                                                item.nameTh,
+                                                                language,
+                                                                criterionTitle(item.criterionType, t),
+                                                            )}
+                                                        </strong>
+                                                    </td>
+                                                    <td data-label={t('coop_requirements_column_scope')}>
+                                                        {requirementScope(item, categories, courses, t)}
+                                                    </td>
+                                                    <td data-label={t('coop_requirements_column_threshold')}>
+                                                        {requirementThreshold(item, selectedCourse, language, t)}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
                         )}
 
