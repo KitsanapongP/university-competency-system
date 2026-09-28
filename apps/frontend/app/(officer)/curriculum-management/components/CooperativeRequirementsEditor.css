@@ -282,6 +282,12 @@
   font-size: 0.9rem;
 }
 
+.coop-requirements__row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .coop-requirements__grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(160px, 1fr));

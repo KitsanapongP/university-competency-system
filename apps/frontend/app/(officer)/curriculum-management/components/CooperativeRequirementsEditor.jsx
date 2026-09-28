@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, LoaderCircle, Pencil, Plus, Save, Send, Trash2 } from 'lucide-react';
+import { Check, Copy, LoaderCircle, Pencil, Plus, Save, Send, Trash2 } from 'lucide-react';
 import ConfirmActionModal from '../../../../components/ui/ConfirmActionModal';
 import { useLanguage } from '../../../../providers/LanguageContext';
+import { cloneCooperativeRequirement } from '../../../../lib/cooperative-requirement-copy.mjs';
 import {
     fetchCooperativeRequirements,
     publishCooperativeRequirements,
@@ -198,12 +199,22 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
     const [pendingSemester, setPendingSemester] = useState(null);
     const [semesterChangeConfirmation, setSemesterChangeConfirmation] = useState(false);
     const [semester, setSemester] = useState(1);
+    const [pendingFocusClientId, setPendingFocusClientId] = useState('');
+    const requirementRowRefs = useRef(new Map());
 
     translateRef.current = t;
 
     const makeClientId = () => {
         nextClientId.current += 1;
         return `cooperative-requirement-${nextClientId.current}`;
+    };
+
+    const registerRequirementRow = (clientId, node) => {
+        if (node) {
+            requirementRowRefs.current.set(clientId, node);
+        } else {
+            requirementRowRefs.current.delete(clientId);
+        }
     };
     const categories = useMemo(
         () => flattenCategories(curriculum?.categories || [], language),
@@ -324,6 +335,44 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
         setHasUnsavedChanges(true);
         onDirtyChange?.(true);
     };
+
+    const handleDuplicateRequirement = (clientId) => {
+        const originalIndex = requirements.findIndex((item) => item.clientId === clientId);
+        if (originalIndex < 0 || !requirements[originalIndex].criterionType || saving) return;
+
+        const duplicate = cloneCooperativeRequirement(
+            requirements[originalIndex],
+            makeClientId(),
+        );
+        setRequirements((current) => {
+            const currentIndex = current.findIndex((item) => item.clientId === clientId);
+            if (currentIndex < 0) return current;
+            return [
+                ...current.slice(0, currentIndex + 1),
+                duplicate,
+                ...current.slice(currentIndex + 1),
+            ];
+        });
+        setFieldErrors((current) => ({ ...current, [duplicate.clientId]: {} }));
+        setPendingFocusClientId(duplicate.clientId);
+        setError('');
+        setMessage('');
+        setHasUnsavedChanges(true);
+        onDirtyChange?.(true);
+    };
+
+    useEffect(() => {
+        if (!pendingFocusClientId) return undefined;
+
+        const frame = requestAnimationFrame(() => {
+            const row = requirementRowRefs.current.get(pendingFocusClientId);
+            row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row?.querySelector('input')?.focus({ preventScroll: true });
+            setPendingFocusClientId('');
+        });
+
+        return () => cancelAnimationFrame(frame);
+    }, [requirements, pendingFocusClientId]);
 
     const handleRemoveRequirement = (clientId) => {
         setRequirements((current) => current.filter((item) => item.clientId !== clientId));
@@ -579,6 +628,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                                         <RequirementRow
                                             key={requirement.clientId}
                                             requirement={requirement}
+                                            registerRow={registerRequirementRow}
                                             categories={categories}
                                             courses={courses}
                                             errors={fieldErrors[requirement.clientId] || {}}
@@ -587,6 +637,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                                             onChange={updateRequirement}
                                             onTypeChange={handleTypeChange}
                                             onRemove={handleRemoveRequirement}
+                                            onDuplicate={handleDuplicateRequirement}
                                         />
                                     ))}
                                 </div>
@@ -695,6 +746,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
 
 function RequirementRow({
     requirement,
+    registerRow,
     categories,
     courses,
     errors,
@@ -703,6 +755,7 @@ function RequirementRow({
     onChange,
     onTypeChange,
     onRemove,
+    onDuplicate,
 }) {
     const selectedCourse = courses.find((course) => course.id === requirement.courseId);
     const allowedGrades = selectedCourse?.gradeScheme === 'satisfactory'
@@ -714,23 +767,38 @@ function RequirementRow({
         : {};
 
     return (
-        <article className="coop-requirements__row">
+        <article
+            className="coop-requirements__row"
+            ref={(node) => registerRow(requirement.clientId, node)}
+        >
             <div className="coop-requirements__row-heading">
                 <strong>
                     {requirement.criterionType
                         ? criterionTitle(requirement.criterionType, t)
                         : t('coop_requirements_type')}
                 </strong>
-                <button
-                    type="button"
-                    className="course-icon-btn course-icon-btn--danger"
-                    title={t('coop_requirements_remove')}
-                    aria-label={t('coop_requirements_remove')}
-                    onClick={() => onRemove(requirement.clientId)}
-                    disabled={saving}
-                >
-                    <Trash2 size={16} aria-hidden="true" />
-                </button>
+                <div className="coop-requirements__row-actions">
+                    <button
+                        type="button"
+                        className="course-icon-btn"
+                        title={t('coop_requirements_duplicate')}
+                        aria-label={t('coop_requirements_duplicate')}
+                        onClick={() => onDuplicate(requirement.clientId)}
+                        disabled={saving || !requirement.criterionType}
+                    >
+                        <Copy size={16} aria-hidden="true" />
+                    </button>
+                    <button
+                        type="button"
+                        className="course-icon-btn course-icon-btn--danger"
+                        title={t('coop_requirements_remove')}
+                        aria-label={t('coop_requirements_remove')}
+                        onClick={() => onRemove(requirement.clientId)}
+                        disabled={saving}
+                    >
+                        <Trash2 size={16} aria-hidden="true" />
+                    </button>
+                </div>
             </div>
 
             <div className="coop-requirements__grid">
