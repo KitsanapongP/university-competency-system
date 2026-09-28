@@ -568,18 +568,6 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                                     </div>
                                 )}
 
-                                <div className="coop-requirements__toolbar">
-                                    <button
-                                        type="button"
-                                        className="course-btn course-btn--ghost"
-                                        onClick={handleAddRequirement}
-                                        disabled={saving}
-                                    >
-                                        <Plus size={16} aria-hidden="true" />
-                                        {t('coop_requirements_add')}
-                                    </button>
-                                </div>
-
                                 {requirements.length === 0 && (
                                     <p className="coop-requirements__empty-inline">
                                         {t('coop_requirements_empty_draft')}
@@ -603,6 +591,18 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                                     ))}
                                 </div>
 
+                                <div className="coop-requirements__add-action">
+                                    <button
+                                        type="button"
+                                        className="course-btn coop-requirements__add-button"
+                                        onClick={handleAddRequirement}
+                                        disabled={saving}
+                                    >
+                                        <Plus size={16} aria-hidden="true" />
+                                        {t('coop_requirements_add')}
+                                    </button>
+                                </div>
+
                                 {error && (
                                     <p className="coop-requirements__alert" role="alert">
                                         {error}
@@ -617,7 +617,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                                 <footer className="coop-requirements__actions">
                                     <button
                                         type="button"
-                                        className="course-btn course-btn--ghost"
+                                        className="course-btn coop-requirements__cancel-button"
                                         onClick={handleCancelEditing}
                                         disabled={saving}
                                     >
@@ -625,7 +625,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                                     </button>
                                     <button
                                         type="button"
-                                        className="course-btn course-btn--ghost"
+                                        className="course-btn coop-requirements__save-draft-button"
                                         onClick={handleSaveDraft}
                                         disabled={saving}
                                     >
