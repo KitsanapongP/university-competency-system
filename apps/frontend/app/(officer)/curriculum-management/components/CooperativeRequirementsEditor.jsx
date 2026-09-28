@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, LoaderCircle, Plus, Save, Send, Trash2 } from 'lucide-react';
+import { Check, LoaderCircle, Pencil, Plus, Save, Send, Trash2 } from 'lucide-react';
 import ConfirmActionModal from '../../../../components/ui/ConfirmActionModal';
 import { useLanguage } from '../../../../providers/LanguageContext';
 import {
@@ -81,6 +81,12 @@ function withClientIds(requirements, makeId) {
 
 function criterionTitle(type, t) {
     return t(`coop_requirements_type_${type}`);
+}
+
+function requirementCountLabel(count, isDraft, t) {
+    const quantity = count === 1 ? 'one' : 'many';
+    const kind = isDraft ? 'draft_count' : 'count';
+    return t(`coop_requirements_${kind}_${quantity}`).replace('{count}', count);
 }
 
 function localizedValue(valueEn, valueTh, language, fallback = '-') {
@@ -360,11 +366,13 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
         }
     };
 
-    const activeSet = published;
     const isLoadingSemester = loading || loadedSemester !== semester;
     const semesterLabel = t(semester === 1 ? 'learner_semester_one' : 'learner_semester_two');
     const publishMessage = t('coop_requirements_confirm_message').replace('{semester}', semesterLabel);
     const publishHint = t('coop_requirements_confirm_hint').replace('{semester}', semesterLabel);
+    const visibleRequirementCount = editing
+        ? requirements.length
+        : published?.requirements?.length || 0;
 
     return (
         <section className="coop-requirements" aria-labelledby="coop-requirements-title">
@@ -372,19 +380,6 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                 <div>
                     <h2 id="coop-requirements-title">{t('coop_requirements_title')}</h2>
                     <p>{t('coop_requirements_description')}</p>
-                </div>
-                <div className="coop-requirements__badges">
-                    {activeSet && (
-                        <span className="coop-requirements__badge coop-requirements__badge--published">
-                            <Check size={14} aria-hidden="true" />
-                            {t('coop_requirements_published')} · {activeSet.revision}
-                        </span>
-                    )}
-                    {draft && (
-                        <span className="coop-requirements__badge coop-requirements__badge--draft">
-                            {t('coop_requirements_draft')} · {draft.revision}
-                        </span>
-                    )}
                 </div>
             </header>
 
@@ -406,6 +401,57 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                 ))}
             </div>
 
+            <div className="coop-requirements__semester-summary">
+                <div className="coop-requirements__semester-summary-main">
+                    <div className="coop-requirements__semester-summary-heading">
+                        <h3>{semesterLabel}</h3>
+                        {!isLoadingSemester && (
+                            <span className="coop-requirements__count">
+                                {requirementCountLabel(visibleRequirementCount, editing, t)}
+                            </span>
+                        )}
+                    </div>
+                    {!isLoadingSemester && (
+                        <div className="coop-requirements__badges">
+                            {published && (
+                                <span className="coop-requirements__badge coop-requirements__badge--published">
+                                    <Check size={14} aria-hidden="true" />
+                                    {t('coop_requirements_published')} · {t('coop_requirements_revision')}
+                                    {' '}{published.revision}
+                                </span>
+                            )}
+                            {!published && (
+                                <span className="coop-requirements__badge coop-requirements__badge--missing">
+                                    {t('coop_requirements_no_active_set')}
+                                </span>
+                            )}
+                            {draft && (
+                                <span className="coop-requirements__badge coop-requirements__badge--draft">
+                                    {t('coop_requirements_draft')} · {t('coop_requirements_revision')}
+                                    {' '}{draft.revision}
+                                </span>
+                            )}
+                        </div>
+                    )}
+                </div>
+                {!isLoadingSemester && !editing && (
+                    <button
+                        type="button"
+                        className="course-btn course-btn--primary coop-requirements__primary-action"
+                        onClick={startEditing}
+                    >
+                        {published ? (
+                            <Pencil size={16} aria-hidden="true" />
+                        ) : (
+                            <Plus size={16} aria-hidden="true" />
+                        )}
+                        {published
+                            ? t('coop_requirements_edit')
+                            : t('coop_requirements_define')}
+                    </button>
+                )}
+            </div>
+
             <div
                 id="coop-requirements-semester-panel"
                 role="tabpanel"
@@ -420,14 +466,6 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                         {!published && !editing && !error && (
                             <div className="coop-requirements__empty">
                                 <p>{t('coop_requirements_not_configured')}</p>
-                                <button
-                                    type="button"
-                                    className="course-btn course-btn--primary"
-                                    onClick={startEditing}
-                                >
-                                    <Plus size={16} aria-hidden="true" />
-                                    {t('coop_requirements_start')}
-                                </button>
                             </div>
                         )}
 
@@ -450,13 +488,6 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                                         <span>{minimumSummary(item, categories, courses, t)}</span>
                                     </article>
                                 ))}
-                                <button
-                                    type="button"
-                                    className="course-btn course-btn--secondary"
-                                    onClick={startEditing}
-                                >
-                                    {t('coop_requirements_edit')}
-                                </button>
                             </div>
                         )}
 
@@ -472,7 +503,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                                 <div className="coop-requirements__toolbar">
                                     <button
                                         type="button"
-                                        className="course-btn course-btn--secondary"
+                                        className="course-btn course-btn--ghost"
                                         onClick={handleAddRequirement}
                                         disabled={saving}
                                     >
@@ -526,7 +557,7 @@ export default function CooperativeRequirementsEditor({ curriculum, onDirtyChang
                                     </button>
                                     <button
                                         type="button"
-                                        className="course-btn course-btn--secondary"
+                                        className="course-btn course-btn--ghost"
                                         onClick={handleSaveDraft}
                                         disabled={saving}
                                     >

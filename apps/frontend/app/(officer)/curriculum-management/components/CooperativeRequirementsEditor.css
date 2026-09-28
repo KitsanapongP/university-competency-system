@@ -57,10 +57,10 @@
 
 .coop-requirements__header {
   align-items: flex-start;
-  padding: 1rem 1.1rem;
-  border: 1px solid var(--course-card-border);
-  border-radius: 8px;
-  background: var(--course-card-bg);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .coop-requirements__header h2 {
@@ -80,6 +80,43 @@
   justify-content: flex-end;
 }
 
+.coop-requirements__semester-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.2rem 0 0.9rem;
+  border-bottom: 1px solid var(--course-border);
+}
+
+.coop-requirements__semester-summary-main {
+  display: grid;
+  min-width: 0;
+  gap: 0.45rem;
+}
+
+.coop-requirements__semester-summary-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.coop-requirements__semester-summary-heading h3 {
+  margin: 0;
+  color: var(--course-title);
+  font-size: 1rem;
+}
+
+.coop-requirements__count {
+  color: var(--course-text-muted);
+  font-size: 0.82rem;
+}
+
+.coop-requirements__primary-action {
+  flex-shrink: 0;
+}
+
 .coop-requirements__badge {
   display: inline-flex;
   align-items: center;
@@ -96,11 +133,17 @@
 .coop-requirements__badge--published {
   border-color: color-mix(in srgb, #16a34a 35%, var(--course-border));
   background: color-mix(in srgb, #16a34a 12%, var(--course-card-bg));
-  color: var(--course-text);
+  color: var(--ui-success);
 }
 
 .coop-requirements__badge--draft {
   background: var(--course-input-bg);
+  color: var(--course-text-muted);
+}
+
+.coop-requirements__badge--missing {
+  border-style: dashed;
+  background: transparent;
   color: var(--course-text-muted);
 }
 
@@ -268,6 +311,15 @@
 
   .coop-requirements__badges {
     justify-content: flex-start;
+  }
+
+  .coop-requirements__semester-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .coop-requirements__primary-action {
+    align-self: flex-start;
   }
 
   .coop-requirements__semester-tabs {
