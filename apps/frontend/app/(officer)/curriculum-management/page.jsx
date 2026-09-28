@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Layers,
   Award,
+  Power,
 } from "lucide-react";
 import { useAuth } from "../../../providers/auth-provider";
 import { useLanguage } from "../../../providers/LanguageContext";
@@ -197,9 +198,9 @@ const STATUS_LABELS = {
 
 function getStatusAction(status) {
   if (status === "active") {
-    return { nextStatus: "inactive", label: "ปิดใช้งาน" };
+    return { nextStatus: "inactive", labelKey: "curriculum_action_deactivate" };
   }
-  return { nextStatus: "active", label: "เปิดใช้งาน" };
+  return { nextStatus: "active", labelKey: "curriculum_action_activate" };
 }
 
 function buildConfirmationMessage(
@@ -1992,13 +1993,14 @@ export default function CurriculumManagementPage() {
               </span>
               {statusAction && (
                 <button
-                  className={`course-btn ${selectedCourse.status === "active" ? "course-btn--danger" : "course-btn--primary"}`}
+                  className={`course-btn course-btn--status-action ${selectedCourse.status === "active" ? "course-btn--status-action-danger" : ""}`}
                   onClick={() =>
                     handleRequestChangeStatus(statusAction.nextStatus)
                   }
                   disabled={operationLoading}
                 >
-                  {statusAction.label}
+                  <Power size={16} aria-hidden="true" />
+                  {t(statusAction.labelKey)}
                 </button>
               )}
             </div>

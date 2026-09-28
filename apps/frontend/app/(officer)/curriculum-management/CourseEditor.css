@@ -60,6 +60,39 @@
     flex-shrink: 0;
 }
 
+.course-editor-header__actions .course-btn--status-action {
+    gap: 0.45rem;
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--course-border);
+    background: transparent;
+    color: var(--course-accent);
+    white-space: nowrap;
+}
+
+.course-editor-header__actions .course-btn--status-action:hover:not(:disabled) {
+    border-color: var(--course-accent);
+    background: var(--course-hover);
+}
+
+.course-editor-header__actions .course-btn--status-action-danger {
+    color: var(--ui-danger);
+}
+
+.course-editor-header__actions .course-btn--status-action-danger:hover:not(:disabled) {
+    border-color: var(--ui-danger);
+    background: color-mix(in srgb, var(--ui-danger) 8%, transparent);
+}
+
+.course-editor-header__actions .course-btn--status-action:focus-visible {
+    outline: 2px solid var(--course-accent);
+    outline-offset: 2px;
+}
+
+.course-editor-header__actions .course-btn--status-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 .curriculum-detail-tabs {
     display: flex;
     gap: 0.25rem;
