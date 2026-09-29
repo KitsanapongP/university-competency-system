@@ -1,0 +1,463 @@
+/* ============================================================
+   Officer Design System
+   Shared visual contract for operational officer screens.
+   ============================================================ */
+
+:root {
+    /* Compatibility aliases for pages being migrated incrementally. */
+    --officer-font: var(--ui-font);
+    --officer-bg: var(--ui-page-bg);
+    --officer-surface: var(--ui-surface);
+    --officer-surface-muted: var(--ui-surface-muted);
+    --officer-text: var(--ui-text);
+    --officer-text-muted: var(--ui-text-muted);
+    --officer-border: var(--ui-border-strong);
+    --officer-primary: var(--ui-primary);
+    --officer-primary-strong: var(--ui-title);
+    --officer-primary-soft: var(--ui-primary-soft);
+    --officer-hover: var(--ui-hover);
+    --officer-danger: var(--ui-danger);
+    --officer-success: var(--ui-success);
+    --officer-warning: var(--ui-warning);
+    --officer-radius: var(--ui-radius-panel);
+    --officer-shadow: var(--ui-shadow);
+    --officer-page-padding-inline: var(--ui-page-padding-inline);
+}
+
+body:has(.officer-page),
+body:has(.competency-app--sidebar) {
+    font-family: var(--officer-font);
+}
+
+.officer-page,
+.officer-page button,
+.officer-page input,
+.officer-page select,
+.officer-page textarea {
+    font-family: var(--officer-font);
+}
+
+.officer-page {
+    width: 100%;
+    min-width: 0;
+    min-height: 100vh;
+    box-sizing: border-box;
+    padding: 1.5rem var(--officer-page-padding-inline) 3rem;
+    color: var(--officer-text);
+    background: var(--officer-bg);
+}
+
+.officer-page--compact {
+    padding-bottom: 2rem;
+}
+
+.officer-page__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--officer-border);
+}
+
+.officer-page > .officer-page__header {
+    align-items: flex-start;
+}
+
+.officer-page__heading {
+    min-width: 0;
+}
+
+.officer-page__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+    color: var(--officer-primary);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.officer-page__title {
+    margin: 0.5rem 0 0.25rem;
+    color: var(--officer-primary-strong);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.officer-page .officer-page__title {
+    margin: 0.5rem 0 0.25rem;
+    color: var(--officer-primary-strong);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.dark .officer-page__title {
+    color: var(--ui-title);
+}
+
+.officer-page__subtitle {
+    max-width: 48rem;
+    margin: 0;
+    color: var(--officer-text-muted);
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.officer-page__actions,
+.officer-inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.officer-page__actions {
+    justify-content: flex-end;
+}
+
+.officer-panel {
+    overflow: hidden;
+    border: 1px solid var(--officer-border);
+    border-radius: var(--officer-radius);
+    background: var(--officer-surface);
+    box-shadow: var(--officer-shadow);
+}
+
+.officer-panel + .officer-panel {
+    margin-top: 1rem;
+}
+
+.officer-panel__heading,
+.officer-panel__toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid var(--officer-border);
+}
+
+.officer-panel__heading h2,
+.officer-panel__heading h3 {
+    margin: 0;
+    color: var(--officer-text);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.officer-panel__heading p,
+.officer-panel__toolbar p {
+    margin: 0.25rem 0 0;
+    color: var(--officer-text-muted);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+.officer-panel__content {
+    padding: 1rem;
+}
+
+.officer-panel__footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+    border-top: 1px solid var(--officer-border);
+}
+
+.officer-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.officer-field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.officer-field > span:first-child,
+.officer-label {
+    color: var(--officer-text);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.officer-field input,
+.officer-field select,
+.officer-field textarea,
+.officer-input,
+.officer-select {
+    width: 100%;
+    min-height: 2.5rem;
+    box-sizing: border-box;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--officer-border);
+    border-radius: var(--officer-radius);
+    color: var(--officer-text);
+    background: var(--officer-surface);
+    font-size: 0.875rem;
+}
+
+.officer-field textarea {
+    min-height: 6rem;
+    resize: vertical;
+}
+
+.officer-field input::placeholder,
+.officer-field textarea::placeholder,
+.officer-input::placeholder {
+    color: var(--officer-text-muted);
+}
+
+.officer-field input:focus,
+.officer-field select:focus,
+.officer-field textarea:focus,
+.officer-input:focus,
+.officer-select:focus {
+    outline: 0;
+    border-color: var(--officer-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--officer-primary) 16%, transparent);
+}
+
+.officer-field input:disabled,
+.officer-field select:disabled,
+.officer-input:disabled,
+.officer-select:disabled {
+    cursor: not-allowed;
+    color: var(--officer-text-muted);
+    background: var(--officer-surface-muted);
+    opacity: 0.78;
+}
+
+.officer-field__hint {
+    color: var(--officer-text-muted);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+.officer-button {
+    display: inline-flex;
+    min-height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    box-sizing: border-box;
+    padding: 0.625rem 1.25rem;
+    border: 1px solid transparent;
+    border-radius: var(--officer-radius);
+    color: var(--officer-text);
+    background: transparent;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: border-color 160ms ease, background-color 160ms ease,
+        color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.officer-button:hover:not(:disabled) {
+    border-color: var(--officer-border);
+    background: var(--officer-hover);
+}
+
+.officer-button:focus-visible,
+.officer-icon-button:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--officer-primary) 38%, transparent);
+    outline-offset: 2px;
+}
+
+.officer-button:disabled,
+.officer-icon-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.officer-button--primary {
+    color: #fff;
+    background: var(--officer-primary);
+}
+
+.officer-button--primary:hover:not(:disabled) {
+    border-color: var(--officer-primary-strong);
+    background: var(--officer-primary-strong);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--officer-primary) 24%, transparent);
+    transform: translateY(-1px);
+}
+
+.officer-button--secondary {
+    border-color: var(--officer-border);
+    background: var(--officer-surface);
+}
+
+.officer-button--danger {
+    color: #fff;
+    background: var(--officer-danger);
+}
+
+.officer-button--quiet {
+    color: var(--officer-text-muted);
+}
+
+.officer-button--small {
+    min-height: 2.25rem;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.8125rem;
+}
+
+.officer-icon-button {
+    display: inline-flex;
+    width: 2.25rem;
+    height: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--officer-text-muted);
+    background: transparent;
+    cursor: pointer;
+}
+
+.officer-icon-button:hover:not(:disabled) {
+    color: var(--officer-text);
+    background: var(--officer-hover);
+}
+
+.officer-icon-button--danger {
+    color: var(--officer-danger);
+}
+
+.officer-icon-button--success {
+    color: var(--officer-success);
+}
+
+.officer-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.officer-table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+}
+
+.officer-table th,
+.officer-table td {
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--officer-border);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.officer-table th {
+    color: var(--officer-text-muted);
+    background: var(--officer-surface-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.officer-table td {
+    color: var(--officer-text);
+    font-size: 0.875rem;
+}
+
+.officer-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.officer-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--officer-primary-soft) 46%, transparent);
+}
+
+.officer-status {
+    display: inline-flex;
+    min-height: 1.75rem;
+    align-items: center;
+    padding: 0 0.65rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.officer-status--success {
+    color: var(--officer-success);
+    background: color-mix(in srgb, var(--officer-success) 14%, transparent);
+}
+
+.officer-status--warning {
+    color: var(--officer-warning);
+    background: color-mix(in srgb, var(--officer-warning) 14%, transparent);
+}
+
+.officer-status--danger {
+    color: var(--officer-danger);
+    background: color-mix(in srgb, var(--officer-danger) 12%, transparent);
+}
+
+.officer-status--neutral {
+    color: var(--officer-text-muted);
+    background: var(--officer-surface-muted);
+}
+
+.officer-empty {
+    display: grid;
+    min-height: 9rem;
+    place-items: center;
+    padding: 1.5rem;
+    color: var(--officer-text-muted);
+    text-align: center;
+}
+
+.officer-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (max-width: 1280px) {
+    .officer-page {
+        --officer-page-padding-inline: 2rem;
+    }
+}
+
+@media (max-width: 1100px) {
+    .officer-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    .officer-page {
+        --officer-page-padding-inline: 1rem;
+    }
+
+    .officer-page__header {
+        display: block;
+    }
+
+    .officer-page__actions {
+        justify-content: flex-start;
+        margin-top: 1rem;
+    }
+
+    .officer-filter-grid {
+        grid-template-columns: 1fr;
+    }
+}

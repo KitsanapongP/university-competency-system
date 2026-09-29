@@ -19,12 +19,14 @@
     display: flex;
     flex-direction: column;
     animation: course-modal-slide-up 0.3s ease;
+    transition: max-width 0.35s ease, transform 0.35s ease;
 }
 
 .course-modal-box--sm { max-width: 420px; }
 .course-modal-box--md { max-width: 560px; }
 .course-modal-box--lg { max-width: 720px; }
 .course-modal-box--xl { max-width: 900px; }
+.course-modal-box--xxl { max-width: min(96vw, 1440px); }
 
 .course-modal-header {
     display: flex;

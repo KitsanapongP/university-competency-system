@@ -4,7 +4,7 @@ import React from 'react';
 import { Target, TrendingUp, Award } from 'lucide-react';
 import { useLanguage } from '../../providers/LanguageContext';
 
-const CompetencyStats = ({ stats }) => {
+const CompetencyStats = ({ stats, showPassedCriteria = true }) => {
     const { t } = useLanguage();
 
     return (
@@ -27,15 +27,17 @@ const CompetencyStats = ({ stats }) => {
                     <span className="stat-value">{stats.growth > 0 ? '+' : ''}{stats.growth}%</span>
                 </div>
             </div>
-            <div className="stat-card">
-                <div className="stat-icon purple">
-                    <Award size={20} />
+            {showPassedCriteria && (
+                <div className="stat-card">
+                    <div className="stat-icon purple">
+                        <Award size={20} />
+                    </div>
+                    <div className="stat-info">
+                        <span className="stat-label">{t('passed_criteria')}</span>
+                        <span className="stat-value">{stats.passed}/{stats.total}</span>
+                    </div>
                 </div>
-                <div className="stat-info">
-                    <span className="stat-label">{t('passed_criteria')}</span>
-                    <span className="stat-value">{stats.passed}/{stats.total}</span>
-                </div>
-            </div>
+            )}
         </div>
     );
 };

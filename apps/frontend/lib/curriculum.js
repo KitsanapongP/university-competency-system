@@ -25,6 +25,7 @@ function mapCourseRow(course) {
         nameEn: course.name_en || '',
         credits: course.credits || 0,
         description: course.description || '',
+        gradeScheme: course.grade_scheme || 'letter',
         isCoreCourse: course.is_required ?? true,
         isLocked: course.is_locked ?? false,
         isActive: course.is_active ?? true,
@@ -107,6 +108,15 @@ export async function fetchCurriculums() {
     return unwrapData(response, []).map(mapApiCurriculum);
 }
 
+export async function fetchGeneratedCurriculumCode(majorId, effectiveYearBE) {
+    const query = new URLSearchParams({
+        major_id: String(toNumber(majorId, 0)),
+        effective_year_be: String(toNumber(effectiveYearBE, 0)),
+    });
+    const response = await apiFetch(`/api/v1/curricula/generated-code?${query.toString()}`);
+    return String(unwrapData(response, {})?.curriculum_code || '');
+}
+
 function mapFacultyOption(faculty) {
     return {
         facultyId: faculty.faculty_id,
@@ -172,6 +182,7 @@ function categoryPayload(category, coursesByCategory, index = 0) {
                 name_en: toNullableString(course.nameEn),
                 credits: toNumber(course.credits, 0),
                 description: toNullableString(course.description),
+                grade_scheme: course.gradeScheme || '',
                 is_required: course.isCoreCourse ?? true,
                 display_order: courseIndex + 1,
             };
@@ -194,15 +205,11 @@ function categoryPayload(category, coursesByCategory, index = 0) {
 
 export function mapCurriculumFormToPayload(form) {
     const majorId = toNumber(form.majorId, 0);
-    const curriculumCode = toNullableString(form.code);
     const curriculumNameTh = toNullableString(form.nameTh);
     const effectiveYearBE = toNumber(form.year, 0);
 
     if (!majorId) {
         throw new Error('กรุณาเลือกสาขาของหลักสูตร');
-    }
-    if (!curriculumCode) {
-        throw new Error('กรุณากรอกรหัสหลักสูตร');
     }
     if (!curriculumNameTh) {
         throw new Error('กรุณากรอกชื่อหลักสูตรภาษาไทย');
@@ -215,7 +222,6 @@ export function mapCurriculumFormToPayload(form) {
 
     return {
         major_id: majorId,
-        curriculum_code: curriculumCode,
         curriculum_name_th: curriculumNameTh,
         curriculum_name_en: toNullableString(form.nameEn),
         effective_year_be: effectiveYearBE,
@@ -369,6 +375,7 @@ export async function createCurriculumCourse(curriculumId, categoryId, course, c
         name_en: toNullableString(course.nameEn),
         credits: toNumber(course.credits, 0),
         description: toNullableString(course.description),
+        grade_scheme: course.gradeScheme || '',
         is_required: boolValue(course.isCoreCourse, true),
         display_order: toNumber(course.displayOrder, 0),
         confirm_impact: confirmImpact,
@@ -401,6 +408,12 @@ export async function updateCurriculumCourseDetail(curriculumId, courseId, cours
     }
     if (Object.prototype.hasOwnProperty.call(course, 'description')) {
         payload.description = toNullableString(course.description);
+    }
+    if (Object.prototype.hasOwnProperty.call(course, 'gradeScheme')) {
+        payload.grade_scheme = toNullableString(course.gradeScheme);
+    }
+    if (Object.prototype.hasOwnProperty.call(course, 'isCoreCourse')) {
+        payload.is_required = boolValue(course.isCoreCourse, true);
     }
 
     const response = await apiFetch(`/api/v1/curricula/${curriculumId}/courses/${courseId}`, {
@@ -444,4 +457,20 @@ export async function deleteCurriculumCoursePlacement(curriculumId, curriculumCo
     });
 
     return toMutationResult(response);
+}
+
+export async function previewCurriculumStructureImport(curriculumId, rows) {
+    const response = await apiFetch(`/api/v1/curricula/${curriculumId}/structure-imports/preview`, {
+        method: 'POST',
+        body: JSON.stringify({ rows }),
+    });
+    return unwrapData(response, null);
+}
+
+export async function commitCurriculumStructureImport(curriculumId, rows, confirmImpact = false) {
+    const response = await apiFetch(`/api/v1/curricula/${curriculumId}/structure-imports/commit`, {
+        method: 'POST',
+        body: JSON.stringify({ rows, confirm_impact: confirmImpact }),
+    });
+    return mapApiCurriculum(unwrapData(response, null));
 }

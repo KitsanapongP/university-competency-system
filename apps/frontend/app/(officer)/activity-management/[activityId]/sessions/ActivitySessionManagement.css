@@ -1,9 +1,10 @@
 .activity-session-page {
     min-height: 100vh;
-    background: var(--course-bg);
-    color: var(--course-text);
+    min-width: 0;
+    background: var(--officer-bg, var(--course-bg));
+    color: var(--officer-text, var(--course-text));
     padding: 1.5rem 8rem 3rem;
-    font-family: 'Sarabun', sans-serif;
+    font-family: var(--officer-font, 'Prompt', sans-serif);
     box-sizing: border-box;
 }
 
@@ -31,9 +32,9 @@
 
 .activity-session-list,
 .activity-session-detail {
-    border: 1px solid var(--course-card-border);
-    border-radius: 8px;
-    background: var(--course-card-bg);
+    border: 1px solid var(--officer-border, var(--course-card-border));
+    border-radius: var(--officer-radius, 8px);
+    background: var(--officer-surface, var(--course-card-bg));
     overflow: hidden;
 }
 
@@ -382,4 +383,96 @@
     .activity-session-panel-actions .course-btn {
         flex: 1 1 100%;
     }
+}
+
+/* Curriculum/Template visual tokens */
+.activity-session-page {
+    background: var(--ui-page-bg);
+    color: var(--ui-text);
+    padding-inline: var(--ui-page-padding-inline);
+    font-family: var(--ui-font);
+}
+
+.activity-session-list,
+.activity-session-detail {
+    border-color: var(--ui-border-strong);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface);
+}
+
+.activity-session-back,
+.activity-session-tab:hover,
+.activity-session-tab--active {
+    color: var(--ui-primary-hover);
+}
+
+.activity-session-list__header,
+.activity-session-detail__header,
+.activity-session-summary,
+.activity-session-tabs,
+.activity-session-table th,
+.activity-session-table td {
+    border-color: var(--ui-border);
+}
+
+.activity-session-list__header span,
+.activity-session-panel-toolbar span,
+.activity-session-panel-actions span,
+.activity-session-kicker,
+.activity-session-card__time,
+.activity-session-card__place,
+.activity-session-card__meta,
+.activity-session-detail__header p,
+.activity-session-detail__empty span,
+.activity-session-summary,
+.activity-session-tab,
+.activity-session-empty,
+.activity-session-detail__empty,
+.activity-session-permission-list label,
+.activity-session-table-empty {
+    color: var(--ui-text-muted);
+}
+
+.activity-session-card {
+    border-color: var(--ui-border);
+    background: var(--ui-surface-raised);
+    color: var(--ui-text);
+}
+
+.activity-session-card:hover,
+.activity-session-card--active {
+    border-color: var(--ui-primary);
+    background: color-mix(in srgb, var(--ui-surface-raised) 78%, var(--ui-primary) 22%);
+}
+
+.activity-session-status--scheduled {
+    background: color-mix(in srgb, var(--ui-primary) 14%, transparent);
+    color: var(--ui-primary-hover);
+}
+
+.activity-session-status--completed {
+    background: color-mix(in srgb, var(--ui-success) 14%, transparent);
+    color: var(--ui-success);
+}
+
+.activity-session-status--cancelled {
+    background: color-mix(in srgb, var(--ui-danger) 14%, transparent);
+    color: var(--ui-danger);
+}
+
+.activity-session-table-wrap {
+    border-color: var(--ui-border);
+}
+
+.activity-session-table th {
+    background: var(--ui-surface-raised);
+    color: var(--ui-text-muted);
+}
+
+.activity-session-total-ok {
+    color: var(--ui-success) !important;
+}
+
+.activity-session-total-warn {
+    color: var(--ui-warning) !important;
 }

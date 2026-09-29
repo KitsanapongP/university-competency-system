@@ -1,7 +1,10 @@
 import { apiFetch } from './api';
 
-function unwrapData(response, fallback = null) {
-    return response?.data !== undefined ? response.data : (response ?? fallback);
+function unwrapList(response) {
+    const data = response?.data !== undefined ? response.data : response;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.items)) return data.items;
+    return [];
 }
 
 function queryString(params = {}) {
@@ -42,6 +45,9 @@ export function mapAssignmentCandidate(item = {}) {
         templateId: item.template_id,
         templateCode: item.template_code || '',
         templateName: item.template_name || '',
+        templateIsActive: Boolean(item.template_is_active),
+        wasAssignedBefore: Boolean(item.was_assigned_before),
+        requiresReactivation: Boolean(item.requires_reactivation),
         curriculumId: item.curriculum_id,
         curriculumCode: item.curriculum_code || '',
         curriculumNameTh: item.curriculum_name_th || '',
@@ -53,22 +59,22 @@ export function mapAssignmentCandidate(item = {}) {
 
 export async function fetchTemplateAssignments(filters = {}) {
     const response = await apiFetch(`/api/v1/template-assignments${queryString({ faculty_id: filters.facultyId })}`);
-    return unwrapData(response, []).map(mapTemplateAssignment);
+    return unwrapList(response).map(mapTemplateAssignment);
 }
 
 export async function fetchAvailableAssignmentTemplates(filters = {}) {
     const response = await apiFetch(`/api/v1/template-assignments/available-templates${queryString({ faculty_id: filters.facultyId })}`);
-    return unwrapData(response, []).map(mapAssignmentCandidate);
+    return unwrapList(response).map(mapAssignmentCandidate);
 }
 
 export async function fetchAvailableAssignmentCohorts(templateId) {
     const response = await apiFetch(`/api/v1/template-assignments/available-cohorts${queryString({ template_id: templateId })}`);
-    return unwrapData(response, []).map(mapAssignmentCandidate);
+    return unwrapList(response).map(mapAssignmentCandidate);
 }
 
 export async function fetchTemplateAssignmentHistory(cohortId) {
     const response = await apiFetch(`/api/v1/template-assignments/cohorts/${cohortId}/history`);
-    return unwrapData(response, []).map(mapTemplateAssignment);
+    return unwrapList(response).map(mapTemplateAssignment);
 }
 
 export async function createTemplateAssignment(templateId, cohortId) {
@@ -76,7 +82,7 @@ export async function createTemplateAssignment(templateId, cohortId) {
         method: 'POST',
         body: JSON.stringify({ template_id: templateId, cohort_id: cohortId, confirm: true }),
     });
-    return mapTemplateAssignment(unwrapData(response, {}));
+    return mapTemplateAssignment(response?.data || {});
 }
 
 export async function replaceTemplateAssignment(assignmentId, templateId, reason) {
@@ -84,7 +90,7 @@ export async function replaceTemplateAssignment(assignmentId, templateId, reason
         method: 'PATCH',
         body: JSON.stringify({ template_id: templateId, reason: String(reason || '').trim(), confirm: true }),
     });
-    return mapTemplateAssignment(unwrapData(response, {}));
+    return mapTemplateAssignment(response?.data || {});
 }
 
 export async function removeTemplateAssignment(assignmentId, reason) {
@@ -92,5 +98,5 @@ export async function removeTemplateAssignment(assignmentId, reason) {
         method: 'DELETE',
         body: JSON.stringify({ reason: String(reason || '').trim(), confirm: true }),
     });
-    return mapTemplateAssignment(unwrapData(response, {}));
+    return mapTemplateAssignment(response?.data || {});
 }

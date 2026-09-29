@@ -3,16 +3,17 @@ package services
 import (
 	"strings"
 
+	"github.com/spw32767/university-competency-system-backend/grading"
 	"github.com/spw32767/university-competency-system-backend/models"
 )
 
 const maxCurriculumCategoryLevels = 4
 
-func validateCreateCategories(categories []models.CreateCategoryPayload, seenCourseCodes map[string]bool) error {
-	return validateCreateCategoryLevel(categories, seenCourseCodes, 1)
+func validateCreateCategories(categories []models.CreateCategoryPayload, seenCourseCodes map[string]bool, seenCategoryCodes map[string]bool) error {
+	return validateCreateCategoryLevel(categories, seenCourseCodes, seenCategoryCodes, 1)
 }
 
-func validateCreateCategoryLevel(categories []models.CreateCategoryPayload, seenCourseCodes map[string]bool, level int) error {
+func validateCreateCategoryLevel(categories []models.CreateCategoryPayload, seenCourseCodes map[string]bool, seenCategoryCodes map[string]bool, level int) error {
 	if len(categories) == 0 {
 		return nil
 	}
@@ -21,6 +22,18 @@ func validateCreateCategoryLevel(categories []models.CreateCategoryPayload, seen
 	}
 
 	for _, category := range categories {
+		if category.Code == nil {
+			return CurriculumValidationError{Message: "category code is required"}
+		}
+		code := strings.TrimSpace(*category.Code)
+		if err := validateCurriculumCategoryCode(code); err != nil {
+			return err
+		}
+		normalizedCategoryCode := strings.ToLower(code)
+		if seenCategoryCodes[normalizedCategoryCode] {
+			return CurriculumConflictError{Code: "DUPLICATE", Message: "category code already exists in this curriculum"}
+		}
+		seenCategoryCodes[normalizedCategoryCode] = true
 		if strings.TrimSpace(category.NameTH) == "" {
 			return CurriculumValidationError{Message: "category name_th is required"}
 		}
@@ -46,6 +59,9 @@ func validateCreateCategoryLevel(categories []models.CreateCategoryPayload, seen
 			if strings.TrimSpace(course.NameTH) == "" {
 				return CurriculumValidationError{Message: "course name_th is required"}
 			}
+			if !grading.IsValidScheme(course.GradeScheme) {
+				return CurriculumValidationError{Message: "course grade_scheme must be letter or satisfactory"}
+			}
 
 			normalizedCode := strings.ToLower(code)
 			if seenCourseCodes[normalizedCode] {
@@ -54,7 +70,7 @@ func validateCreateCategoryLevel(categories []models.CreateCategoryPayload, seen
 			seenCourseCodes[normalizedCode] = true
 		}
 
-		if err := validateCreateCategoryLevel(category.Children, seenCourseCodes, level+1); err != nil {
+		if err := validateCreateCategoryLevel(category.Children, seenCourseCodes, seenCategoryCodes, level+1); err != nil {
 			return err
 		}
 	}

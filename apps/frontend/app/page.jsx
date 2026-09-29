@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, use } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-    Award,
     BookOpenText,
     Activity,
     Brain,
@@ -27,6 +26,7 @@ import CompetencyRadarChart from '../components/competency/CompetencyRadarChart'
 import ActivityDetailPanel from '../components/competency/ActivityDetailPanel';
 import GapAnalysis from '../components/competency/GapAnalysis';
 import LoadingSkeleton from '../components/competency/LoadingSkeleton';
+import LearnerAcademicProfile from '../components/learner/LearnerAcademicProfile';
 import { useAuth } from '../providers/auth-provider';
 import { useLanguage } from '../providers/LanguageContext';
 
@@ -54,21 +54,24 @@ export default function CompetencyPage() {
     // Filter Mode: 'year' | 'range'
     const [filterMode, setFilterMode] = useState('year');
     const [selectedYears, setSelectedYears] = useState([]);
+    const [showAllCourseScores, setShowAllCourseScores] = useState(false);
     const [dateRange, setDateRange] = useState({
         startYear: '', startMonth: 1,
         endYear: '', endMonth: 1
     });
 
     // Category: 'activity' | 'course'
-    const [category, setCategory] = useState('activity');
+    const [category, setCategory] = useState('course');
 
-    // Course History States
-    const[courseHistory, setCourseHistoryMap] = useState([]);
-    
     // Activity History States
     const [activityHistory, setActivityHistoryMap] = useState([]);
+    const [verificationData, setVerificationData] = useState({
+        activity: { loading: false, error: null, payload: null },
+        course: { loading: false, error: null, payload: null },
+    });
 
-    const [showRequirement, setShowRequirement] = useState(false);
+    const showRequirement = category === 'course';
+    const [dashboardStatus, setDashboardStatus] = useState(null);
 
     // Chart Interaction State
     const [activeCompetency, setActiveCompetency] = useState(null);
@@ -122,40 +125,73 @@ export default function CompetencyPage() {
                     };
                 });
 
-                // สร้าง map สำหรับ cometency ทั้งหมด
-                const activityMap = {};
+                // Keep history and radar data in separate maps. The dashboard API
+                // already returns the data for the selected category, so a second
+                // request must not be allowed to make the whole dashboard fail.
+                const historyMap = {};
                 Object.entries(payload.activities || {}).forEach(([key, value]) => {
-                    activityMap[Number(key)] = value || [];
+                    historyMap[Number(key)] = value || [];
                 });
-                setRadarChartByCompetency(activityMap);
 
-                const years = normalizeYears(payload.available_years || [], activityMap);
-                
-                // โหลด activity แยกสำหรับ Profile History
-                const actResponse = await fetchCompetencyDashboard('activity');
-                const actPayload = actResponse?.data || actResponse;
-                const actMap = {};
-                Object.entries(actPayload.activities || {}).forEach(([key, value]) => {
-                    actMap[Number(key)] = value || [];
-                });
-                setActivityHistoryMap(actMap);
+                // Activity mode uses the current accumulated activity score. Course
+                // mode must retain the course history so its Radar can be filtered
+                // by the academic year selected by the learner.
+                const progress = payload.progress || {};
+                const progressYear = [...(payload.available_years || [])]
+                    .map(String)
+                    .sort((a, b) => Number(b) - Number(a))[0]
+                    || String(new Date().getFullYear() + 543);
+                const radarMap = {};
+                Object.entries(progress).forEach(([key, value]) => {
+                    const courseTotal = Number(
+                        value.course_total_score ??
+                        (
+                            Number(value.core_score || 0)
+                            + Number(value.course_bonus_score || 0)
+                            + Number(value.free_elective_score || 0)
+                        )
+                    );
+                    const activityScore = Number(value.activity_score || 0);
+                    const score = category === 'course' ? courseTotal : activityScore;
 
-                // โหลด course แยกสำหรับ Profile History
-                const crsResponse = await fetchCompetencyDashboard('course');
-                const crsPayload = crsResponse?.data || crsResponse;
-                const crsMap = {};
-                Object.entries(crsPayload.activities || {}).forEach(([key, value]) => {
-                    crsMap[Number(key)] = value || [];
+                    radarMap[Number(key)] = [{
+                        id: `accumulated-${key}`,
+                        title: category === 'course'
+                            ? (language === 'en' ? 'Course competency score' : 'คะแนนสมรรถนะจากรายวิชา')
+                            : (language === 'en' ? 'Activity competency score' : 'คะแนนสมรรถนะจากกิจกรรม'),
+                        date: progressYear,
+                        year: progressYear,
+                        month: 0,
+                        score,
+                        max_score: Math.max(Number(value.target_score || 0), score),
+                        type: 'accumulated',
+                        status: 'completed',
+                        competency_id: Number(key),
+                        core_score: Number(value.core_score || 0),
+                        course_bonus_score: Number(value.course_bonus_score || 0),
+                        course_total_score: courseTotal,
+                        activity_score: activityScore,
+                        accumulated_score: Number(value.accumulated_score || 0),
+                        target_score: Number(value.target_score || 0),
+                    }];
                 });
-                setCourseHistoryMap(crsMap);
+                setRadarChartByCompetency(
+                    category === 'course' ? historyMap : radarMap
+                );
+
+                const years = normalizeYears(payload.available_years || [], historyMap);
+                if (category === 'activity') {
+                    setActivityHistoryMap(historyMap);
+                }
 
                 setCompetencies(styledCompetencies);
                 setRequirements(payload.requirements || {});
                 setAvailableYears(years);
+                setDashboardStatus(payload.status || null);
 
-                if (styledCompetencies.length) {
-                    setSelectedCompetencies(styledCompetencies.slice(0, 6).map((c) => c.id));
-                }
+                setSelectedCompetencies(styledCompetencies.map((c) => c.id));
+                setActiveCompetency(null);
+                setActiveDetailYear(null);
                 if (years.length) {
                     setSelectedYears([years[0]]);
                     setDateRange((prev) => ({
@@ -177,7 +213,57 @@ export default function CompetencyPage() {
         };
 
         loadDashboard();
-    }, [user, logout, router, category]);
+    }, [user, logout, router, category, language]);
+
+    useEffect(() => {
+        if (!user || activePage !== 'verify') return undefined;
+
+        let isCurrent = true;
+        setVerificationData({
+            activity: { loading: true, error: null, payload: null },
+            course: { loading: true, error: null, payload: null },
+        });
+
+        const loadCategory = async (selectedCategory) => {
+            try {
+                const response = await fetchCompetencyDashboard(selectedCategory);
+                return { payload: response?.data || response, error: null };
+            } catch (error) {
+                return { payload: null, error };
+            }
+        };
+
+        Promise.all([loadCategory('activity'), loadCategory('course')]).then(
+            async ([activityResult, courseResult]) => {
+                if (!isCurrent) return;
+
+                const unauthorized = [activityResult, courseResult]
+                    .some((result) => result.error?.status === 401);
+                if (unauthorized) {
+                    await logout();
+                    router.replace('/login');
+                    return;
+                }
+
+                setVerificationData({
+                    activity: {
+                        loading: false,
+                        error: activityResult.error,
+                        payload: activityResult.payload,
+                    },
+                    course: {
+                        loading: false,
+                        error: courseResult.error,
+                        payload: courseResult.payload,
+                    },
+                });
+            },
+        );
+
+        return () => {
+            isCurrent = false;
+        };
+    }, [activePage, user, logout, router]);
 
 
     useEffect(() => {
@@ -209,17 +295,31 @@ export default function CompetencyPage() {
     };
 
     const toggleYear = (year) => {
+        setShowAllCourseScores(false);
         if (selectedYears.includes(year)) {
             if (selectedYears.length > 1) {
                 setSelectedYears(selectedYears.filter(y => y !== year));
             }
-        } else if (selectedYears.length < 4) {
+        } else {
             setSelectedYears([...selectedYears, year]);
         }
     };
 
+    const showAllAcademicScores = () => {
+        setShowAllCourseScores(true);
+        setSelectedYears([]);
+        setActiveCompetency(null);
+        setActiveDetailYear(null);
+    };
+
     // Get Data Helper
     const getScoresForCurrentFilter = () => {
+        if (category === 'activity') {
+            return getAccumulatedScores(radarChartByCompetency);
+        }
+        if (showAllCourseScores) {
+            return getAccumulatedScores(radarChartByCompetency);
+        }
         if (filterMode === 'year') {
             return getScoresByYear(selectedYears[0], radarChartByCompetency);
         }
@@ -234,7 +334,37 @@ export default function CompetencyPage() {
         );
         const datasets = [];
 
-        if (filterMode === 'year') {
+        if (category === 'activity') {
+            const accumulatedScores = getAccumulatedScores(radarChartByCompetency);
+            datasets.push({
+                label: t('activity_accumulated_score'),
+                data: selectedCompetencies.map(id => accumulatedScores[id] || 0),
+                backgroundColor: CHART_COLORS[0].bg,
+                borderColor: CHART_COLORS[0].border,
+                borderWidth: 2,
+                pointBackgroundColor: CHART_COLORS[0].border,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 6,
+                pointHoverRadius: 10,
+                pointHitRadius: 20,
+            });
+        } else if (filterMode === 'year' && showAllCourseScores) {
+            const allScores = getAccumulatedScores(radarChartByCompetency);
+            datasets.push({
+                label: t('all_years_total'),
+                data: selectedCompetencies.map(id => allScores[id] || 0),
+                backgroundColor: CHART_COLORS[0].bg,
+                borderColor: CHART_COLORS[0].border,
+                borderWidth: 2,
+                pointBackgroundColor: CHART_COLORS[0].border,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 6,
+                pointHoverRadius: 10,
+                pointHitRadius: 20,
+            });
+        } else if (filterMode === 'year') {
             selectedYears.forEach((year, index) => {
                 const yearData = getScoresByYear(year, radarChartByCompetency);
                 const data = selectedCompetencies.map(id => yearData[id] || 0);
@@ -307,8 +437,10 @@ export default function CompetencyPage() {
 
     const handleChartPointClick = (compId, datasetIndex) => {
         let clickedYear;
-        if (filterMode === 'year') {
+        if (filterMode === 'year' && !showAllCourseScores) {
             clickedYear = selectedYears[datasetIndex];
+        } else if (filterMode === 'year') {
+            clickedYear = null;
         } else {
             clickedYear = dateRange.endYear;
         }
@@ -346,12 +478,50 @@ export default function CompetencyPage() {
             return score >= req;
         }).length;
 
-        return { avg, growth, passed, total: selectedCompetencies.length };
+        return {
+            avg,
+            growth,
+            passed: category === 'course' ? passed : 0,
+            total: category === 'course' ? selectedCompetencies.length : 0,
+        };
     };
 
     const scoresForFilters = useMemo(
         () => getScoresForCurrentFilter(),
-        [filterMode, selectedYears, dateRange, radarChartByCompetency]
+        [
+            category,
+            filterMode,
+            selectedYears,
+            dateRange,
+            radarChartByCompetency,
+            showAllCourseScores,
+        ]
+    );
+
+    const dashboardStatusMessage = (() => {
+        if (!dashboardStatus) return null;
+        if (category === 'activity') {
+            if (dashboardStatus.code === 'NO_ACTIVITY_SCORES') return t('dashboard_no_activity_scores');
+            return t('dashboard_activity_score_mode');
+        }
+        if (dashboardStatus.code === 'NO_ACTIVE_COHORT') return t('dashboard_no_active_cohort');
+        if (dashboardStatus.code === 'NO_ACTIVE_TEMPLATE') return t('dashboard_no_active_template');
+        if (dashboardStatus.code === 'NO_TEMPLATE_COMPETENCIES') return t('dashboard_no_template_competencies');
+        if (dashboardStatus.code === 'NO_REQUIREMENTS') return t('dashboard_no_requirements');
+        if (dashboardStatus.recalculation_required) return t('dashboard_scores_recalculation_required');
+        if (!dashboardStatus.hasScores) return t('dashboard_scores_pending');
+        return category === 'course'
+            ? t('dashboard_course_score_mode')
+            : t('dashboard_activity_score_mode');
+    })();
+
+    const activityVerificationRows = mapVerificationRows(
+        verificationData.activity.payload,
+        language,
+    );
+    const courseVerificationRows = mapVerificationRows(
+        verificationData.course.payload,
+        language,
     );
 
     if (dataLoading) {
@@ -372,6 +542,11 @@ export default function CompetencyPage() {
                     {dataError}
                 </div>
             )}
+            {dashboardStatusMessage && (
+                <div className={`dashboard-status-notice ${dashboardStatus?.code === 'READY' ? 'info' : 'warning'}`}>
+                    {dashboardStatusMessage}
+                </div>
+            )}
             {/* DASHBOARD PAGE */}
             {activePage === 'dashboard' && (
                 <>
@@ -388,6 +563,7 @@ export default function CompetencyPage() {
                             dateRange={dateRange}
                             months={MONTHS}
                             showRequirement={showRequirement}
+                            showAllScores={category === 'course' && showAllCourseScores}
                         />
 
                         {/* Filter Section */}
@@ -401,10 +577,12 @@ export default function CompetencyPage() {
                             months={MONTHS}
                             selectedYears={selectedYears}
                             onToggleYear={toggleYear}
+                            onShowAllScores={showAllAcademicScores}
+                            showAllScores={category === 'course' && showAllCourseScores}
                             dateRange={dateRange}
                             setDateRange={setDateRange}
                             showRequirement={showRequirement}
-                            setShowRequirement={setShowRequirement}
+                            showRequirementToggle={false}
                             category={category}
                             setCategory={setCategory}
                         />
@@ -417,94 +595,30 @@ export default function CompetencyPage() {
                         setActiveCompetency={setActiveCompetency}
                         setActiveDetailYear={setActiveDetailYear}
                         competencies={competencies}
-                        radarChartByCompetency={radarChartByCompetency}
+                        activitiesByCompetency={radarChartByCompetency}
                         filterMode={filterMode}
                         selectedYears={selectedYears}
                         dateRange={dateRange}
+                        showAllScores={category === 'course' && showAllCourseScores}
                     />
 
                     {/* Stats Cards */}
-                    <CompetencyStats stats={getStats()} />
+                    <CompetencyStats stats={getStats()} showPassedCriteria={category === 'course'} />
 
                     {/* Gap Analysis */}
-                    <GapAnalysis
-                        competencies={competencies.filter((comp) => selectedCompetencies.includes(comp.id))}
-                        scores={scoresForFilters}
-                        requirements={requirements}
-                    />
+                    {category === 'course' && (
+                        <GapAnalysis
+                            competencies={competencies.filter((comp) => selectedCompetencies.includes(comp.id))}
+                            scores={scoresForFilters}
+                            requirements={requirements}
+                        />
+                    )}
                 </>
             )}
 
             {/* PROFILE PAGE */}
             {activePage === 'profile' && (
-                <div className="profile-page">
-                    <div className="profile-grid">
-                        <div className="profile-card card">
-                            <div className="profile-avatar">KP</div>
-                            <h3>Learner Dev</h3>
-                            <p>Student ID: 6530xxxxx</p>
-                            <p>Faculty of Engineering</p>
-                            <p>Computer Engineering</p>
-                        </div>
-
-                        <div className="activity-history card">
-                            <div className="card-header">
-                                <h2>
-                                    <Award size={20} className="section-icon" />
-                                    {t('activity_history')}
-                                </h2>
-                            </div>
-                            <div className="activity-list">
-                                {Object.values(activityHistory).flat()
-                                .filter(act => act.type != 'course')
-                                .slice(0, 5)
-                                .map(act => (
-                                    <div key={act.id} className="activity-item">
-                                        <div className="activity-badge">{(act.type || 'A').charAt(0)}</div>
-                                        <div className="activity-info">
-                                            <h4>{act.title}</h4>
-                                            <span>{act.date}</span>
-                                        </div>
-                                        <div className="activity-status verified">
-                                            {t('verified')}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className='course-history-card'>
-                                <div className="card-header" style={{ marginTop: '1.5rem' }}>
-                                    <h2>
-                                        <BookOpenText size={20} className="section-icon" />
-                                        {t('course_history')}
-                                    </h2>
-                                </div>
-                                <div className="course-history-list">
-                                    {Object.values(courseHistory).flat().length === 0 ? (
-                                        <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8' }}>
-                                            {t('no_course_history')}
-                                        </div>
-                                    ) : (
-                                        // ใช้ Set กรอง title ซ้ำออก
-                                        [...new Map(
-                                            Object.values(courseHistory).flat().map(c => [c.title, c])
-                                        ).values()].map(course => (
-                                            <div key={course.id} className="activity-item">
-                                                <div className="activity-badge">C</div>
-                                                <div className="activity-info">
-                                                    <h4>{course.title}</h4>
-                                                    <span>{course.year}</span>
-                                                </div>
-                                                <div className="activity-status verified">
-                                                    {t('verified')}
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <LearnerAcademicProfile activityHistory={activityHistory} />
             )}
 
             {/* VERIFY PAGE */}
@@ -514,75 +628,113 @@ export default function CompetencyPage() {
                         <div className="card-header">
                             <h2>
                                 <Activity size={20} className="section-icon" />
-                                {t('activities')}
+                                {t('verify_activity_scores')}
                             </h2>
                         </div>
                         <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>{t('activities')}</th>
+                                    <th>{t('verify_activity_name')}</th>
                                     <th>{t('date')}</th>
-                                    <th>{t('type')}</th>
+                                    <th>{t('verify_activity_type')}</th>
+                                    <th>{t('verify_competency')}</th>
                                     <th>{t('score')}</th>
-                                    <th>{t('verified')}</th>
+                                    <th>{t('verify_score_state')}</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {Object.entries(radarChartByCompetency).flatMap(([compId, acts]) =>
-                                    acts.map(act => {
-                                        const comp = competencies.find(c => c.id === Number(compId));
-                                        const Icon = comp?.icon;
-                                        return (
-                                            <tr key={act.id}>
-                                                <td>{act.title}</td>
-                                                <td>{act.date}</td>
-                                                <td>
-                                                    <span className="comp-badge" style={{ backgroundColor: `${comp?.color || '#64748b'}15`, color: comp?.color || '#64748b' }}>
-                                                        {Icon && <Icon size={14} />}
-                                                        <span>{comp?.name || 'สมรรถนะ'}</span>
-                                                    </span>
-                                                </td>
-                                                <td><strong>+{formatNumber(act.score, 2)}</strong></td>
-                                                <td>
-                                                    <span className="status-badge verified">
-                                                        ✓ {t('verified')}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
+                                {verificationData.activity.loading ? (
+                                    <VerificationState colSpan={6}>
+                                        {t('loading')}
+                                    </VerificationState>
+                                ) : verificationData.activity.error ? (
+                                    <VerificationState colSpan={6}>
+                                        {t('verify_load_error')}
+                                    </VerificationState>
+                                ) : activityVerificationRows.length === 0 ? (
+                                    <VerificationState colSpan={6}>
+                                        {t('verify_no_activity_scores')}
+                                    </VerificationState>
+                                ) : activityVerificationRows.map((act) => (
+                                    <tr key={`activity-${act.id}-${act.competency_id}`}>
+                                        <td>{act.title}</td>
+                                        <td>{act.date}</td>
+                                        <td>{act.type || '-'}</td>
+                                        <td>{act.competencyName}</td>
+                                        <td>
+                                            <strong>
+                                                {formatNumber(act.score, 2)} / {formatNumber(act.max_score, 2)}
+                                            </strong>
+                                        </td>
+                                        <td>
+                                            <span className="status-badge verified">
+                                                {t('verify_activity_recorded')}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
 
                     {/* Course Verify Table */}
-                    <div className="verify-list card" style={{ marginTop: '3rem' }}>
+                    <div className="verify-list card">
                         <div className="card-header">
                             <h2>
                                 <BookOpenText size={20} className="section-icon" />
-                                {t('courses')}
+                                {t('verify_course_scores')}
                             </h2>
                         </div>
+                        {verificationData.course.payload?.status?.recalculation_required && (
+                            <div className="dashboard-status-notice warning verify-recalculation-notice">
+                                {t('dashboard_scores_recalculation_required')}
+                            </div>
+                        )}
                         <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>{t('courses')}</th>
-                                    <th>{t('year')}</th>
-                                    <th>{t('score')}</th>
-                                    <th>{t('verified')}</th>
+                                    <th>{t('verify_course_name')}</th>
+                                    <th>{t('verify_academic_period')}</th>
+                                    <th>{t('verify_source')}</th>
+                                    <th>{t('verify_competency')}</th>
+                                    <th>{t('verify_contribution')}</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {Object.values(radarChartByCompetency).flat().map(course => (
-                                    <tr key={course.id}>
-                                        <td>{course.title}</td>
-                                        <td>{course.year}</td>
-                                        <td><strong>+{formatNumber(course.score, 2)}</strong></td>
+                                {verificationData.course.loading ? (
+                                    <VerificationState colSpan={5}>
+                                        {t('loading')}
+                                    </VerificationState>
+                                ) : verificationData.course.error ? (
+                                    <VerificationState colSpan={5}>
+                                        {t('verify_load_error')}
+                                    </VerificationState>
+                                ) : courseVerificationRows.length === 0 ? (
+                                    <VerificationState colSpan={5}>
+                                        {t('verify_no_course_scores')}
+                                    </VerificationState>
+                                ) : courseVerificationRows.map((course) => (
+                                    <tr key={`course-${course.source}-${course.id}-${course.competency_id}`}>
                                         <td>
-                                            <span className="status-badge verified">
-                                                ✓ {t('verified')}
+                                            <strong>{course.course_code || '-'}</strong>
+                                            <br />
+                                            {course.title}
+                                        </td>
+                                        <td>
+                                            {course.year || '-'}
+                                            {course.semester ? ` / ${course.semester}` : ''}
+                                        </td>
+                                        <td>
+                                            <span className={`verify-source-badge ${course.source}`}>
+                                                {course.source === 'free_elective'
+                                                    ? t('verify_free_elective')
+                                                    : t('verify_curriculum_course')}
                                             </span>
+                                        </td>
+                                        <td>{course.competencyName}</td>
+                                        <td>
+                                            <strong>{formatNumber(course.score, 2)}</strong>
+                                            {' '}{t('verify_points')}
                                         </td>
                                     </tr>
                                 ))}
@@ -645,6 +797,19 @@ function getScoresByDateRange(startYear, startMonth, endYear, endMonth, activity
     return scores;
 }
 
+function getAccumulatedScores(activityMap) {
+    const scores = {};
+    Object.keys(activityMap).forEach((compId) => {
+        scores[compId] = roundNumber(
+            (activityMap[compId] || [])
+                .filter((activity) => activity.status === 'completed')
+                .reduce((sum, activity) => sum + (activity.score || 0), 0),
+            2
+        );
+    });
+    return scores;
+}
+
 function getCompetencyIcon(code) {
     const mapping = {
         tst_comm: MessageCircle,
@@ -677,4 +842,47 @@ function roundNumber(value, decimals) {
 function formatNumber(value, decimals) {
     if (Number.isNaN(value)) return '0';
     return roundNumber(value, decimals).toFixed(decimals);
+}
+
+function mapVerificationRows(payload, language) {
+    const competencies = new Map(
+        (payload?.competencies || []).map((competency) => [
+            Number(competency.id),
+            competency,
+        ]),
+    );
+
+    return Object.entries(payload?.activities || {})
+        .flatMap(([competencyId, records]) => records.map((record) => {
+            const competency = competencies.get(Number(competencyId));
+            const competencyName = language === 'en'
+                ? competency?.name_en || competency?.name_th || competency?.code
+                : competency?.name_th || competency?.name_en || competency?.code;
+            const title = language === 'en'
+                ? record.title_en || record.title
+                : record.title || record.title_en;
+
+            return {
+                ...record,
+                competencyName: competencyName || '-',
+                title: title || '-',
+            };
+        }))
+        .sort((left, right) => {
+            const yearDifference = Number(right.year || 0) - Number(left.year || 0);
+            if (yearDifference) return yearDifference;
+            const semesterDifference = Number(right.semester || 0) - Number(left.semester || 0);
+            if (semesterDifference) return semesterDifference;
+            return new Date(right.date || 0) - new Date(left.date || 0);
+        });
+}
+
+function VerificationState({ colSpan, children }) {
+    return (
+        <tr>
+            <td colSpan={colSpan} className="verify-empty-state">
+                {children}
+            </td>
+        </tr>
+    );
 }

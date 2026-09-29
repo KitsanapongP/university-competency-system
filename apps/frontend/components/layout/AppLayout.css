@@ -157,7 +157,7 @@
 .app-sidebar-shell {
     --app-sidebar-width: 270px;
     min-height: 100vh;
-    background: #0b0f17;
+    background: var(--course-bg, var(--bg));
 }
 
 .app-sidebar-shell--collapsed {
@@ -299,6 +299,13 @@
     z-index: 2;
 }
 
+.app-sidebar__quick-controls .lang-switcher-wrapper .lang-dropdown {
+    top: auto;
+    right: auto;
+    bottom: 0;
+    left: calc(100% + 8px);
+}
+
 .app-sidebar__user {
     display: grid;
     grid-template-columns: 40px minmax(0, 1fr) auto;
@@ -396,15 +403,48 @@
     width: calc(100% - var(--app-sidebar-width));
     min-height: 100vh;
     margin-left: var(--app-sidebar-width);
-    background: #0b0f17;
+    background: var(--course-bg, var(--bg));
 }
 
 .competency-app--sidebar .main-content-officer.main-content--sidebar {
+    min-height: 100vh;
+    background: var(--course-bg, var(--bg));
     padding: 0;
 }
 
 .competency-app--sidebar .main-content.main-content--sidebar {
     padding: 32px 24px 64px;
+}
+
+/* The sidebar shell uses the same semantic palette as every management page. */
+.competency-app--sidebar {
+    --bg: var(--ui-page-bg);
+    --card: var(--ui-surface);
+    --border: var(--ui-border);
+    --text: var(--ui-text);
+    --text-muted: var(--ui-text-muted);
+    --primary: var(--ui-primary);
+    --primary-bg: var(--ui-primary-soft);
+    --primary-dark: var(--ui-title);
+    --control-bg-soft: var(--ui-hover);
+    --course-bg: var(--ui-page-bg);
+    font-family: var(--ui-font);
+}
+
+.app-sidebar-shell,
+.competency-app--sidebar .main-content--sidebar {
+    background: var(--ui-page-bg);
+}
+
+.app-sidebar,
+.app-sidebar-mobile-drawer {
+    color: var(--ui-text);
+    background: var(--ui-surface);
+    border-color: var(--ui-border);
+}
+
+.competency-app--sidebar .main-content-officer.main-content--sidebar {
+    background: var(--ui-page-bg);
 }
 
 .app-sidebar-mobile-bar,

@@ -14,15 +14,17 @@ const CompetencyFilters = ({
     months,
     selectedYears,
     onToggleYear,
+    onShowAllScores,
+    showAllScores,
     dateRange,
     setDateRange,
     showRequirement,
     setShowRequirement,
+    showRequirementToggle = true,
     category,
     setCategory,
 }) => {
     const { t } = useLanguage();
-
     return (
         <div className="filter-section card">
             <div className="card-header">
@@ -107,6 +109,15 @@ const CompetencyFilters = ({
                         {t('academic_year')}
                     </label>
                     <div className="year-buttons">
+                        {category === 'course' && (
+                            <button
+                                type="button"
+                                className={`year-btn year-btn--all ${showAllScores ? 'selected' : ''}`}
+                                onClick={onShowAllScores}
+                            >
+                                {t('view_all_scores')}
+                            </button>
+                        )}
                         {years.map(year => (
                             <button
                                 key={year}
@@ -181,18 +192,20 @@ const CompetencyFilters = ({
             )}
 
             {/* Requirement Toggle */}
-            <div className="filter-group toggle-group">
-                <label>
-                    <Target size={14} />
-                    {t('show_requirement')}
-                </label>
-                <button
-                    className={`toggle-switch ${showRequirement ? 'on' : ''}`}
-                    onClick={() => setShowRequirement(!showRequirement)}
-                >
-                    <div className="toggle-knob"></div>
-                </button>
-            </div>
+            {showRequirementToggle && (
+                <div className="filter-group toggle-group">
+                    <label>
+                        <Target size={14} />
+                        {t('show_requirement')}
+                    </label>
+                    <button
+                        className={`toggle-switch ${showRequirement ? 'on' : ''}`}
+                        onClick={() => setShowRequirement(!showRequirement)}
+                    >
+                        <div className="toggle-knob"></div>
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

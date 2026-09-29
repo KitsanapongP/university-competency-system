@@ -52,15 +52,18 @@ type TemplateAssignment struct {
 // TemplateAssignmentCandidate is a Template or Cohort returned to the
 // assignment workspace before an Assignment is created.
 type TemplateAssignmentCandidate struct {
-	TemplateID       uint64 `json:"template_id,omitempty"`
-	TemplateCode     string `json:"template_code,omitempty"`
-	TemplateName     string `json:"template_name,omitempty"`
-	CurriculumID     uint64 `json:"curriculum_id"`
-	CurriculumCode   string `json:"curriculum_code"`
-	CurriculumNameTH string `json:"curriculum_name_th"`
-	CohortID         uint64 `json:"cohort_id,omitempty"`
-	EntryYearBE      uint64 `json:"entry_year_be,omitempty"`
-	RosterCount      int    `json:"roster_count,omitempty"`
+	TemplateID           uint64 `json:"template_id,omitempty"`
+	TemplateCode         string `json:"template_code,omitempty"`
+	TemplateName         string `json:"template_name,omitempty"`
+	TemplateIsActive     bool   `json:"template_is_active,omitempty"`
+	WasAssignedBefore    bool   `json:"was_assigned_before,omitempty"`
+	RequiresReactivation bool   `json:"requires_reactivation,omitempty"`
+	CurriculumID         uint64 `json:"curriculum_id"`
+	CurriculumCode       string `json:"curriculum_code"`
+	CurriculumNameTH     string `json:"curriculum_name_th"`
+	CohortID             uint64 `json:"cohort_id,omitempty"`
+	EntryYearBE          uint64 `json:"entry_year_be,omitempty"`
+	RosterCount          int    `json:"roster_count,omitempty"`
 }
 
 type CreateTemplateAssignmentRequest struct {
@@ -201,4 +204,54 @@ type UpdateTemplateStatusRequest struct {
 // UpdateTemplateNameRequest payload for PATCH /api/v1/templates/{id}
 type UpdateTemplateNameRequest struct {
 	Name string `json:"name"`
+}
+
+// DuplicateTemplateRequest describes a requested copy of an existing template.
+// The target curriculum owns the new template directly; cohort assignment is a
+// separate workflow and is intentionally not part of this request.
+type DuplicateTemplateRequest struct {
+	Name          string   `json:"name"`
+	CurriculumID  uint64   `json:"curriculum_id"`
+	CompetencyIDs []uint64 `json:"competency_ids"`
+}
+
+type CurriculumDuplicateReference struct {
+	CurriculumID  uint64 `json:"curriculum_id"`
+	FacultyID     uint64 `json:"faculty_id"`
+	Code          string `json:"code"`
+	NameTH        string `json:"name_th"`
+	NameEN        string `json:"name_en,omitempty"`
+	EffectiveYear uint64 `json:"effective_year_be"`
+	Status        string `json:"status"`
+}
+
+type TemplateDuplicateCourseImpact struct {
+	Code       string   `json:"code"`
+	NameTH     string   `json:"name_th"`
+	NameEN     string   `json:"name_en,omitempty"`
+	Competency []string `json:"competencies,omitempty"`
+}
+
+type TemplateDuplicateWarning struct {
+	Code       string `json:"code"`
+	Message    string `json:"message"`
+	Severity   string `json:"severity"`
+	CourseCode string `json:"course_code,omitempty"`
+	CourseName string `json:"course_name,omitempty"`
+	Competency string `json:"competency,omitempty"`
+}
+
+type TemplateDuplicatePreview struct {
+	SourceTemplate          *Template                     `json:"source_template"`
+	TargetCurriculum        *CurriculumDuplicateReference `json:"target_curriculum"`
+	SameCurriculum          bool                          `json:"same_curriculum"`
+	SelectedCompetencies    []TemplateCompetency          `json:"selected_competencies"`
+	NewCompetencies         []TemplateCompetency          `json:"new_competencies"`
+	RemovedCompetencies     []TemplateCompetency          `json:"removed_competencies"`
+	MappedCourseCount       int                           `json:"mapped_course_count"`
+	AdditionalCourseCount   int                           `json:"additional_course_count"`
+	AdditionalCategoryCount int                           `json:"additional_category_count"`
+	Warnings                []TemplateDuplicateWarning    `json:"warnings"`
+	HasWarnings             bool                          `json:"has_warnings"`
+	ReadyToCreate           bool                          `json:"ready_to_create"`
 }

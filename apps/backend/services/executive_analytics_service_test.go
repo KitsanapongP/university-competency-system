@@ -1,0 +1,205 @@
+package services
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/spw32767/university-competency-system-backend/models"
+	"github.com/spw32767/university-competency-system-backend/utils"
+)
+
+func TestExecutiveScopeRestrictsDeanToClaimedFaculty(t *testing.T) {
+	repository := &ExecutiveAnalyticsService{}
+	facultyID := int64(7)
+	sameFaculty := uint64(7)
+	otherFaculty := uint64(8)
+	claims := &utils.Claims{Roles: []string{"dean"}, FacultyID: &facultyID}
+
+	scoped, err := repository.scopedFilters(claims, models.ExecutiveAnalyticsFilters{FacultyID: &sameFaculty})
+	if err != nil {
+		t.Fatalf("same faculty should be allowed: %v", err)
+	}
+	if scoped.FacultyID == nil || *scoped.FacultyID != sameFaculty {
+		t.Fatalf("expected faculty %d, got %#v", sameFaculty, scoped.FacultyID)
+	}
+
+	_, err = repository.scopedFilters(claims, models.ExecutiveAnalyticsFilters{FacultyID: &otherFaculty})
+	if !errors.Is(err, ErrExecutiveForbidden) {
+		t.Fatalf("expected cross-faculty request to be forbidden, got %v", err)
+	}
+}
+
+func TestExecutiveScopeAllowsAdminFacultySelection(t *testing.T) {
+	facultyID := uint64(8)
+	claims := &utils.Claims{Roles: []string{"admin"}}
+	scoped, err := (&ExecutiveAnalyticsService{}).scopedFilters(
+		claims,
+		models.ExecutiveAnalyticsFilters{FacultyID: &facultyID},
+	)
+	if err != nil {
+		t.Fatalf("admin should select a faculty: %v", err)
+	}
+	if scoped.FacultyID == nil || *scoped.FacultyID != facultyID {
+		t.Fatalf("expected selected faculty %d", facultyID)
+	}
+}
+
+func TestExecutiveComparisonResponseKeepsReadinessAndSkipsUnavailableScores(t *testing.T) {
+	left := models.ExecutiveCohortSummary{CohortID: 11, Ready: true, EntryYearBE: 2565}
+	right := models.ExecutiveCohortSummary{
+		CohortID:           12,
+		Ready:              false,
+		ReadinessCode:      "RECALCULATION_REQUIRED",
+		ReadinessMessageTH: "มีการเปลี่ยนแปลงและยังไม่ได้คำนวณคะแนนใหม่",
+	}
+	aggregates := []models.ExecutiveCompetencyAggregate{
+		{CohortID: 11, CompetencyID: 1, AverageScore: 82, EvaluatedCount: 20},
+		{CohortID: 12, CompetencyID: 1, AverageScore: 91, EvaluatedCount: 20},
+	}
+
+	response := buildComparisonResponse(left, right, aggregates)
+	if response.Left.Cohort.CohortID != left.CohortID || response.Right.Cohort.ReadinessCode != right.ReadinessCode {
+		t.Fatalf("comparison response lost cohort readiness data: %#v", response)
+	}
+	if len(response.Left.Competencies) != 0 || len(response.Right.Competencies) != 0 {
+		t.Fatal("unavailable comparison must not expose score aggregates")
+	}
+}
+
+func TestExecutiveComparisonResponseSeparatesScoresByCohort(t *testing.T) {
+	left := models.ExecutiveCohortSummary{CohortID: 11, Ready: true}
+	right := models.ExecutiveCohortSummary{CohortID: 12, Ready: true}
+	aggregates := []models.ExecutiveCompetencyAggregate{
+		{CohortID: 12, CompetencyID: 2, NameTH: "การสื่อสาร"},
+		{CohortID: 11, CompetencyID: 1, NameTH: "การพัฒนาระบบ"},
+	}
+
+	response := buildComparisonResponse(left, right, aggregates)
+	if len(response.Left.Competencies) != 1 || response.Left.Competencies[0].CompetencyID != 1 {
+		t.Fatalf("left cohort scores were not separated: %#v", response.Left.Competencies)
+	}
+	if len(response.Right.Competencies) != 1 || response.Right.Competencies[0].CompetencyID != 2 {
+		t.Fatalf("right cohort scores were not separated: %#v", response.Right.Competencies)
+	}
+}
+
+func TestExecutiveComparisonResponseKeepsCompetencyIdentityPerSide(t *testing.T) {
+	left := models.ExecutiveCohortSummary{CohortID: 11, Ready: true}
+	right := models.ExecutiveCohortSummary{CohortID: 12, Ready: true}
+	aggregates := []models.ExecutiveCompetencyAggregate{
+		{
+			CohortID:     11,
+			CompetencyID: 5,
+			NameTH:       "ชื่อเดิม",
+			TargetScore:  80,
+			AverageScore: 72,
+		},
+		{
+			CohortID:     12,
+			CompetencyID: 5,
+			NameTH:       "ชื่อที่แก้ไขแล้ว",
+			TargetScore:  75,
+			AverageScore: 84,
+		},
+	}
+
+	response := buildComparisonResponse(left, right, aggregates)
+	if len(response.Left.Competencies) != 1 || len(response.Right.Competencies) != 1 {
+		t.Fatalf("expected one competency on each side: %#v", response)
+	}
+	if response.Left.Competencies[0].CompetencyID != response.Right.Competencies[0].CompetencyID {
+		t.Fatal("the same competency master should be present on both sides")
+	}
+	if response.Left.Competencies[0].NameTH == response.Right.Competencies[0].NameTH {
+		t.Fatal("the response must preserve each side's competency metadata")
+	}
+	if response.Left.Competencies[0].TargetScore != 80 || response.Right.Competencies[0].TargetScore != 75 {
+		t.Fatal("each cohort must keep its own competency target")
+	}
+}
+
+func TestExecutiveComparisonRejectsSameCohort(t *testing.T) {
+	service := &ExecutiveAnalyticsService{}
+	_, err := service.Comparison(nil, &utils.Claims{Roles: []string{"admin"}}, 11, 11)
+	if !errors.Is(err, ErrExecutiveComparisonCohortsMustDiffer) {
+		t.Fatalf("expected same cohort comparison to be rejected, got %v", err)
+	}
+}
+
+func TestExecutiveScopeOptionFiltersKeepCohortChoicesVisible(t *testing.T) {
+	cohortID := uint64(12)
+	entryYear := uint64(2566)
+	filters := models.ExecutiveAnalyticsFilters{
+		FacultyID:    uint64Pointer(1),
+		MajorID:      uint64Pointer(2),
+		CurriculumID: uint64Pointer(3),
+		CohortID:     &cohortID,
+		EntryYearBE:  &entryYear,
+	}
+
+	optionFilters := executiveScopeOptionFilters(filters)
+	if optionFilters.CohortID != nil {
+		t.Fatal("cohort option filters must not be restricted to the selected cohort")
+	}
+	if optionFilters.FacultyID == nil || *optionFilters.FacultyID != 1 {
+		t.Fatal("faculty filter should be preserved")
+	}
+	if optionFilters.MajorID == nil || *optionFilters.MajorID != 2 {
+		t.Fatal("major filter should be preserved")
+	}
+	if optionFilters.CurriculumID == nil || *optionFilters.CurriculumID != 3 {
+		t.Fatal("curriculum filter should be preserved")
+	}
+	if optionFilters.EntryYearBE == nil || *optionFilters.EntryYearBE != entryYear {
+		t.Fatal("entry year filter should be preserved")
+	}
+}
+
+func uint64Pointer(value uint64) *uint64 {
+	return &value
+}
+
+func TestSummarizeCompetenciesSeparatesRequiredAndTrackingFlags(t *testing.T) {
+	items := []models.ExecutiveCompetencyAggregate{
+		{CompetencyID: 1, NameTH: "การสื่อสาร", TargetScore: 80, IsRequired: true, AverageScore: 70, EvaluatedCount: 2, PassedCount: 1},
+		{CompetencyID: 1, NameTH: "การสื่อสาร", TargetScore: 80, IsRequired: true, AverageScore: 90, EvaluatedCount: 2, PassedCount: 2},
+		{CompetencyID: 2, NameTH: "การเรียนรู้สิ่งใหม่", TargetScore: 0, IsRequired: false, AverageScore: 75, EvaluatedCount: 2, PassedCount: 0},
+	}
+
+	got := summarizeCompetencies(items)
+	if len(got) != 2 {
+		t.Fatalf("expected two competencies, got %d", len(got))
+	}
+	for _, item := range got {
+		if item.CompetencyID == 1 {
+			if !item.IsRequired || item.EvaluatedCount != 4 || item.PassedCount != 3 {
+				t.Fatalf("required aggregate was incorrect: %#v", item)
+			}
+			if item.AverageScore != 80 || item.PassRate != 75 {
+				t.Fatalf("required score aggregate was incorrect: %#v", item)
+			}
+		}
+		if item.CompetencyID == 2 && item.IsRequired {
+			t.Fatal("tracking competency must not become a graduation requirement")
+		}
+	}
+}
+
+func TestAggregateStudentsDoesNotUseTrackingCompetencyForPassing(t *testing.T) {
+	facts := []models.ExecutiveStudentFact{
+		{EnrollmentID: 10, StudentCode: "S001", CompetencyID: 1, IsRequired: true, TargetScore: 80, CourseTotal: 85, HasScore: true},
+		{EnrollmentID: 10, StudentCode: "S001", CompetencyID: 2, IsRequired: false, TargetScore: 0, CourseTotal: 0, HasScore: false},
+		{EnrollmentID: 11, StudentCode: "S002", CompetencyID: 1, IsRequired: true, TargetScore: 80, CourseTotal: 70, HasScore: true},
+	}
+
+	got := aggregateStudents(facts)
+	if len(got) != 2 {
+		t.Fatalf("expected two students, got %d", len(got))
+	}
+	if !got[0].Passed || got[0].RequiredCount != 1 {
+		t.Fatalf("student above required target should pass: %#v", got[0])
+	}
+	if got[1].Passed || got[1].RequiredCount != 1 {
+		t.Fatalf("student below required target should not pass: %#v", got[1])
+	}
+}

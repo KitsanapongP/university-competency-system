@@ -1,0 +1,201 @@
+.coop-requirements-copy {
+  display: grid;
+  gap: 1rem;
+  color: var(--course-text);
+}
+
+.coop-requirements-copy__route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.coop-requirements-copy__route-item {
+  display: grid;
+  min-width: 0;
+  gap: 0.3rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--course-border);
+  border-radius: 6px;
+  background: var(--course-input-bg);
+}
+
+.coop-requirements-copy__route-item > span,
+.coop-requirements-copy__route-item small {
+  color: var(--course-text-muted);
+  font-size: 0.8rem;
+}
+
+.coop-requirements-copy__route-item strong {
+  color: var(--course-title);
+  font-size: 0.95rem;
+}
+
+.coop-requirements-copy__route-icon {
+  color: var(--course-accent);
+}
+
+.coop-requirements-copy__notice,
+.coop-requirements-copy__warning {
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  border-left: 3px solid var(--course-accent);
+  background: var(--course-panel-selected-bg);
+  color: var(--course-text);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.coop-requirements-copy__warning {
+  border-left-color: var(--ui-danger);
+  background: color-mix(in srgb, var(--ui-danger) 10%, var(--course-card-bg));
+}
+
+.coop-requirements-copy__fieldset {
+  display: grid;
+  min-width: 0;
+  gap: 0.65rem;
+  padding: 0;
+  border: 0;
+}
+
+.coop-requirements-copy__fieldset legend {
+  margin-bottom: 0.25rem;
+  color: var(--course-title);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.coop-requirements-copy__selection-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--course-text-muted);
+  font-size: 0.82rem;
+}
+
+.coop-requirements-copy__selection-tools > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.coop-requirements-copy__text-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--course-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.coop-requirements-copy__text-button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.coop-requirements-copy__text-button:disabled {
+  color: var(--course-text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.coop-requirements-copy__list {
+  display: grid;
+  max-height: min(42vh, 360px);
+  overflow-y: auto;
+  border: 1px solid var(--course-border);
+  border-radius: 6px;
+}
+
+.coop-requirements-copy__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--course-border);
+  cursor: pointer;
+}
+
+.coop-requirements-copy__item:last-child {
+  border-bottom: 0;
+}
+
+.coop-requirements-copy__item:hover:not(.coop-requirements-copy__item--disabled) {
+  background: var(--course-hover);
+}
+
+.coop-requirements-copy__item input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0.15rem 0 0;
+  accent-color: var(--course-accent);
+}
+
+.coop-requirements-copy__item-content {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+}
+
+.coop-requirements-copy__item-content strong {
+  color: var(--course-text);
+  font-size: 0.9rem;
+}
+
+.coop-requirements-copy__item-content > span,
+.coop-requirements-copy__item-content small {
+  color: var(--course-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.coop-requirements-copy__item--disabled {
+  background: var(--course-input-bg);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.coop-requirements-copy__state,
+.coop-requirements-copy__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--course-border);
+  border-radius: 6px;
+  color: var(--course-text-muted);
+  font-size: 0.85rem;
+}
+
+.coop-requirements-copy__error {
+  border-color: color-mix(in srgb, var(--ui-danger) 40%, var(--course-border));
+  background: color-mix(in srgb, var(--ui-danger) 10%, var(--course-card-bg));
+  color: var(--course-text);
+}
+
+@media (max-width: 640px) {
+  .coop-requirements-copy__route {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .coop-requirements-copy__route-icon {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  .coop-requirements-copy__selection-tools {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .coop-requirements-copy__error {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

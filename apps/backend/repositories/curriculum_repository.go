@@ -16,6 +16,9 @@ type CurriculumRepository struct {
 type MajorScope struct {
 	FacultyID   uint64
 	DegreeLevel string
+	FacultyCode string
+	MajorCode   string
+	IsActive    bool
 }
 
 type CreateCurriculumOptions struct {
@@ -51,6 +54,7 @@ type duplicateCourseRow struct {
 	NameEN             *string
 	Credits            int
 	Description        *string
+	GradeScheme        string
 	IsRequired         bool
 	IsLocked           bool
 	DisplayOrder       int
@@ -108,6 +112,7 @@ func scanCurriculum(scanner rowScanner) (*models.Curriculum, error) {
 	if err := scanner.Scan(
 		&c.CurriculumID,
 		&c.MajorID,
+		&c.FacultyID,
 		&c.MajorNameTH,
 		&majorNameEn,
 		&c.CurriculumNameTH,
@@ -143,7 +148,7 @@ func scanCurriculum(scanner rowScanner) (*models.Curriculum, error) {
 
 func (r *CurriculumRepository) GetCurriculums(ctx context.Context) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, d.faculty_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -153,8 +158,10 @@ func (r *CurriculumRepository) GetCurriculums(ctx context.Context) ([]*models.Cu
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
 		JOIN edu_majors m ON m.major_id = c.major_id
+		JOIN org_departments d ON d.department_id = m.department_id
 		WHERE c.deleted_at IS NULL
 			AND m.deleted_at IS NULL
+			AND d.deleted_at IS NULL
 		ORDER BY c.effective_year_be DESC, c.curriculum_id DESC
 	`
 
@@ -181,7 +188,7 @@ func (r *CurriculumRepository) GetCurriculums(ctx context.Context) ([]*models.Cu
 
 func (r *CurriculumRepository) GetCurriculumsByFaculty(ctx context.Context, facultyID uint64) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, d.faculty_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -607,7 +614,7 @@ func scanDepartmentOption(scanner rowScanner) (*models.DepartmentOption, error) 
 
 func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uint64) ([]*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, d.faculty_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -617,8 +624,10 @@ func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uin
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
 		JOIN edu_majors m ON m.major_id = c.major_id
+		JOIN org_departments d ON d.department_id = m.department_id
 		WHERE c.effective_year_be = ? AND c.status = 'active' AND c.deleted_at IS NULL
 			AND m.deleted_at IS NULL
+			AND d.deleted_at IS NULL
 		ORDER BY c.curriculum_id DESC
 	`
 
@@ -645,7 +654,7 @@ func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uin
 
 func (r *CurriculumRepository) GetCurriculumByID(ctx context.Context, id uint64) (*models.Curriculum, error) {
 	query := `
-		SELECT c.curriculum_id, c.major_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
+		SELECT c.curriculum_id, c.major_id, d.faculty_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
 			COALESCE(course_stats.course_count, 0),
 			COALESCE(category_stats.category_count, 0),
@@ -655,8 +664,10 @@ func (r *CurriculumRepository) GetCurriculumByID(ctx context.Context, id uint64)
 		FROM edu_curricula c
 	` + curriculumStatsJoin + `
 		JOIN edu_majors m ON m.major_id = c.major_id
+		JOIN org_departments d ON d.department_id = m.department_id
 		WHERE c.curriculum_id = ? AND c.deleted_at IS NULL
 			AND m.deleted_at IS NULL
+			AND d.deleted_at IS NULL
 	`
 
 	return scanCurriculum(r.DB.QueryRowContext(ctx, query, id))
@@ -710,6 +721,7 @@ func (r *CurriculumRepository) getCurriculumCategories(ctx context.Context, curr
 		SELECT category_id, curriculum_id, parent_id, code, name_th, name_en, required_credits, display_order, is_active, created_at, updated_at, deleted_at
 		FROM crs_course_categories
 		WHERE curriculum_id = ?
+			AND is_active = 1
 			AND deleted_at IS NULL
 		ORDER BY COALESCE(parent_id, 0), display_order, category_id
 	`
@@ -787,6 +799,7 @@ func (r *CurriculumRepository) getCurriculumCoursesByCategory(ctx context.Contex
 			course.name_en,
 			course.credits,
 			course.description,
+			course.grade_scheme,
 			cc.is_required,
 			cc.is_locked,
 			cc.display_order,
@@ -798,7 +811,9 @@ func (r *CurriculumRepository) getCurriculumCoursesByCategory(ctx context.Contex
 		JOIN crs_course_categories cat ON cat.category_id = cc.category_id
 		JOIN crs_courses course ON course.course_id = cc.course_id
 		WHERE cat.curriculum_id = ?
+			AND cat.is_active = 1
 			AND cat.deleted_at IS NULL
+			AND cc.is_active = 1
 			AND cc.deleted_at IS NULL
 			AND course.deleted_at IS NULL
 			AND course.curriculum_id = cat.curriculum_id
@@ -841,6 +856,7 @@ func scanCurriculumCourseRow(scanner rowScanner) (*models.CurriculumCourseRow, e
 		&nameEn,
 		&course.Credits,
 		&description,
+		&course.GradeScheme,
 		&course.IsRequired,
 		&course.IsLocked,
 		&course.DisplayOrder,
@@ -867,21 +883,60 @@ func scanCurriculumCourseRow(scanner rowScanner) (*models.CurriculumCourseRow, e
 
 func (r *CurriculumRepository) GetMajorScope(ctx context.Context, majorID uint64) (MajorScope, error) {
 	query := `
-		SELECT d.faculty_id, COALESCE(m.degree_level, 'bachelor')
+		SELECT
+			d.faculty_id,
+			COALESCE(m.degree_level, 'bachelor'),
+			f.code,
+			m.code,
+			m.is_active
 		FROM edu_majors m
 		JOIN org_departments d ON d.department_id = m.department_id
+		JOIN org_faculties f ON f.faculty_id = d.faculty_id
 		WHERE m.major_id = ?
 			AND m.deleted_at IS NULL
 			AND d.deleted_at IS NULL
+			AND f.deleted_at IS NULL
 	`
 
 	var scope MajorScope
-	err := r.DB.QueryRowContext(ctx, query, majorID).Scan(&scope.FacultyID, &scope.DegreeLevel)
+	err := r.DB.QueryRowContext(ctx, query, majorID).Scan(
+		&scope.FacultyID,
+		&scope.DegreeLevel,
+		&scope.FacultyCode,
+		&scope.MajorCode,
+		&scope.IsActive,
+	)
 	if err != nil {
 		return MajorScope{}, err
 	}
 
 	return scope, nil
+}
+
+func (r *CurriculumRepository) GetCurriculumCodesByMajor(ctx context.Context, majorID uint64) ([]string, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+		SELECT code
+		FROM edu_curricula
+		WHERE major_id = ?
+	`, majorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	codes := make([]string, 0)
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		codes = append(codes, code)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return codes, nil
 }
 
 func (r *CurriculumRepository) FindLiveCurriculumNameDuplicate(ctx context.Context, majorID uint64, effectiveYearBE uint64, nameTH string) (*CurriculumNameDuplicate, error) {
@@ -1138,6 +1193,7 @@ func (r *CurriculumRepository) getDuplicateCourseRows(ctx context.Context, tx *s
 			course.name_en,
 			course.credits,
 			course.description,
+			course.grade_scheme,
 			cc.is_required,
 			cc.is_locked,
 			cc.display_order
@@ -1170,6 +1226,7 @@ func (r *CurriculumRepository) getDuplicateCourseRows(ctx context.Context, tx *s
 			&course.NameEN,
 			&course.Credits,
 			&course.Description,
+			&course.GradeScheme,
 			&course.IsRequired,
 			&course.IsLocked,
 			&course.DisplayOrder,
@@ -1203,6 +1260,7 @@ func (r *CurriculumRepository) duplicateCurriculumCourses(ctx context.Context, t
 				NameEN:      course.NameEN,
 				Credits:     course.Credits,
 				Description: course.Description,
+				GradeScheme: course.GradeScheme,
 			}, opts)
 			if err != nil {
 				return err
@@ -1273,9 +1331,9 @@ func (r *CurriculumRepository) createCourse(ctx context.Context, tx *sql.Tx, cur
 	}
 
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO crs_courses (curriculum_id, faculty_id, degree_level, code, name_th, name_en, credits, description, created_by, status, is_active)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1)
-	`, curriculumID, opts.FacultyID, degreeLevel, payload.Code, payload.NameTH, payload.NameEN, payload.Credits, payload.Description, createdBy)
+		INSERT INTO crs_courses (curriculum_id, faculty_id, degree_level, code, name_th, name_en, credits, description, grade_scheme, created_by, status, is_active)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 1)
+	`, curriculumID, opts.FacultyID, degreeLevel, payload.Code, payload.NameTH, payload.NameEN, payload.Credits, payload.Description, payload.GradeScheme, createdBy)
 	if err != nil {
 		return 0, fmt.Errorf("insert course %q: %w", payload.Code, err)
 	}

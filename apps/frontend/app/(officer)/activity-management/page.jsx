@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CalendarClock, Edit3, Eye, Lock, Megaphone, Plus, Power, RefreshCw, Save, Search, Trash2 } from 'lucide-react';
 import ToastNotifications from '../../../components/ui/ToastNotifications';
 import BaseModal from '../../../components/ui/BaseModal';
 import ConfirmActionModal from '../../../components/ui/ConfirmActionModal';
 import { useAuth } from '../../../providers/auth-provider';
+import { useLanguage } from '../../../providers/LanguageContext';
+import { officerActivityStatusLabel, officerText } from '../officer-labels';
 import {
     createActivity,
     deleteActivity,
@@ -32,18 +34,18 @@ const EMPTY_ACTIVITY_FORM = {
 };
 
 const STATUS_OPTIONS = [
-    { value: '', label: 'ทุกสถานะ' },
-    { value: 'draft', label: 'Draft' },
-    { value: 'published', label: 'Published' },
-    { value: 'closed', label: 'Closed' },
-    { value: 'cancelled', label: 'Cancelled' },
+    { value: '' },
+    { value: 'draft' },
+    { value: 'published' },
+    { value: 'closed' },
+    { value: 'cancelled' },
 ];
 
 const STATUS_META = {
-    draft: { label: 'Draft', className: 'draft' },
-    published: { label: 'Published', className: 'published' },
-    closed: { label: 'Closed', className: 'closed' },
-    cancelled: { label: 'Cancelled', className: 'cancelled' },
+    draft: { className: 'draft' },
+    published: { className: 'published' },
+    closed: { className: 'closed' },
+    cancelled: { className: 'cancelled' },
 };
 
 const BACKEND_MESSAGE_TH = {
@@ -62,23 +64,46 @@ const BACKEND_MESSAGE_TH = {
     'activity operation failed': 'ไม่สามารถดำเนินการกับกิจกรรมได้',
 };
 
-function mapActivityError(error) {
+const BACKEND_MESSAGE_EN = {
+    'faculty_id is required': 'Please select a faculty.',
+    'code is required': 'Please enter an activity code.',
+    'name_th is required': 'Please enter the Thai activity name.',
+    'activity code and Thai name already exist in this faculty': 'An activity with this code and Thai name is already in draft or published status.',
+    'activity already exists': 'This activity already exists.',
+    'activity not found': 'Activity not found.',
+    'insufficient activity scope': 'You do not have permission to manage this activity.',
+    'published activity identity cannot be changed': 'A published activity cannot change its code, name, or faculty.',
+    'closed or cancelled activity cannot be edited': 'A closed or cancelled activity cannot be edited.',
+    'invalid activity status transition': 'This activity status change is not allowed.',
+    'only draft activity can be deleted': 'Only draft activities can be deleted.',
+    'activity cannot be deleted while sessions are connected': 'This activity cannot be deleted because sessions are connected.',
+    'activity operation failed': 'Unable to complete the activity operation.',
+};
+
+function mapActivityError(error, language) {
     const message = error?.message || error?.payload?.error?.message || '';
-    return BACKEND_MESSAGE_TH[message] || message || 'ไม่สามารถดำเนินการกับกิจกรรมได้';
+    return officerText(
+        language,
+        BACKEND_MESSAGE_TH[message] || message || 'ไม่สามารถดำเนินการกับกิจกรรมได้',
+        BACKEND_MESSAGE_EN[message] || message || 'Unable to complete the activity operation.',
+    );
 }
 
-function formatDateTime(value) {
+function formatDateTime(value, language) {
     if (!value) return '-';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '-';
-    return new Intl.DateTimeFormat('th-TH', {
+    return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'th-TH', {
         dateStyle: 'medium',
         timeStyle: 'short',
     }).format(date);
 }
 
-function activityStatusMeta(status) {
-    return STATUS_META[status] || { label: status || '-', className: 'default' };
+function activityStatusMeta(status, language) {
+    return {
+        label: officerActivityStatusLabel(language, status),
+        ...(STATUS_META[status] || { className: 'default' }),
+    };
 }
 
 function ActivityFormModal({
@@ -93,6 +118,7 @@ function ActivityFormModal({
     onClose,
     onSubmit,
 }) {
+    const { language } = useLanguage();
     const isPublished = editingActivity?.status === 'published';
     const isReadOnly = editingActivity && !['draft', 'published'].includes(editingActivity.status);
     const identityLocked = isPublished || isReadOnly;
@@ -105,145 +131,190 @@ function ActivityFormModal({
     return (
         <BaseModal
             open
-            title={mode === 'edit' ? 'แก้ไขกิจกรรม' : 'เพิ่มกิจกรรมใหม่'}
+            title={mode === 'edit'
+                ? officerText(language, 'แก้ไขกิจกรรม', 'Edit activity')
+                : officerText(language, 'เพิ่มกิจกรรมใหม่', 'Add activity')}
             size="md"
             onClose={onClose}
             closeDisabled={submitting}
             footer={(
                 <>
                     <button className="course-btn course-btn--ghost" onClick={onClose} disabled={submitting}>
-                        ยกเลิก
+                        {officerText(language, 'ยกเลิก', 'Cancel')}
                     </button>
-                    <button className="course-btn course-btn--primary" onClick={onSubmit} disabled={submitting || !canSubmit}>
+                    <button
+                        className="course-btn course-btn--primary"
+                        onClick={onSubmit}
+                        disabled={submitting || !canSubmit}
+                    >
                         <Save size={16} />
-                        {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
+                        {submitting
+                            ? officerText(language, 'กำลังบันทึก...', 'Saving...')
+                            : officerText(language, 'บันทึก', 'Save')}
                     </button>
                 </>
             )}
         >
-                    <div className="activity-management__session-note">
-                        <CalendarClock size={16} />
-                        อาจารย์หรือวิทยากรจะกำหนดในรอบกิจกรรม (Session) ไม่ได้กำหนดในข้อมูลกิจกรรมหลัก
-                    </div>
+            <div className="activity-management__session-note">
+                <CalendarClock size={16} />
+                {officerText(
+                    language,
+                    'อาจารย์หรือวิทยากรจะกำหนดในรอบกิจกรรม ไม่ได้กำหนดในข้อมูลกิจกรรมหลัก',
+                    'Lecturers and speakers are assigned to each activity session, not to the parent activity.',
+                )}
+            </div>
 
-                    <div className="course-row">
-                        <label className="course-field">
-                            <span className="course-label">คณะ<span className="course-required">*</span></span>
-                            <select
-                                className="course-input activity-input--disabled-aware"
-                                value={form.facultyId}
-                                onChange={event => setForm(prev => ({ ...prev, facultyId: event.target.value }))}
-                                disabled={facultyLocked}
-                            >
-                                <option value="">เลือกคณะ</option>
-                                {faculties.map(faculty => (
-                                    <option key={faculty.facultyId} value={faculty.facultyId}>
-                                        {faculty.nameTh}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+            <div className="course-row">
+                <label className="course-field">
+                    <span className="course-label">
+                        {officerText(language, 'คณะ', 'Faculty')}
+                        <span className="course-required">*</span>
+                    </span>
+                    <select
+                        className="course-input activity-input--disabled-aware"
+                        value={form.facultyId}
+                        onChange={event => setForm(prev => ({ ...prev, facultyId: event.target.value }))}
+                        disabled={facultyLocked}
+                    >
+                        <option value="">{officerText(language, 'เลือกคณะ', 'Select faculty')}</option>
+                        {faculties.map(faculty => (
+                            <option key={faculty.facultyId} value={faculty.facultyId}>
+                                {language === 'en' ? faculty.nameEn || faculty.nameTh : faculty.nameTh}
+                            </option>
+                        ))}
+                    </select>
+                </label>
 
-                        <label className="course-field">
-                            <span className="course-label">รหัสกิจกรรม<span className="course-required">*</span></span>
-                            <input
-                                className="course-input"
-                                value={form.code}
-                                onChange={event => setForm(prev => ({ ...prev, code: event.target.value }))}
-                                placeholder="เช่น TST-AI-WS"
-                                disabled={identityLocked}
-                            />
-                        </label>
-                    </div>
+                <label className="course-field">
+                    <span className="course-label">
+                        {officerText(language, 'รหัสกิจกรรม', 'Activity code')}
+                        <span className="course-required">*</span>
+                    </span>
+                    <input
+                        className="course-input"
+                        value={form.code}
+                        onChange={event => setForm(prev => ({ ...prev, code: event.target.value }))}
+                        placeholder={officerText(language, 'เช่น TST-AI-WS', 'e.g. TST-AI-WS')}
+                        disabled={identityLocked}
+                    />
+                </label>
+            </div>
 
-                    <label className="course-field">
-                        <span className="course-label">ชื่อกิจกรรม (ภาษาไทย)<span className="course-required">*</span></span>
-                        <input
-                            className="course-input"
-                            value={form.nameTh}
-                            onChange={event => setForm(prev => ({ ...prev, nameTh: event.target.value }))}
-                            placeholder="เช่น อบรมเชิงปฏิบัติการ AI"
-                            disabled={identityLocked}
-                        />
-                    </label>
+            <label className="course-field">
+                <span className="course-label">
+                    {officerText(language, 'ชื่อกิจกรรม (ภาษาไทย)', 'Activity name (Thai)')}
+                    <span className="course-required">*</span>
+                </span>
+                <input
+                    className="course-input"
+                    value={form.nameTh}
+                    onChange={event => setForm(prev => ({ ...prev, nameTh: event.target.value }))}
+                    placeholder={officerText(language, 'เช่น อบรมเชิงปฏิบัติการ AI', 'e.g. AI workshop')}
+                    disabled={identityLocked}
+                />
+            </label>
 
-                    <label className="course-field">
-                        <span className="course-label">ชื่อกิจกรรม (ภาษาอังกฤษ)</span>
-                        <input
-                            className="course-input"
-                            value={form.nameEn}
-                            onChange={event => setForm(prev => ({ ...prev, nameEn: event.target.value }))}
-                            placeholder="เช่น AI Workshop"
-                            disabled={identityLocked}
-                        />
-                    </label>
+            <label className="course-field">
+                <span className="course-label">
+                    {officerText(language, 'ชื่อกิจกรรม (ภาษาอังกฤษ)', 'Activity name (English)')}
+                </span>
+                <input
+                    className="course-input"
+                    value={form.nameEn}
+                    onChange={event => setForm(prev => ({ ...prev, nameEn: event.target.value }))}
+                    placeholder={officerText(language, 'เช่น AI Workshop', 'e.g. AI Workshop')}
+                    disabled={identityLocked}
+                />
+            </label>
 
-                    <div className="course-row">
-                        <label className="course-field">
-                            <span className="course-label">หมวดกิจกรรม</span>
-                            <input
-                                className="course-input"
-                                list="activity-category-options"
-                                value={form.category}
-                                onChange={event => setForm(prev => ({ ...prev, category: event.target.value }))}
-                                placeholder="เช่น academic"
-                                disabled={isReadOnly}
-                            />
-                        </label>
+            <div className="course-row">
+                <label className="course-field">
+                    <span className="course-label">
+                        {officerText(language, 'หมวดกิจกรรม', 'Activity category')}
+                    </span>
+                    <input
+                        className="course-input"
+                        list="activity-category-options"
+                        value={form.category}
+                        onChange={event => setForm(prev => ({ ...prev, category: event.target.value }))}
+                        placeholder={officerText(language, 'เช่น academic', 'e.g. academic')}
+                        disabled={isReadOnly}
+                    />
+                </label>
 
-                        <label className="course-field">
-                            <span className="course-label">ประเภทกิจกรรม</span>
-                            <input
-                                className="course-input"
-                                list="activity-type-options"
-                                value={form.type}
-                                onChange={event => setForm(prev => ({ ...prev, type: event.target.value }))}
-                                placeholder="เช่น workshop"
-                                disabled={isReadOnly}
-                            />
-                        </label>
-                    </div>
+                <label className="course-field">
+                    <span className="course-label">
+                        {officerText(language, 'ประเภทกิจกรรม', 'Activity type')}
+                    </span>
+                    <input
+                        className="course-input"
+                        list="activity-type-options"
+                        value={form.type}
+                        onChange={event => setForm(prev => ({ ...prev, type: event.target.value }))}
+                        placeholder={officerText(language, 'เช่น workshop', 'e.g. workshop')}
+                        disabled={isReadOnly}
+                    />
+                </label>
+            </div>
 
-                    <datalist id="activity-category-options">
-                        {options.categories.map(value => <option key={value} value={value} />)}
-                    </datalist>
-                    <datalist id="activity-type-options">
-                        {options.types.map(value => <option key={value} value={value} />)}
-                    </datalist>
+            <datalist id="activity-category-options">
+                {options.categories.map(value => <option key={value} value={value} />)}
+            </datalist>
+            <datalist id="activity-type-options">
+                {options.types.map(value => <option key={value} value={value} />)}
+            </datalist>
 
-                    <label className="course-field">
-                        <span className="course-label">คำอธิบาย</span>
-                        <textarea
-                            className="course-input activity-management__textarea"
-                            value={form.description}
-                            onChange={event => setForm(prev => ({ ...prev, description: event.target.value }))}
-                            placeholder="รายละเอียดกิจกรรม"
-                            rows={4}
-                            disabled={isReadOnly}
-                        />
-                    </label>
+            <label className="course-field">
+                <span className="course-label">
+                    {officerText(language, 'คำอธิบาย', 'Description')}
+                </span>
+                <textarea
+                    className="course-input activity-management__textarea"
+                    value={form.description}
+                    onChange={event => setForm(prev => ({ ...prev, description: event.target.value }))}
+                    placeholder={officerText(language, 'รายละเอียดกิจกรรม', 'Activity details')}
+                    rows={4}
+                    disabled={isReadOnly}
+                />
+            </label>
 
-                    <label className="activity-management__checkbox">
-                        <input
-                            type="checkbox"
-                            checked={form.registrationRequired}
-                            onChange={event => setForm(prev => ({ ...prev, registrationRequired: event.target.checked }))}
-                            disabled={isReadOnly}
-                        />
-                        <span>ต้องลงทะเบียนก่อนเข้าร่วมกิจกรรม</span>
-                    </label>
+            <label className="activity-management__checkbox">
+                <input
+                    type="checkbox"
+                    checked={form.registrationRequired}
+                    onChange={event => setForm(prev => ({ ...prev, registrationRequired: event.target.checked }))}
+                    disabled={isReadOnly}
+                />
+                <span>
+                    {officerText(language, 'ต้องลงทะเบียนก่อนเข้าร่วมกิจกรรม', 'Registration is required before joining')}
+                </span>
+            </label>
         </BaseModal>
     );
 }
 
 function DeleteActivityModal({ activity, submitting, onCancel, onConfirm }) {
+    const { language } = useLanguage();
+
     return (
         <ConfirmActionModal
             open={Boolean(activity)}
-            title="ลบกิจกรรม"
-            message={<>ยืนยันการลบกิจกรรม <strong>{activity?.nameTh || activity?.code}</strong> หรือไม่?</>}
-            hint="ระบบจะลบแบบ Soft delete เฉพาะกิจกรรม Draft ที่ยังไม่มีรอบกิจกรรมเท่านั้น"
-            confirmLabel={submitting ? 'กำลังลบ...' : 'ลบกิจกรรม'}
+            title={officerText(language, 'ลบกิจกรรม', 'Delete activity')}
+            message={(
+                <>
+                    {officerText(language, 'ยืนยันการลบกิจกรรม ', 'Delete activity ')}
+                    <strong>{activity?.nameTh || activity?.code}</strong>
+                    {officerText(language, ' หรือไม่?', '?')}
+                </>
+            )}
+            hint={officerText(
+                language,
+                'ระบบจะลบแบบ Soft delete เฉพาะกิจกรรมฉบับร่างที่ยังไม่มีรอบกิจกรรมเท่านั้น',
+                'Only draft activities without sessions can be soft-deleted.',
+            )}
+            confirmLabel={submitting
+                ? officerText(language, 'กำลังลบ...', 'Deleting...')
+                : officerText(language, 'ลบกิจกรรม', 'Delete activity')}
             variant="danger"
             loading={submitting}
             onCancel={onCancel}
@@ -254,6 +325,7 @@ function DeleteActivityModal({ activity, submitting, onCancel, onConfirm }) {
 
 export default function ActivityManagementPage() {
     const { user } = useAuth();
+    const { language } = useLanguage();
     const isAdmin = user?.roles?.includes('admin');
     const [activities, setActivities] = useState([]);
     const [faculties, setFaculties] = useState([]);
@@ -288,7 +360,14 @@ export default function ActivityManagementPage() {
                 }
             } catch (err) {
                 if (mounted) {
-                    setFeedback({ type: 'error', message: err?.message || 'ไม่สามารถโหลดข้อมูลคณะได้' });
+                    setFeedback({
+                        type: 'error',
+                        message: err?.message || officerText(
+                            language,
+                            'ไม่สามารถโหลดข้อมูลคณะได้',
+                            'Unable to load faculties.',
+                        ),
+                    });
                 }
             } finally {
                 if (mounted) setLookupsLoading(false);
@@ -299,16 +378,23 @@ export default function ActivityManagementPage() {
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [language]);
 
     const loadOptions = useCallback(async () => {
         try {
             const nextOptions = await fetchActivityOptions({ facultyId: filters.facultyId });
             setOptions(nextOptions);
         } catch (err) {
-            setFeedback({ type: 'error', message: mapActivityError(err) || 'ไม่สามารถโหลดตัวเลือกกิจกรรมได้' });
+            setFeedback({
+                type: 'error',
+                message: mapActivityError(err, language) || officerText(
+                    language,
+                    'ไม่สามารถโหลดตัวเลือกกิจกรรมได้',
+                    'Unable to load activity options.',
+                ),
+            });
         }
-    }, [filters.facultyId]);
+    }, [filters.facultyId, language]);
 
     const loadActivities = useCallback(async ({ clearFeedback = false } = {}) => {
         setLoading(true);
@@ -319,11 +405,18 @@ export default function ActivityManagementPage() {
             const nextActivities = await fetchActivities(filters);
             setActivities(nextActivities);
         } catch (err) {
-            setFeedback({ type: 'error', message: mapActivityError(err) || 'ไม่สามารถโหลดข้อมูลกิจกรรมได้' });
+            setFeedback({
+                type: 'error',
+                message: mapActivityError(err, language) || officerText(
+                    language,
+                    'ไม่สามารถโหลดข้อมูลกิจกรรมได้',
+                    'Unable to load activities.',
+                ),
+            });
         } finally {
             setLoading(false);
         }
-    }, [filters]);
+    }, [filters, language]);
 
     useEffect(() => {
         loadActivities();
@@ -389,10 +482,16 @@ export default function ActivityManagementPage() {
         try {
             if (modalMode === 'edit' && editingActivity) {
                 await updateActivity(editingActivity.activityId, form);
-                setFeedback({ type: 'success', message: 'บันทึกกิจกรรมแล้ว' });
+                setFeedback({
+                    type: 'success',
+                    message: officerText(language, 'บันทึกกิจกรรมแล้ว', 'Activity saved.'),
+                });
             } else {
                 await createActivity(form);
-                setFeedback({ type: 'success', message: 'เพิ่มกิจกรรมแล้ว' });
+                setFeedback({
+                    type: 'success',
+                    message: officerText(language, 'เพิ่มกิจกรรมแล้ว', 'Activity added.'),
+                });
             }
             setModalMode('');
             setEditingActivity(null);
@@ -400,7 +499,7 @@ export default function ActivityManagementPage() {
             await loadActivities({ clearFeedback: false });
             await loadOptions();
         } catch (err) {
-            setFeedback({ type: 'error', message: mapActivityError(err) });
+            setFeedback({ type: 'error', message: mapActivityError(err, language) });
         } finally {
             setSubmitting(false);
         }
@@ -414,11 +513,13 @@ export default function ActivityManagementPage() {
             await updateActivityStatus(activity.activityId, status);
             setFeedback({
                 type: 'success',
-                message: status === 'published' ? 'เผยแพร่กิจกรรมแล้ว' : 'ปิดกิจกรรมแล้ว',
+                message: status === 'published'
+                    ? officerText(language, 'เผยแพร่กิจกรรมแล้ว', 'Activity published.')
+                    : officerText(language, 'ปิดกิจกรรมแล้ว', 'Activity closed.'),
             });
             await loadActivities({ clearFeedback: false });
         } catch (err) {
-            setFeedback({ type: 'error', message: mapActivityError(err) });
+            setFeedback({ type: 'error', message: mapActivityError(err, language) });
         } finally {
             setSubmitting(false);
         }
@@ -431,11 +532,14 @@ export default function ActivityManagementPage() {
         try {
             await deleteActivity(deletingActivity.activityId);
             setDeletingActivity(null);
-            setFeedback({ type: 'success', message: 'ลบกิจกรรมแล้ว' });
+            setFeedback({
+                type: 'success',
+                message: officerText(language, 'ลบกิจกรรมแล้ว', 'Activity deleted.'),
+            });
             await loadActivities({ clearFeedback: false });
             await loadOptions();
         } catch (err) {
-            setFeedback({ type: 'error', message: mapActivityError(err) });
+            setFeedback({ type: 'error', message: mapActivityError(err, language) });
         } finally {
             setSubmitting(false);
         }
@@ -453,22 +557,28 @@ export default function ActivityManagementPage() {
     const facultyLocked = !isAdmin || faculties.length <= 1;
 
     return (
-        <div className="activity-management-page">
-            <div className="course-list-header">
+        <div className="activity-management-page officer-page ui-page">
+            <div className="course-list-header officer-page__header ui-page__header">
                 <div className="course-list-header__left">
-                    <h1 className="course-list-header__title">จัดการกิจกรรม</h1>
-                    <p className="course-list-header__subtitle">
-                        เพิ่ม แก้ไข เผยแพร่ และปิดกิจกรรมสำหรับสะสมสมรรถนะนักศึกษา
+                    <h1 className="course-list-header__title officer-page__title">
+                        {officerText(language, 'จัดการกิจกรรม', 'Activity management')}
+                    </h1>
+                    <p className="course-list-header__subtitle officer-page__subtitle">
+                        {officerText(
+                            language,
+                            'เพิ่ม แก้ไข เผยแพร่ และปิดกิจกรรมสำหรับสะสมสมรรถนะนักศึกษา',
+                            'Create, edit, publish, and close activities used to collect learner competencies.',
+                        )}
                     </p>
                 </div>
-                <div className="course-list-header__actions">
+                <div className="course-list-header__actions officer-page__actions">
                     <button className="course-btn course-btn--ghost" onClick={() => loadActivities({ clearFeedback: true })} disabled={loading || submitting}>
                         <RefreshCw size={16} className={loading ? 'activity-management__spin' : ''} />
-                        โหลดใหม่
+                        {officerText(language, 'โหลดใหม่', 'Refresh')}
                     </button>
                     <button className="course-btn course-btn--primary" onClick={openCreateModal} disabled={submitting || lookupsLoading}>
                         <Plus size={16} />
-                        เพิ่มกิจกรรม
+                        {officerText(language, 'เพิ่มกิจกรรม', 'Add activity')}
                     </button>
                 </div>
             </div>
@@ -484,26 +594,30 @@ export default function ActivityManagementPage() {
                 ))}
             />
 
-            <section className="activity-filter-panel">
+            <section className="activity-filter-panel officer-panel ui-panel">
                 <label className="course-field">
-                    <span className="course-label">คณะ</span>
+                    <span className="course-label">{officerText(language, 'คณะ', 'Faculty')}</span>
                     <select
                         className="course-input activity-input--disabled-aware"
                         value={filters.facultyId}
                         onChange={event => handleFacultyFilterChange(event.target.value)}
                         disabled={lookupsLoading || facultyLocked}
                     >
-                        <option value="">{isAdmin ? 'ทุกคณะ' : 'คณะของคุณ'}</option>
+                        <option value="">
+                            {isAdmin
+                                ? officerText(language, 'ทุกคณะ', 'All faculties')
+                                : officerText(language, 'คณะของคุณ', 'Your faculty')}
+                        </option>
                         {faculties.map(faculty => (
                             <option key={faculty.facultyId} value={faculty.facultyId}>
-                                {faculty.nameTh}
+                                {language === 'en' ? faculty.nameEn || faculty.nameTh : faculty.nameTh}
                             </option>
                         ))}
                     </select>
                 </label>
 
                 <label className="course-field">
-                    <span className="course-label">สถานะ</span>
+                    <span className="course-label">{officerText(language, 'สถานะ', 'Status')}</span>
                     <select
                         className="course-input"
                         value={filters.status}
@@ -511,42 +625,44 @@ export default function ActivityManagementPage() {
                     >
                         {STATUS_OPTIONS.map(option => (
                             <option key={option.value || 'all'} value={option.value}>
-                                {option.label}
+                                {option.value
+                                    ? officerActivityStatusLabel(language, option.value)
+                                    : officerText(language, 'ทุกสถานะ', 'All statuses')}
                             </option>
                         ))}
                     </select>
                 </label>
 
                 <label className="course-field">
-                    <span className="course-label">หมวด</span>
+                    <span className="course-label">{officerText(language, 'หมวด', 'Category')}</span>
                     <input
                         className="course-input"
                         list="activity-filter-category-options"
                         value={filters.category}
                         onChange={event => setFilters(prev => ({ ...prev, category: event.target.value }))}
-                        placeholder="ทุกหมวด"
+                        placeholder={officerText(language, 'ทุกหมวด', 'All categories')}
                     />
                 </label>
 
                 <label className="course-field">
-                    <span className="course-label">ประเภท</span>
+                    <span className="course-label">{officerText(language, 'ประเภท', 'Type')}</span>
                     <input
                         className="course-input"
                         list="activity-filter-type-options"
                         value={filters.type}
                         onChange={event => setFilters(prev => ({ ...prev, type: event.target.value }))}
-                        placeholder="ทุกประเภท"
+                        placeholder={officerText(language, 'ทุกประเภท', 'All types')}
                     />
                 </label>
 
                 <label className="course-field activity-filter-panel__search-field">
-                    <span className="course-label">ค้นหา</span>
+                    <span className="course-label">{officerText(language, 'ค้นหา', 'Search')}</span>
                     <div className="activity-search">
                         <Search size={16} />
                         <input
                             value={filters.search}
                             onChange={event => setFilters(prev => ({ ...prev, search: event.target.value }))}
-                            placeholder="ค้นหารหัสหรือชื่อกิจกรรม"
+                            placeholder={officerText(language, 'ค้นหารหัสหรือชื่อกิจกรรม', 'Search activity code or name')}
                         />
                     </div>
                 </label>
@@ -559,43 +675,49 @@ export default function ActivityManagementPage() {
                 {options.types.map(value => <option key={value} value={value} />)}
             </datalist>
 
-            <section className="activity-management__panel">
+            <section className="activity-management__panel officer-panel ui-panel">
                 <div className="activity-management__panel-header">
                     <div>
-                        <span className="activity-management__panel-kicker">Activity parent</span>
-                        <strong>{activities.length} รายการ</strong>
+                        <span className="activity-management__panel-kicker">
+                            {officerText(language, 'กิจกรรมหลัก', 'Parent activity')}
+                        </span>
+                        <strong>
+                            {activities.length}{' '}{officerText(language, 'รายการ', 'items')}
+                        </strong>
                     </div>
                     <span className="activity-management__panel-note">
-                        ผู้ประเมินจะกำหนดใน Session
+                        {officerText(language, 'ผู้ประเมินจะกำหนดในรอบกิจกรรม', 'Assessors are assigned in each session.')}
                     </span>
                 </div>
 
-                <div className="activity-table-wrap">
-                    <table className="activity-table">
+                <div className="activity-table-wrap ui-table-wrap">
+                    <table className="activity-table ui-table">
                         <thead>
                             <tr>
-                                <th>กิจกรรม</th>
-                                <th>หมวด/ประเภท</th>
-                                <th>รอบกิจกรรม</th>
-                                <th>สถานะ</th>
-                                <th></th>
+                                <th>{officerText(language, 'กิจกรรม', 'Activity')}</th>
+                                <th>{officerText(language, 'หมวด/ประเภท', 'Category / type')}</th>
+                                <th>{officerText(language, 'รอบกิจกรรม', 'Sessions')}</th>
+                                <th>{officerText(language, 'สถานะ', 'Status')}</th>
+                                <th aria-label={officerText(language, 'การจัดการ', 'Actions')}></th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
                                 <tr>
-                                    <td colSpan={5} className="activity-management__empty">กำลังโหลดข้อมูลกิจกรรม...</td>
+                                    <td colSpan={5} className="activity-management__empty">
+                                        {officerText(language, 'กำลังโหลดข้อมูลกิจกรรม...', 'Loading activities...')}
+                                    </td>
                                 </tr>
                             ) : activities.length ? (
                                 activities.map(activity => {
-                                    const statusMeta = activityStatusMeta(activity.status);
+                                    const statusMeta = activityStatusMeta(activity.status, language);
                                     return (
                                         <tr key={activity.activityId}>
                                             <td>
                                                 <div className="activity-name-cell">
                                                     <span className="activity-code">{activity.code}</span>
-                                                    <strong>{activity.nameTh}</strong>
-                                                    {activity.nameEn && <span>{activity.nameEn}</span>}
+                                                    <strong>{language === 'en' ? activity.nameEn || activity.nameTh : activity.nameTh}</strong>
+                                                    {language === 'th' && activity.nameEn && <span>{activity.nameEn}</span>}
                                                     {isAdmin && <span>{activity.facultyNameTh}</span>}
                                                 </div>
                                             </td>
@@ -603,14 +725,25 @@ export default function ActivityManagementPage() {
                                                 <div className="activity-meta-cell">
                                                     <span>{activity.category || '-'}</span>
                                                     <span>{activity.type || '-'}</span>
-                                                    {activity.registrationRequired && <span>ต้องลงทะเบียน</span>}
+                                                    {activity.registrationRequired && (
+                                                        <span>{officerText(language, 'ต้องลงทะเบียน', 'Registration required')}</span>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td>
                                                 <div className="activity-session-cell">
-                                                    <span><CalendarClock size={14} /> {activity.sessionCount} รอบ</span>
-                                                    <span>รอบถัดไป: {formatDateTime(activity.nextSessionAt)}</span>
-                                                    <span>ล่าสุด: {formatDateTime(activity.latestSessionAt)}</span>
+                                                    <span>
+                                                        <CalendarClock size={14} />{' '}
+                                                        {activity.sessionCount}{' '}{officerText(language, 'รอบ', 'sessions')}
+                                                    </span>
+                                                    <span>
+                                                        {officerText(language, 'รอบถัดไป: ', 'Next: ')}
+                                                        {formatDateTime(activity.nextSessionAt, language)}
+                                                    </span>
+                                                    <span>
+                                                        {officerText(language, 'ล่าสุด: ', 'Latest: ')}
+                                                        {formatDateTime(activity.latestSessionAt, language)}
+                                                    </span>
                                                 </div>
                                             </td>
                                             <td>
@@ -623,7 +756,7 @@ export default function ActivityManagementPage() {
                                                     <Link
                                                         className="course-icon-btn"
                                                         href={`/activity-management/${activity.activityId}/sessions`}
-                                                        title="จัดการรอบกิจกรรม"
+                                                        title={officerText(language, 'จัดการรอบกิจกรรม', 'Manage sessions')}
                                                     >
                                                         <CalendarClock size={16} />
                                                     </Link>
@@ -631,7 +764,9 @@ export default function ActivityManagementPage() {
                                                         className="course-icon-btn"
                                                         onClick={() => openEditModal(activity)}
                                                         disabled={!activity.canEdit || submitting}
-                                                        title={activity.canEdit ? 'แก้ไขกิจกรรม' : 'กิจกรรมนี้แก้ไขไม่ได้'}
+                                                        title={activity.canEdit
+                                                            ? officerText(language, 'แก้ไขกิจกรรม', 'Edit activity')
+                                                            : officerText(language, 'กิจกรรมนี้แก้ไขไม่ได้', 'This activity cannot be edited')}
                                                     >
                                                         {activity.canEdit ? <Edit3 size={16} /> : <Eye size={16} />}
                                                     </button>
@@ -639,7 +774,7 @@ export default function ActivityManagementPage() {
                                                         className="course-icon-btn"
                                                         onClick={() => handleStatusChange(activity, 'published')}
                                                         disabled={!activity.canPublish || submitting}
-                                                        title="เผยแพร่กิจกรรม"
+                                                        title={officerText(language, 'เผยแพร่กิจกรรม', 'Publish activity')}
                                                     >
                                                         <Megaphone size={16} />
                                                     </button>
@@ -647,7 +782,7 @@ export default function ActivityManagementPage() {
                                                         className="course-icon-btn"
                                                         onClick={() => handleStatusChange(activity, 'closed')}
                                                         disabled={!activity.canClose || submitting}
-                                                        title="ปิดกิจกรรม"
+                                                        title={officerText(language, 'ปิดกิจกรรม', 'Close activity')}
                                                     >
                                                         <Power size={16} />
                                                     </button>
@@ -655,7 +790,9 @@ export default function ActivityManagementPage() {
                                                         className="course-icon-btn course-icon-btn--danger"
                                                         onClick={() => setDeletingActivity(activity)}
                                                         disabled={!activity.canDelete || submitting}
-                                                        title={activity.canDelete ? 'ลบกิจกรรม' : 'ลบได้เฉพาะ Draft ที่ยังไม่มีรอบกิจกรรม'}
+                                                        title={activity.canDelete
+                                                            ? officerText(language, 'ลบกิจกรรม', 'Delete activity')
+                                                            : officerText(language, 'ลบได้เฉพาะกิจกรรมฉบับร่างที่ยังไม่มีรอบกิจกรรม', 'Only draft activities without sessions can be deleted')}
                                                     >
                                                         {activity.canDelete ? <Trash2 size={16} /> : <Lock size={16} />}
                                                     </button>
@@ -666,7 +803,9 @@ export default function ActivityManagementPage() {
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={5} className="activity-management__empty">ไม่พบกิจกรรมตามเงื่อนไขที่เลือก</td>
+                                    <td colSpan={5} className="activity-management__empty">
+                                        {officerText(language, 'ไม่พบกิจกรรมตามเงื่อนไขที่เลือก', 'No activities match the selected filters.')}
+                                    </td>
                                 </tr>
                             )}
                         </tbody>

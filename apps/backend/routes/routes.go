@@ -78,14 +78,32 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	}
 	studentCohortRepo := repositories.NewStudentCohortRepository(db)
 	studentCohortSvc := services.NewStudentCohortService(studentCohortRepo)
+	courseCompetencyScoringRepo := repositories.NewCourseCompetencyScoringRepository(db)
+	courseCompetencyScoringSvc := services.NewCourseCompetencyScoringService(studentCohortSvc, courseCompetencyScoringRepo)
+	courseGradeRepo := repositories.NewCourseGradeRepository(db)
+	courseGradeSvc := services.NewCourseGradeService(studentCohortSvc, courseGradeRepo)
 	studentCohortHandler := &controllers.StudentCohortController{
-		Service: studentCohortSvc,
+		Service:        studentCohortSvc,
+		ScoringService: courseCompetencyScoringSvc,
 	}
+	courseGradeHandler := &controllers.CourseGradeController{Service: courseGradeSvc}
 	templateAssignmentRepo := repositories.NewTemplateAssignmentRepository(db)
 	templateAssignmentSvc := services.NewTemplateAssignmentService(templateRepo, studentCohortRepo, templateAssignmentRepo)
 	templateAssignmentHandler := &controllers.TemplateAssignmentController{
 		Service: templateAssignmentSvc,
 	}
+	executiveAnalyticsRepo := repositories.NewExecutiveAnalyticsRepository(db)
+	executiveAnalyticsSvc := services.NewExecutiveAnalyticsService(executiveAnalyticsRepo)
+	executiveAnalyticsHandler := &controllers.ExecutiveAnalyticsController{Service: executiveAnalyticsSvc}
+	freeElectiveRepo := repositories.NewFreeElectiveRepository(db)
+	freeElectiveSvc := services.NewFreeElectiveService(freeElectiveRepo)
+	freeElectiveHandler := &controllers.FreeElectiveController{Service: freeElectiveSvc}
+	learnerProfileRepo := repositories.NewLearnerProfileRepository(db)
+	learnerProfileSvc := services.NewLearnerProfileService(learnerProfileRepo)
+	learnerProfileHandler := &controllers.LearnerProfileController{Service: learnerProfileSvc}
+	cooperativeReadinessRepo := repositories.NewCooperativeReadinessRepository(db)
+	cooperativeReadinessSvc := services.NewCooperativeReadinessService(cooperativeReadinessRepo, curriculumSvc)
+	cooperativeReadinessHandler := &controllers.CooperativeReadinessController{Service: cooperativeReadinessSvc}
 
 	// Versioned API routes
 	r.Route("/api/v1", func(api chi.Router) {
@@ -100,7 +118,50 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			pr.Get("/auth/me", authHandler.Me)
 			pr.Post("/auth/logout", authHandler.Logout)
 
+			pr.Route("/executive-analytics", func(ear chi.Router) {
+				ear.Use(middleware.RequireRoles("admin", "dean"))
+				ear.Get("/scopes", executiveAnalyticsHandler.Scope)
+				ear.Get("/overview", executiveAnalyticsHandler.Overview)
+				ear.Get("/competencies/{competency_id}", executiveAnalyticsHandler.Competency)
+				ear.Get("/comparison", executiveAnalyticsHandler.Comparison)
+				ear.Get("/students", executiveAnalyticsHandler.Students)
+				ear.Get("/students/{enrollment_id}", executiveAnalyticsHandler.Student)
+			})
+
+			pr.Route("/free-electives", func(fer chi.Router) {
+				fer.Use(middleware.RequireRoles("admin", "officer"))
+				fer.Get("/rounds", freeElectiveHandler.ListRounds)
+				fer.Post("/rounds/preview", freeElectiveHandler.PreviewRound)
+				fer.Post("/rounds", freeElectiveHandler.CreateRound)
+				fer.Get("/rounds/{round_id}", freeElectiveHandler.GetRound)
+				fer.Patch("/rounds/{round_id}", freeElectiveHandler.UpdateRoundMetadata)
+				fer.Post("/rounds/{round_id}/scores/recalculate", freeElectiveHandler.RecalculateRoundScores)
+				fer.Post("/rounds/{round_id}/duplicate", freeElectiveHandler.DuplicateRound)
+				fer.Patch("/rounds/{round_id}/status", freeElectiveHandler.UpdateRoundStatus)
+				fer.Get("/rounds/{round_id}/courses/{round_course_id}", freeElectiveHandler.GetRoundCourse)
+				fer.Post("/rounds/{round_id}/courses", freeElectiveHandler.AddRoundCourse)
+				fer.Put("/rounds/{round_id}/courses/{round_course_id}/competencies", freeElectiveHandler.ReplaceRoundCourseCompetencies)
+				fer.Delete("/rounds/{round_id}/courses/{round_course_id}", freeElectiveHandler.DeleteRoundCourse)
+				fer.Get("/rounds/{round_id}/courses/{round_course_id}/learners", freeElectiveHandler.ListRoundCourseLearners)
+				fer.Get("/rounds/{round_id}/courses/{round_course_id}/learners/summary", freeElectiveHandler.GetRoundCourseLearnerSummary)
+				fer.Get("/rounds/{round_id}/courses/{round_course_id}/enrollments", freeElectiveHandler.GetRoundCourseEnrollments)
+				fer.Post("/rounds/{round_id}/courses/{round_course_id}/enrollments", freeElectiveHandler.AddRoundCourseEnrollments)
+				fer.Post("/rounds/{round_id}/courses/{round_course_id}/enrollments/select-all", freeElectiveHandler.AddAllRoundCourseLearners)
+				fer.Delete("/rounds/{round_id}/courses/{round_course_id}/enrollments", freeElectiveHandler.DeleteRoundCourseEnrollments)
+				fer.Delete("/rounds/{round_id}/courses/{round_course_id}/enrollments/{round_course_enrollment_id}", freeElectiveHandler.DeleteRoundCourseEnrollment)
+				fer.Put("/rounds/{round_id}/courses/{round_course_id}/enrollments/{round_course_enrollment_id}/grade", freeElectiveHandler.UpsertRoundCourseGrade)
+				fer.Get("/courses", freeElectiveHandler.ListCourses)
+				fer.Post("/courses", freeElectiveHandler.CreateCourse)
+				fer.Get("/courses/{course_id}", freeElectiveHandler.GetCourse)
+				fer.Patch("/courses/{course_id}", freeElectiveHandler.UpdateCourse)
+				fer.Get("/student-groups", freeElectiveHandler.ListStudentGroups)
+				fer.Get("/student-groups/{cohort_id}/students", freeElectiveHandler.ListCohortStudents)
+				fer.Get("/students/{enrollment_id}", freeElectiveHandler.GetStudentDetail)
+			})
+
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)
+			pr.With(middleware.RequireRoles("learner")).Get("/learner/academic-profile", learnerProfileHandler.GetAcademicProfile)
+			pr.With(middleware.RequireRoles("learner")).Get("/learner/cooperative-readiness", cooperativeReadinessHandler.GetLearnerReadiness)
 			pr.Get("/competencies", competencyHandler.GetAll)
 
 			pr.With(middleware.RequireRoles("admin", "officer")).Post("/competencies", competencyHandler.Create)
@@ -172,6 +233,16 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 					cor.Delete("/students/{enrollment_id}", studentCohortHandler.RemoveStudent)
 					cor.Post("/imports/preview", studentCohortHandler.PreviewImport)
 					cor.Post("/imports/commit", studentCohortHandler.CommitImport)
+					cor.Get("/competency-requirements", studentCohortHandler.GetCompetencyRequirements)
+					cor.Put("/competency-requirements", studentCohortHandler.ReplaceCompetencyRequirements)
+					cor.Post("/course-competency-scores/recalculate", studentCohortHandler.RecalculateCourseCompetencyScores)
+					cor.Get("/course-competency-scores/summary", studentCohortHandler.GetCourseCompetencyScoreSummary)
+					cor.Get("/course-grades", courseGradeHandler.GetOverview)
+					cor.Get("/course-grades/courses/{course_id}", courseGradeHandler.GetCourse)
+					cor.Get("/course-grades/students/{enrollment_id}", courseGradeHandler.GetStudent)
+					cor.Put("/course-grades", courseGradeHandler.Put)
+					cor.Post("/course-grade-imports/preview", courseGradeHandler.PreviewImport)
+					cor.Post("/course-grade-imports/commit", courseGradeHandler.CommitImport)
 				})
 			})
 
@@ -179,13 +250,19 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			pr.Route("/curricula", func(cr chi.Router) {
 				cr.Use(middleware.RequireRoles("admin", "officer"))
 				cr.Get("/", curriculumHandler.GetAll)
+				cr.Get("/generated-code", curriculumHandler.GetGeneratedCode)
 				cr.Post("/", curriculumHandler.Create)
-				cr.Delete("/{id}", curriculumHandler.DeleteCurriculum)
 				cr.Route("/{id}", func(cir chi.Router) {
+					cir.Delete("/", curriculumHandler.DeleteCurriculum)
 					cir.Get("/", curriculumHandler.GetByID)
+					cir.Get("/cooperative-requirements", cooperativeReadinessHandler.GetRequirements)
+					cir.Put("/cooperative-requirements/draft", cooperativeReadinessHandler.SaveDraft)
+					cir.Post("/cooperative-requirements/publish", cooperativeReadinessHandler.PublishDraft)
 					cir.Patch("/", curriculumHandler.UpdateMetadata)
 					cir.Post("/duplicate", curriculumHandler.DuplicateCurriculum)
 					cir.Patch("/status", curriculumHandler.UpdateStatus)
+					cir.Post("/structure-imports/preview", curriculumHandler.PreviewStructureImport)
+					cir.Post("/structure-imports/commit", curriculumHandler.CommitStructureImport)
 
 					cir.Post("/categories", curriculumHandler.CreateCategory)
 					cir.Get("/categories/{category_id}/delete-preview", curriculumHandler.GetDeleteCategoryPreview)
@@ -206,6 +283,8 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 				tr.Post("/", templateHandler.Create)
 				tr.Route("/{id}", func(tir chi.Router) {
 					tir.Get("/", templateHandler.GetByID)
+					tir.Post("/duplicate-preview", templateHandler.PreviewDuplicate)
+					tir.Post("/duplicate", templateHandler.Duplicate)
 					tir.Patch("/", templateHandler.UpdateName)
 					tir.Patch("/status", templateHandler.UpdateStatus)
 					tir.Delete("/", templateHandler.Delete)

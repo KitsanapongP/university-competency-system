@@ -15,6 +15,7 @@ import './login.css';
 
 function getPostLoginPath(user) {
   const roles = user?.roles || [];
+  if (roles.includes('dean')) return '/executive-management/';
   if (roles.includes('officer')) return '/curriculum-management';
   return '/';
 }

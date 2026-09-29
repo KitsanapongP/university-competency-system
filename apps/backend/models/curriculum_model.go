@@ -10,6 +10,7 @@ import (
 type Curriculum struct {
 	CurriculumID        uint64     `json:"curriculum_id"`
 	MajorID             uint64     `json:"major_id"`
+	FacultyID           uint64     `json:"faculty_id"`
 	MajorNameTH         string     `json:"major_name_th"`
 	MajorNameEN         *string    `json:"major_name_en"`
 	CurriculumNameTH    string     `json:"curriculum_name_th"`
@@ -26,6 +27,10 @@ type Curriculum struct {
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
 	DeletedAt           *time.Time `json:"deleted_at"`
+}
+
+type GeneratedCurriculumCode struct {
+	CurriculumCode string `json:"curriculum_code"`
 }
 
 type MajorOption struct {
@@ -135,6 +140,7 @@ type CurriculumCourseRow struct {
 	NameEN             *string    `json:"name_en"`
 	Credits            int        `json:"credits"`
 	Description        *string    `json:"description"`
+	GradeScheme        string     `json:"grade_scheme"`
 	IsRequired         bool       `json:"is_required"`
 	IsLocked           bool       `json:"is_locked"`
 	DisplayOrder       int        `json:"display_order"`
@@ -210,6 +216,7 @@ type CreateCourseInCatPayload struct {
 	NameEN       *string `json:"name_en"`
 	Credits      int     `json:"credits"`
 	Description  *string `json:"description"`
+	GradeScheme  string  `json:"grade_scheme"`
 	IsRequired   bool    `json:"is_required"`
 	DisplayOrder int     `json:"display_order"`
 }
@@ -279,6 +286,8 @@ type UpdateCurriculumCourseDetailPayload struct {
 	NameEN        *string `json:"name_en"`
 	Credits       *int    `json:"credits"`
 	Description   *string `json:"description"`
+	GradeScheme   *string `json:"grade_scheme"`
+	IsRequired    *bool   `json:"is_required"`
 	ConfirmImpact bool    `json:"confirm_impact"`
 }
 
@@ -288,6 +297,7 @@ type CreateCurriculumCoursePayload struct {
 	NameEN        *string `json:"name_en"`
 	Credits       int     `json:"credits"`
 	Description   *string `json:"description"`
+	GradeScheme   string  `json:"grade_scheme"`
 	IsRequired    bool    `json:"is_required"`
 	DisplayOrder  int     `json:"display_order"`
 	ConfirmImpact bool    `json:"confirm_impact"`
@@ -299,6 +309,74 @@ type UpdateCurriculumCoursePlacementPayload struct {
 	IsLocked      *bool   `json:"is_locked"`
 	DisplayOrder  *int    `json:"display_order"`
 	ConfirmImpact bool    `json:"confirm_impact"`
+}
+
+type CurriculumStructureImportCategory struct {
+	Code   string `json:"code"`
+	NameTH string `json:"name_th"`
+}
+
+type CurriculumStructureImportRow struct {
+	RowNumber    int                                 `json:"row_number"`
+	Categories   []CurriculumStructureImportCategory `json:"categories"`
+	CourseCode   string                              `json:"course_code"`
+	CourseNameTH string                              `json:"course_name_th"`
+	CourseNameEN *string                             `json:"course_name_en"`
+	Credits      int                                 `json:"credits"`
+	IsRequired   *bool                               `json:"is_required"`
+	GradeScheme  string                              `json:"grade_scheme"`
+}
+
+type CurriculumStructureImportPayload struct {
+	Rows          []CurriculumStructureImportRow `json:"rows"`
+	ConfirmImpact bool                           `json:"confirm_impact"`
+}
+
+type CurriculumStructureImportIssue struct {
+	RowNumber int    `json:"row_number"`
+	Field     string `json:"field"`
+	Message   string `json:"message"`
+	Severity  string `json:"severity"`
+}
+
+type CurriculumStructureImportPreview struct {
+	Valid                 bool                             `json:"valid"`
+	CanImport             bool                             `json:"can_import"`
+	ExistingCategoryCount int                              `json:"existing_category_count"`
+	NewCategoryCount      int                              `json:"new_category_count"`
+	CourseCount           int                              `json:"course_count"`
+	SkippedCourseCount    int                              `json:"skipped_course_count"`
+	Issues                []CurriculumStructureImportIssue `json:"issues"`
+}
+
+type CurriculumStructureImportCategoryPlan struct {
+	Code       string
+	NameTH     string
+	ParentCode string
+}
+
+type CurriculumStructureImportCoursePlan struct {
+	CategoryCode string
+	Code         string
+	NameTH       string
+	NameEN       *string
+	Credits      int
+	IsRequired   bool
+	GradeScheme  string
+}
+
+type CourseGradeSchemeImpact struct {
+	CourseID         uint64 `json:"course_id"`
+	PreviousScheme   string `json:"previous_scheme"`
+	NextScheme       string `json:"next_scheme"`
+	GradeRecordCount int    `json:"grade_record_count"`
+	LearnerCount     int    `json:"learner_count"`
+	CohortCount      int    `json:"cohort_count"`
+}
+
+type CurriculumStructureImportPlan struct {
+	Categories []CurriculumStructureImportCategoryPlan
+	Courses    []CurriculumStructureImportCoursePlan
 }
 
 type AffectedTemplate struct {

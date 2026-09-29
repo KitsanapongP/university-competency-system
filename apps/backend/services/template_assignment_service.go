@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"strings"
 
 	"github.com/spw32767/university-competency-system-backend/models"
@@ -59,14 +61,23 @@ func (s *TemplateAssignmentService) GetAvailableCohorts(ctx context.Context, tem
 		return nil, assignmentError("TEMPLATE_HAS_NO_CURRICULUM", "template has no curriculum owner and is read-only")
 	}
 	if !template.IsActive {
-		return nil, assignmentError("TEMPLATE_INACTIVE", "template must be active before assignment")
+		historical, err := s.Assignments.HasHistoricalAssignmentForTemplate(ctx, templateID)
+		if err != nil {
+			return nil, err
+		}
+		if !historical {
+			return nil, assignmentError("TEMPLATE_INACTIVE", "template must be active before assignment")
+		}
+		if err := s.validateTemplateReactivation(ctx, templateID); err != nil {
+			return nil, err
+		}
 	}
-	used, err := s.Assignments.HasAnyAssignmentForTemplate(ctx, templateID)
+	used, err := s.Assignments.HasLiveAssignmentForTemplate(ctx, templateID)
 	if err != nil {
 		return nil, err
 	}
 	if used {
-		return nil, assignmentError("TEMPLATE_ALREADY_ASSIGNED", "template has already been assigned and cannot be reused")
+		return nil, assignmentError("TEMPLATE_CURRENTLY_ASSIGNED", "template is currently assigned to another student cohort")
 	}
 	return s.Assignments.GetAvailableCohorts(ctx, template.CurriculumID)
 }
@@ -86,7 +97,7 @@ func (s *TemplateAssignmentService) CreateAssignment(ctx context.Context, userID
 	if err != nil {
 		return nil, err
 	}
-	if err := validateNewAssignment(ctx, s.Assignments, template, cohort); err != nil {
+	if err := s.validateNewAssignment(ctx, template, cohort); err != nil {
 		return nil, err
 	}
 	return s.Assignments.CreateAssignment(ctx, template.TemplateID, cohort.CohortID, userID)
@@ -103,9 +114,6 @@ func (s *TemplateAssignmentService) ReplaceAssignment(ctx context.Context, assig
 	if err != nil {
 		return nil, err
 	}
-	if current.ScoreLocked {
-		return nil, assignmentError("ASSIGNMENT_LOCKED_BY_SCORES", "template assignment cannot be changed because the cohort has learner scores")
-	}
 	if current.TemplateID == req.TemplateID {
 		return nil, assignmentError("BAD_REQUEST", "replacement template must be different from the current template")
 	}
@@ -117,7 +125,7 @@ func (s *TemplateAssignmentService) ReplaceAssignment(ctx context.Context, assig
 	if err != nil {
 		return nil, err
 	}
-	if err := validateReplacementAssignment(ctx, s.Assignments, replacement, cohort); err != nil {
+	if err := s.validateReplacementAssignment(ctx, replacement, cohort); err != nil {
 		return nil, err
 	}
 	return s.Assignments.ReplaceAssignment(ctx, assignmentID, replacement.TemplateID, userID, strings.TrimSpace(req.Reason))
@@ -130,12 +138,8 @@ func (s *TemplateAssignmentService) RemoveAssignment(ctx context.Context, assign
 	if !req.Confirm {
 		return nil, assignmentError("CONFIRMATION_REQUIRED", "unassignment confirmation is required")
 	}
-	current, err := s.assignmentForAccess(ctx, assignmentID, facultyID, isAdmin)
-	if err != nil {
+	if _, err := s.assignmentForAccess(ctx, assignmentID, facultyID, isAdmin); err != nil {
 		return nil, err
-	}
-	if current.ScoreLocked {
-		return nil, assignmentError("ASSIGNMENT_LOCKED_BY_SCORES", "template assignment cannot be removed because the cohort has learner scores")
 	}
 	return s.Assignments.RemoveAssignment(ctx, assignmentID, userID, strings.TrimSpace(req.Reason))
 }
@@ -189,11 +193,11 @@ func (s *TemplateAssignmentService) assignmentForAccess(ctx context.Context, ass
 	return assignment, nil
 }
 
-func validateNewAssignment(ctx context.Context, repo *repositories.TemplateAssignmentRepository, template *models.Template, cohort *models.StudentCohort) error {
-	if err := validateAssignmentPair(ctx, repo, template, cohort); err != nil {
+func (s *TemplateAssignmentService) validateNewAssignment(ctx context.Context, template *models.Template, cohort *models.StudentCohort) error {
+	if err := s.validateAssignmentPair(ctx, template, cohort); err != nil {
 		return err
 	}
-	live, err := repo.GetLiveAssignmentForCohort(ctx, cohort.CohortID)
+	live, err := s.Assignments.GetLiveAssignmentForCohort(ctx, cohort.CohortID)
 	if err != nil {
 		return err
 	}
@@ -203,16 +207,25 @@ func validateNewAssignment(ctx context.Context, repo *repositories.TemplateAssig
 	return nil
 }
 
-func validateReplacementAssignment(ctx context.Context, repo *repositories.TemplateAssignmentRepository, template *models.Template, cohort *models.StudentCohort) error {
-	return validateAssignmentPair(ctx, repo, template, cohort)
+func (s *TemplateAssignmentService) validateReplacementAssignment(ctx context.Context, template *models.Template, cohort *models.StudentCohort) error {
+	return s.validateAssignmentPair(ctx, template, cohort)
 }
 
-func validateAssignmentPair(ctx context.Context, repo *repositories.TemplateAssignmentRepository, template *models.Template, cohort *models.StudentCohort) error {
+func (s *TemplateAssignmentService) validateAssignmentPair(ctx context.Context, template *models.Template, cohort *models.StudentCohort) error {
 	if template.CurriculumID == 0 {
 		return assignmentError("TEMPLATE_HAS_NO_CURRICULUM", "template has no curriculum owner and is read-only")
 	}
 	if !template.IsActive {
-		return assignmentError("TEMPLATE_INACTIVE", "template must be active before assignment")
+		historical, err := s.Assignments.HasHistoricalAssignmentForTemplate(ctx, template.TemplateID)
+		if err != nil {
+			return err
+		}
+		if !historical {
+			return assignmentError("TEMPLATE_INACTIVE", "template must be active before assignment")
+		}
+		if err := s.validateTemplateReactivation(ctx, template.TemplateID); err != nil {
+			return err
+		}
 	}
 	if cohort.Status != "active" {
 		return assignmentError("COHORT_INACTIVE", "student cohort must be active before assignment")
@@ -220,12 +233,49 @@ func validateAssignmentPair(ctx context.Context, repo *repositories.TemplateAssi
 	if template.CurriculumID != cohort.CurriculumID {
 		return assignmentError("CURRICULUM_MISMATCH", "template and student cohort must belong to the same curriculum")
 	}
-	used, err := repo.HasAnyAssignmentForTemplate(ctx, template.TemplateID)
+	used, err := s.Assignments.HasLiveAssignmentForTemplate(ctx, template.TemplateID)
 	if err != nil {
 		return err
 	}
 	if used {
-		return assignmentError("TEMPLATE_ALREADY_ASSIGNED", "template has already been assigned and cannot be reused")
+		return assignmentError("TEMPLATE_CURRENTLY_ASSIGNED", "template is currently assigned to another student cohort")
+	}
+	return nil
+}
+
+func (s *TemplateAssignmentService) validateTemplateReactivation(ctx context.Context, templateID uint64) error {
+	items, err := s.Templates.GetTemplateItems(ctx, templateID)
+	if err != nil {
+		return err
+	}
+
+	coreWeightSums, err := s.Templates.GetTemplateCoreWeightSums(ctx, templateID)
+	if err != nil {
+		return err
+	}
+	return validateTemplateCoreReadiness(items, coreWeightSums)
+}
+
+func validateTemplateCoreReadiness(items []models.TemplateItem, coreWeightSums map[uint64]float64) error {
+	if len(items) == 0 {
+		return assignmentError("TEMPLATE_REACTIVATION_NOT_READY", "template has no competency configuration")
+	}
+	if len(coreWeightSums) == 0 {
+		return assignmentError("TEMPLATE_REACTIVATION_NOT_READY", "template has no core course weights")
+	}
+
+	compNames := make(map[uint64]string)
+	for _, item := range items {
+		compNames[item.CompetencyID] = item.CompetencyName
+	}
+	for competencyID, name := range compNames {
+		sum := coreWeightSums[competencyID]
+		if math.Abs(sum-100.0) > 0.05 {
+			if name == "" {
+				name = fmt.Sprintf("competency %d", competencyID)
+			}
+			return assignmentError("TEMPLATE_REACTIVATION_NOT_READY", fmt.Sprintf("competency %q has core weight %.2f%%; expected 100%%", name, sum))
+		}
 	}
 	return nil
 }
