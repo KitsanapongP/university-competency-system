@@ -5,7 +5,7 @@ import { useLanguage } from '../providers/LanguageContext';
 import { Globe, Check } from 'lucide-react';
 
 const LanguageSwitcher = ({ className = '' }) => {
-    const { language, changeLanguage } = useLanguage();
+    const { language, changeLanguage, t } = useLanguage();
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -35,7 +35,7 @@ const LanguageSwitcher = ({ className = '' }) => {
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 className={`lang-switcher-btn ${isOpen ? 'active' : ''}`}
-                aria-label="Select Language"
+                aria-label={t('select_language')}
                 aria-expanded={isOpen}
             >
                 <Globe size={15} strokeWidth={2} className="lang-globe-icon" />

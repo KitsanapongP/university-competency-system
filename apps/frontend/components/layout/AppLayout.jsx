@@ -7,12 +7,16 @@ import {
   LayoutDashboard,
   User,
   ClipboardCheck,
+  ClipboardList,
+  CalendarDays,
   BookOpen,
   GraduationCap,
   Users,
+  UserRoundCog,
   Settings,
   ShieldCheck,
   CalendarClock,
+  LibraryBig,
   Link2,
   BarChart3,
   GitCompare,
@@ -33,10 +37,30 @@ import {
   AppSidebarMobile,
   AppSidebarMobileShell,
 } from "./AppSidebar";
+import {
+  buildSidebarGroups,
+  SIDEBAR_MENU_CONFIG,
+} from "../../lib/sidebar-navigation.mjs";
 import "./AppLayout.css";
 
 const SIDEBAR_COLLAPSE_STORAGE_KEY = "kku.sidebar.collapsed";
 const sidebarPreferenceListeners = new Set();
+
+const SIDEBAR_ICONS = {
+  BarChart3,
+  BookOpen,
+  CalendarDays,
+  ClipboardList,
+  GraduationCap,
+  LayoutDashboard,
+  LibraryBig,
+  Link2,
+  Settings,
+  ShieldCheck,
+  UserRoundCog,
+  UserRoundSearch,
+  Users,
+};
 
 function subscribeToClient(callback) {
   const frame = requestAnimationFrame(callback);
@@ -73,86 +97,14 @@ const MENU_CONFIG = {
     { id: "profile", icon: User, labelKey: "profile" },
     { id: "verify", icon: ClipboardCheck, labelKey: "verify" },
   ],
-  officer: [
-    {
-      id: "curriculum-management",
-      icon: BookOpen,
-      labelKey: "curriculum_management",
-    },
-    {
-      id: "major-management",
-      icon: GraduationCap,
-      labelKey: "major_management",
-    },
-    { id: "student-management", icon: Users, labelKey: "student_management" },
-    {
-      id: "competency-management",
-      icon: ShieldCheck,
-      labelKey: "competency_management",
-    },
-    {
-      id: "activity-management",
-      icon: CalendarClock,
-      labelKey: "activity_management",
-    },
-    { id: "template-management", icon: BookOpen, labelKey: "templates" },
-    {
-      id: "template-assignments",
-      icon: Link2,
-      labelKey: "template_assignments",
-    },
-    {
-      id: "free-elective-management",
-      icon: BookOpen,
-      labelKey: "free_elective_management",
-    },
-    {
-      id: "free-elective-management/groups",
-      icon: Users,
-      labelKey: "free_elective_students",
-    },
-  ],
-  admin: [
-    { id: "dashboard", icon: LayoutDashboard, labelKey: "dashboard" },
-    {
-      id: "executive-management",
-      icon: BarChart3,
-      labelKey: "executive_analytics",
-    },
-    {
-      id: "free-elective-management",
-      icon: BookOpen,
-      labelKey: "free_elective_management",
-    },
-    {
-      id: "free-elective-management/groups",
-      icon: Users,
-      labelKey: "free_elective_students",
-    },
-    {
-      id: "major-management",
-      icon: GraduationCap,
-      labelKey: "major_management",
-    },
-    { id: "student-management", icon: Users, labelKey: "student_management" },
-    {
-      id: "competency-management",
-      icon: ShieldCheck,
-      labelKey: "competency_management",
-    },
-    {
-      id: "activity-management",
-      icon: CalendarClock,
-      labelKey: "activity_management",
-    },
-    {
-      id: "template-assignments",
-      icon: Link2,
-      labelKey: "template_assignments",
-    },
-    { id: "users", icon: Users, labelKey: "users" },
-    { id: "settings", icon: Settings, labelKey: "settings" },
-  ],
+  officer: SIDEBAR_MENU_CONFIG.officer.map(({ iconKey, ...item }) => ({
+    ...item,
+    icon: SIDEBAR_ICONS[iconKey],
+  })),
+  admin: SIDEBAR_MENU_CONFIG.admin.map(({ iconKey, ...item }) => ({
+    ...item,
+    icon: SIDEBAR_ICONS[iconKey],
+  })),
   dean: [
     {
       id: "executive-management",
@@ -221,6 +173,10 @@ export function AppLayout({
 
   const menuConfig = MENU_CONFIG[role] || MENU_CONFIG.user;
   const menuItems = resolveMenuItems(menuConfig, t);
+  const sidebarGroups =
+    role === "officer" || role === "admin"
+      ? buildSidebarGroups(menuItems, t)
+      : undefined;
   const usesSidebarNavigation =
     role === "officer" || role === "admin" || role === "dean";
   const shouldShowAnimatedBackground = showBackground && !usesSidebarNavigation;
@@ -228,7 +184,13 @@ export function AppLayout({
   const displayName = user?.display_name || user?.username || "Guest";
   const primaryRole = user?.roles?.[0] || "";
   const primaryRoleLabel =
-    primaryRole === "dean" ? t("role_dean") : primaryRole;
+    primaryRole === "dean"
+      ? t("role_dean")
+      : primaryRole === "officer"
+        ? t("role_officer")
+        : primaryRole === "admin"
+          ? t("role_admin")
+          : primaryRole;
   const avatarLabel =
     displayName
       .split(" ")
@@ -290,10 +252,11 @@ export function AppLayout({
         >
           {usesSidebarNavigation ? (
             <div
-              className={`app-sidebar-shell ${sidebarCollapsed ? "app-sidebar-shell--collapsed" : ""}`}
+              className={`app-sidebar-shell ${role === "officer" || role === "admin" ? "app-sidebar-shell--grouped" : ""} ${sidebarCollapsed ? "app-sidebar-shell--collapsed" : ""}`}
             >
               <AppSidebar
                 items={menuItems}
+                groups={sidebarGroups}
                 activeItem={activePage}
                 onNavigate={handleNavigate}
                 collapsed={sidebarCollapsed}
@@ -307,6 +270,7 @@ export function AppLayout({
               />
               <AppSidebarMobileShell
                 items={menuItems}
+                groups={sidebarGroups}
                 activeItem={activePage}
                 onNavigate={handleNavigate}
                 isOpen={mobileMenuOpen}
