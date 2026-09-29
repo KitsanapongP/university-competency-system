@@ -3,31 +3,78 @@
 import React from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, LogOut, Menu, X } from 'lucide-react';
+import { Tooltip } from 'radix-ui';
 import ThemeToggle from '../ThemeToggle';
 import LanguageSwitcher from '../LanguageSwitcher';
 import './AppLayout.css';
 
-function SidebarItems({ items, activeItem, onNavigate, className }) {
+function SidebarItems({
+    items,
+    activeItem,
+    onNavigate,
+    className,
+    collapsed = false,
+    showTooltips = false,
+}) {
     return (
-        <nav className={className} aria-label="Main navigation">
+        <div className={className}>
             {items.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeItem === item.id;
-
-                return (
+                const menuItem = (
                     <button
                         key={item.id}
                         type="button"
                         className={`app-sidebar__item ${isActive ? 'active' : ''}`}
                         onClick={() => onNavigate(item.id)}
-                        title={item.label}
+                        title={showTooltips ? undefined : item.label}
+                        aria-label={collapsed ? item.label : undefined}
                         aria-current={isActive ? 'page' : undefined}
                     >
-                        {Icon && <Icon size={19} strokeWidth={1.9} />}
+                        {Icon && <Icon size={20} strokeWidth={1.9} />}
                         <span>{item.label}</span>
                     </button>
                 );
+
+                if (!showTooltips) return menuItem;
+
+                return (
+                    <Tooltip.Root key={item.id}>
+                        <Tooltip.Trigger asChild>{menuItem}</Tooltip.Trigger>
+                        <Tooltip.Portal>
+                            <Tooltip.Content
+                                className="app-sidebar__tooltip"
+                                side="right"
+                                sideOffset={8}
+                                collisionPadding={8}
+                            >
+                                {item.label}
+                                <Tooltip.Arrow className="app-sidebar__tooltip-arrow" />
+                            </Tooltip.Content>
+                        </Tooltip.Portal>
+                    </Tooltip.Root>
+                );
             })}
+        </div>
+    );
+}
+
+function SidebarGroups({ groups, activeItem, onNavigate, collapsed, t }) {
+    return (
+        <nav className="app-sidebar__groups" aria-label={t('sidebar_navigation')}>
+            {groups.map((group) => (
+                <section className="app-sidebar__group" key={group.id}>
+                    <h2 className="app-sidebar__group-title">{group.label}</h2>
+                    <SidebarItems
+                        items={group.items}
+                        activeItem={activeItem}
+                        onNavigate={onNavigate}
+                        className="app-sidebar__items"
+                        collapsed={collapsed}
+                        showTooltips={collapsed}
+                    />
+                </section>
+            ))}
         </nav>
     );
 }
@@ -58,6 +105,7 @@ function SidebarUserSummary({ displayName, primaryRole, avatarLabel, loading, t,
 
 export function AppSidebar({
     items,
+    groups,
     activeItem,
     onNavigate,
     collapsed,
@@ -70,7 +118,7 @@ export function AppSidebar({
     t,
 }) {
     return (
-        <aside className={`app-sidebar ${collapsed ? 'app-sidebar--collapsed' : ''}`} aria-label="Application sidebar">
+        <aside className={`app-sidebar ${groups?.length ? 'app-sidebar--grouped' : ''} ${collapsed ? 'app-sidebar--collapsed' : ''}`} aria-label="Application sidebar">
             <div className="app-sidebar__header">
                 <div className="app-sidebar__brand">
                     <Image
@@ -94,13 +142,27 @@ export function AppSidebar({
                 </button>
             </div>
 
-            <p className="app-sidebar__section-label">{t('menu_management') || 'Management'}</p>
-            <SidebarItems
-                items={items}
-                activeItem={activeItem}
-                onNavigate={onNavigate}
-                className="app-sidebar__items"
-            />
+            {groups?.length ? (
+                <SidebarGroups
+                    groups={groups}
+                    activeItem={activeItem}
+                    onNavigate={onNavigate}
+                    collapsed={collapsed}
+                    t={t}
+                />
+            ) : (
+                <>
+                    <p className="app-sidebar__section-label">{t('menu_management') || 'Management'}</p>
+                    <nav aria-label={t('sidebar_navigation')}>
+                        <SidebarItems
+                            items={items}
+                            activeItem={activeItem}
+                            onNavigate={onNavigate}
+                            className="app-sidebar__items"
+                        />
+                    </nav>
+                </>
+            )}
 
             <div className="app-sidebar__footer">
                 <div className="app-sidebar__quick-controls">

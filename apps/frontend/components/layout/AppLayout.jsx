@@ -38,6 +38,7 @@ import {
   AppSidebarMobileShell,
 } from "./AppSidebar";
 import {
+  buildSidebarGroups,
   SIDEBAR_MENU_CONFIG,
 } from "../../lib/sidebar-navigation.mjs";
 import "./AppLayout.css";
@@ -172,6 +173,10 @@ export function AppLayout({
 
   const menuConfig = MENU_CONFIG[role] || MENU_CONFIG.user;
   const menuItems = resolveMenuItems(menuConfig, t);
+  const sidebarGroups =
+    role === "officer" || role === "admin"
+      ? buildSidebarGroups(menuItems, t)
+      : undefined;
   const usesSidebarNavigation =
     role === "officer" || role === "admin" || role === "dean";
   const shouldShowAnimatedBackground = showBackground && !usesSidebarNavigation;
@@ -241,10 +246,11 @@ export function AppLayout({
         >
           {usesSidebarNavigation ? (
             <div
-              className={`app-sidebar-shell ${sidebarCollapsed ? "app-sidebar-shell--collapsed" : ""}`}
+              className={`app-sidebar-shell ${role === "officer" || role === "admin" ? "app-sidebar-shell--grouped" : ""} ${sidebarCollapsed ? "app-sidebar-shell--collapsed" : ""}`}
             >
               <AppSidebar
                 items={menuItems}
+                groups={sidebarGroups}
                 activeItem={activePage}
                 onNavigate={handleNavigate}
                 collapsed={sidebarCollapsed}
