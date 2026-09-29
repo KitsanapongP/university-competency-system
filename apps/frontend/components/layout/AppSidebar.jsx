@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, LogOut, Menu, X } from 'lucide-react';
-import { Tooltip } from 'radix-ui';
+import { Dialog, Tooltip } from 'radix-ui';
 import ThemeToggle from '../ThemeToggle';
 import LanguageSwitcher from '../LanguageSwitcher';
 import './AppLayout.css';
@@ -118,7 +118,7 @@ export function AppSidebar({
     t,
 }) {
     return (
-        <aside className={`app-sidebar ${groups?.length ? 'app-sidebar--grouped' : ''} ${collapsed ? 'app-sidebar--collapsed' : ''}`} aria-label="Application sidebar">
+        <aside className={`app-sidebar ${groups?.length ? 'app-sidebar--grouped' : ''} ${collapsed ? 'app-sidebar--collapsed' : ''}`} aria-label={t('sidebar_navigation')}>
             <div className="app-sidebar__header">
                 <div className="app-sidebar__brand">
                     <Image
@@ -135,8 +135,8 @@ export function AppSidebar({
                     type="button"
                     className="app-sidebar__collapse"
                     onClick={onToggleCollapsed}
-                    aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
-                    title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+                    aria-label={collapsed ? t('sidebar_expand') : t('sidebar_collapse')}
+                    title={collapsed ? t('sidebar_expand') : t('sidebar_collapse')}
                 >
                     {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
                 </button>
@@ -184,6 +184,7 @@ export function AppSidebar({
 
 export function AppSidebarMobileShell({
     items,
+    groups,
     activeItem,
     onNavigate,
     isOpen,
@@ -196,86 +197,119 @@ export function AppSidebarMobileShell({
     onLogout,
     t,
 }) {
-    return (
-        <>
-            <div className="app-sidebar-mobile-bar">
-                <button
-                    type="button"
-                    className="app-sidebar-mobile-bar__menu"
-                    onClick={onOpen}
-                    aria-label="Open navigation"
-                >
-                    <Menu size={21} />
-                </button>
-                <div className="app-sidebar-mobile-bar__brand">KKU Competency</div>
-                <div className="app-sidebar-mobile-bar__controls">
-                    <ThemeToggle />
-                    <LanguageSwitcher />
-                    <button
-                        type="button"
-                        className="app-sidebar-mobile-bar__avatar"
-                        onClick={onOpen}
-                        aria-label="Open account navigation"
-                    >
-                        {avatarLabel}
-                    </button>
-                </div>
-            </div>
+    const handleNavigate = (page) => {
+        onNavigate(page);
+        onClose();
+    };
 
-            {isOpen && (
-                <div className="app-sidebar-shell-mobile-overlay" onClick={onClose}>
-                    <aside className="app-sidebar-shell-mobile-drawer" onClick={(event) => event.stopPropagation()} aria-label="Mobile navigation">
-                        <div className="app-sidebar-shell-mobile-drawer__header">
-                            <div className="app-sidebar__brand">
-                                <Image
-                                    src="/images/Logo.png"
-                                    alt="KKU Competency"
-                                    width={30}
-                                    height={30}
-                                    className="app-sidebar__logo"
-                                />
-                                <span>KKU Competency</span>
-                            </div>
+    const handleLogout = () => {
+        onLogout?.();
+        onClose();
+    };
+
+    return (
+        <Dialog.Root
+            open={isOpen}
+            onOpenChange={(open) => (open ? onOpen() : onClose())}
+        >
+            <>
+                <div className="app-sidebar-mobile-bar">
+                    <Dialog.Trigger asChild>
+                        <button
+                            type="button"
+                            className="app-sidebar-mobile-bar__menu"
+                            aria-label={t('sidebar_open')}
+                        >
+                            <Menu size={21} />
+                        </button>
+                    </Dialog.Trigger>
+                    <div className="app-sidebar-mobile-bar__brand">KKU Competency</div>
+                    <div className="app-sidebar-mobile-bar__controls">
+                        <ThemeToggle />
+                        <LanguageSwitcher />
+                        <Dialog.Trigger asChild>
                             <button
                                 type="button"
-                                className="app-sidebar-shell-mobile-drawer__close"
-                                onClick={onClose}
-                                aria-label="Close navigation"
+                                className="app-sidebar-mobile-bar__avatar"
+                                aria-label={t('sidebar_open_account')}
                             >
-                                <X size={20} />
+                                {avatarLabel}
                             </button>
-                        </div>
-                        <p className="app-sidebar__section-label">{t('menu_management') || 'Management'}</p>
-                        <SidebarItems
-                            items={items}
-                            activeItem={activeItem}
-                            onNavigate={(page) => {
-                                onNavigate(page);
-                                onClose();
-                            }}
-                            className="app-sidebar-shell-mobile-drawer__items"
-                        />
-                        <div className="app-sidebar-shell-mobile-drawer__footer">
-                            <div className="app-sidebar-shell-mobile-drawer__quick-controls">
-                                <ThemeToggle />
-                                <LanguageSwitcher />
-                            </div>
-                            <SidebarUserSummary
-                                displayName={displayName}
-                                primaryRole={primaryRole}
-                                avatarLabel={avatarLabel}
-                                loading={loading}
-                                onLogout={() => {
-                                    onClose();
-                                    onLogout?.();
-                                }}
-                                t={t}
-                            />
-                        </div>
-                    </aside>
+                        </Dialog.Trigger>
+                    </div>
                 </div>
-            )}
-        </>
+
+                {isOpen && (
+                    <Dialog.Portal>
+                        <Dialog.Overlay className="app-sidebar-shell-mobile-overlay" />
+                        <Dialog.Content
+                            className={`app-sidebar-shell-mobile-drawer ${groups?.length ? 'app-sidebar--grouped' : ''}`}
+                        >
+                            <Dialog.Title className="app-sidebar__sr-only">
+                                {t('sidebar_navigation')}
+                            </Dialog.Title>
+                            <div className="app-sidebar-shell-mobile-drawer__header">
+                                <div className="app-sidebar__brand">
+                                    <Image
+                                        src="/images/Logo.png"
+                                        alt="KKU Competency"
+                                        width={30}
+                                        height={30}
+                                        className="app-sidebar__logo"
+                                    />
+                                    <span>KKU Competency</span>
+                                </div>
+                                <Dialog.Close asChild>
+                                    <button
+                                        type="button"
+                                        className="app-sidebar-shell-mobile-drawer__close"
+                                        aria-label={t('sidebar_close')}
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </Dialog.Close>
+                            </div>
+                            {groups?.length ? (
+                                <SidebarGroups
+                                    groups={groups}
+                                    activeItem={activeItem}
+                                    onNavigate={handleNavigate}
+                                    t={t}
+                                />
+                            ) : (
+                                <>
+                                    <p className="app-sidebar__section-label">
+                                        {t('menu_management') || 'Management'}
+                                    </p>
+                                    <nav aria-label={t('sidebar_navigation')}>
+                                        <SidebarItems
+                                            items={items}
+                                            activeItem={activeItem}
+                                            onNavigate={handleNavigate}
+                                            className="app-sidebar-shell-mobile-drawer__items"
+                                        />
+                                    </nav>
+                                </>
+                            )}
+                            <div className="app-sidebar-shell-mobile-drawer__footer">
+                                <div className="app-sidebar-shell-mobile-drawer__quick-controls">
+                                    <ThemeToggle />
+                                    <LanguageSwitcher />
+                                </div>
+                                <SidebarUserSummary
+                                    displayName={displayName}
+                                    primaryRole={primaryRole}
+                                    avatarLabel={avatarLabel}
+                                    loading={loading}
+                                    onLogout={handleLogout}
+                                    t={t}
+                                />
+                            </div>
+                        </Dialog.Content>
+                    </Dialog.Portal>
+                )}
+            </>
+        </Dialog.Root>
     );
 }
 

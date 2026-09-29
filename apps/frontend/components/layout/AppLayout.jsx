@@ -184,7 +184,13 @@ export function AppLayout({
   const displayName = user?.display_name || user?.username || "Guest";
   const primaryRole = user?.roles?.[0] || "";
   const primaryRoleLabel =
-    primaryRole === "dean" ? t("role_dean") : primaryRole;
+    primaryRole === "dean"
+      ? t("role_dean")
+      : primaryRole === "officer"
+        ? t("role_officer")
+        : primaryRole === "admin"
+          ? t("role_admin")
+          : primaryRole;
   const avatarLabel =
     displayName
       .split(" ")
@@ -264,6 +270,7 @@ export function AppLayout({
               />
               <AppSidebarMobileShell
                 items={menuItems}
+                groups={sidebarGroups}
                 activeItem={activePage}
                 onNavigate={handleNavigate}
                 isOpen={mobileMenuOpen}
