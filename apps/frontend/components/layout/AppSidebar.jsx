@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, LogOut, Menu, X } from 'lucide-react';
 import { Dialog, Tooltip } from 'radix-ui';
 import ThemeToggle from '../ThemeToggle';
 import LanguageSwitcher from '../LanguageSwitcher';
+import { resolveActiveSidebarItem } from '../../lib/sidebar-navigation.mjs';
 import './AppLayout.css';
 
 function SidebarItems({
@@ -61,21 +62,23 @@ function SidebarItems({
 
 function SidebarGroups({ groups, activeItem, onNavigate, collapsed, t }) {
     return (
-        <nav className="app-sidebar__groups" aria-label={t('sidebar_navigation')}>
-            {groups.map((group) => (
-                <section className="app-sidebar__group" key={group.id}>
-                    <h2 className="app-sidebar__group-title">{group.label}</h2>
-                    <SidebarItems
-                        items={group.items}
-                        activeItem={activeItem}
-                        onNavigate={onNavigate}
-                        className="app-sidebar__items"
-                        collapsed={collapsed}
-                        showTooltips={collapsed}
-                    />
-                </section>
-            ))}
-        </nav>
+        <Tooltip.Provider delayDuration={300}>
+            <nav className="app-sidebar__groups" aria-label={t('sidebar_navigation')}>
+                {groups.map((group) => (
+                    <section className="app-sidebar__group" key={group.id}>
+                        <h2 className="app-sidebar__group-title">{group.label}</h2>
+                        <SidebarItems
+                            items={group.items}
+                            activeItem={activeItem}
+                            onNavigate={onNavigate}
+                            className="app-sidebar__items"
+                            collapsed={collapsed}
+                            showTooltips={collapsed}
+                        />
+                    </section>
+                ))}
+            </nav>
+        </Tooltip.Provider>
     );
 }
 
@@ -117,6 +120,8 @@ export function AppSidebar({
     onLogout,
     t,
 }) {
+    const selectedActiveItem = resolveActiveSidebarItem(items, activeItem);
+
     return (
         <aside className={`app-sidebar ${groups?.length ? 'app-sidebar--grouped' : ''} ${collapsed ? 'app-sidebar--collapsed' : ''}`} aria-label={t('sidebar_navigation')}>
             <div className="app-sidebar__header">
@@ -145,7 +150,7 @@ export function AppSidebar({
             {groups?.length ? (
                 <SidebarGroups
                     groups={groups}
-                    activeItem={activeItem}
+                    activeItem={selectedActiveItem}
                     onNavigate={onNavigate}
                     collapsed={collapsed}
                     t={t}
@@ -156,7 +161,7 @@ export function AppSidebar({
                     <nav aria-label={t('sidebar_navigation')}>
                         <SidebarItems
                             items={items}
-                            activeItem={activeItem}
+                            activeItem={selectedActiveItem}
                             onNavigate={onNavigate}
                             className="app-sidebar__items"
                         />
@@ -197,6 +202,9 @@ export function AppSidebarMobileShell({
     onLogout,
     t,
 }) {
+    const lastTriggerRef = useRef(null);
+    const selectedActiveItem = resolveActiveSidebarItem(items, activeItem);
+
     const handleNavigate = (page) => {
         onNavigate(page);
         onClose();
@@ -219,6 +227,9 @@ export function AppSidebarMobileShell({
                             type="button"
                             className="app-sidebar-mobile-bar__menu"
                             aria-label={t('sidebar_open')}
+                            onClick={(event) => {
+                                lastTriggerRef.current = event.currentTarget;
+                            }}
                         >
                             <Menu size={21} />
                         </button>
@@ -228,10 +239,14 @@ export function AppSidebarMobileShell({
                         <ThemeToggle />
                         <LanguageSwitcher />
                         <Dialog.Trigger asChild>
-                            <button
-                                type="button"
-                                className="app-sidebar-mobile-bar__avatar"
-                                aria-label={t('sidebar_open_account')}
+                        <button
+                            type="button"
+                            className="app-sidebar-mobile-bar__avatar"
+                            aria-label={t('sidebar_open_account')}
+                            onClick={(event) => {
+                                lastTriggerRef.current = event.currentTarget;
+                                onOpen();
+                            }}
                             >
                                 {avatarLabel}
                             </button>
@@ -244,6 +259,10 @@ export function AppSidebarMobileShell({
                         <Dialog.Overlay className="app-sidebar-shell-mobile-overlay" />
                         <Dialog.Content
                             className={`app-sidebar-shell-mobile-drawer ${groups?.length ? 'app-sidebar--grouped' : ''}`}
+                            onCloseAutoFocus={(event) => {
+                                event.preventDefault();
+                                lastTriggerRef.current?.focus();
+                            }}
                         >
                             <Dialog.Title className="app-sidebar__sr-only">
                                 {t('sidebar_navigation')}
@@ -272,7 +291,7 @@ export function AppSidebarMobileShell({
                             {groups?.length ? (
                                 <SidebarGroups
                                     groups={groups}
-                                    activeItem={activeItem}
+                                    activeItem={selectedActiveItem}
                                     onNavigate={handleNavigate}
                                     t={t}
                                 />
@@ -284,7 +303,7 @@ export function AppSidebarMobileShell({
                                     <nav aria-label={t('sidebar_navigation')}>
                                         <SidebarItems
                                             items={items}
-                                            activeItem={activeItem}
+                                            activeItem={selectedActiveItem}
                                             onNavigate={handleNavigate}
                                             className="app-sidebar-shell-mobile-drawer__items"
                                         />

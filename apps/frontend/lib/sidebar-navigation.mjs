@@ -140,3 +140,14 @@ export function buildSidebarGroups(items, translate) {
     items: items.filter((item) => item.groupKey === group.id),
   })).filter((group) => group.items.length > 0);
 }
+
+export function resolveActiveSidebarItem(items, activeItem) {
+  if (typeof activeItem !== "string") return undefined;
+
+  const exactMatch = items.find((item) => item.id === activeItem);
+  if (exactMatch) return exactMatch.id;
+
+  return items
+    .filter((item) => activeItem.startsWith(`${item.id}/`))
+    .sort((left, right) => right.id.length - left.id.length)[0]?.id;
+}

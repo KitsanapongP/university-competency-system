@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildSidebarGroups,
+  resolveActiveSidebarItem,
   SIDEBAR_GROUPS,
   SIDEBAR_MENU_CONFIG,
 } from "./sidebar-navigation.mjs";
@@ -72,4 +73,41 @@ test("empty groups are omitted and group labels use the active language", () => 
   assert.equal(groups.length, 1);
   assert.equal(groups[0].label, "translated:sidebar_group_academic");
   assert.deepEqual(groups[0].items, [SIDEBAR_MENU_CONFIG.officer[0]]);
+});
+
+test("grouping preserves every route exactly once for each role", () => {
+  for (const role of Object.keys(expectedMenuIds)) {
+    const items = SIDEBAR_MENU_CONFIG[role];
+    const groups = buildSidebarGroups(items, (key) => key);
+    const groupedIds = groups.flatMap((group) =>
+      group.items.map(({ id }) => id),
+    );
+
+    assert.deepEqual(groupedIds, expectedMenuIds[role]);
+    assert.equal(new Set(groupedIds).size, items.length);
+  }
+});
+
+test("nested routes keep the nearest available parent menu active", () => {
+  assert.equal(
+    resolveActiveSidebarItem(
+      SIDEBAR_MENU_CONFIG.admin,
+      "executive-management/students",
+    ),
+    "executive-management",
+  );
+  assert.equal(
+    resolveActiveSidebarItem(
+      SIDEBAR_MENU_CONFIG.officer,
+      "free-elective-management/groups",
+    ),
+    "free-elective-management/groups",
+  );
+  assert.equal(
+    resolveActiveSidebarItem(
+      SIDEBAR_MENU_CONFIG.admin,
+      "free-elective-management/groups",
+    ),
+    "free-elective-management/groups",
+  );
 });
