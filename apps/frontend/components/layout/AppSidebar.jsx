@@ -9,6 +9,9 @@ import LanguageSwitcher from '../LanguageSwitcher';
 import { resolveActiveSidebarItem } from '../../lib/sidebar-navigation.mjs';
 import './AppLayout.css';
 
+// AppLayout mounts one mobile drawer; keep its control ID stable across hydration.
+const MOBILE_SIDEBAR_DIALOG_ID = 'app-sidebar-mobile-dialog';
+
 function SidebarItems({
     items,
     activeItem,
@@ -187,6 +190,72 @@ export function AppSidebar({
     );
 }
 
+export function AppSidebarSkeleton({ collapsed, t }) {
+    const placeholderRows = [0, 1, 2, 3];
+
+    return (
+        <aside
+            className={`app-sidebar app-sidebar--grouped app-sidebar--skeleton ${collapsed ? 'app-sidebar--collapsed' : ''}`}
+            aria-label={t('sidebar_navigation')}
+            aria-busy="true"
+        >
+            <div className="app-sidebar__header" aria-hidden="true">
+                <div className="app-sidebar__brand">
+                    <div className="app-sidebar-skeleton__logo" />
+                    <span className="app-sidebar-skeleton__brand-line" />
+                </div>
+                <span className="app-sidebar-skeleton__control" />
+            </div>
+
+            <div className="app-sidebar-skeleton__nav" aria-hidden="true">
+                <span className="app-sidebar-skeleton__section-line" />
+                {placeholderRows.map((row) => (
+                    <div className="app-sidebar-skeleton__row" key={row}>
+                        <span className="app-sidebar-skeleton__icon" />
+                        <span className={`app-sidebar-skeleton__item-line app-sidebar-skeleton__item-line--${row % 3}`} />
+                    </div>
+                ))}
+            </div>
+
+            <div className="app-sidebar__footer" aria-hidden="true">
+                <div className="app-sidebar-skeleton__controls">
+                    <span className="app-sidebar-skeleton__control app-sidebar-skeleton__control--wide" />
+                    <span className="app-sidebar-skeleton__control app-sidebar-skeleton__control--language" />
+                </div>
+                <div className="app-sidebar-skeleton__user">
+                    <span className="app-sidebar-skeleton__avatar" />
+                    <span className="app-sidebar-skeleton__user-lines">
+                        <span />
+                        <span />
+                    </span>
+                    <span className="app-sidebar-skeleton__logout" />
+                </div>
+            </div>
+        </aside>
+    );
+}
+
+export function AppSidebarMobileSkeleton({ t }) {
+    return (
+        <div
+            className="app-sidebar-mobile-bar app-sidebar-mobile-bar--skeleton"
+            role="status"
+            aria-label={t('loading')}
+            aria-busy="true"
+        >
+            <span className="app-sidebar-skeleton__mobile-menu" aria-hidden="true" />
+            <span className="app-sidebar-mobile-bar__brand" aria-hidden="true">
+                <span className="app-sidebar-skeleton__mobile-brand" />
+            </span>
+            <span className="app-sidebar-mobile-bar__controls" aria-hidden="true">
+                <span className="app-sidebar-skeleton__control app-sidebar-skeleton__control--wide" />
+                <span className="app-sidebar-skeleton__control app-sidebar-skeleton__control--language" />
+                <span className="app-sidebar-skeleton__avatar" />
+            </span>
+        </div>
+    );
+}
+
 export function AppSidebarMobileShell({
     items,
     groups,
@@ -222,7 +291,7 @@ export function AppSidebarMobileShell({
         >
             <>
                 <div className="app-sidebar-mobile-bar">
-                    <Dialog.Trigger asChild>
+                    <Dialog.Trigger asChild aria-controls={MOBILE_SIDEBAR_DIALOG_ID}>
                         <button
                             type="button"
                             className="app-sidebar-mobile-bar__menu"
@@ -238,15 +307,14 @@ export function AppSidebarMobileShell({
                     <div className="app-sidebar-mobile-bar__controls">
                         <ThemeToggle />
                         <LanguageSwitcher />
-                        <Dialog.Trigger asChild>
-                        <button
-                            type="button"
-                            className="app-sidebar-mobile-bar__avatar"
-                            aria-label={t('sidebar_open_account')}
-                            onClick={(event) => {
-                                lastTriggerRef.current = event.currentTarget;
-                                onOpen();
-                            }}
+                        <Dialog.Trigger asChild aria-controls={MOBILE_SIDEBAR_DIALOG_ID}>
+                            <button
+                                type="button"
+                                className="app-sidebar-mobile-bar__avatar"
+                                aria-label={t('sidebar_open_account')}
+                                onClick={(event) => {
+                                    lastTriggerRef.current = event.currentTarget;
+                                }}
                             >
                                 {avatarLabel}
                             </button>
@@ -258,6 +326,7 @@ export function AppSidebarMobileShell({
                     <Dialog.Portal>
                         <Dialog.Overlay className="app-sidebar-shell-mobile-overlay" />
                         <Dialog.Content
+                            id={MOBILE_SIDEBAR_DIALOG_ID}
                             className={`app-sidebar-shell-mobile-drawer ${groups?.length ? 'app-sidebar--grouped' : ''}`}
                             onCloseAutoFocus={(event) => {
                                 event.preventDefault();

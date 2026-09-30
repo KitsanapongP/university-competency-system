@@ -19,6 +19,7 @@ export default function ExecutiveLayout({ children }) {
     const { user, loading, logout } = useAuth();
     const isDean = user?.roles?.includes('dean');
     const isAdmin = user?.roles?.includes('admin');
+    const sidebarLoading = loading || !user || (!isDean && !isAdmin);
 
     useEffect(() => {
         if (loading) return;
@@ -41,6 +42,7 @@ export default function ExecutiveLayout({ children }) {
             onNavigate={(page) => router.push('/' + page)}
             user={user}
             loading={loading}
+            sidebarLoading={sidebarLoading}
             onLogout={handleLogout}
         >
             {children}

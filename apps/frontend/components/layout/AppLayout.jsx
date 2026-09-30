@@ -35,7 +35,9 @@ import {
 import {
   AppSidebar,
   AppSidebarMobile,
+  AppSidebarMobileSkeleton,
   AppSidebarMobileShell,
+  AppSidebarSkeleton,
 } from "./AppSidebar";
 import {
   buildSidebarGroups,
@@ -152,6 +154,7 @@ export function AppLayout({
   onNavigate,
   role = "user",
   showBackground = true,
+  sidebarLoading = false,
 }) {
   const { t } = useLanguage();
   const { resolvedTheme } = useTheme();
@@ -254,35 +257,43 @@ export function AppLayout({
             <div
               className={`app-sidebar-shell ${role === "officer" || role === "admin" ? "app-sidebar-shell--grouped" : ""} ${sidebarCollapsed ? "app-sidebar-shell--collapsed" : ""}`}
             >
-              <AppSidebar
-                items={menuItems}
-                groups={sidebarGroups}
-                activeItem={activePage}
-                onNavigate={handleNavigate}
-                collapsed={sidebarCollapsed}
-                onToggleCollapsed={handleToggleSidebar}
-                loading={loading}
-                displayName={displayName}
-                primaryRole={primaryRoleLabel}
-                avatarLabel={avatarLabel}
-                onLogout={onLogout}
-                t={t}
-              />
-              <AppSidebarMobileShell
-                items={menuItems}
-                groups={sidebarGroups}
-                activeItem={activePage}
-                onNavigate={handleNavigate}
-                isOpen={mobileMenuOpen}
-                onOpen={() => setMobileMenuOpen(true)}
-                onClose={() => setMobileMenuOpen(false)}
-                loading={loading}
-                displayName={displayName}
-                primaryRole={primaryRoleLabel}
-                avatarLabel={avatarLabel}
-                onLogout={onLogout}
-                t={t}
-              />
+              {sidebarLoading ? (
+                <AppSidebarSkeleton collapsed={sidebarCollapsed} t={t} />
+              ) : (
+                <AppSidebar
+                  items={menuItems}
+                  groups={sidebarGroups}
+                  activeItem={activePage}
+                  onNavigate={handleNavigate}
+                  collapsed={sidebarCollapsed}
+                  onToggleCollapsed={handleToggleSidebar}
+                  loading={loading}
+                  displayName={displayName}
+                  primaryRole={primaryRoleLabel}
+                  avatarLabel={avatarLabel}
+                  onLogout={onLogout}
+                  t={t}
+                />
+              )}
+              {sidebarLoading ? (
+                <AppSidebarMobileSkeleton t={t} />
+              ) : (
+                <AppSidebarMobileShell
+                  items={menuItems}
+                  groups={sidebarGroups}
+                  activeItem={activePage}
+                  onNavigate={handleNavigate}
+                  isOpen={mobileMenuOpen}
+                  onOpen={() => setMobileMenuOpen(true)}
+                  onClose={() => setMobileMenuOpen(false)}
+                  loading={loading}
+                  displayName={displayName}
+                  primaryRole={primaryRoleLabel}
+                  avatarLabel={avatarLabel}
+                  onLogout={onLogout}
+                  t={t}
+                />
+              )}
               {children && (
                 <main className={`${mainContentClass} main-content--sidebar`}>
                   <div
