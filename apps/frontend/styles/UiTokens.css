@@ -1,10 +1,10 @@
 /* ============================================================
-   Shared management UI tokens
+   Shared management UI tokens for Officer, Admin, and Executive pages
    Curriculum and Template are the visual reference for Officer/Admin pages.
    ============================================================ */
 
 :root {
-    --ui-font: 'Sarabun', sans-serif;
+    --ui-font: var(--font-sarabun), sans-serif;
     --ui-page-bg: #0f1117;
     --ui-surface: #1a1f2e;
     --ui-surface-muted: #1e293b;
@@ -52,7 +52,7 @@
     --ui-shadow: 0 4px 12px rgb(15 23 42 / 8%);
 }
 
-body:has(.competency-app--sidebar) {
+body:has(.competency-app.competency-app--sidebar) {
     background: var(--ui-page-bg);
     color: var(--ui-text);
     font-family: var(--ui-font);

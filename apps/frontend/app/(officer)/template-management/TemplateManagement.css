@@ -9,7 +9,7 @@
     background: var(--tm-bg, #0f1117);
     color: var(--tm-text, #e2e8f0);
     padding: 1.5rem 10rem 0 10rem;
-    font-family: 'Sarabun', sans-serif;
+    font-family: var(--font-sarabun), sans-serif;
     box-sizing: border-box;
 }
 

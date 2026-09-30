@@ -88,7 +88,7 @@
     background: var(--course-bg);
     color: var(--course-text);
     padding: 1.5rem 2rem 3rem;
-    font-family: 'Sarabun', sans-serif;
+    font-family: var(--font-sarabun), sans-serif;
     box-sizing: border-box;
 }
 

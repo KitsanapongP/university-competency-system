@@ -10,7 +10,7 @@
     background: var(--course-bg);
     color: var(--course-text);
     padding: 1.5rem 10rem 0 10rem;
-    font-family: 'Sarabun', sans-serif;
+    font-family: var(--font-sarabun), sans-serif;
     box-sizing: border-box;
 }
 

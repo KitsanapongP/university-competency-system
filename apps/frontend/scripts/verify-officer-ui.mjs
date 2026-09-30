@@ -11,7 +11,7 @@ const requiredPages = [
     'app/(officer)/free-elective-management/page.jsx',
     'app/(officer)/free-elective-management/groups/page.jsx',
     'app/(officer)/free-elective-management/groups/[cohortId]/page.jsx',
-    'app/(officer)/free-elective-management/offerings/[offeringId]/page.jsx',
+    'app/(officer)/free-elective-management/rounds/[roundId]/courses/[roundCourseId]/page.jsx',
     'app/(officer)/free-elective-management/students/[enrollmentId]/page.jsx',
     'app/(officer)/student-management/page.jsx',
     'app/(officer)/student-management/[cohortId]/page.jsx',
@@ -30,7 +30,7 @@ const pagesWithStandardHeader = requiredPages.filter(
 );
 
 const sharedStylesPath = path.join(frontendDirectory, 'app/(officer)/OfficerDesign.css');
-const tokenStylesPath = path.join(frontendDirectory, 'app/(officer)/UiTokens.css');
+const tokenStylesPath = path.join(frontendDirectory, 'styles/UiTokens.css');
 const primitiveStylesPath = path.join(frontendDirectory, 'app/(officer)/UiPrimitives.css');
 const labelsPath = path.join(frontendDirectory, 'app/(officer)/officer-labels.js');
 const failures = [];
@@ -83,7 +83,7 @@ const tokenStyles = fs.existsSync(tokenStylesPath)
     ? fs.readFileSync(tokenStylesPath, 'utf8')
     : '';
 if (!tokenStyles) {
-    failures.push('app/(officer)/UiTokens.css: semantic token stylesheet does not exist');
+    failures.push('styles/UiTokens.css: semantic token stylesheet does not exist');
 } else {
     ['--ui-font', '--ui-page-bg', '--ui-primary', ':root:not(.dark)'].forEach(token => {
         if (!tokenStyles.includes(token)) {

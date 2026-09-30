@@ -3,64 +3,6 @@
    Theme: White + Blue/Navy Primary
    ================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Prompt:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap');
-
-:root {
-  /* Primary Colors */
-  --primary: #2563eb;
-  --primary-light: #60a5fa;
-  --primary-dark: #1e40af;
-  --primary-bg: #eff6ff;
-
-  /* Accent Colors */
-  --accent-orange: #f97316;
-  --accent-green: #10b981;
-  --accent-purple: #8b5cf6;
-  --accent-pink: #ec4899;
-  --accent-cyan: #06b6d4;
-
-  /* Neutrals */
-  --bg: #f8fafc;
-  --card: #ffffff;
-  --text: #0f172a;
-  --text-muted: #64748b;
-  --border: #e2e8f0;
-  --control-bg: #ffffff;
-  --control-bg-soft: #f1f5f9;
-  --danger-hover-bg: #fef2f2;
-
-  /* Utils */
-  --radius: 16px;
-  --radius-sm: 10px;
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-}
-
-.dark {
-  /* Neutrals - Dark Mode — improved readability */
-  --bg: #0f172a;
-  --card: #1e293b;
-  --text: #f1f5f9;
-  --text-muted: #a1b4cf;
-  --border: #3b4f6b;
-  --control-bg: #0f172a;
-  --control-bg-soft: #1e293b;
-  --danger-hover-bg: rgba(239, 68, 68, 0.18);
-
-  /* Primary Colors - Dark Mode */
-  --primary: #60a5fa;
-  --primary-light: #93c5fd;
-  --primary-dark: #93c5fd;
-  --primary-bg: rgba(59, 130, 246, 0.15);
-
-  /* Accent Colors - Dark Mode (brighter for readability) */
-  --accent-orange: #fb923c;
-  --accent-green: #34d399;
-  --accent-purple: #c4b5fd;
-  --accent-pink: #f9a8d4;
-  --accent-cyan: #67e8f9;
-}
-
 * {
   box-sizing: border-box;
   margin: 0;
@@ -69,9 +11,9 @@
 
 /* Override global styles for Competency page */
 body:has(.competency-app) {
-  font-family: var(--ui-font, 'Inter', 'Prompt', -apple-system, sans-serif);
-  background: var(--ui-page-bg, var(--bg));
-  color: var(--ui-text, var(--text));
+  font-family: var(--font-inter), var(--font-prompt), -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
   line-height: 1.5;
   overflow-x: hidden;
   overflow-y: auto !important;
@@ -184,7 +126,7 @@ body:has(.competency-app) {
   font-size: 1.2rem;
   font-weight: 700;
   color: var(--primary-dark);
-  font-family: 'Prompt', sans-serif;
+  font-family: var(--font-prompt), sans-serif;
 }
 
 .nav-menu {
@@ -372,7 +314,7 @@ body:has(.competency-app) {
   align-items: center;
   gap: 12px;
   margin-bottom: 8px;
-  font-family: 'Prompt', sans-serif;
+  font-family: var(--font-prompt), sans-serif;
 }
 
 .header-icon {
@@ -472,7 +414,7 @@ body:has(.competency-app) {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: 'Prompt', sans-serif;
+  font-family: var(--font-prompt), sans-serif;
   margin: 0;
 }
 
@@ -742,7 +684,7 @@ body:has(.competency-app) {
   color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
-  font-family: 'Prompt', sans-serif;
+  font-family: var(--font-prompt), sans-serif;
   appearance: auto;
   /* Ensure OS default style or standard web style */
 }
@@ -856,7 +798,7 @@ body:has(.competency-app) {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-family: 'Prompt', sans-serif;
+  font-family: var(--font-prompt), sans-serif;
   white-space: nowrap;
 }
 
@@ -2488,7 +2430,7 @@ body:has(.competency-app) {
   min-height: 100vh;
   background: var(--bg);
   animation: skeletonFadeIn 0.5s ease-out;
-  font-family: 'Inter', 'Prompt', -apple-system, sans-serif;
+  font-family: var(--font-inter), var(--font-prompt), -apple-system, sans-serif;
 }
 
 @keyframes skeletonFadeIn {

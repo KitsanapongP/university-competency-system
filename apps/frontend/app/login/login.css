@@ -3,8 +3,6 @@
    Theme: matches Competency.css (blue/navy + dark mode)
    ================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap');
-
 /* ---------- page wrapper ---------- */
 .login-page {
     min-height: 100vh;
@@ -12,7 +10,7 @@
     align-items: center;
     justify-content: center;
     background: var(--bg, #f8fafc);
-    font-family: 'Inter', 'Prompt', -apple-system, sans-serif;
+    font-family: var(--font-inter), var(--font-prompt), -apple-system, sans-serif;
     padding: 24px;
     position: relative;
     overflow: hidden;
@@ -123,7 +121,7 @@
 }
 
 .login-brand h1 {
-    font-family: 'Prompt', sans-serif;
+    font-family: var(--font-prompt), sans-serif;
     font-size: 1.45rem;
     font-weight: 700;
     color: var(--text, #0f172a);
@@ -248,7 +246,7 @@
     border-radius: 10px;
     background: linear-gradient(135deg, #2563eb, #1e40af);
     color: #fff;
-    font-family: 'Prompt', sans-serif;
+    font-family: var(--font-prompt), sans-serif;
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
@@ -324,7 +322,7 @@
     border-radius: 10px;
     background: var(--control-bg-soft, #f1f5f9);
     color: var(--text, #0f172a);
-    font-family: 'Prompt', sans-serif;
+    font-family: var(--font-prompt), sans-serif;
     font-size: 0.92rem;
     font-weight: 600;
     cursor: not-allowed;
