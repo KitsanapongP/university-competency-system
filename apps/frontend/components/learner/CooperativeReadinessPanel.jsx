@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertCircle, BriefcaseBusiness, CheckCircle2, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../../providers/LanguageContext';
 import { fetchCooperativeReadiness } from '../../lib/cooperative-readiness';
+import LearnerAssessmentReportPanel from './LearnerAssessmentReportPanel';
 import styles from './CooperativeReadinessPanel.module.css';
 
 const CRITERION_TYPES = [
@@ -116,20 +117,43 @@ export default function CooperativeReadinessPanel() {
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
     const [hasError, setHasError] = useState(false);
+    const [retryKey, setRetryKey] = useState(0);
 
-    const checkReadiness = async (selectedSemester) => {
-        if (!selectedSemester) return;
-        setSemester(String(selectedSemester));
-        setLoading(true);
+    useEffect(() => {
+        if (!semester) return undefined;
+
+        const controller = new AbortController();
+        const { signal } = controller;
+        fetchCooperativeReadiness(semester, { signal })
+            .then((response) => {
+                if (!signal.aborted) setResult(response);
+            })
+            .catch((error) => {
+                if (!signal.aborted && error?.name !== 'AbortError') {
+                    setResult(null);
+                    setHasError(true);
+                }
+            })
+            .finally(() => {
+                if (!signal.aborted) setLoading(false);
+            });
+
+        return () => controller.abort();
+    }, [retryKey, semester]);
+
+    const checkReadiness = (selectedSemester) => {
+        const nextSemester = String(selectedSemester);
+        setSemester(nextSemester);
+        setResult(null);
         setHasError(false);
-        try {
-            setResult(await fetchCooperativeReadiness(selectedSemester));
-        } catch {
-            setResult(null);
-            setHasError(true);
-        } finally {
-            setLoading(false);
-        }
+        setLoading(Boolean(nextSemester));
+    };
+
+    const retryReadiness = () => {
+        setResult(null);
+        setHasError(false);
+        setLoading(true);
+        setRetryKey((current) => current + 1);
     };
 
     const counts = result?.results?.reduce((summary, item) => {
@@ -153,7 +177,6 @@ export default function CooperativeReadinessPanel() {
                     <span>{t('learner_coop_select_prompt')}</span>
                     <select
                         value={semester}
-                        disabled={loading}
                         onChange={(event) => checkReadiness(event.target.value)}
                     >
                         <option value="">{t('learner_coop_select_prompt')}</option>
@@ -179,7 +202,7 @@ export default function CooperativeReadinessPanel() {
                     <button
                         type="button"
                         className={styles.retry}
-                        onClick={() => checkReadiness(semester)}
+                        onClick={retryReadiness}
                     >
                         <RefreshCw size={15} aria-hidden="true" />
                         {t('learner_coop_retry')}
@@ -241,6 +264,8 @@ export default function CooperativeReadinessPanel() {
                     </div>
                 </div>
             )}
+
+            <LearnerAssessmentReportPanel semester={semester} />
         </section>
     );
 }

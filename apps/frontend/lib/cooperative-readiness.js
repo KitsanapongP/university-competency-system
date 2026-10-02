@@ -99,8 +99,10 @@ export async function publishCooperativeRequirements(curriculumId, semester) {
     };
 }
 
-export async function fetchCooperativeReadiness(semester) {
-    const response = await apiFetch(`/api/v1/learner/cooperative-readiness?semester=${semester}`);
+export async function fetchCooperativeReadiness(semester, options = {}) {
+    const response = await apiFetch(`/api/v1/learner/cooperative-readiness?semester=${semester}`, {
+        signal: options.signal,
+    });
     const data = unwrap(response);
     return {
         curriculumId: Number(data.curriculum_id || 0),

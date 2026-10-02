@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test:sidebar-navigation": "node --test lib/sidebar-navigation.test.mjs",
+    "test:learner-assessment": "node --test lib/learner-assessment-state.test.mjs",
+    "test:career-paths": "node --test lib/career-paths.test.mjs",
+    "test:career-path-import": "node --test lib/career-path-import.test.mjs",
     "test:officer-ui": "node scripts/verify-officer-ui.mjs",
     "test:cooperative-requirement-copy": "node --test lib/cooperative-requirement-copy.test.mjs"
   },
