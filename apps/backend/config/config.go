@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 type Config struct {
@@ -17,6 +18,17 @@ type Config struct {
 	JWTSecret        string
 	JWTIssuer        string
 	JWTExpireMinutes int
+
+	AssessmentContextTokens       int
+	AssessmentOutputReserveTokens int
+	AssessmentTokenSafetyMargin   int
+	AssessmentOllamaURL           string
+	AssessmentOllamaTimeout       time.Duration
+	AssessmentOllamaKeepAlive     string
+	AssessmentOllamaThink         bool
+	AssessmentOllamaModelDigest   string
+	AssessmentWorkerPollInterval  time.Duration
+	AssessmentWorkerLeaseDuration time.Duration
 }
 
 func Load() Config {
@@ -32,6 +44,17 @@ func Load() Config {
 		JWTSecret:        mustEnv("JWT_SECRET", "dev-secret-change-me"),
 		JWTIssuer:        getEnv("JWT_ISSUER", "ucs-api"),
 		JWTExpireMinutes: getEnvInt("JWT_EXPIRE_MINUTES", 120),
+
+		AssessmentContextTokens:       getEnvInt("LEARNER_ASSESSMENT_CONTEXT_TOKENS", 4096),
+		AssessmentOutputReserveTokens: getEnvInt("LEARNER_ASSESSMENT_OUTPUT_RESERVE_TOKENS", 1024),
+		AssessmentTokenSafetyMargin:   getEnvInt("LEARNER_ASSESSMENT_TOKEN_SAFETY_MARGIN", 128),
+		AssessmentOllamaURL:           getEnv("LEARNER_ASSESSMENT_OLLAMA_URL", "http://127.0.0.1:11434"),
+		AssessmentOllamaTimeout:       time.Duration(getEnvInt("LEARNER_ASSESSMENT_OLLAMA_TIMEOUT_SECONDS", 120)) * time.Second,
+		AssessmentOllamaKeepAlive:     getEnv("LEARNER_ASSESSMENT_OLLAMA_KEEP_ALIVE", "5m"),
+		AssessmentOllamaThink:         getEnvBool("LEARNER_ASSESSMENT_OLLAMA_THINK", false),
+		AssessmentOllamaModelDigest:   getEnv("LEARNER_ASSESSMENT_OLLAMA_MODEL_DIGEST", ""),
+		AssessmentWorkerPollInterval:  time.Duration(getEnvInt("LEARNER_ASSESSMENT_WORKER_POLL_SECONDS", 3)) * time.Second,
+		AssessmentWorkerLeaseDuration: time.Duration(getEnvInt("LEARNER_ASSESSMENT_WORKER_LEASE_SECONDS", 900)) * time.Second,
 	}
 }
 
@@ -56,6 +79,18 @@ func getEnvInt(key string, fallback int) int {
 		return fallback
 	}
 	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.ParseBool(v)
 	if err != nil {
 		return fallback
 	}
