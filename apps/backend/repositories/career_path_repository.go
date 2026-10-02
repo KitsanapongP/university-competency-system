@@ -119,8 +119,9 @@ func (r *CareerPathRepository) List(ctx context.Context, filters models.CareerPa
 		FROM coop_career_paths path
 		LEFT JOIN coop_career_versions draft ON draft.career_version_id = path.draft_version_id
 		LEFT JOIN coop_career_versions published ON published.career_version_id = path.published_version_id
+		LEFT JOIN org_faculties faculty ON faculty.faculty_id = path.faculty_id
 		WHERE `+where+`
-		ORDER BY COALESCE(published.name_th, draft.name_th, path.code), path.career_path_id
+		ORDER BY `+careerPathListOrderBy(filters)+`
 		LIMIT ? OFFSET ?`, queryArgs...)
 	if err != nil {
 		return nil, 0, err
@@ -149,6 +150,19 @@ func careerPathListWhere(filters models.CareerPathFilters) (string, []any) {
 		conditions = append(conditions, "path.status = ?")
 		args = append(args, filters.Status)
 	}
+	if filters.CurriculumID != nil {
+		conditions = append(conditions, `EXISTS (
+			SELECT 1 FROM coop_career_curricula careerCurriculum
+			WHERE careerCurriculum.career_version_id = COALESCE(path.draft_version_id, path.published_version_id)
+				AND careerCurriculum.curriculum_id = ?
+		)`)
+		args = append(args, *filters.CurriculumID)
+	} else if filters.WithoutCurriculum {
+		conditions = append(conditions, `NOT EXISTS (
+			SELECT 1 FROM coop_career_curricula careerCurriculum
+			WHERE careerCurriculum.career_version_id = COALESCE(path.draft_version_id, path.published_version_id)
+		)`)
+	}
 	if search := strings.TrimSpace(filters.Search); search != "" {
 		conditions = append(conditions, "(path.code LIKE ? OR draft.name_th LIKE ? OR draft.name_en LIKE ? OR published.name_th LIKE ? OR published.name_en LIKE ?)")
 		pattern := "%" + search + "%"
@@ -157,6 +171,30 @@ func careerPathListWhere(filters models.CareerPathFilters) (string, []any) {
 		}
 	}
 	return strings.Join(conditions, " AND "), args
+}
+
+func careerPathListOrderBy(filters models.CareerPathFilters) string {
+	var expression string
+	switch filters.SortBy {
+	case "faculty":
+		if filters.Language == "en" {
+			expression = "COALESCE(NULLIF(faculty.name_en, ''), NULLIF(faculty.name_th, ''), '')"
+		} else {
+			expression = "COALESCE(NULLIF(faculty.name_th, ''), NULLIF(faculty.name_en, ''), '')"
+		}
+	default:
+		if filters.Language == "en" {
+			expression = "COALESCE(NULLIF(published.name_en, ''), NULLIF(published.name_th, ''), NULLIF(draft.name_th, ''), path.code)"
+		} else {
+			expression = "COALESCE(NULLIF(published.name_th, ''), NULLIF(draft.name_th, ''), path.code)"
+		}
+	}
+
+	direction := "ASC"
+	if filters.SortOrder == "desc" {
+		direction = "DESC"
+	}
+	return expression + " " + direction + ", path.career_path_id ASC"
 }
 
 type careerPathRowScanner interface {

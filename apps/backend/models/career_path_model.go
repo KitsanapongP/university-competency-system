@@ -3,11 +3,16 @@ package models
 import "time"
 
 type CareerPathFilters struct {
-	FacultyID *uint64
-	Status    string
-	Search    string
-	Page      int
-	PageSize  int
+	FacultyID         *uint64
+	CurriculumID      *uint64
+	WithoutCurriculum bool
+	Status            string
+	Search            string
+	SortBy            string
+	SortOrder         string
+	Language          string
+	Page              int
+	PageSize          int
 }
 
 type CareerPath struct {

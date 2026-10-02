@@ -180,10 +180,13 @@ func (h *CareerPathController) CommitImport(w http.ResponseWriter, r *http.Reque
 func parseCareerPathFilters(r *http.Request) (models.CareerPathFilters, error) {
 	query := r.URL.Query()
 	filters := models.CareerPathFilters{
-		Status:   query.Get("status"),
-		Search:   query.Get("search"),
-		Page:     1,
-		PageSize: 25,
+		Status:    query.Get("status"),
+		Search:    query.Get("search"),
+		SortBy:    query.Get("sort_by"),
+		SortOrder: query.Get("sort_order"),
+		Language:  query.Get("language"),
+		Page:      1,
+		PageSize:  25,
 	}
 	if value := query.Get("faculty_id"); value != "" {
 		id, err := strconv.ParseUint(value, 10, 64)
@@ -191,6 +194,23 @@ func parseCareerPathFilters(r *http.Request) (models.CareerPathFilters, error) {
 			return filters, errors.New("invalid faculty_id")
 		}
 		filters.FacultyID = &id
+	}
+	if value := query.Get("curriculum_id"); value != "" {
+		id, err := strconv.ParseUint(value, 10, 64)
+		if err != nil || id == 0 {
+			return filters, errors.New("invalid curriculum_id")
+		}
+		filters.CurriculumID = &id
+	}
+	if value := query.Get("without_curriculum"); value != "" {
+		withoutCurriculum, err := strconv.ParseBool(value)
+		if err != nil {
+			return filters, errors.New("invalid without_curriculum")
+		}
+		filters.WithoutCurriculum = withoutCurriculum
+	}
+	if filters.CurriculumID != nil && filters.WithoutCurriculum {
+		return filters, errors.New("curriculum filters are mutually exclusive")
 	}
 	var err error
 	if value := query.Get("page"); value != "" {

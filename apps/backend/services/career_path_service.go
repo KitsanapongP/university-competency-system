@@ -182,6 +182,23 @@ func normalizeCareerPathFilters(filters *models.CareerPathFilters) error {
 	if filters.Status != "" && filters.Status != "draft" && filters.Status != "active" && filters.Status != "inactive" {
 		return ErrCareerPathInvalid
 	}
+	if filters.CurriculumID != nil && (*filters.CurriculumID == 0 || filters.WithoutCurriculum) {
+		return ErrCareerPathInvalid
+	}
+	if filters.SortBy == "" {
+		filters.SortBy = "name"
+	}
+	if filters.SortOrder == "" {
+		filters.SortOrder = "asc"
+	}
+	if filters.Language == "" {
+		filters.Language = "th"
+	}
+	if (filters.SortBy != "name" && filters.SortBy != "faculty") ||
+		(filters.SortOrder != "asc" && filters.SortOrder != "desc") ||
+		(filters.Language != "th" && filters.Language != "en") {
+		return ErrCareerPathInvalid
+	}
 	if filters.Page == 0 {
 		filters.Page = 1
 	}

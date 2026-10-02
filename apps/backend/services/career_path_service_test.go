@@ -28,6 +28,34 @@ func TestCareerPathFacultyScope(t *testing.T) {
 	}
 }
 
+func TestNormalizeCareerPathFiltersDefaultsAndValidation(t *testing.T) {
+	filters := models.CareerPathFilters{}
+	if err := normalizeCareerPathFilters(&filters); err != nil {
+		t.Fatalf("normalizeCareerPathFilters() error = %v", err)
+	}
+	if filters.SortBy != "name" || filters.SortOrder != "asc" || filters.Language != "th" {
+		t.Fatalf("normalized sort = (%q, %q, %q), want name/asc/th", filters.SortBy, filters.SortOrder, filters.Language)
+	}
+
+	curriculumID := uint64(5)
+	tests := []struct {
+		name    string
+		filters models.CareerPathFilters
+	}{
+		{name: "rejects conflicting curriculum filters", filters: models.CareerPathFilters{CurriculumID: &curriculumID, WithoutCurriculum: true}},
+		{name: "rejects unsupported sort key", filters: models.CareerPathFilters{SortBy: "status"}},
+		{name: "rejects unsupported sort order", filters: models.CareerPathFilters{SortOrder: "sideways"}},
+		{name: "rejects unsupported language", filters: models.CareerPathFilters{Language: "fr"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := normalizeCareerPathFilters(&test.filters); err == nil {
+				t.Fatal("normalizeCareerPathFilters() error = nil, want invalid-filter error")
+			}
+		})
+	}
+}
+
 func TestResolveCareerPathFaculty(t *testing.T) {
 	facultyID := int64(12)
 	otherFaculty := uint64(13)
