@@ -139,7 +139,7 @@
 
 .ui-input,
 .ui-select,
-.ui-field input,
+.ui-field input:not([type='checkbox']):not([type='radio']),
 .ui-field select,
 .ui-field textarea {
     width: 100%;
