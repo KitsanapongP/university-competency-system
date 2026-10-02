@@ -29,6 +29,7 @@ type AssessmentProviderReadiness struct {
 }
 
 type AssessmentProviderReadinessResult struct {
+	RequirementID uint64   `json:"requirement_id"`
 	CriterionType string   `json:"criterion_type"`
 	NameTH        string   `json:"name_th"`
 	NameEN        string   `json:"name_en,omitempty"`
@@ -103,16 +104,39 @@ type AssessmentProviderActivity struct {
 }
 
 type AssessmentReportFinding struct {
+	ObservationID     string                   `json:"observation_id"`
 	Title             AssessmentBilingualText  `json:"title"`
 	Reason            AssessmentBilingualText  `json:"reason"`
+	Explanation       *AssessmentBilingualText `json:"explanation,omitempty"`
 	DevelopmentAdvice *AssessmentBilingualText `json:"development_advice,omitempty"`
 	EvidenceRefs      []string                 `json:"evidence_refs"`
+}
+
+type AssessmentObservation struct {
+	ObservationID string                  `json:"observation_id"`
+	Kind          string                  `json:"kind"`
+	Title         AssessmentBilingualText `json:"title"`
+	Fact          AssessmentBilingualText `json:"fact"`
+	EvidenceRefs  []string                `json:"evidence_refs"`
+}
+
+type AssessmentNarrativeFinding struct {
+	ObservationID     string                   `json:"observation_id"`
+	Explanation       AssessmentBilingualText  `json:"explanation"`
+	DevelopmentAdvice *AssessmentBilingualText `json:"development_advice,omitempty"`
+}
+
+type AssessmentNarrativeOutput struct {
+	Strengths    []AssessmentNarrativeFinding `json:"strengths"`
+	Limitations  []AssessmentNarrativeFinding `json:"limitations"`
+	Observations []AssessmentNarrativeFinding `json:"observations"`
 }
 
 type AssessmentProviderOutput struct {
 	ReadinessExplanation AssessmentBilingualText   `json:"readiness_explanation"`
 	Strengths            []AssessmentReportFinding `json:"strengths"`
 	Limitations          []AssessmentReportFinding `json:"limitations"`
+	Observations         []AssessmentReportFinding `json:"observations"`
 }
 
 type AssessmentValidatedOutput = AssessmentProviderOutput

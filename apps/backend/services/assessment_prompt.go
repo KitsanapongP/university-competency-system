@@ -140,6 +140,7 @@ func buildProviderReadiness(readiness models.CooperativeReadinessResult) models.
 	}
 	for _, item := range readiness.Results {
 		result.Results = append(result.Results, models.AssessmentProviderReadinessResult{
+			RequirementID: item.RequirementID,
 			CriterionType: item.CriterionType,
 			NameTH:        sanitizeAssessmentText(item.NameTH),
 			NameEN:        assessmentStringWithFallback(item.NameEN, item.NameTH),
