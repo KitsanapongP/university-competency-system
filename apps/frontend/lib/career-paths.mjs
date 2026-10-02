@@ -45,7 +45,18 @@ export function mapCareerPath(item = {}) {
 
 export function buildCareerPathQuery(filters = {}) {
   const query = new URLSearchParams();
-  for (const key of ["faculty_id", "status", "search", "page", "page_size"]) {
+  for (const key of [
+    "faculty_id",
+    "curriculum_id",
+    "without_curriculum",
+    "status",
+    "search",
+    "sort_by",
+    "sort_order",
+    "language",
+    "page",
+    "page_size",
+  ]) {
     const value = filters[key];
     if (value !== undefined && value !== null && String(value).trim() !== "") {
       query.set(key, String(value).trim());

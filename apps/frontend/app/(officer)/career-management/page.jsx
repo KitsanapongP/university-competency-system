@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BriefcaseBusiness, ChevronLeft, ChevronRight, Plus, RefreshCw, Search, Upload } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, BriefcaseBusiness, ChevronLeft, ChevronRight, Plus, RefreshCw, Search, Upload } from 'lucide-react';
 import { useAuth } from '../../../providers/auth-provider';
 import { useLanguage } from '../../../providers/LanguageContext';
 import { fetchFaculties, fetchCurriculums } from '../../../lib/curriculum';
@@ -23,6 +23,7 @@ import ConfirmActionModal from '../../../components/ui/ConfirmActionModal';
 import './CareerManagement.css';
 
 const PAGE_SIZE = 20;
+const NO_CURRICULUM_FILTER = 'none';
 
 function statusLabel(language, status) {
     const labels = {
@@ -39,6 +40,14 @@ function facultyName(faculties, facultyId, language) {
     return language === 'en' ? faculty?.nameEn || faculty?.nameTh || '-' : faculty?.nameTh || faculty?.nameEn || '-';
 }
 
+function curriculumLabel(curriculum, faculties, language, includeFaculty) {
+    const name = language === 'en' ? curriculum.nameEn || curriculum.nameTh : curriculum.nameTh || curriculum.nameEn;
+    const degreeName = language === 'en' ? curriculum.degreeNameEn || curriculum.degreeName : curriculum.degreeName || curriculum.degreeNameEn;
+    const details = [degreeName, curriculum.year].filter(Boolean).join(' · ');
+    const faculty = includeFaculty ? facultyName(faculties, curriculum.facultyId, language) : '';
+    return [name, details, faculty].filter(Boolean).join(' · ');
+}
+
 export default function CareerManagementPage() {
     const { user } = useAuth();
     const { language } = useLanguage();
@@ -51,9 +60,12 @@ export default function CareerManagementPage() {
     const [lookupsLoading, setLookupsLoading] = useState(true);
     const [lookupsError, setLookupsError] = useState('');
     const [facultyId, setFacultyId] = useState(userFacultyId);
+    const [curriculumFilter, setCurriculumFilter] = useState('');
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState('');
+    const [sortBy, setSortBy] = useState('name');
+    const [sortOrder, setSortOrder] = useState('asc');
     const [page, setPage] = useState(1);
     const [result, setResult] = useState({ items: [], total: 0, page: 1, pageSize: PAGE_SIZE });
     const [loading, setLoading] = useState(true);
@@ -110,6 +122,10 @@ export default function CareerManagementPage() {
         return () => window.clearTimeout(timer);
     }, [searchInput]);
 
+    const availableCurriculums = useMemo(() => curriculums.filter((item) => {
+        return !facultyId || String(item.facultyId) === String(facultyId);
+    }), [curriculums, facultyId]);
+
     useEffect(() => {
         if (lookupsLoading || lookupsError || (!isAdmin && !facultyId)) return undefined;
         const controller = new AbortController();
@@ -120,6 +136,11 @@ export default function CareerManagementPage() {
             page_size: PAGE_SIZE,
             search,
             status,
+            sort_by: sortBy,
+            sort_order: sortOrder,
+            language,
+            ...(curriculumFilter && curriculumFilter !== NO_CURRICULUM_FILTER ? { curriculum_id: curriculumFilter } : {}),
+            ...(curriculumFilter === NO_CURRICULUM_FILTER ? { without_curriculum: true } : {}),
             ...(facultyId ? { faculty_id: facultyId } : {}),
         };
         fetchCareerPaths(filters, { signal: controller.signal })
@@ -139,7 +160,7 @@ export default function CareerManagementPage() {
             active = false;
             controller.abort();
         };
-    }, [facultyId, isAdmin, language, lookupsError, lookupsLoading, page, refreshIndex, search, status]);
+    }, [curriculumFilter, facultyId, isAdmin, language, lookupsError, lookupsLoading, page, refreshIndex, search, sortBy, sortOrder, status]);
 
     const pageCount = Math.max(1, Math.ceil(result.total / PAGE_SIZE));
     const allCurrentSelected = result.items.length > 0 && result.items.every((item) => selectedIds.includes(item.id));
@@ -237,10 +258,45 @@ export default function CareerManagementPage() {
         ? current.filter((id) => !result.items.some((item) => item.id === id))
         : [...new Set([...current, ...result.items.map((item) => item.id)])]);
 
-    const selectLabel = (event) => {
+    const selectFaculty = (event) => {
         setFacultyId(event.target.value);
+        setCurriculumFilter('');
         setPage(1);
         setSelectedIds([]);
+    };
+
+    const updateSort = (key) => {
+        setPage(1);
+        setSelectedIds([]);
+        if (sortBy === key) {
+            setSortOrder((current) => current === 'asc' ? 'desc' : 'asc');
+            return;
+        }
+        setSortBy(key);
+        setSortOrder('asc');
+    };
+
+    const renderSortHeader = (key, label, disabled = false) => {
+        const active = sortBy === key;
+        const Icon = !active ? ArrowUpDown : sortOrder === 'asc' ? ArrowUp : ArrowDown;
+        const nextDirection = active && sortOrder === 'asc' ? 'desc' : 'asc';
+        const directionLabel = nextDirection === 'asc'
+            ? officerText(language, 'น้อยไปมาก', 'ascending')
+            : officerText(language, 'มากไปน้อย', 'descending');
+        return (
+            <th aria-sort={active ? sortOrder === 'asc' ? 'ascending' : 'descending' : 'none'}>
+                <button
+                    type="button"
+                    className="career-management__sort-button"
+                    onClick={() => updateSort(key)}
+                    disabled={disabled}
+                    aria-label={officerText(language, `เรียงตาม${label} ${directionLabel}`, `Sort by ${label} ${directionLabel}`)}
+                >
+                    <span>{label}</span>
+                    <Icon size={14} aria-hidden="true" />
+                </button>
+            </th>
+        );
     };
 
     return (
@@ -267,11 +323,11 @@ export default function CareerManagementPage() {
             {feedback.message && <div className={`career-feedback career-feedback--${feedback.type}`} role={feedback.type === 'error' ? 'alert' : 'status'}>{feedback.message}</div>}
             {lookupsError && <div className="career-feedback career-feedback--error" role="alert">{lookupsError}</div>}
 
-            <section className="ui-panel career-management__filters" aria-label={officerText(language, 'ตัวกรองรายการสายงาน', 'Career path filters')}>
+            <section className={`ui-panel career-management__filters ${isAdmin ? 'career-management__filters--admin' : 'career-management__filters--officer'}`} aria-label={officerText(language, 'ตัวกรองรายการสายงาน', 'Career path filters')}>
                 {isAdmin && (
                     <label className="ui-field">
                         <span>{officerText(language, 'คณะ', 'Faculty')}</span>
-                        <select className="ui-select" value={facultyId} onChange={selectLabel} disabled={lookupsLoading}>
+                        <select className="ui-select" value={facultyId} onChange={selectFaculty} disabled={lookupsLoading}>
                             <option value="">{officerText(language, 'ทุกคณะ', 'All faculties')}</option>
                             {faculties.map((item) => <option key={item.facultyId} value={item.facultyId}>{language === 'en' ? item.nameEn || item.nameTh : item.nameTh || item.nameEn}</option>)}
                         </select>
@@ -280,16 +336,28 @@ export default function CareerManagementPage() {
                 {!isAdmin && <div className="career-management__scope">{officerText(language, 'จำกัดข้อมูลเฉพาะคณะของบัญชีนี้', 'Limited to this account’s faculty')}</div>}
                 <label className="ui-field">
                     <span>{officerText(language, 'สถานะ', 'Status')}</span>
-                    <select className="ui-select" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+                    <select className="ui-select" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); setSelectedIds([]); }}>
                         <option value="">{officerText(language, 'ทุกสถานะ', 'All statuses')}</option>
                         <option value="draft">{statusLabel(language, 'draft')}</option>
                         <option value="active">{statusLabel(language, 'active')}</option>
                         <option value="inactive">{statusLabel(language, 'inactive')}</option>
                     </select>
                 </label>
+                <label className="ui-field">
+                    <span>{officerText(language, 'หลักสูตร', 'Curriculum')}</span>
+                    <select className="ui-select" value={curriculumFilter} onChange={(event) => { setCurriculumFilter(event.target.value); setPage(1); setSelectedIds([]); }} disabled={lookupsLoading}>
+                        <option value="">{officerText(language, 'ทุกหลักสูตร', 'All curricula')}</option>
+                        {availableCurriculums.map((item) => (
+                            <option key={item.curriculumId} value={item.curriculumId}>
+                                {curriculumLabel(item, faculties, language, isAdmin && !facultyId)}
+                            </option>
+                        ))}
+                        <option value={NO_CURRICULUM_FILTER}>{officerText(language, 'ไม่มีหลักสูตร', 'No curriculum')}</option>
+                    </select>
+                </label>
                 <label className="ui-field career-management__search">
                     <span>{officerText(language, 'ค้นหา', 'Search')}</span>
-                    <span className="career-management__search-control"><Search size={16} /><input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder={officerText(language, 'ชื่อหรือรหัสสายงาน', 'Name or code')} /></span>
+                    <span className="career-management__search-control"><Search size={16} aria-hidden="true" /><input className="ui-input" value={searchInput} onChange={(event) => { setSearchInput(event.target.value); setSelectedIds([]); }} placeholder={officerText(language, 'ชื่อหรือรหัสสายงาน', 'Name or code')} /></span>
                 </label>
             </section>
 
@@ -320,8 +388,8 @@ export default function CareerManagementPage() {
                         <thead>
                             <tr>
                                 <th><input type="checkbox" aria-label={officerText(language, 'เลือกทั้งหมดในหน้านี้', 'Select all on this page')} checked={allCurrentSelected} onChange={togglePageSelection} disabled={!result.items.length} /></th>
-                                <th>{officerText(language, 'สายงาน', 'Career path')}</th>
-                                <th>{officerText(language, 'คณะ', 'Faculty')}</th>
+                                {renderSortHeader('name', officerText(language, 'สายงาน', 'Career path'))}
+                                {isAdmin ? renderSortHeader('faculty', officerText(language, 'คณะ', 'Faculty')) : <th>{officerText(language, 'คณะ', 'Faculty')}</th>}
                                 <th>{officerText(language, 'ฉบับใช้งาน', 'Published')}</th>
                                 <th>{officerText(language, 'ฉบับร่าง', 'Draft')}</th>
                                 <th>{officerText(language, 'การดำเนินการ', 'Actions')}</th>

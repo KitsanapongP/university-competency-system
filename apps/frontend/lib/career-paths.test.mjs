@@ -47,6 +47,24 @@ test("query omits empty filters and preserves scoped pagination parameters", () 
   assert.equal(buildCareerPathQuery({ faculty_id: "", status: "", search: "  " }), "");
 });
 
+test("query serializes curriculum filters and server-side sort options", () => {
+  assert.equal(
+    buildCareerPathQuery({
+      faculty_id: "4",
+      curriculum_id: "12",
+      status: "active",
+      sort_by: "faculty",
+      sort_order: "desc",
+      language: "en",
+    }),
+    "faculty_id=4&curriculum_id=12&status=active&sort_by=faculty&sort_order=desc&language=en",
+  );
+  assert.equal(
+    buildCareerPathQuery({ without_curriculum: true, page: 1 }),
+    "without_curriculum=true&page=1",
+  );
+});
+
 test("English display falls back to Thai without showing internal codes", () => {
   assert.equal(
     careerPathName({ publishedNameTh: "นักวิเคราะห์ข้อมูล", code: "DATA", draftNameTh: "ร่าง" }, "en"),
