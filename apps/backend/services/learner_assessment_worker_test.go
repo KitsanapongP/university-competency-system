@@ -73,6 +73,26 @@ func TestLearnerAssessmentWorkerDoesNotProcessLegacyPipelineJobs(t *testing.T) {
 	}
 }
 
+func TestLearnerAssessmentWorkerDoesNotPersistMalformedOrTruncatedOutput(t *testing.T) {
+	for _, code := range []string{"malformed_output", "provider_output_truncated"} {
+		t.Run(code, func(t *testing.T) {
+			payload, job := workerTestJob(t, DefaultAssessmentContextBudget())
+			provider := &fakeAssessmentProvider{output: []byte(`{"strengths":`)}
+			if code == "provider_output_truncated" {
+				provider.err = AssessmentProviderError{Code: code, Retryable: false}
+			}
+			jobs := &fakeAssessmentWorkerJobs{job: job}
+			worker := workerTestInstance(jobs, provider, &fakeAssessmentSourceRebuilder{snapshot: &payload.Source})
+			if _, err := worker.ProcessOne(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if jobs.failedCode != code || jobs.completed != nil || jobs.retryDelay != 0 {
+				t.Fatalf("failed=%q completed=%v retry=%v", jobs.failedCode, jobs.completed, jobs.retryDelay)
+			}
+		})
+	}
+}
+
 func TestLearnerAssessmentWorkerNeverCallsProviderForContextExceeded(t *testing.T) {
 	budget := AssessmentContextBudget{ContextTokens: 1024, OutputReserveTokens: 256, SafetyMarginTokens: 64}
 	payload, job := workerTestJob(t, DefaultAssessmentContextBudget())

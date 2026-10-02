@@ -27,7 +27,11 @@ type evalFixture struct {
 
 func main() {
 	fixtureDir := flag.String("cases", "testdata/learner_assessment", "directory containing synthetic JSON evaluation cases")
+	repeats := flag.Int("repeat", 1, "repeat every fixture (1-10); use 3 for the release gate")
 	flag.Parse()
+	if *repeats < 1 || *repeats > 10 {
+		fatalf("repeat must be between 1 and 10")
+	}
 
 	if os.Getenv("LEARNER_ASSESSMENT_EVAL") != "1" {
 		fatalf("set LEARNER_ASSESSMENT_EVAL=1 to confirm that only synthetic fixtures will be sent to Ollama")
@@ -52,8 +56,15 @@ func main() {
 		cfg.AssessmentOutputReserveTokens,
 		cfg.AssessmentContextTokens,
 	)
-	if err := evaluateDirectory(ctx, casesDirectory, provider, cfg, digest); err != nil {
-		fatalf("evaluation failed: %v", err)
+	var failures []error
+	for round := 1; round <= *repeats; round++ {
+		fmt.Printf("ROUND %d/%d\n", round, *repeats)
+		if err := evaluateDirectory(ctx, casesDirectory, provider, cfg, digest); err != nil {
+			failures = append(failures, err)
+		}
+	}
+	if len(failures) > 0 {
+		fatalf("evaluation failed: %v", errors.Join(failures...))
 	}
 }
 

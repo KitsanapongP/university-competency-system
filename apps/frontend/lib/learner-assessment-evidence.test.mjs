@@ -2,6 +2,18 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildAssessmentEvidenceCatalog } from './learner-assessment-evidence.mjs';
 
+test('readiness evidence resolves criterion names and official comparisons in both languages', () => {
+  const snapshot = { provider_input: { readiness: { results: [
+    { requirement_id: 7, name_th: 'เกรดเฉลี่ยรวม', name_en: 'Overall GPA', current_value: 3.25, required_value: 3 },
+    { requirement_id: 8, name_th: 'สัมมนา', current_grade: 'C', required_grade: 'B' },
+  ] } } };
+  const english = buildAssessmentEvidenceCatalog(snapshot, 'en', 'weighted points');
+  const thai = buildAssessmentEvidenceCatalog(snapshot, 'th', 'คะแนนถ่วงน้ำหนัก');
+  assert.equal(english.get('readiness:7:0'), 'Overall GPA / Current: 3.25; Minimum: 3');
+  assert.equal(thai.get('readiness:8:1'), 'สัมมนา / ค่าปัจจุบัน: C; ค่าขั้นต่ำ: B');
+  assert.equal(english.get('readiness:8:1'), 'สัมมนา / Current: C; Minimum: B');
+});
+
 const sourceSnapshot = {
   provider_input: {
     academic_evidence: [

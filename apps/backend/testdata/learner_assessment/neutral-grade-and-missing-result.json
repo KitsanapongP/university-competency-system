@@ -1,0 +1,24 @@
+{
+  "name": "B+ without a target and a criterion awaiting a grade",
+  "review_checklist": [
+    "Strengths and limitations remain empty",
+    "B+ is an academic observation, not an ability judgment or weakness",
+    "A missing grade is not a failed criterion",
+    "Thai and English explanations do not invent personality traits"
+  ],
+  "input": {
+    "semester": 1,
+    "target_year_be": 2570,
+    "completeness": "partial",
+    "readiness": {
+      "status": "not_ready",
+      "passed_count": 0,
+      "requirement_count": 1,
+      "results": [{"requirement_id": 3,"criterion_type": "course_grade","name_th": "เกรดวิชาวิจัย","name_en": "Research grade","status": "missing_grade","required_grade": "B"}]
+    },
+    "availability": [{"source": "academic_grades","available": true}],
+    "academic_evidence": [{"evidence_ref": "course:core:301","course_code": "CS301","course_name_th": "ระบบฐานข้อมูล","course_name_en": "Database Systems","academic_year_be": 2569,"semester": 2,"grade_scheme": "letter","grade": "B+","credits": 3,"occurrence_count": 1}],
+    "competency_scores": [],
+    "activity_evidence": []
+  }
+}

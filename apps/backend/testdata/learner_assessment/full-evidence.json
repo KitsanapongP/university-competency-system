@@ -11,18 +11,29 @@
     "target_year_be": 2570,
     "completeness": "full",
     "readiness": {
-      "status": "passed",
-      "passed_count": 2,
+      "status": "not_ready",
+      "passed_count": 1,
       "requirement_count": 2,
       "results": [
         {
+          "requirement_id": 1,
           "criterion_type": "overall_gpa",
           "name_th": "เกรดเฉลี่ยรวม",
           "name_en": "Overall GPA",
-          "status": "passed",
+          "status": "met",
           "current_value": 3.25,
           "required_value": 3.00,
           "explanation": "ผ่านเกณฑ์ที่หลักสูตรกำหนด"
+        },
+        {
+          "requirement_id": 2,
+          "criterion_type": "course_grade",
+          "name_th": "เกรดวิชาสัมมนา",
+          "name_en": "Seminar grade",
+          "status": "not_met",
+          "current_grade": "C",
+          "required_grade": "B",
+          "explanation": "ยังไม่ถึงเกณฑ์เกรดขั้นต่ำของวิชาที่กำหนด"
         }
       ]
     },

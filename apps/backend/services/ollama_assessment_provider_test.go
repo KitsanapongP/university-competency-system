@@ -1,14 +1,41 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestOllamaAssessmentUsageLogsDoNotExposeResponseText(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"model":"qwen3:4b","response":"SYNTHETIC_PRIVATE_RESPONSE","done":true,"done_reason":"stop","prompt_eval_count":123,"eval_count":45}`))
+	}))
+	defer server.Close()
+	provider := NewOllamaAssessmentProvider(server.URL, "qwen3:4b", time.Second, "5m", false, 512)
+	if _, err := provider.Generate(context.Background(), "SYNTHETIC_PRIVATE_SYSTEM", "SYNTHETIC_PRIVATE_PROMPT", json.RawMessage(`{"type":"object"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(logs.String(), "SYNTHETIC_PRIVATE") {
+		t.Fatal("generation telemetry exposed private text")
+	}
+	var entry map[string]any
+	if err := json.Unmarshal(logs.Bytes(), &entry); err != nil {
+		t.Fatal(err)
+	}
+	if entry["done_reason"] != "stop" || entry["prompt_eval_count"] != float64(123) || entry["eval_count"] != float64(45) {
+		t.Fatalf("usage entry = %#v", entry)
+	}
+}
 
 func TestOllamaAssessmentProviderSendsStructuredNonStreamingRequest(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
