@@ -1,0 +1,234 @@
+.career-management {
+    display: grid;
+    gap: 1rem;
+}
+
+.career-management .ui-page__header {
+    margin-bottom: 0.25rem;
+}
+
+.career-management__filters {
+    display: grid;
+    grid-template-columns: minmax(12rem, 0.8fr) minmax(12rem, 0.8fr) minmax(16rem, 1.4fr);
+    align-items: end;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.career-management__filters .ui-field {
+    margin: 0;
+}
+
+.career-management__scope {
+    align-self: center;
+    color: var(--ui-text-muted);
+    font-size: 0.875rem;
+}
+
+.career-management__search-control {
+    display: flex;
+    min-height: 2.5rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-control);
+    color: var(--ui-text-muted);
+    background: var(--ui-surface-raised);
+}
+
+.career-management__search-control:focus-within {
+    border-color: var(--ui-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 18%, transparent);
+}
+
+.career-management__search-control input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    color: var(--ui-text);
+    background: transparent;
+    font: inherit;
+}
+
+.career-feedback {
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--ui-border);
+    border-left: 3px solid var(--ui-success);
+    border-radius: var(--ui-radius-panel);
+    color: var(--ui-text);
+    background: var(--ui-surface);
+}
+
+.career-feedback--error {
+    border-left-color: var(--ui-danger);
+}
+
+.career-management__bulk {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface-muted);
+}
+
+.career-management__bulk > span {
+    margin-right: auto;
+    color: var(--ui-text);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.career-management__table-panel {
+    min-width: 0;
+}
+
+.career-management__table-panel .ui-panel__heading {
+    align-items: center;
+}
+
+.career-management__table-panel .ui-panel__heading h2 {
+    margin: 0;
+    color: var(--ui-text);
+    font-size: 1rem;
+}
+
+.career-management__table-wrap {
+    overflow-x: auto;
+}
+
+.career-management__table {
+    width: 100%;
+    border-collapse: collapse;
+    color: var(--ui-text);
+    font-size: 0.875rem;
+}
+
+.career-management__table th,
+.career-management__table td {
+    padding: 0.8rem 0.9rem;
+    border-bottom: 1px solid var(--ui-border);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.career-management__table th {
+    color: var(--ui-text-muted);
+    background: var(--ui-surface-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.career-management__table td:first-child,
+.career-management__table th:first-child {
+    width: 2.5rem;
+    text-align: center;
+}
+
+.career-management__table td input[type='checkbox'],
+.career-management__table th input[type='checkbox'] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--ui-primary);
+}
+
+.career-management__table td strong,
+.career-management__table td small {
+    display: block;
+}
+
+.career-management__table td small {
+    margin-top: 0.2rem;
+    color: var(--ui-text-muted);
+    font-size: 0.75rem;
+}
+
+.career-status {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.3rem 0.55rem;
+    color: var(--ui-text-muted);
+    background: var(--ui-surface-muted);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.career-status--active {
+    color: var(--ui-success);
+    background: color-mix(in srgb, var(--ui-success) 12%, var(--ui-surface));
+}
+
+.career-status--draft {
+    color: var(--ui-primary-hover);
+    background: var(--ui-primary-soft);
+}
+
+.career-management__row-actions {
+    min-width: 12rem;
+    white-space: nowrap;
+}
+
+.career-management__row-actions .ui-button {
+    min-height: 2rem;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+}
+
+.career-management__delete {
+    margin-left: 0.5rem;
+    border: 0;
+    padding: 0.35rem;
+    color: var(--ui-danger);
+    background: transparent;
+    font: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.career-management__state {
+    height: 7rem;
+    color: var(--ui-text-muted);
+    text-align: center !important;
+}
+
+.career-management__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    color: var(--ui-text-muted);
+    font-size: 0.8125rem;
+}
+
+.career-management__pagination > div {
+    display: flex;
+    gap: 0.25rem;
+}
+
+@media (max-width: 820px) {
+    .career-management__filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 560px) {
+    .career-management__filters {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .career-management__table th,
+    .career-management__table td {
+        padding: 0.7rem;
+    }
+
+    .career-management__bulk > span {
+        flex: 1 0 100%;
+    }
+}

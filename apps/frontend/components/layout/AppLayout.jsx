@@ -21,6 +21,7 @@ import {
   BarChart3,
   GitCompare,
   UserRoundSearch,
+  BriefcaseBusiness,
 } from "lucide-react";
 import { useLanguage } from "../../providers/LanguageContext";
 import { useTheme } from "../../providers/theme-provider";
@@ -50,6 +51,7 @@ const sidebarPreferenceListeners = new Set();
 
 const SIDEBAR_ICONS = {
   BarChart3,
+  BriefcaseBusiness,
   BookOpen,
   CalendarDays,
   ClipboardList,

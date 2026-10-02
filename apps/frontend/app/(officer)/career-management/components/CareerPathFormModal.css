@@ -1,0 +1,156 @@
+.career-form {
+    display: grid;
+    gap: 1rem;
+    color: var(--ui-text);
+}
+
+.career-form__grid,
+.career-form__pickers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.career-form__source {
+    grid-column: 1 / -1;
+}
+
+.career-form .ui-field b {
+    color: var(--ui-danger);
+}
+
+.career-form__field-error {
+    color: var(--ui-danger);
+    font-size: 0.75rem;
+}
+
+.career-form__notice,
+.career-form__error {
+    margin: 0;
+    padding: 0.75rem 0.9rem;
+    border-left: 3px solid var(--ui-primary);
+    background: var(--ui-primary-soft);
+    color: var(--ui-text);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.career-form__error {
+    border-left-color: var(--ui-danger);
+    background: color-mix(in srgb, var(--ui-danger) 10%, var(--ui-surface));
+}
+
+.career-picker {
+    display: flex;
+    min-width: 0;
+    min-height: 18rem;
+    flex-direction: column;
+    border: 1px solid var(--ui-border-strong);
+    border-radius: var(--ui-radius-panel);
+    background: var(--ui-surface);
+}
+
+.career-picker__header,
+.career-picker__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    border-bottom: 1px solid var(--ui-border);
+    color: var(--ui-text);
+    font-size: 0.875rem;
+}
+
+.career-picker__header span {
+    min-width: 1.5rem;
+    text-align: center;
+    color: var(--ui-primary-hover);
+    font-weight: 700;
+}
+
+.career-picker__search {
+    display: flex;
+    min-height: 2.5rem;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.75rem 0.9rem 0;
+    padding: 0 0.65rem;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-control);
+    color: var(--ui-text-muted);
+}
+
+.career-picker__search input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    color: var(--ui-text);
+    background: transparent;
+    font: inherit;
+}
+
+.career-picker__actions {
+    justify-content: flex-start;
+    padding-block: 0.5rem;
+}
+
+.career-picker__actions button {
+    border: 0;
+    padding: 0.2rem 0;
+    color: var(--ui-primary-hover);
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+}
+
+.career-picker__options {
+    display: grid;
+    max-height: 12rem;
+    gap: 0.15rem;
+    overflow-y: auto;
+    padding: 0.4rem 0.75rem 0.75rem;
+}
+
+.career-picker__option {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.45rem;
+    border-radius: 5px;
+    color: var(--ui-text);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+
+.career-picker__option:hover {
+    background: var(--ui-hover);
+}
+
+.career-picker__option input {
+    flex: 0 0 auto;
+    margin-top: 0.2rem;
+    accent-color: var(--ui-primary);
+}
+
+.career-picker__empty {
+    margin: 0;
+    padding: 1rem 0.5rem;
+    color: var(--ui-text-muted);
+    font-size: 0.8125rem;
+}
+
+@media (max-width: 760px) {
+    .career-form__grid,
+    .career-form__pickers {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .career-form__source {
+        grid-column: auto;
+    }
+}

@@ -21,6 +21,12 @@ export const SIDEBAR_MENU_CONFIG = {
       groupKey: "academic",
     },
     {
+      id: "career-management",
+      iconKey: "BriefcaseBusiness",
+      labelKey: "career_management",
+      groupKey: "academic",
+    },
+    {
       id: "student-management",
       iconKey: "Users",
       labelKey: "student_management",
@@ -80,6 +86,12 @@ export const SIDEBAR_MENU_CONFIG = {
       id: "major-management",
       iconKey: "GraduationCap",
       labelKey: "major_management",
+      groupKey: "academic",
+    },
+    {
+      id: "career-management",
+      iconKey: "BriefcaseBusiness",
+      labelKey: "career_management",
       groupKey: "academic",
     },
     {

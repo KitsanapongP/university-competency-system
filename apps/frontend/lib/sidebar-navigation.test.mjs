@@ -11,6 +11,7 @@ const expectedMenuIds = {
   officer: [
     "major-management",
     "curriculum-management",
+    "career-management",
     "student-management",
     "competency-management",
     "template-management",
@@ -23,6 +24,7 @@ const expectedMenuIds = {
     "dashboard",
     "executive-management",
     "major-management",
+    "career-management",
     "student-management",
     "competency-management",
     "template-assignments",
