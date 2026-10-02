@@ -131,7 +131,7 @@ func PrepareAssessmentContext(snapshot *models.LearnerAssessmentSnapshot, budget
 		Provenance:   provenance,
 	}
 	prepared.EstimatedTokens = EstimateAssessmentPromptTokens(systemPrompt, userPrompt)
-	prepared.Diagnostics = assessmentContextDiagnostics(input, systemPrompt, userPrompt, budget, prepared.EstimatedTokens)
+	prepared.Diagnostics = EstimateAssessmentContextDiagnostics(input, systemPrompt, userPrompt, budget, prepared.EstimatedTokens)
 	if prepared.EstimatedTokens+budget.OutputReserveTokens+budget.SafetyMarginTokens > budget.ContextTokens {
 		return prepared, AssessmentContextExceededError{
 			EstimatedTokens: prepared.EstimatedTokens + budget.OutputReserveTokens + budget.SafetyMarginTokens,
@@ -142,7 +142,8 @@ func PrepareAssessmentContext(snapshot *models.LearnerAssessmentSnapshot, budget
 	return prepared, nil
 }
 
-func assessmentContextDiagnostics(
+// EstimateAssessmentContextDiagnostics returns token budgets and byte counts without source text.
+func EstimateAssessmentContextDiagnostics(
 	input models.AssessmentProviderInput,
 	systemPrompt, userPrompt string,
 	budget AssessmentContextBudget,

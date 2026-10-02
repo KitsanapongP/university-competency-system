@@ -32,6 +32,10 @@ func main() {
 	if os.Getenv("LEARNER_ASSESSMENT_EVAL") != "1" {
 		fatalf("set LEARNER_ASSESSMENT_EVAL=1 to confirm that only synthetic fixtures will be sent to Ollama")
 	}
+	casesDirectory, err := resolveEvaluationCasesDirectory(*fixtureDir)
+	if err != nil {
+		fatalf("evaluation fixtures must be inside the checked-in synthetic fixture directory")
+	}
 
 	cfg := config.Load()
 	ctx := context.Background()
@@ -48,9 +52,37 @@ func main() {
 		cfg.AssessmentOutputReserveTokens,
 		cfg.AssessmentContextTokens,
 	)
-	if err := evaluateDirectory(ctx, *fixtureDir, provider, cfg, digest); err != nil {
+	if err := evaluateDirectory(ctx, casesDirectory, provider, cfg, digest); err != nil {
 		fatalf("evaluation failed: %v", err)
 	}
+}
+
+func resolveEvaluationCasesDirectory(directory string) (string, error) {
+	allowedRoot, err := filepath.Abs(filepath.Join("testdata", "learner_assessment"))
+	if err != nil {
+		return "", err
+	}
+	allowedRoot, err = filepath.EvalSymlinks(allowedRoot)
+	if err != nil {
+		return "", err
+	}
+	requestedDirectory, err := filepath.Abs(directory)
+	if err != nil {
+		return "", err
+	}
+	requestedDirectory, err = filepath.EvalSymlinks(requestedDirectory)
+	if err != nil {
+		return "", err
+	}
+	relative, err := filepath.Rel(allowedRoot, requestedDirectory)
+	if err != nil || filepath.IsAbs(relative) || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("evaluation fixture path is outside the synthetic fixture directory")
+	}
+	info, err := os.Stat(requestedDirectory)
+	if err != nil || !info.IsDir() {
+		return "", fmt.Errorf("evaluation fixture path is not a directory")
+	}
+	return requestedDirectory, nil
 }
 
 func evaluateDirectory(
@@ -74,10 +106,14 @@ func evaluateDirectory(
 		OutputReserveTokens: cfg.AssessmentOutputReserveTokens,
 		SafetyMarginTokens:  cfg.AssessmentTokenSafetyMargin,
 	}
+	var failures []error
 	for _, path := range paths {
 		if err := evaluateFixture(ctx, path, provider, budget, cfg.AssessmentOllamaThink, modelDigest); err != nil {
-			return err
+			failures = append(failures, fmt.Errorf("%s: %w", filepath.Base(path), err))
 		}
+	}
+	if len(failures) > 0 {
+		return fmt.Errorf("%d evaluation fixture(s) failed: %w", len(failures), errors.Join(failures...))
 	}
 	return nil
 }
@@ -111,10 +147,15 @@ func evaluateFixture(
 	if err != nil {
 		return fmt.Errorf("build prompt for %s", fixture.Name)
 	}
-	estimatedTokens := services.EstimateAssessmentPromptTokens(systemPrompt, userPrompt)
-	budgetLimit := budget.ContextTokens - budget.OutputReserveTokens - budget.SafetyMarginTokens
-	if estimatedTokens > budgetLimit {
-		return fmt.Errorf("fixture %s exceeds the input budget (%d > %d estimated tokens)", fixture.Name, estimatedTokens, budgetLimit)
+	diagnostics := services.EstimateAssessmentContextDiagnostics(fixture.Input, systemPrompt, userPrompt, budget, services.EstimateAssessmentPromptTokens(systemPrompt, userPrompt))
+	if diagnostics.EstimatedTotalTokens > diagnostics.ContextTokens {
+		return fmt.Errorf("fixture %s exceeds the configured context (estimated_total=%d context=%d input=%d input_budget=%d)",
+			fixture.Name,
+			diagnostics.EstimatedTotalTokens,
+			diagnostics.ContextTokens,
+			diagnostics.EstimatedInputTokens,
+			diagnostics.InputBudgetTokens,
+		)
 	}
 
 	startedAt := time.Now()
@@ -124,18 +165,106 @@ func evaluateFixture(
 	}
 	validated, err := services.ValidateAssessmentProviderOutput(raw, fixture.Input)
 	if err != nil {
-		return fmt.Errorf("fixture %s returned invalid structured output: %w", fixture.Name, err)
+		return fmt.Errorf("fixture %s returned invalid structured output (shape=%s input_tokens=%d total_tokens=%d context=%d output_reserve=%d): %w",
+			fixture.Name,
+			assessmentOutputShape(raw),
+			diagnostics.EstimatedInputTokens,
+			diagnostics.EstimatedTotalTokens,
+			diagnostics.ContextTokens,
+			diagnostics.OutputReserveTokens,
+			err,
+		)
 	}
 	formatted, err := json.MarshalIndent(validated, "", "  ")
 	if err != nil {
 		return fmt.Errorf("format validated output for %s", fixture.Name)
 	}
 
-	fmt.Printf("CASE %q model=%s digest=%s think=%t estimated_input_tokens=%d elapsed=%s schema=valid\n",
-		fixture.Name, services.DefaultAssessmentModel(), modelDigest, think, estimatedTokens, time.Since(startedAt).Round(time.Millisecond))
+	fmt.Printf("CASE %q model=%s digest=%s think=%t input_tokens=%d total_tokens=%d context=%d output_reserve=%d safety_margin=%d source_bytes=%d readiness_bytes=%d availability_bytes=%d academic_bytes=%d competency_bytes=%d activity_bytes=%d elapsed=%s schema=valid\n",
+		fixture.Name,
+		services.DefaultAssessmentModel(),
+		modelDigest,
+		think,
+		diagnostics.EstimatedInputTokens,
+		diagnostics.EstimatedTotalTokens,
+		diagnostics.ContextTokens,
+		diagnostics.OutputReserveTokens,
+		diagnostics.SafetyMarginTokens,
+		diagnostics.SourceDataBytes,
+		diagnostics.ReadinessBytes,
+		diagnostics.AvailabilityBytes,
+		diagnostics.AcademicEvidenceBytes,
+		diagnostics.CompetencyScoresBytes,
+		diagnostics.ActivityEvidenceBytes,
+		time.Since(startedAt).Round(time.Millisecond),
+	)
 	fmt.Printf("Review checklist: %s\n", strings.Join(fixture.ReviewChecklist, "; "))
 	fmt.Printf("%s\n\n", formatted)
 	return nil
+}
+
+func assessmentOutputShape(raw []byte) string {
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		var syntaxError *json.SyntaxError
+		if errors.As(err, &syntaxError) {
+			class := "invalid-syntax"
+			if strings.Contains(syntaxError.Error(), "unexpected end") {
+				class = "unexpected-end"
+			}
+			return fmt.Sprintf("malformed-json(bytes=%d,syntax_offset=%d,class=%s)", len(raw), syntaxError.Offset, class)
+		}
+		return fmt.Sprintf("malformed-json(bytes=%d,class=invalid-input)", len(raw))
+	}
+	shape, err := json.Marshal(summarizeAssessmentJSONShape(value))
+	if err != nil {
+		return "unavailable"
+	}
+	return string(shape)
+}
+
+func summarizeAssessmentJSONShape(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		fields := make(map[string]any, len(typed))
+		unknownKeys := 0
+		for key, child := range typed {
+			if !assessmentOutputFieldNames[key] {
+				unknownKeys++
+				continue
+			}
+			fields[key] = summarizeAssessmentJSONShape(child)
+		}
+		return map[string]any{"type": "object", "fields": fields, "unknown_keys": unknownKeys}
+	case []any:
+		shape := map[string]any{"type": "array", "items": len(typed)}
+		if len(typed) > 0 {
+			shape["first"] = summarizeAssessmentJSONShape(typed[0])
+		}
+		return shape
+	case string:
+		return "string"
+	case bool:
+		return "boolean"
+	case float64:
+		return "number"
+	case nil:
+		return "null"
+	default:
+		return "unknown"
+	}
+}
+
+var assessmentOutputFieldNames = map[string]bool{
+	"readiness_explanation": true,
+	"strengths":             true,
+	"limitations":           true,
+	"title":                 true,
+	"reason":                true,
+	"development_advice":    true,
+	"evidence_refs":         true,
+	"th":                    true,
+	"en":                    true,
 }
 
 func safeProviderError(err error) error {

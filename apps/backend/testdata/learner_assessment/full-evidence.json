@@ -31,8 +31,7 @@
       { "source": "academic_grades", "available": true },
       { "source": "course_competency_scores", "available": true },
       { "source": "free_elective_competency_scores", "available": true },
-      { "source": "activities", "available": true },
-      { "source": "career_paths", "available": true }
+      { "source": "activities", "available": true }
     ],
     "academic_evidence": [
       {
@@ -76,12 +75,6 @@
             "occurrence_count": 1,
             "course_evidence_ref": "course:core:101",
             "source": "core",
-            "course_code": "CS101",
-            "course_name_th": "การเขียนโปรแกรมพื้นฐาน",
-            "course_name_en": "Fundamentals of Programming",
-            "academic_year_be": 2569,
-            "semester": 2,
-            "grade": "A",
             "raw_score": 90,
             "weight": 20,
             "weighted_score": 18,
@@ -91,16 +84,7 @@
         "activity_scores": [
           {
             "evidence_ref": "activity-score:301",
-            "score_evidence_ref": "activity-score:301",
-            "activity_evidence_ref": "activity:301",
-            "occurrence_count": 1,
-            "activity_name_th": "โครงการพัฒนาโปรแกรมชุมชน",
-            "activity_name_en": "Community Software Project",
-            "activity_category": "technology",
-            "activity_type": "project",
-            "start_at": "2026-02-10T09:00:00Z",
-            "attendance_status": "attended",
-            "earned_percent": 80
+            "activity_evidence_ref": "activity:301"
           }
         ]
       }
@@ -117,27 +101,6 @@
         "start_at": "2026-02-10T09:00:00Z",
         "attendance_status": "attended",
         "earned_percent": 80
-      }
-    ],
-    "eligible_careers": [
-      {
-        "career_path_id": 11,
-        "code": "software-developer",
-        "revision": 1,
-        "name_th": "นักพัฒนาซอฟต์แวร์",
-        "name_en": "Software Developer",
-        "description_th": "พัฒนาและทดสอบซอฟต์แวร์ตามความต้องการของผู้ใช้",
-        "description_en": "Develop and test software based on user needs.",
-        "skills_description_th": "การเขียนโปรแกรมและการแก้ปัญหา",
-        "skills_description_en": "Programming and problem solving.",
-        "competencies": [
-          {
-            "competency_id": 1,
-            "competency_code": "CP1",
-            "competency_name_th": "การแก้ปัญหา",
-            "competency_name_en": "Problem solving"
-          }
-        ]
       }
     ]
   }
