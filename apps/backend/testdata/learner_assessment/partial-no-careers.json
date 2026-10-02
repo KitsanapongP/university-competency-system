@@ -1,0 +1,45 @@
+{
+  "name": "partial evidence with no published career catalogue",
+  "review_checklist": [
+    "Clearly says readiness cannot be checked because no published criteria are supplied",
+    "Does not claim missing data is a zero score or evidence of a weakness",
+    "Allows zero career recommendations and gives no invented career names",
+    "Thai and English statements have equivalent meaning"
+  ],
+  "input": {
+    "semester": 2,
+    "target_year_be": 2570,
+    "completeness": "partial",
+    "readiness": {
+      "status": "not_configured",
+      "passed_count": 0,
+      "requirement_count": 0,
+      "results": []
+    },
+    "availability": [
+      { "source": "cooperative_readiness", "available": false, "reason_code": "criteria_not_published" },
+      { "source": "academic_grades", "available": true },
+      { "source": "course_competency_scores", "available": false, "reason_code": "scores_recalculation_required" },
+      { "source": "free_elective_competency_scores", "available": false, "reason_code": "no_elective_scores" },
+      { "source": "activities", "available": false, "reason_code": "no_activity_evidence" },
+      { "source": "career_paths", "available": false, "reason_code": "no_published_career_paths" }
+    ],
+    "academic_evidence": [
+      {
+        "evidence_ref": "course:core:205",
+        "occurrence_count": 1,
+        "course_code": "CS205",
+        "course_name_th": "ระบบฐานข้อมูล",
+        "course_name_en": "Database Systems",
+        "academic_year_be": 2569,
+        "semester": 2,
+        "credits": 3,
+        "grade_scheme": "letter",
+        "grade": "B+"
+      }
+    ],
+    "competency_scores": [],
+    "activity_evidence": [],
+    "eligible_careers": []
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "name": "full evidence with supported career recommendation",
+  "review_checklist": [
+    "Readiness text explains the backend result without changing it",
+    "Strengths and limitations cite only supplied evidence references",
+    "Thai and English statements have equivalent meaning",
+    "Career recommendation uses only the supplied catalogue ID and is evidence-grounded"
+  ],
+  "input": {
+    "semester": 1,
+    "target_year_be": 2570,
+    "completeness": "full",
+    "readiness": {
+      "status": "passed",
+      "passed_count": 2,
+      "requirement_count": 2,
+      "results": [
+        {
+          "criterion_type": "overall_gpa",
+          "name_th": "เกรดเฉลี่ยรวม",
+          "name_en": "Overall GPA",
+          "status": "passed",
+          "current_value": 3.25,
+          "required_value": 3.00,
+          "explanation": "ผ่านเกณฑ์ที่หลักสูตรกำหนด"
+        }
+      ]
+    },
+    "availability": [
+      { "source": "cooperative_readiness", "available": true },
+      { "source": "academic_grades", "available": true },
+      { "source": "course_competency_scores", "available": true },
+      { "source": "free_elective_competency_scores", "available": true },
+      { "source": "activities", "available": true },
+      { "source": "career_paths", "available": true }
+    ],
+    "academic_evidence": [
+      {
+        "evidence_ref": "course:core:101",
+        "occurrence_count": 1,
+        "course_code": "CS101",
+        "course_name_th": "การเขียนโปรแกรมพื้นฐาน",
+        "course_name_en": "Fundamentals of Programming",
+        "academic_year_be": 2569,
+        "semester": 2,
+        "credits": 3,
+        "grade_scheme": "letter",
+        "grade": "A"
+      },
+      {
+        "evidence_ref": "course:core:102",
+        "occurrence_count": 1,
+        "course_code": "CS205",
+        "course_name_th": "ระบบฐานข้อมูล",
+        "course_name_en": "Database Systems",
+        "academic_year_be": 2569,
+        "semester": 2,
+        "credits": 3,
+        "grade_scheme": "letter",
+        "grade": "B+"
+      }
+    ],
+    "competency_scores": [
+      {
+        "competency_ref": "competency:1",
+        "name_th": "การแก้ปัญหา",
+        "name_en": "Problem solving",
+        "core_score": 18.0,
+        "bonus_score": 0.0,
+        "free_elective_score": 0.0,
+        "activity_score": 8.0,
+        "has_evidence": true,
+        "course_scores": [
+          {
+            "evidence_ref": "score:core:101",
+            "occurrence_count": 1,
+            "course_evidence_ref": "course:core:101",
+            "source": "core",
+            "course_code": "CS101",
+            "course_name_th": "การเขียนโปรแกรมพื้นฐาน",
+            "course_name_en": "Fundamentals of Programming",
+            "academic_year_be": 2569,
+            "semester": 2,
+            "grade": "A",
+            "raw_score": 90,
+            "weight": 20,
+            "weighted_score": 18,
+            "score_type": "core"
+          }
+        ],
+        "activity_scores": [
+          {
+            "evidence_ref": "activity-score:301",
+            "score_evidence_ref": "activity-score:301",
+            "activity_evidence_ref": "activity:301",
+            "occurrence_count": 1,
+            "activity_name_th": "โครงการพัฒนาโปรแกรมชุมชน",
+            "activity_name_en": "Community Software Project",
+            "activity_category": "technology",
+            "activity_type": "project",
+            "start_at": "2026-02-10T09:00:00Z",
+            "attendance_status": "attended",
+            "earned_percent": 80
+          }
+        ]
+      }
+    ],
+    "activity_evidence": [
+      {
+        "evidence_ref": "activity:301",
+        "score_evidence_ref": "activity-score:301",
+        "occurrence_count": 1,
+        "activity_name_th": "โครงการพัฒนาโปรแกรมชุมชน",
+        "activity_name_en": "Community Software Project",
+        "activity_category": "technology",
+        "activity_type": "project",
+        "start_at": "2026-02-10T09:00:00Z",
+        "attendance_status": "attended",
+        "earned_percent": 80
+      }
+    ],
+    "eligible_careers": [
+      {
+        "career_path_id": 11,
+        "code": "software-developer",
+        "revision": 1,
+        "name_th": "นักพัฒนาซอฟต์แวร์",
+        "name_en": "Software Developer",
+        "description_th": "พัฒนาและทดสอบซอฟต์แวร์ตามความต้องการของผู้ใช้",
+        "description_en": "Develop and test software based on user needs.",
+        "skills_description_th": "การเขียนโปรแกรมและการแก้ปัญหา",
+        "skills_description_en": "Programming and problem solving.",
+        "competencies": [
+          {
+            "competency_id": 1,
+            "competency_code": "CP1",
+            "competency_name_th": "การแก้ปัญหา",
+            "competency_name_en": "Problem solving"
+          }
+        ]
+      }
+    ]
+  }
+}
