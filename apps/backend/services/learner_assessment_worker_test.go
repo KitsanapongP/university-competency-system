@@ -42,7 +42,7 @@ func TestLearnerAssessmentWorkerPersistsValidatedOutputAndSourceTrace(t *testing
 func TestLearnerAssessmentWorkerRejectsInvalidOutputAndDoesNotPersist(t *testing.T) {
 	payload, job := workerTestJob(t, DefaultAssessmentContextBudget())
 	output := workerTestOutput(payload.ProviderInput)
-	output.Strengths[0].EvidenceRefs = []string{"foreign:evidence:1"}
+	output.Observations[0].ObservationID = "foreign:evidence:1"
 	provider := &fakeAssessmentProvider{output: mustJSON(t, output)}
 	jobs := &fakeAssessmentWorkerJobs{job: job}
 	worker := workerTestInstance(jobs, provider, &fakeAssessmentSourceRebuilder{snapshot: &payload.Source})
@@ -170,14 +170,13 @@ func workerTestJob(t *testing.T, budget AssessmentContextBudget) (models.Assessm
 	return payload, job
 }
 
-func workerTestOutput(input models.AssessmentProviderInput) models.AssessmentProviderOutput {
-	courseRef := input.AcademicEvidence[0].EvidenceRef
-	return models.AssessmentProviderOutput{
-		ReadinessExplanation: models.AssessmentBilingualText{TH: "ผลตรวจตามข้อมูลระบบ", EN: "Based on the system result"},
-		Strengths: []models.AssessmentReportFinding{{
-			Title:        models.AssessmentBilingualText{TH: "จุดแข็ง", EN: "Strength"},
-			Reason:       models.AssessmentBilingualText{TH: "มีหลักฐานรายวิชา", EN: "Supported by course evidence"},
-			EvidenceRefs: []string{courseRef},
+func workerTestOutput(input models.AssessmentProviderInput) models.AssessmentNarrativeOutput {
+	return models.AssessmentNarrativeOutput{
+		Strengths:   []models.AssessmentNarrativeFinding{},
+		Limitations: []models.AssessmentNarrativeFinding{},
+		Observations: []models.AssessmentNarrativeFinding{{
+			ObservationID: "academic:" + input.AcademicEvidence[0].EvidenceRef,
+			Explanation:   models.AssessmentBilingualText{TH: "มีหลักฐานรายวิชา", EN: "Supported by course evidence"},
 		}},
 	}
 }

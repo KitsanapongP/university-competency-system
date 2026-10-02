@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/spw32767/university-competency-system-backend/models"
 	"io"
 	"strings"
-
-	"github.com/spw32767/university-competency-system-backend/models"
+	"unicode/utf8"
 )
 
 const (
@@ -24,7 +24,7 @@ func ValidateAssessmentProviderOutput(raw []byte, input models.AssessmentProvide
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
-	var output models.AssessmentProviderOutput
+	var output models.AssessmentNarrativeOutput
 	if err := decoder.Decode(&output); err != nil {
 		return models.AssessmentValidatedOutput{}, fmt.Errorf("%w: invalid JSON structure", ErrAssessmentOutputInvalid)
 	}
@@ -32,68 +32,71 @@ func ValidateAssessmentProviderOutput(raw []byte, input models.AssessmentProvide
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		return models.AssessmentValidatedOutput{}, fmt.Errorf("%w: trailing content", ErrAssessmentOutputInvalid)
 	}
-	if err := validateAssessmentOutput(output, input); err != nil {
+	return assembleAssessmentOutput(output, input)
+}
+
+func assembleAssessmentOutput(output models.AssessmentNarrativeOutput, input models.AssessmentProviderInput) (models.AssessmentValidatedOutput, error) {
+	observations := make(map[string]models.AssessmentObservation)
+	for _, observation := range BuildAssessmentObservations(input) {
+		observations[observation.ObservationID] = observation
+	}
+	seen := make(map[string]bool)
+	assemble := func(items []models.AssessmentNarrativeFinding, kind string) ([]models.AssessmentReportFinding, error) {
+		if items == nil || len(items) > 3 {
+			return nil, fmt.Errorf("%w: all sections are required and bounded", ErrAssessmentOutputInvalid)
+		}
+		findings := make([]models.AssessmentReportFinding, 0, len(items))
+		for _, item := range items {
+			observation, exists := observations[item.ObservationID]
+			if !exists || observation.Kind != kind || seen[item.ObservationID] {
+				return nil, fmt.Errorf("%w: unknown, duplicate, or misplaced observation", ErrAssessmentOutputInvalid)
+			}
+			seen[item.ObservationID] = true
+			if err := validateAssessmentNarrative(item.Explanation, "explanation"); err != nil {
+				return nil, err
+			}
+			if kind == "limitation" && item.DevelopmentAdvice == nil {
+				return nil, fmt.Errorf("%w: limitation advice is required", ErrAssessmentOutputInvalid)
+			}
+			if kind != "limitation" && item.DevelopmentAdvice != nil {
+				return nil, fmt.Errorf("%w: unexpected advice", ErrAssessmentOutputInvalid)
+			}
+			if item.DevelopmentAdvice != nil {
+				if err := validateAssessmentNarrative(*item.DevelopmentAdvice, "development_advice"); err != nil {
+					return nil, err
+				}
+			}
+			explanation := item.Explanation
+			findings = append(findings, models.AssessmentReportFinding{ObservationID: observation.ObservationID, Title: observation.Title, Reason: observation.Fact, Explanation: &explanation, EvidenceRefs: observation.EvidenceRefs, DevelopmentAdvice: item.DevelopmentAdvice})
+		}
+		return findings, nil
+	}
+	validated := models.AssessmentValidatedOutput{ReadinessExplanation: assessmentReadinessExplanation(input)}
+	var err error
+	if validated.Strengths, err = assemble(output.Strengths, "strength"); err != nil {
 		return models.AssessmentValidatedOutput{}, err
 	}
-	if output.Strengths == nil {
-		output.Strengths = make([]models.AssessmentReportFinding, 0)
+	if validated.Limitations, err = assemble(output.Limitations, "limitation"); err != nil {
+		return models.AssessmentValidatedOutput{}, err
 	}
-	if output.Limitations == nil {
-		output.Limitations = make([]models.AssessmentReportFinding, 0)
+	if validated.Observations, err = assemble(output.Observations, "neutral"); err != nil {
+		return models.AssessmentValidatedOutput{}, err
 	}
-	validated := output
 	return validated, nil
 }
 
-func validateAssessmentOutput(output models.AssessmentProviderOutput, input models.AssessmentProviderInput) error {
-	if err := validateBilingualText(output.ReadinessExplanation, "readiness_explanation"); err != nil {
+func validateAssessmentNarrative(text models.AssessmentBilingualText, field string) error {
+	if err := validateBilingualText(text, field); err != nil {
 		return err
 	}
-	if len(output.Strengths) > 5 || len(output.Limitations) > 5 {
-		return fmt.Errorf("%w: output item limit exceeded", ErrAssessmentOutputInvalid)
-	}
-	validReferences := assessmentProviderEvidenceReferences(input)
-	for index, finding := range output.Strengths {
-		if err := validateFinding(finding, validReferences, false, fmt.Sprintf("strengths[%d]", index)); err != nil {
-			return err
-		}
-	}
-	for index, finding := range output.Limitations {
-		if err := validateFinding(finding, validReferences, true, fmt.Sprintf("limitations[%d]", index)); err != nil {
-			return err
-		}
+	if utf8.RuneCountInString(text.TH) > 240 || utf8.RuneCountInString(text.EN) > 240 {
+		return fmt.Errorf("%w: narrative too long", ErrAssessmentOutputInvalid)
 	}
 	return nil
 }
 
-func validateFinding(
-	finding models.AssessmentReportFinding,
-	validReferences map[string]struct{},
-	requireAdvice bool,
-	field string,
-) error {
-	if err := validateBilingualText(finding.Title, field+".title"); err != nil {
-		return err
-	}
-	if err := validateBilingualText(finding.Reason, field+".reason"); err != nil {
-		return err
-	}
-	if requireAdvice {
-		if finding.DevelopmentAdvice == nil {
-			return fmt.Errorf("%w: limitation advice is required", ErrAssessmentOutputInvalid)
-		}
-		if err := validateBilingualText(*finding.DevelopmentAdvice, field+".development_advice"); err != nil {
-			return err
-		}
-	}
-	return validateEvidenceRefs(finding.EvidenceRefs, validReferences)
-}
-
 func validateBilingualText(value models.AssessmentBilingualText, field string) error {
-	for _, language := range []struct {
-		name string
-		text string
-	}{{name: "th", text: value.TH}, {name: "en", text: value.EN}} {
+	for _, language := range []struct{ name, text string }{{"th", value.TH}, {"en", value.EN}} {
 		trimmed := strings.TrimSpace(language.text)
 		if trimmed == "" || len(trimmed) > assessmentMaxTextBytes || containsAssessmentPII(trimmed) {
 			return fmt.Errorf("%w: invalid %s text for %s", ErrAssessmentOutputInvalid, language.name, field)
@@ -102,54 +105,6 @@ func validateBilingualText(value models.AssessmentBilingualText, field string) e
 	return nil
 }
 
-func validateEvidenceRefs(references []string, valid map[string]struct{}) error {
-	if len(references) == 0 || len(references) > 10 {
-		return fmt.Errorf("%w: evidence references are required and bounded", ErrAssessmentOutputInvalid)
-	}
-	seen := make(map[string]struct{}, len(references))
-	for _, reference := range references {
-		if _, ok := valid[reference]; !ok {
-			return fmt.Errorf("%w: unknown evidence reference", ErrAssessmentOutputInvalid)
-		}
-		if _, exists := seen[reference]; exists {
-			return fmt.Errorf("%w: duplicate evidence reference", ErrAssessmentOutputInvalid)
-		}
-		seen[reference] = struct{}{}
-	}
-	return nil
-}
-
-func assessmentProviderEvidenceReferences(input models.AssessmentProviderInput) map[string]struct{} {
-	references := make(map[string]struct{})
-	add := func(reference string) {
-		if reference != "" {
-			references[reference] = struct{}{}
-		}
-	}
-	for _, item := range input.AcademicEvidence {
-		add(item.EvidenceRef)
-	}
-	for _, competency := range input.CompetencyScores {
-		add(competency.CompetencyRef)
-		for _, score := range competency.CourseScores {
-			add(score.EvidenceRef)
-			add(score.CourseRef)
-		}
-		for _, score := range competency.ActivityScores {
-			add(score.EvidenceRef)
-			add(score.ActivityEvidenceRef)
-		}
-	}
-	for _, activity := range input.ActivityEvidence {
-		add(activity.EvidenceRef)
-		add(activity.ScoreEvidenceRef)
-	}
-	return references
-}
-
 func containsAssessmentPII(value string) bool {
-	return assessmentEmailPattern.MatchString(value) ||
-		assessmentPhonePattern.MatchString(value) ||
-		assessmentNationalIDPattern.MatchString(value) ||
-		assessmentStudentIDPattern.MatchString(value)
+	return assessmentEmailPattern.MatchString(value) || assessmentPhonePattern.MatchString(value) || assessmentNationalIDPattern.MatchString(value) || assessmentStudentIDPattern.MatchString(value)
 }

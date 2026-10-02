@@ -124,7 +124,7 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 		return w.failClaim(ctx, job, "context_exceeded", 0)
 	}
 	providerContext, stopHeartbeat, heartbeatErrors := w.withLeaseHeartbeat(ctx, job, leaseDuration)
-	providerOutput, providerErr := w.Provider.Generate(providerContext, systemPrompt, userPrompt, AssessmentOutputJSONSchema())
+	providerOutput, providerErr := w.Provider.Generate(providerContext, systemPrompt, userPrompt, AssessmentOutputJSONSchema(payload.ProviderInput))
 	stopHeartbeat()
 	heartbeatErr := <-heartbeatErrors
 	if heartbeatErr != nil {

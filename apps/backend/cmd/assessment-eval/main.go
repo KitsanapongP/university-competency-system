@@ -159,7 +159,7 @@ func evaluateFixture(
 	}
 
 	startedAt := time.Now()
-	raw, err := provider.Generate(ctx, systemPrompt, userPrompt, services.AssessmentOutputJSONSchema())
+	raw, err := provider.Generate(ctx, systemPrompt, userPrompt, services.AssessmentOutputJSONSchema(fixture.Input))
 	if err != nil {
 		return fmt.Errorf("fixture %s provider request failed: %w", fixture.Name, safeProviderError(err))
 	}

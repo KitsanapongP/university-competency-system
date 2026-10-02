@@ -132,14 +132,12 @@ type AssessmentNarrativeOutput struct {
 	Observations []AssessmentNarrativeFinding `json:"observations"`
 }
 
-type AssessmentProviderOutput struct {
+type AssessmentValidatedOutput struct {
 	ReadinessExplanation AssessmentBilingualText   `json:"readiness_explanation"`
 	Strengths            []AssessmentReportFinding `json:"strengths"`
 	Limitations          []AssessmentReportFinding `json:"limitations"`
 	Observations         []AssessmentReportFinding `json:"observations"`
 }
-
-type AssessmentValidatedOutput = AssessmentProviderOutput
 
 type AssessmentJob struct {
 	JobID                  uint64          `json:"job_id"`
