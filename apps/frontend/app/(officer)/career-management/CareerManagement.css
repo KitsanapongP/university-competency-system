@@ -68,7 +68,7 @@
     pointer-events: none;
 }
 
-.career-management__search-control .ui-input {
+.career-management .career-management__search .career-management__search-control input.ui-input {
     width: 100%;
     min-width: 0;
     padding-left: 2.5rem;
