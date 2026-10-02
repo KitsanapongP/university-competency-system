@@ -18,6 +18,10 @@ type CooperativeReadinessRepository struct {
 	DB *sql.DB
 }
 
+type cooperativeReadinessQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
 type CooperativeLearnerContext struct {
 	EnrollmentID uint64
 	CurriculumID uint64
@@ -30,6 +34,9 @@ type CooperativeAcademicRecord struct {
 	Source       string
 	AcademicYear uint64
 	Semester     uint64
+	CourseCode   string
+	CourseNameTH string
+	CourseNameEN string
 	Credits      int
 	GradeScheme  string
 	Grade        string
@@ -65,15 +72,19 @@ func (r *CooperativeReadinessRepository) GetLearnerContext(ctx context.Context, 
 }
 
 func (r *CooperativeReadinessRepository) GetAcademicRecords(ctx context.Context, enrollmentID, curriculumID uint64) ([]CooperativeAcademicRecord, error) {
-	categoryByCourse, err := r.getCourseCategories(ctx, curriculumID)
+	return r.GetAcademicRecordsWith(ctx, r.DB, enrollmentID, curriculumID)
+}
+
+func (r *CooperativeReadinessRepository) GetAcademicRecordsWith(ctx context.Context, queryer cooperativeReadinessQueryer, enrollmentID, curriculumID uint64) ([]CooperativeAcademicRecord, error) {
+	categoryByCourse, err := r.getCourseCategoriesWith(ctx, queryer, curriculumID)
 	if err != nil {
 		return nil, err
 	}
-	records, err := r.getCurriculumAcademicRecords(ctx, enrollmentID, categoryByCourse)
+	records, err := r.getCurriculumAcademicRecordsWith(ctx, queryer, enrollmentID, categoryByCourse)
 	if err != nil {
 		return nil, err
 	}
-	freeElectiveRecords, err := r.getFreeElectiveAcademicRecords(ctx, enrollmentID)
+	freeElectiveRecords, err := r.getFreeElectiveAcademicRecordsWith(ctx, queryer, enrollmentID)
 	if err != nil {
 		return nil, err
 	}
@@ -81,8 +92,8 @@ func (r *CooperativeReadinessRepository) GetAcademicRecords(ctx context.Context,
 	return records, nil
 }
 
-func (r *CooperativeReadinessRepository) getCourseCategories(ctx context.Context, curriculumID uint64) (map[uint64][]uint64, error) {
-	rows, err := r.DB.QueryContext(ctx, `
+func (r *CooperativeReadinessRepository) getCourseCategoriesWith(ctx context.Context, queryer cooperativeReadinessQueryer, curriculumID uint64) (map[uint64][]uint64, error) {
+	rows, err := queryer.QueryContext(ctx, `
 		SELECT placement.course_id, category.category_id
 		FROM crs_curriculum_courses placement
 		JOIN crs_course_categories category
@@ -106,10 +117,11 @@ func (r *CooperativeReadinessRepository) getCourseCategories(ctx context.Context
 	return result, rows.Err()
 }
 
-func (r *CooperativeReadinessRepository) getCurriculumAcademicRecords(ctx context.Context, enrollmentID uint64, categoryByCourse map[uint64][]uint64) ([]CooperativeAcademicRecord, error) {
-	rows, err := r.DB.QueryContext(ctx, `
+func (r *CooperativeReadinessRepository) getCurriculumAcademicRecordsWith(ctx context.Context, queryer cooperativeReadinessQueryer, enrollmentID uint64, categoryByCourse map[uint64][]uint64) ([]CooperativeAcademicRecord, error) {
+	rows, err := queryer.QueryContext(ctx, `
 		SELECT grade.course_student_id, grade.course_id, grade.academic_year_be,
-			grade.semester, COALESCE(course.credits, 0),
+			grade.semester, COALESCE(course.code, ''), COALESCE(course.name_th, ''),
+			COALESCE(course.name_en, ''), COALESCE(course.credits, 0),
 			COALESCE(course.grade_scheme, 'letter'), COALESCE(grade.grade, '')
 		FROM crs_course_enrollment grade
 		JOIN crs_courses course ON course.course_id = grade.course_id AND course.deleted_at IS NULL
@@ -129,6 +141,9 @@ func (r *CooperativeReadinessRepository) getCurriculumAcademicRecords(ctx contex
 			&record.CourseID,
 			&record.AcademicYear,
 			&record.Semester,
+			&record.CourseCode,
+			&record.CourseNameTH,
+			&record.CourseNameEN,
 			&record.Credits,
 			&record.GradeScheme,
 			&record.Grade,
@@ -141,11 +156,13 @@ func (r *CooperativeReadinessRepository) getCurriculumAcademicRecords(ctx contex
 	return result, rows.Err()
 }
 
-func (r *CooperativeReadinessRepository) getFreeElectiveAcademicRecords(ctx context.Context, enrollmentID uint64) ([]CooperativeAcademicRecord, error) {
-	rows, err := r.DB.QueryContext(ctx, `
+func (r *CooperativeReadinessRepository) getFreeElectiveAcademicRecordsWith(ctx context.Context, queryer cooperativeReadinessQueryer, enrollmentID uint64) ([]CooperativeAcademicRecord, error) {
+	rows, err := queryer.QueryContext(ctx, `
 		SELECT selected.round_course_enrollment_id, roundCourse.free_elective_course_id,
-			round.academic_year_be, round.semester, COALESCE(roundCourse.credits, 0),
-			COALESCE(roundCourse.grade_scheme, 'letter'), COALESCE(grade.grade, '')
+			round.academic_year_be, round.semester, COALESCE(roundCourse.course_code, ''),
+			COALESCE(roundCourse.course_name_th, ''), COALESCE(roundCourse.course_name_en, ''),
+			COALESCE(roundCourse.credits, 0), COALESCE(roundCourse.grade_scheme, 'letter'),
+			COALESCE(grade.grade, '')
 		FROM ele_course_enrollments selected
 		JOIN ele_round_courses roundCourse
 			ON roundCourse.round_course_id = selected.round_course_id
@@ -172,6 +189,9 @@ func (r *CooperativeReadinessRepository) getFreeElectiveAcademicRecords(ctx cont
 			&record.CourseID,
 			&record.AcademicYear,
 			&record.Semester,
+			&record.CourseCode,
+			&record.CourseNameTH,
+			&record.CourseNameEN,
 			&record.Credits,
 			&record.GradeScheme,
 			&record.Grade,
@@ -184,8 +204,12 @@ func (r *CooperativeReadinessRepository) getFreeElectiveAcademicRecords(ctx cont
 }
 
 func (r *CooperativeReadinessRepository) GetRequirementSets(ctx context.Context, curriculumID uint64, semester uint) (*models.CooperativeRequirementsResponse, error) {
+	return r.GetRequirementSetsWith(ctx, r.DB, curriculumID, semester)
+}
+
+func (r *CooperativeReadinessRepository) GetRequirementSetsWith(ctx context.Context, queryer cooperativeReadinessQueryer, curriculumID uint64, semester uint) (*models.CooperativeRequirementsResponse, error) {
 	response := &models.CooperativeRequirementsResponse{CurriculumID: curriculumID}
-	rows, err := r.DB.QueryContext(ctx, `
+	rows, err := queryer.QueryContext(ctx, `
 		SELECT requirement_set_id, curriculum_id, semester, revision, status,
 			created_at, updated_at, published_at
 		FROM crs_coop_requirement_sets
@@ -222,7 +246,7 @@ func (r *CooperativeReadinessRepository) GetRequirementSets(ctx context.Context,
 	}
 
 	for index := range sets {
-		requirements, err := r.getRequirements(ctx, sets[index].RequirementSetID)
+		requirements, err := r.getRequirementsWith(ctx, queryer, sets[index].RequirementSetID)
 		if err != nil {
 			return nil, err
 		}
@@ -238,8 +262,8 @@ func (r *CooperativeReadinessRepository) GetRequirementSets(ctx context.Context,
 	return response, nil
 }
 
-func (r *CooperativeReadinessRepository) getRequirements(ctx context.Context, setID uint64) ([]models.CooperativeRequirement, error) {
-	rows, err := r.DB.QueryContext(ctx, `
+func (r *CooperativeReadinessRepository) getRequirementsWith(ctx context.Context, queryer cooperativeReadinessQueryer, setID uint64) ([]models.CooperativeRequirement, error) {
+	rows, err := queryer.QueryContext(ctx, `
 		SELECT requirement_id, criterion_type, name_th, name_en,
 			minimum_value, minimum_grade, category_id, course_id, display_order
 		FROM crs_coop_requirements

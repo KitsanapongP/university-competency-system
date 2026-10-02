@@ -13,6 +13,11 @@ type CurriculumRepository struct {
 	DB *sql.DB
 }
 
+type curriculumSnapshotQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
 type MajorScope struct {
 	FacultyID   uint64
 	DegreeLevel string
@@ -653,6 +658,10 @@ func (r *CurriculumRepository) GetCurriculumByYear(ctx context.Context, year uin
 }
 
 func (r *CurriculumRepository) GetCurriculumByID(ctx context.Context, id uint64) (*models.Curriculum, error) {
+	return r.GetCurriculumByIDWith(ctx, r.DB, id)
+}
+
+func (r *CurriculumRepository) GetCurriculumByIDWith(ctx context.Context, queryer curriculumSnapshotQueryer, id uint64) (*models.Curriculum, error) {
 	query := `
 		SELECT c.curriculum_id, c.major_id, d.faculty_id, m.name_th, m.name_en, c.name_th, c.name_en, c.code, c.effective_year_be, c.status,
 			COALESCE(course_stats.total_credits, 0),
@@ -670,11 +679,15 @@ func (r *CurriculumRepository) GetCurriculumByID(ctx context.Context, id uint64)
 			AND d.deleted_at IS NULL
 	`
 
-	return scanCurriculum(r.DB.QueryRowContext(ctx, query, id))
+	return scanCurriculum(queryer.QueryRowContext(ctx, query, id))
 }
 
 func (r *CurriculumRepository) GetCurriculumCategoryTree(ctx context.Context, curriculumID uint64) ([]*models.CourseCategoryNode, error) {
-	categories, err := r.getCurriculumCategories(ctx, curriculumID)
+	return r.GetCurriculumCategoryTreeWith(ctx, r.DB, curriculumID)
+}
+
+func (r *CurriculumRepository) GetCurriculumCategoryTreeWith(ctx context.Context, queryer curriculumSnapshotQueryer, curriculumID uint64) ([]*models.CourseCategoryNode, error) {
+	categories, err := r.getCurriculumCategoriesWith(ctx, queryer, curriculumID)
 	if err != nil {
 		return nil, err
 	}
@@ -682,7 +695,7 @@ func (r *CurriculumRepository) GetCurriculumCategoryTree(ctx context.Context, cu
 		return []*models.CourseCategoryNode{}, nil
 	}
 
-	coursesByCategory, err := r.getCurriculumCoursesByCategory(ctx, curriculumID)
+	coursesByCategory, err := r.getCurriculumCoursesByCategoryWith(ctx, queryer, curriculumID)
 	if err != nil {
 		return nil, err
 	}
@@ -716,7 +729,7 @@ func (r *CurriculumRepository) GetCurriculumCategoryTree(ctx context.Context, cu
 	return roots, nil
 }
 
-func (r *CurriculumRepository) getCurriculumCategories(ctx context.Context, curriculumID uint64) ([]*models.CourseCategoryNode, error) {
+func (r *CurriculumRepository) getCurriculumCategoriesWith(ctx context.Context, queryer curriculumSnapshotQueryer, curriculumID uint64) ([]*models.CourseCategoryNode, error) {
 	query := `
 		SELECT category_id, curriculum_id, parent_id, code, name_th, name_en, required_credits, display_order, is_active, created_at, updated_at, deleted_at
 		FROM crs_course_categories
@@ -726,7 +739,7 @@ func (r *CurriculumRepository) getCurriculumCategories(ctx context.Context, curr
 		ORDER BY COALESCE(parent_id, 0), display_order, category_id
 	`
 
-	rows, err := r.DB.QueryContext(ctx, query, curriculumID)
+	rows, err := queryer.QueryContext(ctx, query, curriculumID)
 	if err != nil {
 		return nil, err
 	}
@@ -788,7 +801,7 @@ func scanCourseCategoryNode(scanner rowScanner) (*models.CourseCategoryNode, err
 	return &category, nil
 }
 
-func (r *CurriculumRepository) getCurriculumCoursesByCategory(ctx context.Context, curriculumID uint64) (map[uint64][]*models.CurriculumCourseRow, error) {
+func (r *CurriculumRepository) getCurriculumCoursesByCategoryWith(ctx context.Context, queryer curriculumSnapshotQueryer, curriculumID uint64) (map[uint64][]*models.CurriculumCourseRow, error) {
 	query := `
 		SELECT
 			cc.curriculum_course_id,
@@ -820,7 +833,7 @@ func (r *CurriculumRepository) getCurriculumCoursesByCategory(ctx context.Contex
 		ORDER BY cc.category_id, cc.display_order, cc.curriculum_course_id
 	`
 
-	rows, err := r.DB.QueryContext(ctx, query, curriculumID)
+	rows, err := queryer.QueryContext(ctx, query, curriculumID)
 	if err != nil {
 		return nil, err
 	}
