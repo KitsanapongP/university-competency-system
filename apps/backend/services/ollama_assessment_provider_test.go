@@ -19,7 +19,7 @@ func TestOllamaAssessmentProviderSendsStructuredNonStreamingRequest(t *testing.T
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatal(err)
 		}
-		if request.Model != "qwen3:4b" || request.Stream || request.Think || request.Options.Temperature != 0 || request.Options.NumPredict != 768 {
+		if request.Model != "qwen3:4b" || request.Stream || request.Think || request.Options.Temperature != 0 || request.Options.NumPredict != 768 || request.Options.NumCtx != 3072 {
 			t.Fatalf("unexpected generation options: %+v", request)
 		}
 		if string(request.Format) != `{"type":"object"}` || request.System != "system" || request.Prompt != "user" {
@@ -30,7 +30,7 @@ func TestOllamaAssessmentProviderSendsStructuredNonStreamingRequest(t *testing.T
 	}))
 	defer server.Close()
 
-	provider := NewOllamaAssessmentProvider(server.URL, "qwen3:4b", time.Second, "5m", false, 768)
+	provider := NewOllamaAssessmentProvider(server.URL, "qwen3:4b", time.Second, "5m", false, 768, 3072)
 	output, err := provider.Generate(context.Background(), "system", "user", json.RawMessage(`{"type":"object"}`))
 	if err != nil {
 		t.Fatal(err)
@@ -46,8 +46,8 @@ func TestOllamaAssessmentProviderCanEnableThinkForEvaluation(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatal(err)
 		}
-		if !request.Think {
-			t.Fatal("think option was not forwarded")
+		if !request.Think || request.Options.NumCtx != 4096 {
+			t.Fatalf("think option or default num_ctx was not forwarded: %+v", request.Options)
 		}
 		_, _ = w.Write([]byte(`{"model":"qwen3:4b","response":"{}","done":true}`))
 	}))

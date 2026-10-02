@@ -13,7 +13,7 @@ func TestAssessmentSourceHashGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = "050d741d87a5a9bbed117f9278772769ac4cdcd9847de8ee89a4827b91e5e9f4"
+	const want = "1323eb5c090c5683aa8ae54529785c99cd9890d87a0f8f4abe101c629cfeeeb5"
 	if hash != want {
 		t.Fatalf("golden source hash = %s, want %s", hash, want)
 	}

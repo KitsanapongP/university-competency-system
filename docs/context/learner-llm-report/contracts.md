@@ -42,7 +42,7 @@ Base path: `/api/v1`.
 
 Request POST รับเฉพาะ `semester` และ `force`; ไม่รับ user, enrollment, curriculum, cohort, readiness verdict, evidence หรือ career IDs ที่จะใช้เป็นแหล่งความจริง
 
-Response ใช้ envelope ของ API เดิม โดย data มี `generation_state`, `completeness`, `semester`, `target_year_be`, `readiness` จาก Backend, `availability[]` พร้อม `reason_code`, `job` (ถ้ามี), `retry_after_seconds` (เมื่อต้องรอ), และ `report` เฉพาะฉบับที่แสดงได้ รายงานมี `source_hash`, เวลาสร้าง/เก็บหลักฐาน, model/prompt/schema version, bilingual findings และ evidence snapshot สำหรับ render
+Response ใช้ envelope ของ API เดิม โดย data มี `generation_state`, `completeness`, `semester`, `target_year_be`, `readiness` จาก Backend, `availability[]` พร้อม `reason_code`, `job` (ถ้ามี), `retry_after_seconds` (เมื่อต้องรอ), และ `report` เฉพาะฉบับที่แสดงได้ รายงานมี `source_hash`, เวลาสร้าง/เก็บหลักฐาน, model/prompt/schema version, bilingual findings และ evidence snapshot สำหรับ render เมื่อ `generation_state=context_exceeded` อาจมี `context_diagnostics` เป็นตัวเลขงบ token และขนาดข้อมูลแต่ละส่วนเท่านั้น
 
 HTTP behavior:
 
@@ -64,7 +64,9 @@ Output Version 1.0 มี `readiness_explanation`, `strengths[]`, `limitations[]
 
 หนึ่ง Evidence ที่ใช้ได้เพียงพอให้วิเคราะห์เฉพาะส่วนที่รองรับ ไม่กำหนดจำนวนขั้นต่ำรวม และไม่อนุมานด้านที่ไม่มีหลักฐาน
 
-ข้อมูลเกินงบ Context ให้ Backend จัดสรุปแบบ deterministic พร้อม provenance map; ถ้ายังเกินให้ `context_exceeded`, ไม่เรียก LLM, ไม่ retry input เดิมอัตโนมัติ และไม่ตัดข้อมูลเงียบ ๆ
+ข้อมูลเกินงบ Context ให้ Backend จัดสรุปแบบ deterministic พร้อม provenance map; คะแนนวิชา/กิจกรรมอ้างกลับไปยังรายการหลักฐานกลางด้วย Evidence Ref แทนการทำซ้ำชื่อ เกรด และวันที่ในแต่ละ Competency. ถ้ายังเกินให้ `context_exceeded`, ไม่เรียก LLM, ไม่ retry input เดิมอัตโนมัติ และไม่ตัดข้อมูลเงียบ ๆ
+
+Ollama `num_ctx` ต้องใช้ค่าเดียวกับ `LEARNER_ASSESSMENT_CONTEXT_TOKENS`; `num_predict` ใช้ `LEARNER_ASSESSMENT_OUTPUT_RESERVE_TOKENS`. Diagnostics ระบุ estimated input/total tokens, input/output budget, safety margin และ byte size ราย section โดยห้ามบันทึกเนื้อหาหลักฐานลง log
 
 ## Freshness, Retry and Cooldown
 

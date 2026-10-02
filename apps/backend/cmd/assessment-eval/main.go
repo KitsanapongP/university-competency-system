@@ -46,6 +46,7 @@ func main() {
 		cfg.AssessmentOllamaKeepAlive,
 		cfg.AssessmentOllamaThink,
 		cfg.AssessmentOutputReserveTokens,
+		cfg.AssessmentContextTokens,
 	)
 	if err := evaluateDirectory(ctx, *fixtureDir, provider, cfg, digest); err != nil {
 		fatalf("evaluation failed: %v", err)

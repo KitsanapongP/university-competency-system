@@ -59,16 +59,16 @@ type AssessmentProviderCourse struct {
 }
 
 type AssessmentProviderCompetency struct {
-	CompetencyRef     string                          `json:"competency_ref"`
-	NameTH            string                          `json:"name_th"`
-	NameEN            string                          `json:"name_en,omitempty"`
-	CoreScore         float64                         `json:"core_score"`
-	BonusScore        float64                         `json:"bonus_score"`
-	FreeElectiveScore float64                         `json:"free_elective_score"`
-	ActivityScore     float64                         `json:"activity_score"`
-	HasEvidence       bool                            `json:"has_evidence"`
-	CourseScores      []AssessmentProviderCourseScore `json:"course_scores"`
-	ActivityScores    []AssessmentProviderActivity    `json:"activity_scores"`
+	CompetencyRef     string                            `json:"competency_ref"`
+	NameTH            string                            `json:"name_th"`
+	NameEN            string                            `json:"name_en,omitempty"`
+	CoreScore         float64                           `json:"core_score"`
+	BonusScore        float64                           `json:"bonus_score"`
+	FreeElectiveScore float64                           `json:"free_elective_score"`
+	ActivityScore     float64                           `json:"activity_score"`
+	HasEvidence       bool                              `json:"has_evidence"`
+	CourseScores      []AssessmentProviderCourseScore   `json:"course_scores"`
+	ActivityScores    []AssessmentProviderActivityScore `json:"activity_scores"`
 }
 
 type AssessmentProviderCourseScore struct {
@@ -76,16 +76,15 @@ type AssessmentProviderCourseScore struct {
 	OccurrenceCount int     `json:"occurrence_count"`
 	CourseRef       string  `json:"course_evidence_ref"`
 	Source          string  `json:"source"`
-	CourseCode      string  `json:"course_code"`
-	CourseNameTH    string  `json:"course_name_th"`
-	CourseNameEN    string  `json:"course_name_en,omitempty"`
-	AcademicYear    uint64  `json:"academic_year_be"`
-	Semester        uint64  `json:"semester"`
-	Grade           string  `json:"grade"`
 	RawScore        float64 `json:"raw_score"`
 	Weight          float64 `json:"weight"`
 	Weighted        float64 `json:"weighted_score"`
 	ScoreType       string  `json:"score_type"`
+}
+
+type AssessmentProviderActivityScore struct {
+	EvidenceRef         string `json:"evidence_ref"`
+	ActivityEvidenceRef string `json:"activity_evidence_ref"`
 }
 
 type AssessmentProviderActivity struct {
@@ -159,21 +158,40 @@ type AssessmentReportRecord struct {
 }
 
 type AssessmentReportState struct {
-	GenerationState   string                         `json:"generation_state"`
-	Completeness      string                         `json:"completeness"`
-	IsStale           bool                           `json:"is_stale,omitempty"`
-	Semester          uint                           `json:"semester"`
-	TargetYearBE      uint64                         `json:"target_year_be"`
-	Readiness         CooperativeReadinessResult     `json:"readiness"`
-	Availability      []AssessmentSourceAvailability `json:"availability"`
-	Job               *AssessmentJob                 `json:"job,omitempty"`
-	Report            *AssessmentReportRecord        `json:"report,omitempty"`
-	RetryAfterSeconds int                            `json:"retry_after_seconds,omitempty"`
+	GenerationState    string                         `json:"generation_state"`
+	Completeness       string                         `json:"completeness"`
+	IsStale            bool                           `json:"is_stale,omitempty"`
+	Semester           uint                           `json:"semester"`
+	TargetYearBE       uint64                         `json:"target_year_be"`
+	Readiness          CooperativeReadinessResult     `json:"readiness"`
+	Availability       []AssessmentSourceAvailability `json:"availability"`
+	ContextDiagnostics *AssessmentContextDiagnostics  `json:"context_diagnostics,omitempty"`
+	Job                *AssessmentJob                 `json:"job,omitempty"`
+	Report             *AssessmentReportRecord        `json:"report,omitempty"`
+	RetryAfterSeconds  int                            `json:"retry_after_seconds,omitempty"`
+}
+
+type AssessmentContextDiagnostics struct {
+	ContextTokens         int `json:"context_tokens"`
+	InputBudgetTokens     int `json:"input_budget_tokens"`
+	EstimatedInputTokens  int `json:"estimated_input_tokens"`
+	EstimatedTotalTokens  int `json:"estimated_total_tokens"`
+	OutputReserveTokens   int `json:"output_reserve_tokens"`
+	SafetyMarginTokens    int `json:"safety_margin_tokens"`
+	SystemPromptBytes     int `json:"system_prompt_bytes"`
+	UserPromptBytes       int `json:"user_prompt_bytes"`
+	SourceDataBytes       int `json:"source_data_bytes"`
+	ReadinessBytes        int `json:"readiness_bytes"`
+	AvailabilityBytes     int `json:"availability_bytes"`
+	AcademicEvidenceBytes int `json:"academic_evidence_bytes"`
+	CompetencyScoresBytes int `json:"competency_scores_bytes"`
+	ActivityEvidenceBytes int `json:"activity_evidence_bytes"`
 }
 
 type AssessmentReportSourceSnapshot struct {
-	Source          LearnerAssessmentSnapshot `json:"source"`
-	ProviderInput   AssessmentProviderInput   `json:"provider_input"`
-	Provenance      map[string][]string       `json:"provenance"`
-	EstimatedTokens int                       `json:"estimated_tokens"`
+	Source          LearnerAssessmentSnapshot    `json:"source"`
+	ProviderInput   AssessmentProviderInput      `json:"provider_input"`
+	Provenance      map[string][]string          `json:"provenance"`
+	EstimatedTokens int                          `json:"estimated_tokens"`
+	Diagnostics     AssessmentContextDiagnostics `json:"diagnostics"`
 }

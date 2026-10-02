@@ -93,6 +93,7 @@ func TestLearnerAssessmentWorkerNeverCallsProviderForContextExceeded(t *testing.
 	payload.ProviderInput = prepared.Input
 	payload.Provenance = prepared.Provenance
 	payload.EstimatedTokens = prepared.EstimatedTokens
+	payload.Diagnostics = prepared.Diagnostics
 	job.InputHash = payload.Source.Metadata.SourceHash
 	job.InputSnapshot = mustJSON(t, payload)
 	provider := &fakeAssessmentProvider{}
@@ -152,6 +153,7 @@ func workerTestJob(t *testing.T, budget AssessmentContextBudget) (models.Assessm
 		ProviderInput:   prepared.Input,
 		Provenance:      prepared.Provenance,
 		EstimatedTokens: prepared.EstimatedTokens,
+		Diagnostics:     prepared.Diagnostics,
 	}
 	job := models.AssessmentJob{
 		JobID:                  501,

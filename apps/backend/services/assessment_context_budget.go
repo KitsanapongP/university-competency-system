@@ -28,15 +28,29 @@ type PreparedAssessmentContext struct {
 	UserPrompt      string
 	Provenance      map[string][]string
 	EstimatedTokens int
+	Diagnostics     models.AssessmentContextDiagnostics
 }
 
 type AssessmentContextExceededError struct {
 	EstimatedTokens int
 	ContextTokens   int
+	Diagnostics     models.AssessmentContextDiagnostics
 }
 
 func (e AssessmentContextExceededError) Error() string {
-	return fmt.Sprintf("%v: estimated=%d budget=%d", ErrAssessmentContextExceeded, e.EstimatedTokens, e.ContextTokens)
+	return fmt.Sprintf("%v: estimated=%d input_budget=%d context=%d output_reserve=%d safety_margin=%d readiness_bytes=%d availability_bytes=%d academic_bytes=%d competency_bytes=%d activity_bytes=%d",
+		ErrAssessmentContextExceeded,
+		e.EstimatedTokens,
+		e.Diagnostics.InputBudgetTokens,
+		e.ContextTokens,
+		e.Diagnostics.OutputReserveTokens,
+		e.Diagnostics.SafetyMarginTokens,
+		e.Diagnostics.ReadinessBytes,
+		e.Diagnostics.AvailabilityBytes,
+		e.Diagnostics.AcademicEvidenceBytes,
+		e.Diagnostics.CompetencyScoresBytes,
+		e.Diagnostics.ActivityEvidenceBytes,
+	)
 }
 
 func (e AssessmentContextExceededError) Unwrap() error {
@@ -100,9 +114,6 @@ func PrepareAssessmentContext(snapshot *models.LearnerAssessmentSnapshot, budget
 			if reference := activityRefs[score.ActivityEvidenceRef]; reference != "" {
 				score.ActivityEvidenceRef = reference
 			}
-			if reference := activityRefs[score.ScoreEvidenceRef]; reference != "" {
-				score.ScoreEvidenceRef = reference
-			}
 			if reference := activityRefs[score.EvidenceRef]; reference != "" {
 				score.EvidenceRef = reference
 			}
@@ -120,13 +131,47 @@ func PrepareAssessmentContext(snapshot *models.LearnerAssessmentSnapshot, budget
 		Provenance:   provenance,
 	}
 	prepared.EstimatedTokens = EstimateAssessmentPromptTokens(systemPrompt, userPrompt)
+	prepared.Diagnostics = assessmentContextDiagnostics(input, systemPrompt, userPrompt, budget, prepared.EstimatedTokens)
 	if prepared.EstimatedTokens+budget.OutputReserveTokens+budget.SafetyMarginTokens > budget.ContextTokens {
 		return prepared, AssessmentContextExceededError{
 			EstimatedTokens: prepared.EstimatedTokens + budget.OutputReserveTokens + budget.SafetyMarginTokens,
 			ContextTokens:   budget.ContextTokens,
+			Diagnostics:     prepared.Diagnostics,
 		}
 	}
 	return prepared, nil
+}
+
+func assessmentContextDiagnostics(
+	input models.AssessmentProviderInput,
+	systemPrompt, userPrompt string,
+	budget AssessmentContextBudget,
+	estimatedInputTokens int,
+) models.AssessmentContextDiagnostics {
+	return models.AssessmentContextDiagnostics{
+		ContextTokens:         budget.ContextTokens,
+		InputBudgetTokens:     budget.ContextTokens - budget.OutputReserveTokens - budget.SafetyMarginTokens,
+		EstimatedInputTokens:  estimatedInputTokens,
+		EstimatedTotalTokens:  estimatedInputTokens + budget.OutputReserveTokens + budget.SafetyMarginTokens,
+		OutputReserveTokens:   budget.OutputReserveTokens,
+		SafetyMarginTokens:    budget.SafetyMarginTokens,
+		SystemPromptBytes:     len(systemPrompt),
+		UserPromptBytes:       len(userPrompt),
+		SourceDataBytes:       assessmentJSONSize(input),
+		ReadinessBytes:        assessmentJSONSize(input.Readiness),
+		AvailabilityBytes:     assessmentJSONSize(input.Availability),
+		AcademicEvidenceBytes: assessmentJSONSize(input.AcademicEvidence),
+		CompetencyScoresBytes: assessmentJSONSize(input.CompetencyScores),
+		ActivityEvidenceBytes: assessmentJSONSize(input.ActivityEvidence),
+	}
+}
+
+func assessmentJSONSize(value any) int {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return 0
+	}
+	return len(encoded)
 }
 
 func EstimateAssessmentPromptTokens(systemPrompt, userPrompt string) int {

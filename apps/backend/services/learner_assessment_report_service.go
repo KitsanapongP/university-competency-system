@@ -133,6 +133,8 @@ func (s *LearnerAssessmentReportService) Get(ctx context.Context, userID uint64,
 		state.GenerationState = AssessmentReportFailed
 		if latestJob.ErrorCode == "context_exceeded" {
 			state.GenerationState = AssessmentReportContextExceeded
+			_, contextErr := s.prepareContext(snapshot)
+			setAssessmentContextDiagnostics(&state, contextErr)
 		}
 		state.Job = &latestJob
 		state.RetryAfterSeconds = assessmentRetryAfter(latestJob.FailureWaitUntil, s.now())
@@ -141,6 +143,7 @@ func (s *LearnerAssessmentReportService) Get(ctx context.Context, userID uint64,
 	if _, err := s.prepareContext(snapshot); err != nil {
 		if errors.Is(err, ErrAssessmentContextExceeded) {
 			state.GenerationState = AssessmentReportContextExceeded
+			setAssessmentContextDiagnostics(&state, err)
 			return state, nil
 		}
 		return models.AssessmentReportState{}, err
@@ -200,6 +203,7 @@ func (s *LearnerAssessmentReportService) Generate(
 	if err != nil {
 		if errors.Is(err, ErrAssessmentContextExceeded) {
 			state.GenerationState = AssessmentReportContextExceeded
+			setAssessmentContextDiagnostics(&state, err)
 			return state, nil
 		}
 		return models.AssessmentReportState{}, err
@@ -212,6 +216,7 @@ func (s *LearnerAssessmentReportService) Generate(
 		ProviderInput:   prepared.Input,
 		Provenance:      prepared.Provenance,
 		EstimatedTokens: prepared.EstimatedTokens,
+		Diagnostics:     prepared.Diagnostics,
 	})
 	if err != nil {
 		return models.AssessmentReportState{}, err
@@ -264,6 +269,13 @@ func assessmentReportStateFromSnapshot(snapshot *models.LearnerAssessmentSnapsho
 		TargetYearBE:    snapshot.TargetYearBE,
 		Readiness:       snapshot.Readiness,
 		Availability:    append([]models.AssessmentSourceAvailability(nil), snapshot.Availability...),
+	}
+}
+
+func setAssessmentContextDiagnostics(state *models.AssessmentReportState, err error) {
+	var exceeded AssessmentContextExceededError
+	if errors.As(err, &exceeded) {
+		state.ContextDiagnostics = &exceeded.Diagnostics
 	}
 }
 

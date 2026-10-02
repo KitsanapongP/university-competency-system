@@ -20,16 +20,17 @@ func DefaultAssessmentModel() string {
 }
 
 type OllamaAssessmentProvider struct {
-	BaseURL      string
-	Model        string
-	Timeout      time.Duration
-	KeepAlive    string
-	Think        bool
-	OutputTokens int
-	HTTPClient   *http.Client
+	BaseURL       string
+	Model         string
+	Timeout       time.Duration
+	KeepAlive     string
+	Think         bool
+	OutputTokens  int
+	ContextTokens int
+	HTTPClient    *http.Client
 }
 
-func NewOllamaAssessmentProvider(baseURL, model string, timeout time.Duration, keepAlive string, think bool, outputTokens int) *OllamaAssessmentProvider {
+func NewOllamaAssessmentProvider(baseURL, model string, timeout time.Duration, keepAlive string, think bool, outputTokens int, contextTokens ...int) *OllamaAssessmentProvider {
 	if strings.TrimSpace(baseURL) == "" {
 		baseURL = "http://127.0.0.1:11434"
 	}
@@ -42,14 +43,19 @@ func NewOllamaAssessmentProvider(baseURL, model string, timeout time.Duration, k
 	if strings.TrimSpace(keepAlive) == "" {
 		keepAlive = "5m"
 	}
+	contextLimit := 4096
+	if len(contextTokens) > 0 && contextTokens[0] > 0 {
+		contextLimit = contextTokens[0]
+	}
 	return &OllamaAssessmentProvider{
-		BaseURL:      strings.TrimRight(strings.TrimSpace(baseURL), "/"),
-		Model:        strings.TrimSpace(model),
-		Timeout:      timeout,
-		KeepAlive:    keepAlive,
-		Think:        think,
-		OutputTokens: outputTokens,
-		HTTPClient:   &http.Client{},
+		BaseURL:       strings.TrimRight(strings.TrimSpace(baseURL), "/"),
+		Model:         strings.TrimSpace(model),
+		Timeout:       timeout,
+		KeepAlive:     keepAlive,
+		Think:         think,
+		OutputTokens:  outputTokens,
+		ContextTokens: contextLimit,
+		HTTPClient:    &http.Client{},
 	}
 }
 
@@ -119,6 +125,7 @@ func (p *OllamaAssessmentProvider) Generate(
 		Options: ollamaGenerateOptions{
 			Temperature: 0,
 			NumPredict:  p.OutputTokens,
+			NumCtx:      p.ContextTokens,
 		},
 	})
 	if err != nil {
@@ -187,6 +194,7 @@ type ollamaGenerateRequest struct {
 type ollamaGenerateOptions struct {
 	Temperature float64 `json:"temperature"`
 	NumPredict  int     `json:"num_predict,omitempty"`
+	NumCtx      int     `json:"num_ctx,omitempty"`
 }
 
 type ollamaGenerateResponse struct {

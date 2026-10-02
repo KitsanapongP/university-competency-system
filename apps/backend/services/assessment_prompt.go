@@ -65,7 +65,7 @@ func BuildAssessmentProviderInput(snapshot *models.LearnerAssessmentSnapshot) (m
 			ActivityScore:     item.ActivityScore,
 			HasEvidence:       item.HasEvidence,
 			CourseScores:      make([]models.AssessmentProviderCourseScore, 0, len(item.CourseScores)+len(item.ElectiveScores)),
-			ActivityScores:    make([]models.AssessmentProviderActivity, 0, len(item.ActivityScores)),
+			ActivityScores:    make([]models.AssessmentProviderActivityScore, 0, len(item.ActivityScores)),
 		}
 		for _, score := range append(append([]models.AssessmentCourseScore(nil), item.CourseScores...), item.ElectiveScores...) {
 			competency.CourseScores = append(competency.CourseScores, models.AssessmentProviderCourseScore{
@@ -73,12 +73,6 @@ func BuildAssessmentProviderInput(snapshot *models.LearnerAssessmentSnapshot) (m
 				OccurrenceCount: 1,
 				CourseRef:       score.CourseEvidenceRef,
 				Source:          score.Source,
-				CourseCode:      sanitizeAssessmentText(score.CourseCode),
-				CourseNameTH:    sanitizeAssessmentText(score.CourseNameTH),
-				CourseNameEN:    assessmentTextWithFallback(score.CourseNameEN, score.CourseNameTH),
-				AcademicYear:    score.AcademicYearBE,
-				Semester:        score.Semester,
-				Grade:           sanitizeAssessmentText(score.Grade),
 				RawScore:        score.RawScore,
 				Weight:          score.Weight,
 				Weighted:        score.WeightedScore,
@@ -86,16 +80,9 @@ func BuildAssessmentProviderInput(snapshot *models.LearnerAssessmentSnapshot) (m
 			})
 		}
 		for _, score := range item.ActivityScores {
-			competency.ActivityScores = append(competency.ActivityScores, models.AssessmentProviderActivity{
+			competency.ActivityScores = append(competency.ActivityScores, models.AssessmentProviderActivityScore{
 				EvidenceRef:         score.EvidenceRef,
-				ScoreEvidenceRef:    score.EvidenceRef,
 				ActivityEvidenceRef: score.ActivityEvidenceRef,
-				OccurrenceCount:     1,
-				ActivityNameTH:      sanitizeAssessmentText(score.ActivityNameTH),
-				ActivityNameEN:      assessmentTextWithFallback(score.ActivityNameEN, score.ActivityNameTH),
-				StartAt:             score.StartAt.UTC().Format(time.RFC3339),
-				AttendanceStatus:    score.AttendanceStatus,
-				Score:               assessmentFloatPointer(score.EarnedPercent),
 			})
 		}
 		input.CompetencyScores = append(input.CompetencyScores, competency)
@@ -160,11 +147,6 @@ func buildProviderReadiness(readiness models.CooperativeReadinessResult) models.
 
 func assessmentCompetencyEvidenceRef(competencyID uint64) string {
 	return fmt.Sprintf("competency:%d", competencyID)
-}
-
-func assessmentFloatPointer(value float64) *float64 {
-	copy := value
-	return &copy
 }
 
 func sanitizeAssessmentString(value *string) string {

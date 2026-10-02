@@ -107,7 +107,8 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 	}
 	if !reflect.DeepEqual(prepared.Input, payload.ProviderInput) ||
 		!reflect.DeepEqual(prepared.Provenance, payload.Provenance) ||
-		prepared.EstimatedTokens != payload.EstimatedTokens {
+		prepared.EstimatedTokens != payload.EstimatedTokens ||
+		!reflect.DeepEqual(prepared.Diagnostics, payload.Diagnostics) {
 		return w.failClaim(ctx, job, "invalid_job_snapshot", assessmentFailureWait)
 	}
 	systemPrompt, userPrompt, err := BuildAssessmentPrompt(payload.ProviderInput)

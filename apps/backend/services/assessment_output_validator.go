@@ -137,7 +137,6 @@ func assessmentProviderEvidenceReferences(input models.AssessmentProviderInput) 
 		}
 		for _, score := range competency.ActivityScores {
 			add(score.EvidenceRef)
-			add(score.ScoreEvidenceRef)
 			add(score.ActivityEvidenceRef)
 		}
 	}

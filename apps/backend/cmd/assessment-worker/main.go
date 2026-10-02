@@ -57,6 +57,7 @@ func main() {
 		cfg.AssessmentOllamaKeepAlive,
 		cfg.AssessmentOllamaThink,
 		cfg.AssessmentOutputReserveTokens,
+		cfg.AssessmentContextTokens,
 	)
 	worker := services.NewLearnerAssessmentWorker(jobRepo, reportRepo, provider, sourceBuilder)
 	worker.ContextBudget = budget

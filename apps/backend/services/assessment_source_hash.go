@@ -16,7 +16,7 @@ const (
 	assessmentModel             = "qwen3:4b"
 	assessmentPromptVersion     = "learner-assessment-prompt-v1.0"
 	assessmentSchemaVersion     = "learner-assessment-output-v1.0"
-	assessmentCompactionVersion = "learner-assessment-compaction-v1"
+	assessmentCompactionVersion = "learner-assessment-compaction-v2"
 )
 
 type assessmentHashScope struct {

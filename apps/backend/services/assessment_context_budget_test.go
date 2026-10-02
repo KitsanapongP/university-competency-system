@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -13,6 +14,11 @@ import (
 
 func TestPrepareAssessmentContextIsDeterministicAndPreservesAggregatedProvenance(t *testing.T) {
 	snapshot := sampleAssessmentSnapshot()
+	activity := snapshot.ActivityEvidence[0]
+	activity.ScoreEvidenceRef = "activity-score:1"
+	snapshot.ActivityEvidence[0] = activity
+	snapshot.CourseScores[0].ActivityScores[0].EvidenceRef = "activity-score:1"
+	snapshot.CourseScores[0].ActivityScores[0].ActivityEvidenceRef = activity.EvidenceRef
 	baseCourse := snapshot.AcademicEvidence[0]
 	baseScore := snapshot.CourseScores[0].CourseScores[0]
 	snapshot.AcademicEvidence = nil
@@ -48,6 +54,41 @@ func TestPrepareAssessmentContextIsDeterministicAndPreservesAggregatedProvenance
 	if len(first.Input.CompetencyScores[0].CourseScores) != 1 || first.Input.CompetencyScores[0].CourseScores[0].OccurrenceCount != 4 {
 		t.Fatalf("expected matching duplicate scores to be aggregated, got %+v", first.Input.CompetencyScores[0].CourseScores)
 	}
+	if first.Input.CompetencyScores[0].CourseScores[0].CourseRef != first.Input.AcademicEvidence[0].EvidenceRef {
+		t.Fatal("compact course score should reference the centralized academic evidence")
+	}
+	encoded, err := json.Marshal(first.Input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var promptInput map[string]any
+	if err := json.Unmarshal(encoded, &promptInput); err != nil {
+		t.Fatal(err)
+	}
+	competencies := promptInput["competency_scores"].([]any)
+	competency := competencies[0].(map[string]any)
+	scores := competency["course_scores"].([]any)
+	score := scores[0].(map[string]any)
+	for _, repeatedField := range []string{"course_code", "course_name_th", "academic_year_be", "semester", "grade"} {
+		if _, exists := score[repeatedField]; exists {
+			t.Fatalf("compact competency course score repeats centralized field %q", repeatedField)
+		}
+	}
+	activityScores := competency["activity_scores"].([]any)
+	activityScore := activityScores[0].(map[string]any)
+	if len(activityScore) != 2 || activityScore["evidence_ref"] == nil || activityScore["activity_evidence_ref"] == nil {
+		t.Fatalf("compact activity score should contain references only: %#v", activityScore)
+	}
+	for _, repeatedField := range []string{"activity_name_th", "activity_name_en", "start_at", "attendance_status", "earned_percent"} {
+		if _, exists := activityScore[repeatedField]; exists {
+			t.Fatalf("compact competency activity score repeats centralized field %q", repeatedField)
+		}
+	}
+	if first.Diagnostics.SourceDataBytes == 0 || first.Diagnostics.CompetencyScoresBytes == 0 ||
+		first.Diagnostics.EstimatedInputTokens != first.EstimatedTokens ||
+		first.Diagnostics.EstimatedTotalTokens <= first.Diagnostics.EstimatedInputTokens {
+		t.Fatalf("context diagnostics are incomplete: %+v", first.Diagnostics)
+	}
 }
 
 func TestPrepareAssessmentContextReturnsTypedExceededErrorWithoutDroppingFacts(t *testing.T) {
@@ -55,7 +96,7 @@ func TestPrepareAssessmentContextReturnsTypedExceededErrorWithoutDroppingFacts(t
 	for index := 0; index < 30; index++ {
 		snapshot.AcademicEvidence = append(snapshot.AcademicEvidence, models.AssessmentAcademicEvidence{
 			EvidenceRef:  fmt.Sprintf("course:extra:%d", index),
-			CourseCode:   fmt.Sprintf("CS-%03d", index),
+			CourseCode:   fmt.Sprintf("PRIVATE-COURSE-CONTENT-%03d", index),
 			CourseNameTH: fmt.Sprintf("รายวิชาหลักฐานที่ต้องคงไว้ %d %s", index, repeatAssessmentText("เนื้อหา", 80)),
 			Grade:        "B",
 		})
@@ -72,6 +113,13 @@ func TestPrepareAssessmentContextReturnsTypedExceededErrorWithoutDroppingFacts(t
 	}
 	if len(prepared.Input.AcademicEvidence) != len(snapshot.AcademicEvidence) {
 		t.Fatal("context preparation must not silently drop distinct academic evidence")
+	}
+	if prepared.Diagnostics.InputBudgetTokens != budget.ContextTokens-budget.OutputReserveTokens-budget.SafetyMarginTokens ||
+		prepared.Diagnostics.EstimatedTotalTokens <= prepared.Diagnostics.ContextTokens {
+		t.Fatalf("expected input/output budget diagnostics, got %+v", prepared.Diagnostics)
+	}
+	if strings.Contains(err.Error(), "PRIVATE-COURSE-CONTENT") {
+		t.Fatalf("context diagnostics must not include source text: %v", err)
 	}
 }
 

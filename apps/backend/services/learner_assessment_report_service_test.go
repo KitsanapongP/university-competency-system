@@ -128,7 +128,7 @@ func TestLearnerAssessmentReportGenerateHandlesInsufficientContextAndDedup(t *te
 	overBudget.Metadata.SourceHash, _ = calculateAssessmentSourceHash(&overBudget)
 	builder.snapshot = &overBudget
 	state, err = service.Generate(context.Background(), 77, 2, false)
-	if err != nil || state.GenerationState != AssessmentReportContextExceeded || jobs.enqueueCount != 1 {
+	if err != nil || state.GenerationState != AssessmentReportContextExceeded || state.ContextDiagnostics == nil || jobs.enqueueCount != 1 {
 		t.Fatalf("context exceeded = %+v, enqueue=%d, err=%v", state, jobs.enqueueCount, err)
 	}
 }
