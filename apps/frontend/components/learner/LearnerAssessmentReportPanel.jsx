@@ -14,6 +14,7 @@ import {
     assessmentRetryAfter,
     isAssessmentJobActive,
 } from '../../lib/learner-assessment-state.mjs';
+import { buildAssessmentEvidenceCatalog } from '../../lib/learner-assessment-evidence.mjs';
 import styles from './LearnerAssessmentReportPanel.module.css';
 
 function localizedValue(value, language, fallback = '-') {
@@ -21,53 +22,6 @@ function localizedValue(value, language, fallback = '-') {
     const english = String(value?.en || '').trim();
     const thai = String(value?.th || '').trim();
     return language === 'en' ? english || thai || fallback : thai || english || fallback;
-}
-
-function evidenceCatalog(sourceSnapshot, language) {
-    const input = sourceSnapshot?.provider_input;
-    const catalog = new Map();
-    if (!input) return catalog;
-
-    const add = (reference, title) => {
-        if (reference && title) catalog.set(reference, title);
-    };
-    const courseLabel = (course) => {
-        const name = localizedValue({ th: course.course_name_th, en: course.course_name_en }, language);
-        const details = [course.grade, course.academic_year_be && String(course.academic_year_be)]
-            .filter(Boolean)
-            .join(' · ');
-        return [course.course_code, name, details].filter(Boolean).join(' · ');
-    };
-
-    (input.academic_evidence || []).forEach((course) => {
-        add(course.evidence_ref, courseLabel(course));
-    });
-    (input.competency_scores || []).forEach((competency) => {
-        const competencyName = localizedValue({ th: competency.name_th, en: competency.name_en }, language);
-        add(competency.competency_ref, competencyName);
-        (competency.course_scores || []).forEach((score) => {
-            const scoreParts = [
-                courseLabel(score),
-                `${score.weighted_score ?? 0} ${language === 'en' ? 'weighted points' : 'คะแนนถ่วงน้ำหนัก'}`,
-                competencyName,
-            ].filter(Boolean);
-            add(score.evidence_ref, scoreParts.join(' · '));
-            add(score.course_evidence_ref, courseLabel(score));
-        });
-        (competency.activity_scores || []).forEach((activity) => {
-            add(activity.evidence_ref, localizedValue({ th: activity.activity_name_th, en: activity.activity_name_en }, language));
-            add(activity.activity_evidence_ref, localizedValue({ th: activity.activity_name_th, en: activity.activity_name_en }, language));
-        });
-    });
-    (input.activity_evidence || []).forEach((activity) => {
-        const name = localizedValue({ th: activity.activity_name_th, en: activity.activity_name_en }, language);
-        const details = [activity.start_at?.slice(0, 10), activity.earned_percent != null ? `${activity.earned_percent}%` : '']
-            .filter(Boolean)
-            .join(' · ');
-        add(activity.evidence_ref, [name, details].filter(Boolean).join(' · '));
-        add(activity.score_evidence_ref, [name, details].filter(Boolean).join(' · '));
-    });
-    return catalog;
 }
 
 function reportContent(report) {
@@ -89,10 +43,6 @@ function reportDependencies(signal, onState) {
     };
 }
 
-function assessmentSources(sourceSnapshot) {
-    return sourceSnapshot?.provider_input?.eligible_careers || [];
-}
-
 function availabilityLabel(source, t) {
     const labels = {
         cooperative_readiness: t('assessment_source_readiness'),
@@ -103,7 +53,6 @@ function availabilityLabel(source, t) {
         activity_competency_scores: t('assessment_source_activity_scores'),
         activity_scores: t('assessment_source_activities'),
         activity_evidence: t('assessment_source_activities'),
-        career_paths: t('assessment_source_careers'),
     };
     return labels[source] || t('assessment_source_other');
 }
@@ -128,7 +77,6 @@ function availabilityReason(reason, t) {
         scores_recalculation_required: t('assessment_reason_activity_recalculation'),
         score_not_finalized: t('assessment_reason_activity_not_finalized'),
         score_value_missing: t('assessment_reason_activity_score_missing'),
-        no_published_career_paths: t('assessment_reason_no_career_catalog'),
     };
     return labels[reason] || t('assessment_reason_not_available');
 }
@@ -184,46 +132,42 @@ function EvidenceList({ references, catalog, t }) {
     );
 }
 
-function CareerRecommendations({ items, sourceSnapshot, language, t, catalog }) {
-    if (!items?.length) {
-        const hasCareers = assessmentSources(sourceSnapshot).length > 0;
-        return (
-            <section className={styles.findingGroup}>
-                <h4>{t('assessment_report_careers')}</h4>
-                <p className={styles.muted}>
-                    {hasCareers ? t('assessment_report_no_supported_career') : t('assessment_report_no_career_catalog')}
-                </p>
-            </section>
-        );
-    }
+function formatDiagnosticBytes(value) {
+    const bytes = Number(value) || 0;
+    return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+}
 
-    const careers = new Map(assessmentSources(sourceSnapshot).map((career) => [career.career_path_id, career]));
+function ContextDiagnostics({ diagnostics, t }) {
+    if (!diagnostics) return null;
+
+    const sections = [
+        ['assessment_context_readiness', diagnostics.readiness_bytes],
+        ['assessment_context_availability', diagnostics.availability_bytes],
+        ['assessment_context_academic_evidence', diagnostics.academic_evidence_bytes],
+        ['assessment_context_competency_scores', diagnostics.competency_scores_bytes],
+        ['assessment_context_activity_evidence', diagnostics.activity_evidence_bytes],
+        ['assessment_context_system_prompt', diagnostics.system_prompt_bytes],
+        ['assessment_context_user_prompt', diagnostics.user_prompt_bytes],
+    ];
+
     return (
-        <section className={styles.findingGroup}>
-            <h4>{t('assessment_report_careers')}</h4>
-            <div className={styles.findingList}>
-                {items.map((item) => {
-                    const career = careers.get(item.career_path_id);
-                    const careerName = localizedValue({ th: career?.name_th, en: career?.name_en }, language, t('assessment_report_career'));
-                    const competencies = career?.competencies || [];
-                    return (
-                        <article className={styles.finding} key={item.career_path_id}>
-                            <h5>{careerName}</h5>
-                            <p>{localizedValue(item.reason, language)}</p>
-                            <p className={styles.advice}>{localizedValue(item.advice, language)}</p>
-                            {competencies.length > 0 && (
-                                <p className={styles.muted}>
-                                    {t('assessment_report_related_competencies')}: {competencies
-                                        .map((competency) => localizedValue({ th: competency.competency_name_th, en: competency.competency_name_en }, language))
-                                        .join(', ')}
-                                </p>
-                            )}
-                            <EvidenceList references={item.evidence_refs} catalog={catalog} t={t} />
-                        </article>
-                    );
-                })}
+        <div className={styles.contextDiagnostics}>
+            <div className={styles.contextSummary}>
+                <span>{t('assessment_context_estimated_total')}</span>
+                <strong>{diagnostics.estimated_total_tokens} / {diagnostics.context_tokens} tokens</strong>
+                <span>{t('assessment_context_input_budget')}: {diagnostics.estimated_input_tokens} / {diagnostics.input_budget_tokens} tokens</span>
+                <span>{t('assessment_context_output_reserve')}: {diagnostics.output_reserve_tokens} tokens · {t('assessment_context_safety_margin')}: {diagnostics.safety_margin_tokens} tokens</span>
+                <span>{t('assessment_context_source_data')}: {formatDiagnosticBytes(diagnostics.source_data_bytes)}</span>
             </div>
-        </section>
+            <dl>
+                {sections.map(([label, bytes]) => (
+                    <div key={label}>
+                        <dt>{t(label)}</dt>
+                        <dd>{formatDiagnosticBytes(bytes)}</dd>
+                    </div>
+                ))}
+            </dl>
+        </div>
     );
 }
 
@@ -320,7 +264,11 @@ export default function LearnerAssessmentReportPanel({ semester }) {
     const report = data?.report;
     const content = reportContent(report);
     const sourceSnapshot = report?.source_snapshot;
-    const catalog = evidenceCatalog(sourceSnapshot, language);
+    const catalog = buildAssessmentEvidenceCatalog(
+        sourceSnapshot,
+        language,
+        t('assessment_evidence_weighted_points'),
+    );
     const active = isAssessmentJobActive(data?.job);
     const isLoading = view.phase === 'loading';
     const sourceAvailability = data?.availability || [];
@@ -402,6 +350,7 @@ export default function LearnerAssessmentReportPanel({ semester }) {
                     <div>
                         <strong>{t('assessment_report_context_exceeded')}</strong>
                         <p>{t('assessment_report_context_exceeded_description')}</p>
+                        <ContextDiagnostics diagnostics={data.context_diagnostics} t={t} />
                     </div>
                 </div>
             )}
@@ -449,12 +398,7 @@ export default function LearnerAssessmentReportPanel({ semester }) {
                     <div className={styles.findings}>
                         <ReportFindings title={t('assessment_report_strengths')} items={content.strengths} language={language} t={t} catalog={catalog} />
                         <ReportFindings title={t('assessment_report_limitations')} items={content.limitations} language={language} t={t} catalog={catalog} />
-                        <CareerRecommendations items={content.career_recommendations} sourceSnapshot={sourceSnapshot} language={language} t={t} catalog={catalog} />
                     </div>
-
-                    {content.career_recommendation_reason && (
-                        <p className={styles.muted}>{t('assessment_report_no_supported_career')}</p>
-                    )}
 
                     {unavailableSources.length > 0 && (
                         <section className={styles.availability}>
