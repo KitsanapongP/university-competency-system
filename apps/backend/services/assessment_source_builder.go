@@ -16,7 +16,6 @@ type AssessmentSourceBuilder struct {
 	ScopeRepo        *repositories.AssessmentSourceRepository
 	ReadinessRepo    *repositories.CooperativeReadinessRepository
 	CurriculumRepo   *repositories.CurriculumRepository
-	CareerRepo       *repositories.CareerPathRepository
 	ContextBudget    AssessmentContextBudget
 	GenerationConfig AssessmentGenerationConfig
 	Now              func() time.Time
@@ -33,7 +32,6 @@ func NewAssessmentSourceBuilder(
 		ScopeRepo:      scopeRepo,
 		ReadinessRepo:  readinessRepo,
 		CurriculumRepo: curriculumRepo,
-		CareerRepo:     repositories.NewCareerPathRepository(db),
 		ContextBudget:  DefaultAssessmentContextBudget(),
 		Now:            time.Now,
 	}
@@ -106,14 +104,6 @@ func (b *AssessmentSourceBuilder) build(
 	if err != nil {
 		return nil, err
 	}
-	careerRepo := b.CareerRepo
-	if careerRepo == nil {
-		careerRepo = repositories.NewCareerPathRepository(b.DB)
-	}
-	eligibleCareers, err := careerRepo.GetPublishedForCurriculumWith(ctx, tx, scope.FacultyID, scope.CurriculumID)
-	if err != nil {
-		return nil, err
-	}
 
 	learner := repositories.CooperativeLearnerContext{
 		EnrollmentID: scope.EnrollmentID,
@@ -133,11 +123,6 @@ func (b *AssessmentSourceBuilder) build(
 	competencyScores := mergeAssessmentCompetencyScores(courseScores, electiveScores, activityScores)
 	availability := buildAssessmentBaseAvailability(readiness, cutoffEvidence, scoringAvailable, scoringReason, electiveAvailable, electiveReason)
 	availability = append(availability, buildAssessmentActivityAvailability(activityEvidence, activityScoresAvailable, activityScoresReason)...)
-	careerAvailability := models.AssessmentSourceAvailability{Source: "career_paths", Available: len(eligibleCareers) > 0}
-	if !careerAvailability.Available {
-		careerAvailability.Reason = "no_published_career_paths"
-	}
-	availability = append(availability, careerAvailability)
 	snapshot := &models.LearnerAssessmentSnapshot{
 		Scope:            scope,
 		Semester:         semester,
@@ -148,7 +133,6 @@ func (b *AssessmentSourceBuilder) build(
 		AcademicEvidence: cutoffEvidence,
 		CourseScores:     competencyScores,
 		ActivityEvidence: activityEvidence,
-		EligibleCareers:  eligibleCareers,
 		Availability:     availability,
 	}
 	snapshot.Metadata = assessmentSourceMetadata(contextBudget, b.GenerationConfig)

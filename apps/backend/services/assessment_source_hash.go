@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	assessmentPipelineVersion   = "learner-assessment-v1"
+	assessmentPipelineVersion   = "learner-assessment-v1.0"
 	assessmentProvider          = "ollama"
 	assessmentModel             = "qwen3:4b"
 	assessmentPromptVersion     = "learner-assessment-prompt-v1"
@@ -46,18 +46,17 @@ type assessmentHashVersions struct {
 }
 
 type assessmentHashPayload struct {
-	HashVersion     string                                `json:"hash_version"`
-	Scope           assessmentHashScope                   `json:"scope"`
-	Semester        uint                                  `json:"semester"`
-	TargetYearBE    uint64                                `json:"target_year_be"`
-	Completeness    string                                `json:"completeness"`
-	Versions        assessmentHashVersions                `json:"versions"`
-	Readiness       models.CooperativeReadinessResult     `json:"readiness"`
-	Academic        []models.AssessmentAcademicEvidence   `json:"academic_evidence"`
-	Competency      []models.AssessmentCompetencyScore    `json:"course_competency_scores"`
-	Activities      []models.AssessmentActivityEvidence   `json:"activity_evidence"`
-	EligibleCareers []models.AssessmentCareerPath         `json:"eligible_careers"`
-	Availability    []models.AssessmentSourceAvailability `json:"availability"`
+	HashVersion  string                                `json:"hash_version"`
+	Scope        assessmentHashScope                   `json:"scope"`
+	Semester     uint                                  `json:"semester"`
+	TargetYearBE uint64                                `json:"target_year_be"`
+	Completeness string                                `json:"completeness"`
+	Versions     assessmentHashVersions                `json:"versions"`
+	Readiness    models.CooperativeReadinessResult     `json:"readiness"`
+	Academic     []models.AssessmentAcademicEvidence   `json:"academic_evidence"`
+	Competency   []models.AssessmentCompetencyScore    `json:"course_competency_scores"`
+	Activities   []models.AssessmentActivityEvidence   `json:"activity_evidence"`
+	Availability []models.AssessmentSourceAvailability `json:"availability"`
 }
 
 type AssessmentGenerationConfig struct {
@@ -171,20 +170,16 @@ func calculateAssessmentSourceHash(snapshot *models.LearnerAssessmentSnapshot) (
 	}
 	sort.Slice(activities, func(i, j int) bool { return activities[i].EvidenceRef < activities[j].EvidenceRef })
 
-	careers := append([]models.AssessmentCareerPath(nil), snapshot.EligibleCareers...)
-	for index := range careers {
-		careers[index].Competencies = append([]models.AssessmentCareerCompetency(nil), careers[index].Competencies...)
-		sort.Slice(careers[index].Competencies, func(i, j int) bool {
-			return careers[index].Competencies[i].CompetencyID < careers[index].Competencies[j].CompetencyID
-		})
+	availability := make([]models.AssessmentSourceAvailability, 0, len(snapshot.Availability))
+	for _, source := range snapshot.Availability {
+		if source.Source != "career_paths" {
+			availability = append(availability, source)
+		}
 	}
-	sort.Slice(careers, func(i, j int) bool { return careers[i].CareerPathID < careers[j].CareerPathID })
-
-	availability := append([]models.AssessmentSourceAvailability(nil), snapshot.Availability...)
 	sort.Slice(availability, func(i, j int) bool { return availability[i].Source < availability[j].Source })
 	metadata := snapshot.Metadata
 	payload := assessmentHashPayload{
-		HashVersion: "sha256-json-v1",
+		HashVersion: "sha256-json-v2",
 		Scope: assessmentHashScope{
 			PersonID:               snapshot.Scope.PersonID,
 			EnrollmentID:           snapshot.Scope.EnrollmentID,
@@ -212,12 +207,11 @@ func calculateAssessmentSourceHash(snapshot *models.LearnerAssessmentSnapshot) (
 			OutputTokenReserve:        metadata.OutputTokenReserve,
 			TokenSafetyMargin:         metadata.TokenSafetyMargin,
 		},
-		Readiness:       readiness,
-		Academic:        academic,
-		Competency:      competencies,
-		Activities:      activities,
-		EligibleCareers: careers,
-		Availability:    availability,
+		Readiness:    readiness,
+		Academic:     academic,
+		Competency:   competencies,
+		Activities:   activities,
+		Availability: availability,
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

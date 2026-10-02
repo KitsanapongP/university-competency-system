@@ -13,7 +13,7 @@ func TestAssessmentSourceHashGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = "57f2744c48adfe624e8247c1e2b271a4ff50435bbed0474e2ef786649e67f8ac"
+	const want = "3062cfe6c28c8f8a15bc2e3898b1cf8f7b4aaa599e514174a52e46df36c5bc28"
 	if hash != want {
 		t.Fatalf("golden source hash = %s, want %s", hash, want)
 	}
@@ -26,7 +26,6 @@ func TestAssessmentSourceHashIgnoresCaptureTimeAndSliceOrder(t *testing.T) {
 	second.AcademicEvidence[0], second.AcademicEvidence[1] = second.AcademicEvidence[1], second.AcademicEvidence[0]
 	second.CourseScores[0].CourseScores[0], second.CourseScores[0].CourseScores[1] = second.CourseScores[0].CourseScores[1], second.CourseScores[0].CourseScores[0]
 	second.ActivityEvidence[0], second.ActivityEvidence[1] = second.ActivityEvidence[1], second.ActivityEvidence[0]
-	second.EligibleCareers[0].Competencies[0], second.EligibleCareers[0].Competencies[1] = second.EligibleCareers[0].Competencies[1], second.EligibleCareers[0].Competencies[0]
 	second.Availability[0], second.Availability[1] = second.Availability[1], second.Availability[0]
 
 	firstHash := mustAssessmentSourceHash(t, first)
@@ -45,8 +44,6 @@ func TestAssessmentSourceHashChangesForRelevantSourcesAndVersions(t *testing.T) 
 	}{
 		{name: "new academic grade", change: func(value *models.LearnerAssessmentSnapshot) { value.AcademicEvidence[0].Grade = "A" }},
 		{name: "readiness result", change: func(value *models.LearnerAssessmentSnapshot) { *value.Readiness.Results[0].CurrentValue = 3.1 }},
-		{name: "published career revision", change: func(value *models.LearnerAssessmentSnapshot) { value.EligibleCareers[0].Revision++ }},
-		{name: "career content", change: func(value *models.LearnerAssessmentSnapshot) { value.EligibleCareers[0].NameTH = "Updated" }},
 		{name: "activity attendance", change: func(value *models.LearnerAssessmentSnapshot) { value.ActivityEvidence[0].AttendanceStatus = "late" }},
 		{name: "target semester", change: func(value *models.LearnerAssessmentSnapshot) { value.Semester = 1 }},
 		{name: "prompt version", change: func(value *models.LearnerAssessmentSnapshot) { value.Metadata.PromptVersion += "-next" }},
@@ -64,6 +61,20 @@ func TestAssessmentSourceHashChangesForRelevantSourcesAndVersions(t *testing.T) 
 				t.Fatal("relevant source change did not change hash")
 			}
 		})
+	}
+}
+
+func TestAssessmentSourceHashIgnoresCareerCatalogue(t *testing.T) {
+	first := sampleAssessmentSnapshot()
+	second := sampleAssessmentSnapshot()
+	second.EligibleCareers[0].Revision++
+	second.EligibleCareers[0].NameTH = "Updated"
+	second.Availability = append(second.Availability, models.AssessmentSourceAvailability{
+		Source: "career_paths", Available: false, Reason: "no_published_career_paths",
+	})
+
+	if mustAssessmentSourceHash(t, first) != mustAssessmentSourceHash(t, second) {
+		t.Fatal("career catalogue changes must not invalidate version 1.0 reports")
 	}
 }
 
