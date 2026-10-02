@@ -135,6 +135,9 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 	}
 	validated, err := ValidateAssessmentProviderOutput(providerOutput, payload.ProviderInput)
 	if err != nil {
+		if errors.Is(err, ErrAssessmentOutputMalformed) {
+			return w.failClaim(ctx, job, "malformed_output", assessmentFailureWait)
+		}
 		return w.failClaim(ctx, job, "invalid_output", assessmentFailureWait)
 	}
 	freshSnapshot, err := w.SourceBuilder.BuildForEnrollmentCurriculum(ctx, job.EnrollmentCurriculumID, job.Semester)

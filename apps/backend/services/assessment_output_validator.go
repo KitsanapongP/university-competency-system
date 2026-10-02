@@ -17,10 +17,14 @@ const (
 )
 
 var ErrAssessmentOutputInvalid = errors.New("assessment provider output is invalid")
+var ErrAssessmentOutputMalformed = errors.New("assessment provider output is malformed JSON")
 
 func ValidateAssessmentProviderOutput(raw []byte, input models.AssessmentProviderInput) (models.AssessmentValidatedOutput, error) {
 	if len(raw) == 0 || len(raw) > assessmentMaxOutputBytes {
 		return models.AssessmentValidatedOutput{}, ErrAssessmentOutputInvalid
+	}
+	if !json.Valid(raw) {
+		return models.AssessmentValidatedOutput{}, ErrAssessmentOutputMalformed
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -171,6 +172,18 @@ func (p *OllamaAssessmentProvider) Generate(
 	if result.Model != "" && result.Model != p.Model {
 		return nil, AssessmentProviderError{Code: "provider_model_mismatch", Retryable: false}
 	}
+	// Only bounded completion metadata is logged, never the prompt or response text.
+	reason := "unknown"
+	if result.DoneReason == "stop" || result.DoneReason == "length" {
+		reason = result.DoneReason
+	}
+	slog.InfoContext(ctx, "assessment generation usage", "done_reason", reason, "prompt_eval_count", max(0, result.PromptEvalCount), "eval_count", max(0, result.EvalCount))
+	if result.DoneReason == "length" {
+		return nil, AssessmentProviderError{Code: "provider_output_truncated", Retryable: false}
+	}
+	if result.DoneReason != "" && result.DoneReason != "stop" {
+		return nil, AssessmentProviderError{Code: "provider_incomplete_response", Retryable: false}
+	}
 	if !result.Done || strings.TrimSpace(result.Response) == "" {
 		return nil, AssessmentProviderError{Code: "provider_incomplete_response", Retryable: true}
 	}
@@ -198,10 +211,13 @@ type ollamaGenerateOptions struct {
 }
 
 type ollamaGenerateResponse struct {
-	Model    string `json:"model"`
-	Response string `json:"response"`
-	Done     bool   `json:"done"`
-	Error    string `json:"error,omitempty"`
+	Model           string `json:"model"`
+	Response        string `json:"response"`
+	Done            bool   `json:"done"`
+	Error           string `json:"error,omitempty"`
+	DoneReason      string `json:"done_reason"`
+	PromptEvalCount int    `json:"prompt_eval_count"`
+	EvalCount       int    `json:"eval_count"`
 }
 
 type ollamaErrorResponse struct {

@@ -84,6 +84,8 @@ func TestOllamaAssessmentProviderRejectsIncompleteAndMismatchedResponses(t *test
 	}{
 		{name: "incomplete", body: `{"model":"qwen3:4b","response":"{}","done":false}`, code: "provider_incomplete_response"},
 		{name: "wrong model", body: `{"model":"another-model","response":"{}","done":true}`, code: "provider_model_mismatch"},
+		{name: "truncated", body: `{"model":"qwen3:4b","response":"{","done":true,"done_reason":"length","prompt_eval_count":700,"eval_count":1024}`, code: "provider_output_truncated"},
+		{name: "unknown completion reason", body: `{"model":"qwen3:4b","response":"{}","done":true,"done_reason":"other"}`, code: "provider_incomplete_response"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
