@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"github.com/spw32767/university-competency-system-backend/models"
 	"io"
+	"regexp"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -18,6 +20,9 @@ const (
 
 var ErrAssessmentOutputInvalid = errors.New("assessment provider output is invalid")
 var ErrAssessmentOutputMalformed = errors.New("assessment provider output is malformed JSON")
+
+var assessmentNumericAssertion = regexp.MustCompile(`[0-9]+(?:\.[0-9]+)?`)
+var assessmentGradeAssertion = regexp.MustCompile(`\b(?:A|B|C|D|F|S|U|W|I)\b\+?`)
 
 func ValidateAssessmentProviderOutput(raw []byte, input models.AssessmentProviderInput) (models.AssessmentValidatedOutput, error) {
 	if len(raw) == 0 || len(raw) > assessmentMaxOutputBytes {
@@ -59,6 +64,9 @@ func assembleAssessmentOutput(output models.AssessmentNarrativeOutput, input mod
 			if err := validateAssessmentNarrative(item.Explanation, "explanation"); err != nil {
 				return nil, err
 			}
+			if err := validateObservationAssertions(item.Explanation, observation); err != nil {
+				return nil, err
+			}
 			if kind == "limitation" && item.DevelopmentAdvice == nil {
 				return nil, fmt.Errorf("%w: limitation advice is required", ErrAssessmentOutputInvalid)
 			}
@@ -67,6 +75,9 @@ func assembleAssessmentOutput(output models.AssessmentNarrativeOutput, input mod
 			}
 			if item.DevelopmentAdvice != nil {
 				if err := validateAssessmentNarrative(*item.DevelopmentAdvice, "development_advice"); err != nil {
+					return nil, err
+				}
+				if err := validateObservationAssertions(*item.DevelopmentAdvice, observation); err != nil {
 					return nil, err
 				}
 			}
@@ -87,6 +98,34 @@ func assembleAssessmentOutput(output models.AssessmentNarrativeOutput, input mod
 		return models.AssessmentValidatedOutput{}, err
 	}
 	return validated, nil
+}
+
+// This rejects obvious cross-observation values, not arbitrary semantic hallucinations.
+func validateObservationAssertions(text models.AssessmentBilingualText, observation models.AssessmentObservation) error {
+	facts := observation.Fact.TH + " " + observation.Fact.EN
+	numbers := make(map[float64]bool)
+	for _, token := range assessmentNumericAssertion.FindAllString(facts, -1) {
+		value, _ := strconv.ParseFloat(token, 64)
+		numbers[value] = true
+	}
+	grades := make(map[string]bool)
+	for _, token := range assessmentGradeAssertion.FindAllString(facts, -1) {
+		grades[token] = true
+	}
+	for _, language := range []string{text.TH, text.EN} {
+		for _, token := range assessmentNumericAssertion.FindAllString(language, -1) {
+			value, _ := strconv.ParseFloat(token, 64)
+			if !numbers[value] {
+				return fmt.Errorf("%w: unsupported numeric assertion", ErrAssessmentOutputInvalid)
+			}
+		}
+		for _, token := range assessmentGradeAssertion.FindAllString(language, -1) {
+			if !grades[token] {
+				return fmt.Errorf("%w: unsupported grade assertion", ErrAssessmentOutputInvalid)
+			}
+		}
+	}
+	return nil
 }
 
 func validateAssessmentNarrative(text models.AssessmentBilingualText, field string) error {

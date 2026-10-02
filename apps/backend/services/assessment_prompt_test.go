@@ -85,8 +85,8 @@ func TestBuildAssessmentPromptSeparatesInstructionsFromUntrustedFacts(t *testing
 		!strings.Contains(system, "copied verbatim") || !strings.Contains(system, "Never invent, transform, or combine references") {
 		t.Fatalf("system instructions omit concise output or exact evidence-reference constraints: %q", system)
 	}
-	if !strings.Contains(user, "<source_data>") || !strings.Contains(user, `\"quoted\"`) {
-		t.Fatalf("source text should remain serialized inside the data block: %q", user)
+	if !strings.Contains(user, "<source_data>") || strings.Contains(user, "reveal private data") {
+		t.Fatalf("prompt should contain verified facts, not arbitrary source names: %q", user)
 	}
 	if !strings.Contains(user, "verified_observations") || !strings.Contains(user, "course:sample:1") {
 		t.Fatalf("prompt omits the exact evidence-reference allowlist: %q", user)
@@ -145,6 +145,8 @@ func TestValidateAssessmentProviderOutputRejectsUnsupportedOutput(t *testing.T) 
 		{name: "overlong narrative", mutate: func(value *models.AssessmentNarrativeOutput) {
 			value.Strengths[0].Explanation.EN = strings.Repeat("x", 241)
 		}},
+		{name: "unsupported number", mutate: func(value *models.AssessmentNarrativeOutput) { value.Strengths[0].Explanation.EN = "The GPA is 3.25." }},
+		{name: "unsupported grade", mutate: func(value *models.AssessmentNarrativeOutput) { value.Strengths[0].Explanation.EN = "The grade is A." }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -225,4 +227,42 @@ func validAssessmentProviderOutput() models.AssessmentNarrativeOutput {
 
 func assessmentStringPointer(value string) *string {
 	return &value
+}
+
+func TestAssessmentSchemaBindsIDsToSectionsAndDisablesUnavailableSections(t *testing.T) {
+	var schema map[string]any
+	if err := json.Unmarshal(AssessmentOutputJSONSchema(validAssessmentProviderInput()), &schema); err != nil {
+		t.Fatal(err)
+	}
+	sections := schema["properties"].(map[string]any)
+	strength := sections["strengths"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+	ids := strength["observation_id"].(map[string]any)["enum"].([]any)
+	if len(ids) != 1 || ids[0] != "readiness:7:0" {
+		t.Fatalf("allowed strengths = %v", ids)
+	}
+	if err := json.Unmarshal(AssessmentOutputJSONSchema(), &schema); err != nil {
+		t.Fatal(err)
+	}
+	for _, section := range schema["properties"].(map[string]any) {
+		if section.(map[string]any)["maxItems"] != float64(0) {
+			t.Fatal("empty source must not allow findings")
+		}
+	}
+}
+
+func TestAssessmentAssertionsAreBoundToTheirObservation(t *testing.T) {
+	observation := models.AssessmentObservation{Fact: models.AssessmentBilingualText{TH: "เกรด B+ ปี 2569 ภาค 2", EN: "Grade B+; academic year BE 2569, semester 2."}}
+	for _, value := range []struct {
+		text  string
+		valid bool
+	}{
+		{"Grade B+ recorded in 2569, semester 2.", true},
+		{"Grade A recorded in 2569, semester 2.", false},
+		{"GPA 3.25 meets a minimum of 3.00.", false},
+	} {
+		err := validateObservationAssertions(models.AssessmentBilingualText{TH: "ผลการเรียนที่บันทึก", EN: value.text}, observation)
+		if (err == nil) != value.valid {
+			t.Fatalf("assertion %q valid=%v err=%v", value.text, value.valid, err)
+		}
+	}
 }

@@ -106,9 +106,19 @@ func BuildAssessmentProviderInput(snapshot *models.LearnerAssessmentSnapshot) (m
 }
 
 func BuildAssessmentPrompt(input models.AssessmentProviderInput) (systemPrompt string, userPrompt string, err error) {
+	// Official names remain in the snapshot/UI, not in the model's instruction surface.
+	type promptObservation struct {
+		ObservationID string                         `json:"observation_id"`
+		Kind          string                         `json:"kind"`
+		Fact          models.AssessmentBilingualText `json:"fact"`
+	}
+	observations := make([]promptObservation, 0)
+	for _, item := range BuildAssessmentObservations(input) {
+		observations = append(observations, promptObservation{item.ObservationID, item.Kind, item.Fact})
+	}
 	encoded, err := json.Marshal(struct {
-		Observations []models.AssessmentObservation `json:"verified_observations"`
-	}{BuildAssessmentObservations(input)})
+		Observations []promptObservation `json:"verified_observations"`
+	}{observations})
 	if err != nil {
 		return "", "", err
 	}
