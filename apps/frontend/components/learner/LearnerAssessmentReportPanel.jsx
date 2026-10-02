@@ -87,6 +87,9 @@ function jobErrorMessage(code, t) {
         provider_unavailable: t('assessment_error_provider_unavailable'),
         model_not_found: t('assessment_error_model_missing'),
         invalid_output: t('assessment_error_invalid_output'),
+		malformed_output: t('assessment_error_malformed_output'),
+		provider_output_truncated: t('assessment_error_output_truncated'),
+		provider_incomplete_response: t('assessment_error_output_truncated'),
         source_superseded: t('assessment_error_source_changed'),
         context_exceeded: t('assessment_report_context_exceeded'),
         pipeline_version_unsupported: t('assessment_error_version_changed'),
@@ -95,15 +98,18 @@ function jobErrorMessage(code, t) {
 }
 
 function ReportFindings({ title, items, language, t, catalog }) {
-    if (!items?.length) return null;
     return (
         <section className={styles.findingGroup}>
             <h4>{title}</h4>
+            {!items?.length && <p className={styles.muted}>{t('assessment_report_no_verified_findings')}</p>}
             <div className={styles.findingList}>
-                {items.map((item, index) => (
-                    <article className={styles.finding} key={`${title}-${index}`}>
+                {(items || []).map((item, index) => (
+                    <article className={styles.finding} key={item.observation_id || `${title}-${index}`}>
                         <h5>{localizedValue(item.title, language)}</h5>
                         <p>{localizedValue(item.reason, language)}</p>
+                        {item.explanation && (
+                            <p>{localizedValue(item.explanation, language)}</p>
+                        )}
                         {item.development_advice && (
                             <p className={styles.advice}>
                                 <strong>{t('assessment_report_advice')}: </strong>
@@ -399,6 +405,8 @@ export default function LearnerAssessmentReportPanel({ semester }) {
                         <ReportFindings title={t('assessment_report_strengths')} items={content.strengths} language={language} t={t} catalog={catalog} />
                         <ReportFindings title={t('assessment_report_limitations')} items={content.limitations} language={language} t={t} catalog={catalog} />
                     </div>
+
+                    <ReportFindings title={t('assessment_report_observations')} items={content.observations} language={language} t={t} catalog={catalog} />
 
                     {unavailableSources.length > 0 && (
                         <section className={styles.availability}>
