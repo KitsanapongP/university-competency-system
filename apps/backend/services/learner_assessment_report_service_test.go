@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -116,8 +117,13 @@ func TestLearnerAssessmentReportGenerateHandlesInsufficientContextAndDedup(t *te
 
 	overBudget := snapshot
 	overBudget.Metadata = assessmentSourceMetadata(AssessmentContextBudget{ContextTokens: 1024, OutputReserveTokens: 256, SafetyMarginTokens: 64})
-	for index := range overBudget.EligibleCareers {
-		overBudget.EligibleCareers[index].DescriptionTH = assessmentStringPointerWithFallback(assessmentStringPointer(repeatAssessmentText("รายละเอียด", 600)), "")
+	for index := 0; index < 4; index++ {
+		overBudget.AcademicEvidence = append(overBudget.AcademicEvidence, models.AssessmentAcademicEvidence{
+			EvidenceRef:  fmt.Sprintf("course:large:%d", index),
+			CourseCode:   fmt.Sprintf("CS-LARGE-%d", index),
+			CourseNameTH: fmt.Sprintf("%s %d", repeatAssessmentText("รายละเอียดรายวิชาที่มีเนื้อหามาก", 600), index),
+			Grade:        "B",
+		})
 	}
 	overBudget.Metadata.SourceHash, _ = calculateAssessmentSourceHash(&overBudget)
 	builder.snapshot = &overBudget

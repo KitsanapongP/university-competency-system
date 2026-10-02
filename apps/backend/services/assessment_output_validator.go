@@ -41,17 +41,7 @@ func ValidateAssessmentProviderOutput(raw []byte, input models.AssessmentProvide
 	if output.Limitations == nil {
 		output.Limitations = make([]models.AssessmentReportFinding, 0)
 	}
-	if output.CareerRecommendations == nil {
-		output.CareerRecommendations = make([]models.AssessmentCareerRecommendation, 0)
-	}
-	validated := models.AssessmentValidatedOutput{AssessmentProviderOutput: output}
-	if len(output.CareerRecommendations) == 0 {
-		if len(input.EligibleCareers) == 0 {
-			validated.CareerRecommendationReason = "no_published_career_paths"
-		} else {
-			validated.CareerRecommendationReason = "no_evidence_supported_career_path"
-		}
-	}
+	validated := output
 	return validated, nil
 }
 
@@ -59,7 +49,7 @@ func validateAssessmentOutput(output models.AssessmentProviderOutput, input mode
 	if err := validateBilingualText(output.ReadinessExplanation, "readiness_explanation"); err != nil {
 		return err
 	}
-	if len(output.Strengths) > 5 || len(output.Limitations) > 5 || len(output.CareerRecommendations) > 3 {
+	if len(output.Strengths) > 5 || len(output.Limitations) > 5 {
 		return fmt.Errorf("%w: output item limit exceeded", ErrAssessmentOutputInvalid)
 	}
 	validReferences := assessmentProviderEvidenceReferences(input)
@@ -70,29 +60,6 @@ func validateAssessmentOutput(output models.AssessmentProviderOutput, input mode
 	}
 	for index, finding := range output.Limitations {
 		if err := validateFinding(finding, validReferences, true, fmt.Sprintf("limitations[%d]", index)); err != nil {
-			return err
-		}
-	}
-	eligibleCareers := make(map[uint64]struct{}, len(input.EligibleCareers))
-	for _, career := range input.EligibleCareers {
-		eligibleCareers[career.CareerPathID] = struct{}{}
-	}
-	seenCareerIDs := make(map[uint64]struct{}, len(output.CareerRecommendations))
-	for index, recommendation := range output.CareerRecommendations {
-		if _, ok := eligibleCareers[recommendation.CareerPathID]; !ok || recommendation.CareerPathID == 0 {
-			return fmt.Errorf("%w: career recommendation is not eligible", ErrAssessmentOutputInvalid)
-		}
-		if _, exists := seenCareerIDs[recommendation.CareerPathID]; exists {
-			return fmt.Errorf("%w: duplicate career recommendation", ErrAssessmentOutputInvalid)
-		}
-		seenCareerIDs[recommendation.CareerPathID] = struct{}{}
-		if err := validateBilingualText(recommendation.Reason, fmt.Sprintf("career_recommendations[%d].reason", index)); err != nil {
-			return err
-		}
-		if err := validateBilingualText(recommendation.Advice, fmt.Sprintf("career_recommendations[%d].advice", index)); err != nil {
-			return err
-		}
-		if err := validateEvidenceRefs(recommendation.EvidenceRefs, validReferences); err != nil {
 			return err
 		}
 	}

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/spw32767/university-competency-system-backend/models"
 )
 
 func TestPrepareAssessmentContextIsDeterministicAndPreservesAggregatedProvenance(t *testing.T) {
@@ -51,12 +53,12 @@ func TestPrepareAssessmentContextIsDeterministicAndPreservesAggregatedProvenance
 func TestPrepareAssessmentContextReturnsTypedExceededErrorWithoutDroppingFacts(t *testing.T) {
 	snapshot := sampleAssessmentSnapshot()
 	for index := 0; index < 30; index++ {
-		career := snapshot.EligibleCareers[0]
-		career.CareerPathID += uint64(index + 1)
-		career.Code = fmt.Sprintf("CAREER-%d", index)
-		career.NameTH = fmt.Sprintf("สายงานทดสอบ %d", index)
-		career.DescriptionTH = assessmentStringPointer(fmt.Sprintf("รายละเอียดที่ต้องคงไว้ %s", repeatAssessmentText("เนื้อหา", 80)))
-		snapshot.EligibleCareers = append(snapshot.EligibleCareers, career)
+		snapshot.AcademicEvidence = append(snapshot.AcademicEvidence, models.AssessmentAcademicEvidence{
+			EvidenceRef:  fmt.Sprintf("course:extra:%d", index),
+			CourseCode:   fmt.Sprintf("CS-%03d", index),
+			CourseNameTH: fmt.Sprintf("รายวิชาหลักฐานที่ต้องคงไว้ %d %s", index, repeatAssessmentText("เนื้อหา", 80)),
+			Grade:        "B",
+		})
 	}
 	budget := AssessmentContextBudget{ContextTokens: 1024, OutputReserveTokens: 256, SafetyMarginTokens: 64}
 	snapshot.Metadata = assessmentSourceMetadata(budget)
@@ -68,8 +70,8 @@ func TestPrepareAssessmentContextReturnsTypedExceededErrorWithoutDroppingFacts(t
 	if !errors.As(err, &exceeded) || exceeded.EstimatedTokens <= exceeded.ContextTokens {
 		t.Fatalf("expected budget details in typed error, got %#v", err)
 	}
-	if len(prepared.Input.EligibleCareers) != len(snapshot.EligibleCareers) {
-		t.Fatal("context preparation must not silently drop eligible career paths")
+	if len(prepared.Input.AcademicEvidence) != len(snapshot.AcademicEvidence) {
+		t.Fatal("context preparation must not silently drop distinct academic evidence")
 	}
 }
 

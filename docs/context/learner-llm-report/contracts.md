@@ -1,7 +1,7 @@
 # Learner Assessment Report Contracts
 
-สถานะ: Contract สำหรับ Implement ตามกติกาที่ตกลงแล้ว
-ขอบเขต: รายงานผู้เรียน Version 1.0; Catalogue สายงานจัดการแยกและยังไม่ใช้สร้างรายงาน
+สถานะ: Contract สำหรับรายงานผู้เรียน Version 1.0
+ขอบเขต: รายงานผลตรวจความพร้อม จุดแข็ง และข้อจำกัดพร้อมแนวทางพัฒนา
 
 ## Authority
 

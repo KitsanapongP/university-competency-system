@@ -19,7 +19,6 @@ type AssessmentProviderInput struct {
 	AcademicEvidence []AssessmentProviderCourse     `json:"academic_evidence"`
 	CompetencyScores []AssessmentProviderCompetency `json:"competency_scores"`
 	ActivityEvidence []AssessmentProviderActivity   `json:"activity_evidence"`
-	EligibleCareers  []AssessmentCareerPath         `json:"eligible_careers"`
 }
 
 type AssessmentProviderReadiness struct {
@@ -111,24 +110,13 @@ type AssessmentReportFinding struct {
 	EvidenceRefs      []string                 `json:"evidence_refs"`
 }
 
-type AssessmentCareerRecommendation struct {
-	CareerPathID uint64                  `json:"career_path_id"`
-	Reason       AssessmentBilingualText `json:"reason"`
-	Advice       AssessmentBilingualText `json:"advice"`
-	EvidenceRefs []string                `json:"evidence_refs"`
-}
-
 type AssessmentProviderOutput struct {
-	ReadinessExplanation  AssessmentBilingualText          `json:"readiness_explanation"`
-	Strengths             []AssessmentReportFinding        `json:"strengths"`
-	Limitations           []AssessmentReportFinding        `json:"limitations"`
-	CareerRecommendations []AssessmentCareerRecommendation `json:"career_recommendations"`
+	ReadinessExplanation AssessmentBilingualText   `json:"readiness_explanation"`
+	Strengths            []AssessmentReportFinding `json:"strengths"`
+	Limitations          []AssessmentReportFinding `json:"limitations"`
 }
 
-type AssessmentValidatedOutput struct {
-	AssessmentProviderOutput
-	CareerRecommendationReason string `json:"career_recommendation_reason,omitempty"`
-}
+type AssessmentValidatedOutput = AssessmentProviderOutput
 
 type AssessmentJob struct {
 	JobID                  uint64          `json:"job_id"`

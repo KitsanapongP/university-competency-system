@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -55,16 +56,34 @@ func TestLearnerAssessmentWorkerRejectsInvalidOutputAndDoesNotPersist(t *testing
 	}
 }
 
+func TestLearnerAssessmentWorkerDoesNotProcessLegacyPipelineJobs(t *testing.T) {
+	payload, job := workerTestJob(t, DefaultAssessmentContextBudget())
+	payload.Source.Metadata.PipelineVersion = "learner-assessment-v1"
+	job.InputSnapshot = mustJSON(t, payload)
+	provider := &fakeAssessmentProvider{output: mustJSON(t, workerTestOutput(payload.ProviderInput))}
+	jobs := &fakeAssessmentWorkerJobs{job: job}
+	worker := workerTestInstance(jobs, provider, &fakeAssessmentSourceRebuilder{snapshot: &payload.Source})
+
+	processed, err := worker.ProcessOne(context.Background())
+	if err != nil || !processed {
+		t.Fatalf("worker processed=%v err=%v", processed, err)
+	}
+	if jobs.failedCode != "pipeline_version_unsupported" || provider.calls != 0 || jobs.completed != nil {
+		t.Fatalf("legacy job failed=%q provider calls=%d report=%+v", jobs.failedCode, provider.calls, jobs.completed)
+	}
+}
+
 func TestLearnerAssessmentWorkerNeverCallsProviderForContextExceeded(t *testing.T) {
 	budget := AssessmentContextBudget{ContextTokens: 1024, OutputReserveTokens: 256, SafetyMarginTokens: 64}
 	payload, job := workerTestJob(t, DefaultAssessmentContextBudget())
 	payload.Source.Metadata = assessmentSourceMetadata(budget)
 	for index := 0; index < 20; index++ {
-		career := payload.Source.EligibleCareers[0]
-		career.CareerPathID += uint64(index + 1)
-		career.Code = strings.Repeat("C", index+1)
-		career.NameTH = strings.Repeat("สายงาน", 100)
-		payload.Source.EligibleCareers = append(payload.Source.EligibleCareers, career)
+		payload.Source.AcademicEvidence = append(payload.Source.AcademicEvidence, models.AssessmentAcademicEvidence{
+			EvidenceRef:  fmt.Sprintf("course:large:%d", index),
+			CourseCode:   strings.Repeat("C", index+1),
+			CourseNameTH: strings.Repeat("รายวิชาที่มีรายละเอียดจำนวนมาก", 80),
+			Grade:        "B",
+		})
 	}
 	payload.Source.Metadata.SourceHash, _ = calculateAssessmentSourceHash(&payload.Source)
 	prepared, prepErr := PrepareAssessmentContext(&payload.Source, budget)
@@ -151,20 +170,12 @@ func workerTestJob(t *testing.T, budget AssessmentContextBudget) (models.Assessm
 
 func workerTestOutput(input models.AssessmentProviderInput) models.AssessmentProviderOutput {
 	courseRef := input.AcademicEvidence[0].EvidenceRef
-	competencyRef := input.CompetencyScores[0].CompetencyRef
-	careerID := input.EligibleCareers[0].CareerPathID
 	return models.AssessmentProviderOutput{
 		ReadinessExplanation: models.AssessmentBilingualText{TH: "ผลตรวจตามข้อมูลระบบ", EN: "Based on the system result"},
 		Strengths: []models.AssessmentReportFinding{{
 			Title:        models.AssessmentBilingualText{TH: "จุดแข็ง", EN: "Strength"},
 			Reason:       models.AssessmentBilingualText{TH: "มีหลักฐานรายวิชา", EN: "Supported by course evidence"},
 			EvidenceRefs: []string{courseRef},
-		}},
-		CareerRecommendations: []models.AssessmentCareerRecommendation{{
-			CareerPathID: careerID,
-			Reason:       models.AssessmentBilingualText{TH: "สัมพันธ์กับสมรรถนะ", EN: "Related to the competency evidence"},
-			Advice:       models.AssessmentBilingualText{TH: "ศึกษารายละเอียดสายงาน", EN: "Explore the career path"},
-			EvidenceRefs: []string{competencyRef},
 		}},
 	}
 }

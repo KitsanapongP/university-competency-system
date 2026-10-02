@@ -284,14 +284,6 @@ func canonicalizeAssessmentProviderInput(input *models.AssessmentProviderInput) 
 	sort.Slice(input.ActivityEvidence, func(i, j int) bool {
 		return input.ActivityEvidence[i].EvidenceRef < input.ActivityEvidence[j].EvidenceRef
 	})
-	sort.Slice(input.EligibleCareers, func(i, j int) bool {
-		return input.EligibleCareers[i].CareerPathID < input.EligibleCareers[j].CareerPathID
-	})
-	for index := range input.EligibleCareers {
-		sort.Slice(input.EligibleCareers[index].Competencies, func(i, j int) bool {
-			return input.EligibleCareers[index].Competencies[i].CompetencyID < input.EligibleCareers[index].Competencies[j].CompetencyID
-		})
-	}
 	sort.Slice(input.Availability, func(i, j int) bool { return input.Availability[i].Source < input.Availability[j].Source })
 }
 

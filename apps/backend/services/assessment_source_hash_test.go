@@ -13,7 +13,7 @@ func TestAssessmentSourceHashGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = "3062cfe6c28c8f8a15bc2e3898b1cf8f7b4aaa599e514174a52e46df36c5bc28"
+	const want = "050d741d87a5a9bbed117f9278772769ac4cdcd9847de8ee89a4827b91e5e9f4"
 	if hash != want {
 		t.Fatalf("golden source hash = %s, want %s", hash, want)
 	}
@@ -64,11 +64,9 @@ func TestAssessmentSourceHashChangesForRelevantSourcesAndVersions(t *testing.T) 
 	}
 }
 
-func TestAssessmentSourceHashIgnoresCareerCatalogue(t *testing.T) {
+func TestAssessmentSourceHashIgnoresLegacyCareerAvailability(t *testing.T) {
 	first := sampleAssessmentSnapshot()
 	second := sampleAssessmentSnapshot()
-	second.EligibleCareers[0].Revision++
-	second.EligibleCareers[0].NameTH = "Updated"
 	second.Availability = append(second.Availability, models.AssessmentSourceAvailability{
 		Source: "career_paths", Available: false, Reason: "no_published_career_paths",
 	})
@@ -178,13 +176,6 @@ func sampleAssessmentSnapshot() models.LearnerAssessmentSnapshot {
 			{EvidenceRef: "activity:2", AttendanceID: 2, AttendanceStatus: "present", StartAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.Local)},
 			{EvidenceRef: "activity:1", AttendanceID: 1, AttendanceStatus: "present", StartAt: time.Date(2025, 1, 2, 0, 0, 0, 0, time.Local)},
 		},
-		EligibleCareers: []models.AssessmentCareerPath{{
-			CareerPathID: 90, Code: "DEV", Revision: 3, NameTH: "นักพัฒนาซอฟต์แวร์",
-			Competencies: []models.AssessmentCareerCompetency{
-				{CompetencyID: 12, CompetencyCode: "C12", CompetencyNameTH: "วิเคราะห์"},
-				{CompetencyID: 11, CompetencyCode: "C11", CompetencyNameTH: "สื่อสาร"},
-			},
-		}},
 		Availability: []models.AssessmentSourceAvailability{{Source: "activity_participation", Available: true}, {Source: "academic_grades", Available: true}},
 	}
 }

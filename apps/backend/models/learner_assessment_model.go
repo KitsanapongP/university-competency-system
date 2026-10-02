@@ -53,26 +53,6 @@ type AssessmentSourceAvailability struct {
 	Reason    string `json:"reason_code,omitempty"`
 }
 
-type AssessmentCareerPath struct {
-	CareerPathID  uint64                       `json:"career_path_id"`
-	Code          string                       `json:"code"`
-	Revision      uint64                       `json:"revision"`
-	NameTH        string                       `json:"name_th"`
-	NameEN        *string                      `json:"name_en,omitempty"`
-	DescriptionTH *string                      `json:"description_th,omitempty"`
-	DescriptionEN *string                      `json:"description_en,omitempty"`
-	SkillsTH      *string                      `json:"skills_description_th,omitempty"`
-	SkillsEN      *string                      `json:"skills_description_en,omitempty"`
-	Competencies  []AssessmentCareerCompetency `json:"competencies"`
-}
-
-type AssessmentCareerCompetency struct {
-	CompetencyID     uint64 `json:"competency_id"`
-	CompetencyCode   string `json:"competency_code"`
-	CompetencyNameTH string `json:"competency_name_th"`
-	CompetencyNameEN string `json:"competency_name_en"`
-}
-
 type AssessmentSourceMetadata struct {
 	PipelineVersion           string `json:"pipeline_version"`
 	Provider                  string `json:"provider"`
@@ -167,6 +147,5 @@ type LearnerAssessmentSnapshot struct {
 	AcademicEvidence []AssessmentAcademicEvidence   `json:"academic_evidence"`
 	CourseScores     []AssessmentCompetencyScore    `json:"course_competency_scores"`
 	ActivityEvidence []AssessmentActivityEvidence   `json:"activity_evidence"`
-	EligibleCareers  []AssessmentCareerPath         `json:"eligible_careers"`
 	Availability     []AssessmentSourceAvailability `json:"availability"`
 }

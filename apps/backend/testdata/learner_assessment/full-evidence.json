@@ -1,10 +1,10 @@
 {
-  "name": "full evidence with supported career recommendation",
+  "name": "full evidence with grounded strengths and limitations",
   "review_checklist": [
     "Readiness text explains the backend result without changing it",
     "Strengths and limitations cite only supplied evidence references",
     "Thai and English statements have equivalent meaning",
-    "Career recommendation uses only the supplied catalogue ID and is evidence-grounded"
+    "Development advice is bilingual and grounded in supplied evidence"
   ],
   "input": {
     "semester": 1,
