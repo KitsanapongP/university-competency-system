@@ -54,30 +54,24 @@
 }
 
 .career-management__search-control {
+    position: relative;
     display: flex;
     min-height: 2.5rem;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0 0.75rem;
-    border: 1px solid var(--ui-border);
-    border-radius: var(--ui-radius-control);
     color: var(--ui-text-muted);
-    background: var(--ui-surface-raised);
 }
 
-.career-management__search-control:focus-within {
-    border-color: var(--ui-primary);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 18%, transparent);
+.career-management__search-control > svg {
+    position: absolute;
+    left: 0.85rem;
+    z-index: 1;
+    pointer-events: none;
 }
 
-.career-management__search-control input {
+.career-management__search-control .ui-input {
     width: 100%;
     min-width: 0;
-    border: 0;
-    outline: 0;
-    color: var(--ui-text);
-    background: transparent;
-    font: inherit;
+    padding-left: 2.5rem;
 }
 
 .career-feedback {
