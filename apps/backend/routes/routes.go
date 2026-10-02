@@ -104,6 +104,28 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	cooperativeReadinessRepo := repositories.NewCooperativeReadinessRepository(db)
 	cooperativeReadinessSvc := services.NewCooperativeReadinessService(cooperativeReadinessRepo, curriculumSvc)
 	cooperativeReadinessHandler := &controllers.CooperativeReadinessController{Service: cooperativeReadinessSvc}
+	assessmentSourceRepo := repositories.NewAssessmentSourceRepository(db)
+	assessmentSourceBuilder := services.NewAssessmentSourceBuilder(db, assessmentSourceRepo, cooperativeReadinessRepo, curriculumRepo)
+	assessmentBudget := services.AssessmentContextBudget{
+		ContextTokens:       cfg.AssessmentContextTokens,
+		OutputReserveTokens: cfg.AssessmentOutputReserveTokens,
+		SafetyMarginTokens:  cfg.AssessmentTokenSafetyMargin,
+	}
+	assessmentSourceBuilder.ContextBudget = assessmentBudget
+	assessmentSourceBuilder.GenerationConfig = services.AssessmentGenerationConfig{
+		ModelDigest:  cfg.AssessmentOllamaModelDigest,
+		ThinkEnabled: cfg.AssessmentOllamaThink,
+		KeepAlive:    cfg.AssessmentOllamaKeepAlive,
+	}
+	assessmentReportRepo := repositories.NewAssessmentReportRepository(db)
+	assessmentJobRepo := repositories.NewAssessmentJobRepository(db)
+	assessmentReportSvc := services.NewLearnerAssessmentReportService(assessmentSourceBuilder, assessmentReportRepo, assessmentJobRepo)
+	assessmentReportSvc.GenerationEnabled = cfg.AssessmentOllamaModelDigest != ""
+	assessmentReportHandler := &controllers.LearnerAssessmentController{Service: assessmentReportSvc, Jobs: assessmentJobRepo}
+	careerPathRepo := repositories.NewCareerPathRepository(db)
+	careerPathSvc := services.NewCareerPathService(careerPathRepo)
+	careerPathImportSvc := services.NewCareerPathImportService(careerPathRepo)
+	careerPathHandler := &controllers.CareerPathController{Service: careerPathSvc, ImportService: careerPathImportSvc}
 
 	// Versioned API routes
 	r.Route("/api/v1", func(api chi.Router) {
@@ -162,6 +184,22 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 			pr.Get("/competency/dashboard", competencyHandler.Dashboard)
 			pr.With(middleware.RequireRoles("learner")).Get("/learner/academic-profile", learnerProfileHandler.GetAcademicProfile)
 			pr.With(middleware.RequireRoles("learner")).Get("/learner/cooperative-readiness", cooperativeReadinessHandler.GetLearnerReadiness)
+			pr.With(middleware.RequireRoles("learner")).Get("/learner/assessment-report", assessmentReportHandler.GetReport)
+			pr.With(middleware.RequireRoles("learner")).Post("/learner/assessment-report/generate", assessmentReportHandler.GenerateReport)
+			pr.With(middleware.RequireRoles("learner")).Get("/learner/assessment-report/jobs/{job_id}", assessmentReportHandler.GetJob)
+
+			pr.Route("/career-paths", func(cpr chi.Router) {
+				cpr.Use(middleware.RequireRoles("admin", "officer"))
+				cpr.Get("/", careerPathHandler.List)
+				cpr.Post("/", careerPathHandler.CreateDraft)
+				cpr.Post("/publish", careerPathHandler.Publish)
+				cpr.Post("/deactivate", careerPathHandler.Deactivate)
+				cpr.Post("/imports/preview", careerPathHandler.PreviewImport)
+				cpr.Post("/imports/commit", careerPathHandler.CommitImport)
+				cpr.Get("/{career_path_id}", careerPathHandler.Get)
+				cpr.Put("/{career_path_id}/draft", careerPathHandler.UpdateDraft)
+				cpr.Delete("/{career_path_id}", careerPathHandler.Delete)
+			})
 			pr.Get("/competencies", competencyHandler.GetAll)
 
 			pr.With(middleware.RequireRoles("admin", "officer")).Post("/competencies", competencyHandler.Create)

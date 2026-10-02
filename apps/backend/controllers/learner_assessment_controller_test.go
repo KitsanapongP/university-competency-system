@@ -1,0 +1,133 @@
+package controllers
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/spw32767/university-competency-system-backend/models"
+	"github.com/spw32767/university-competency-system-backend/repositories"
+	"github.com/spw32767/university-competency-system-backend/services"
+	"github.com/spw32767/university-competency-system-backend/utils"
+)
+
+type learnerAssessmentReportServiceStub struct {
+	getState         models.AssessmentReportState
+	getErr           error
+	generateState    models.AssessmentReportState
+	generateErr      error
+	getUserID        uint64
+	getSemester      uint
+	generateUserID   uint64
+	generateSemester uint
+	generateForce    bool
+}
+
+func (s *learnerAssessmentReportServiceStub) Get(_ context.Context, userID uint64, semester uint) (models.AssessmentReportState, error) {
+	s.getUserID, s.getSemester = userID, semester
+	return s.getState, s.getErr
+}
+
+func (s *learnerAssessmentReportServiceStub) Generate(_ context.Context, userID uint64, semester uint, force bool) (models.AssessmentReportState, error) {
+	s.generateUserID, s.generateSemester, s.generateForce = userID, semester, force
+	return s.generateState, s.generateErr
+}
+
+type learnerAssessmentJobReaderStub struct {
+	job    models.AssessmentJob
+	err    error
+	userID uint64
+	jobID  uint64
+}
+
+func (s *learnerAssessmentJobReaderStub) GetForUser(_ context.Context, userID, jobID uint64) (models.AssessmentJob, error) {
+	s.userID, s.jobID = userID, jobID
+	return s.job, s.err
+}
+
+func TestLearnerAssessmentGetValidatesSemesterAndUsesAuthenticatedOwner(t *testing.T) {
+	service := &learnerAssessmentReportServiceStub{getState: models.AssessmentReportState{GenerationState: services.AssessmentReportCurrent}}
+	handler := &LearnerAssessmentController{Service: service}
+
+	invalid := learnerAssessmentRequest(handler.GetReport, http.MethodGet, "/?semester=3", "", true)
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid semester 400, got %d", invalid.Code)
+	}
+
+	valid := learnerAssessmentRequest(handler.GetReport, http.MethodGet, "/?semester=2", "", true)
+	if valid.Code != http.StatusOK || service.getUserID != 42 || service.getSemester != 2 {
+		t.Fatalf("expected authenticated learner report 200, got status=%d user=%d semester=%d", valid.Code, service.getUserID, service.getSemester)
+	}
+}
+
+func TestLearnerAssessmentGenerateAcceptsOnlySemesterAndForce(t *testing.T) {
+	service := &learnerAssessmentReportServiceStub{generateState: models.AssessmentReportState{GenerationState: services.AssessmentReportQueued}}
+	handler := &LearnerAssessmentController{Service: service}
+
+	badBody := learnerAssessmentRequest(handler.GenerateReport, http.MethodPost, "/", `{"semester":1,"user_id":3}`, true)
+	if badBody.Code != http.StatusBadRequest {
+		t.Fatalf("expected unknown input field rejected, got %d", badBody.Code)
+	}
+
+	response := learnerAssessmentRequest(handler.GenerateReport, http.MethodPost, "/", `{"semester":1,"force":true}`, true)
+	if response.Code != http.StatusAccepted || service.generateUserID != 42 || service.generateSemester != 1 || !service.generateForce {
+		t.Fatalf("unexpected generate result: status=%d user=%d semester=%d force=%v", response.Code, service.generateUserID, service.generateSemester, service.generateForce)
+	}
+}
+
+func TestLearnerAssessmentCooldownIncludesRetryAfter(t *testing.T) {
+	service := &learnerAssessmentReportServiceStub{
+		generateErr: services.AssessmentReportCooldownError{RetryAfterSeconds: 27},
+	}
+	handler := &LearnerAssessmentController{Service: service}
+	response := learnerAssessmentRequest(handler.GenerateReport, http.MethodPost, "/", `{"semester":2,"force":true}`, true)
+	if response.Code != http.StatusTooManyRequests || response.Header().Get("Retry-After") != "27" {
+		t.Fatalf("expected 429 with retry-after, got status=%d header=%q", response.Code, response.Header().Get("Retry-After"))
+	}
+	if strings.Contains(response.Body.String(), "provider") {
+		t.Fatalf("cooldown response unexpectedly exposes provider details: %s", response.Body.String())
+	}
+}
+
+func TestLearnerAssessmentJobLookupIsScopedToAuthenticatedUser(t *testing.T) {
+	jobs := &learnerAssessmentJobReaderStub{err: repositories.ErrAssessmentJobNotFound}
+	handler := &LearnerAssessmentController{Jobs: jobs}
+	router := chi.NewRouter()
+	router.Get("/jobs/{job_id}", handler.GetJob)
+	request := httptest.NewRequest(http.MethodGet, "/jobs/91", nil)
+	request = request.WithContext(utils.WithClaims(request.Context(), &utils.Claims{UserID: 42, Roles: []string{"learner"}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusNotFound || jobs.userID != 42 || jobs.jobID != 91 {
+		t.Fatalf("expected owner-scoped 404, got status=%d user=%d job=%d", response.Code, jobs.userID, jobs.jobID)
+	}
+}
+
+func TestLearnerAssessmentRejectsMissingClaims(t *testing.T) {
+	handler := &LearnerAssessmentController{}
+	request := httptest.NewRequest(http.MethodGet, "/?semester=1", nil)
+	response := httptest.NewRecorder()
+	handler.GetReport(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", response.Code)
+	}
+}
+
+func learnerAssessmentRequest(
+	handler http.HandlerFunc,
+	method string,
+	path string,
+	body string,
+	withClaims bool,
+) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(method, path, strings.NewReader(body))
+	if withClaims {
+		request = request.WithContext(utils.WithClaims(request.Context(), &utils.Claims{UserID: 42, Roles: []string{"learner"}}))
+	}
+	response := httptest.NewRecorder()
+	handler(response, request)
+	return response
+}
