@@ -55,4 +55,18 @@ Automatic cleanup is intentionally disabled. The retention period for job snapsh
 - If generation reports `model_not_found`, install the configured model manually and request generation again after the failure wait.
 - To disable generation, stop the worker. Learner GET requests continue to return any current saved report and job state; source grade and competency tables are never changed by this feature.
 
-Prompt version `learner-assessment-prompt-v1.0.1` requests concise findings, explicit limits on unsupported conclusions, and citations from an exact evidence-reference allowlist. The 2026-10-02 synthetic evaluation did not pass the model-quality gate. An earlier prompt revision under the default 4096/1024 context/output profile truncated a response; an experimental larger profile generated schema-valid results but one case still failed reference validation and accepted samples contained unsupported conclusions. Do not treat the experimental profile or model digest as production-approved; see `model-evaluation.md`.
+Prompt version `learner-assessment-prompt-v1.0.3` receives Go-verified observations without arbitrary official names. Dynamic JSON Schema constrains observation IDs to their sections. Go supplies readiness results, titles, facts, and evidence references after validating the model's short bilingual explanations. See [assessment-reliability.md](assessment-reliability.md) for the current contract and validation limits.
+
+Usage logs contain only `done_reason`, `prompt_eval_count`, and `eval_count`. A response stopped by the output limit fails with `provider_output_truncated`; malformed JSON fails with `malformed_output`; invalid findings fail with `invalid_output`. None of these outputs is saved or automatically repaired.
+
+For synthetic evaluation only, try the larger profile without changing production defaults:
+
+```powershell
+$env:LEARNER_ASSESSMENT_EVAL = '1'
+$env:LEARNER_ASSESSMENT_CONTEXT_TOKENS = '6144'
+$env:LEARNER_ASSESSMENT_OUTPUT_RESERVE_TOKENS = '2048'
+$env:LEARNER_ASSESSMENT_OLLAMA_THINK = 'false'
+go run ./cmd/assessment-eval -repeat 3
+```
+
+The latest evaluation completed all 12 synthetic generations without truncation or ID-validation failures, but semantic review still found inaccurate English wording. The larger profile is not production-approved; defaults remain unchanged. See `model-evaluation.md` for actual observations and resource-measurement limitations.

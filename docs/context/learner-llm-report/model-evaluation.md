@@ -37,6 +37,25 @@ An earlier run using the configured defaults (`4096` context / `1024` output res
 
 ## Review Rubric
 
+### Verified-observation follow-up (2026-10-02)
+
+After the earlier evaluations above, generation was restricted to Go-verified observations. An initial trial with observation titles still exposed instruction-like names and produced explanations attached to the wrong observation despite valid IDs. That trial was stopped and not approved. Names were removed from the model prompt, and a conservative observation-specific numeric/grade validator was added.
+
+The final synthetic trial used `qwen3:4b`, digest `359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7`, thinking off, temperature zero, context 6144, output reserve 2048, safety margin 128. It ran four fixtures three times each:
+
+| Fixture | Repeats | Completion / structural checks | Actual prompt / output tokens | Observed latency |
+|---|---:|---|---:|---|
+| Full evidence, met GPA and unmet seminar grade | 3 | All `stop`, complete JSON, valid IDs and assertions | 843 / 352 | First two repeats: 20.059 s, 20.322 s |
+| B+ with no target; another criterion missing a grade | 3 | All `stop`; no invented strength or limitation | 381 / 99 | About 4.6-5.1 s |
+| Partial evidence; readiness not configured | 3 | All `stop`; readiness unavailable, not a learner weakness | 381 / 99 | About 4.5-4.8 s |
+| Instruction-like names | 3 | All `stop`; names excluded from the model prompt | 534 / 269 | About 13.1-13.5 s |
+
+The automatic checks passed all 12 responses. This is not a semantic release pass. In full evidence, the English narrative described an activity score as an "attendance score". In the instruction-like-name case it emitted the awkward phrase "academic year BE 2: 2569, semester 2". Those values belong to the observation, so the lexical validator cannot detect their incorrect roles. The model no longer visibly follows the embedded name instructions, but this remains a small synthetic test, not a security certification.
+
+A post-run sample measured `llama-server` working set about 2100 MiB and private memory about 4661 MiB. Ollama `/api/ps` reported `size=3830888527` bytes and `size_vram=2385720114` bytes for the loaded model. These are retained-process/runtime samples, not measured peak usage or a combined API/worker/development workload benchmark. No latency/memory acceptance limit is approved.
+
+Keep the model-quality gate open and the experimental profile unapproved. No default configuration was changed. Dynamic schema and deterministic facts reduce exposure; they do not guarantee the narrative is semantically correct.
+
 For every case, reviewers should inspect each dimension and record concrete examples:
 
 | Dimension | Review question |

@@ -26,4 +26,17 @@ The MySQL repository integration test is opt-in and requires `LEARNER_ASSESSMENT
 - No live MySQL migration was run as part of implementation; apply the documented SQL manually to a disposable database and run its verifier before rollout.
 - No production-quality Ollama model evaluation or resource benchmark is approved by this implementation. Complete the outstanding review and benchmark gates in `model-evaluation.md` on the target 16 GB RAM / 4 GB VRAM machine.
 - Retention periods and cleanup ownership remain unapproved; automatic cleanup remains disabled.
-- Browser screenshot coverage across mobile/desktop, both themes, and both languages remains a release check.
+- Live-data browser coverage remains a release check; synthetic UI coverage is recorded below.
+
+## Verified-observation Follow-up
+
+Latest verification on 2026-10-02:
+
+- `go test ./...`: passed, including observation rules, ID/section binding, unsupported numeric/grade assertions, safe token telemetry, no persistence for malformed/truncated output, and existing source-supersession tests. Opt-in MySQL integration still requires its DSN; no migration or live DB writes were performed.
+- `npm.cmd run test:learner-assessment`: passed, 11 tests, including bilingual readiness evidence labels and existing bounded polling behavior.
+- Targeted ESLint for the report component, language context, evidence helper and evidence tests: passed.
+- `npm.cmd run build`: passed after allowing the existing Google Fonts network requests.
+- Playwright with headless installed Chrome and mocked synthetic API data: all 8 combinations passed (Thai/English, light/dark, widths 1440/390). Verified section labels, empty states, evidence expansion, no horizontal document overflow, and no page runtime errors. Screenshots were visually inspected; temporary artifacts remain under `outputs/assessment-grounding-*` and are not application code.
+- Real Ollama: 4 fixtures x 3 repeats completed, with no truncated response, invalid ID, or rejected numeric/grade assertion. Semantic review still failed the production gate; see `model-evaluation.md`.
+
+No SQL files or existing unrelated changes were included in these implementation commits. Report content uses existing JSON columns; old versions become stale through versioned source hashes.
