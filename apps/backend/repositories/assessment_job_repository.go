@@ -21,6 +21,9 @@ var (
 	ErrNoClaimableAssessmentJob = errors.New("no claimable assessment job")
 )
 
+const assessmentWorkerLostAfter = 45 * time.Second
+const assessmentProviderActivityInterval = 2 * time.Second
+
 type AssessmentJobCooldownError struct {
 	RetryAfterSeconds int
 }
@@ -70,6 +73,9 @@ func (r *AssessmentJobRepository) Enqueue(
 	if err != nil {
 		return models.AssessmentJob{}, false, err
 	}
+	if err := reconcileStaleAssessmentJobs(ctx, tx, job.EnrollmentCurriculumID, job.Semester); err != nil {
+		return models.AssessmentJob{}, false, err
+	}
 	var retryAfter sql.NullInt64
 	err = tx.QueryRowContext(ctx, `
 		SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), failure_wait_until)
@@ -98,8 +104,8 @@ func (r *AssessmentJobRepository) Enqueue(
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO ai_report_jobs (
 			enrollment_curriculum_id, semester, target_year_be, input_hash,
-			input_snapshot, status, max_attempts, next_attempt_at
-		) VALUES (?, ?, ?, ?, ?, 'queued', ?, UTC_TIMESTAMP())`,
+			input_snapshot, status, progress_phase, phase_started_at, max_attempts, next_attempt_at
+		) VALUES (?, ?, ?, ?, ?, 'queued', 'queued', UTC_TIMESTAMP(), ?, UTC_TIMESTAMP())`,
 		job.EnrollmentCurriculumID, job.Semester, job.TargetYearBE, job.InputHash,
 		string(job.InputSnapshot), job.MaxAttempts,
 	)
@@ -127,6 +133,77 @@ func (r *AssessmentJobRepository) Enqueue(
 	}
 	created, err := getAssessmentJob(ctx, r.DB, job.JobID)
 	return created, true, err
+}
+
+func (r *AssessmentJobRepository) UpdateProgress(
+	ctx context.Context,
+	jobID uint64,
+	leaseToken string,
+	phase string,
+	providerActivity bool,
+) error {
+	switch phase {
+	case "preparing", "generating", "validating", "saving":
+	default:
+		return fmt.Errorf("invalid assessment progress phase %q", phase)
+	}
+	activity := 0
+	if providerActivity {
+		activity = 1
+	}
+	result, err := r.DB.ExecContext(ctx, `
+		UPDATE ai_report_jobs
+		SET phase_started_at = CASE
+				WHEN progress_phase <> ? OR phase_started_at IS NULL THEN UTC_TIMESTAMP()
+				ELSE phase_started_at END,
+			progress_phase = ?,
+			last_provider_activity_at = CASE
+				WHEN ? = 1 AND (last_provider_activity_at IS NULL OR
+					last_provider_activity_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 2 SECOND))
+				THEN UTC_TIMESTAMP() ELSE last_provider_activity_at END
+		WHERE job_id = ? AND status = 'running' AND lease_token = ?
+			AND lease_expires_at > UTC_TIMESTAMP()`,
+		phase, phase, activity, jobID, leaseToken)
+	return assessmentRequireOwnedRows(result, err)
+}
+
+func (r *AssessmentJobRepository) ReconcileStaleForUser(ctx context.Context, userID, jobID uint64) error {
+	_, err := r.DB.ExecContext(ctx, `
+		UPDATE ai_report_jobs job
+		JOIN kku_enrollment_curricula roster
+			ON roster.enrollment_curriculum_id = job.enrollment_curriculum_id
+			AND roster.deleted_at IS NULL
+		JOIN kku_enrollments enrollment
+			ON enrollment.enrollment_id = roster.enrollment_id
+			AND enrollment.deleted_at IS NULL
+		JOIN auth_users account ON account.person_id = enrollment.person_id
+		SET job.status = 'failed', job.progress_phase = 'failed',
+			job.phase_started_at = UTC_TIMESTAMP(), job.error_code = 'worker_unavailable',
+			job.finished_at = UTC_TIMESTAMP(), job.failure_wait_until = NULL,
+			job.lease_token = NULL, job.lease_expires_at = NULL, job.heartbeat_at = NULL
+		WHERE account.user_id = ? AND job.job_id = ? AND job.status = 'running'
+			AND (job.heartbeat_at IS NULL OR job.heartbeat_at <=
+				DATE_SUB(UTC_TIMESTAMP(), INTERVAL 45 SECOND))`, userID, jobID)
+	return err
+}
+
+func reconcileStaleAssessmentJobs(
+	ctx context.Context,
+	queryer interface {
+		ExecContext(context.Context, string, ...any) (sql.Result, error)
+	},
+	scopeID uint64,
+	semester uint,
+) error {
+	_, err := queryer.ExecContext(ctx, `
+		UPDATE ai_report_jobs
+		SET status = 'failed', progress_phase = 'failed', phase_started_at = UTC_TIMESTAMP(),
+			error_code = 'worker_unavailable', finished_at = UTC_TIMESTAMP(),
+			failure_wait_until = NULL, lease_token = NULL, lease_expires_at = NULL, heartbeat_at = NULL
+		WHERE enrollment_curriculum_id = ? AND semester = ? AND status = 'running'
+			AND (heartbeat_at IS NULL OR heartbeat_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 45 SECOND))`,
+		scopeID, semester)
+	return err
 }
 
 func (r *AssessmentJobRepository) ClaimNext(ctx context.Context, leaseDuration time.Duration) (models.AssessmentJob, error) {
@@ -206,6 +283,7 @@ func (r *AssessmentJobRepository) QueueRetry(ctx context.Context, jobID uint64, 
 	result, err := r.DB.ExecContext(ctx, `
 		UPDATE ai_report_jobs
 		SET status = 'queued', next_attempt_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND),
+			progress_phase = 'queued', phase_started_at = UTC_TIMESTAMP(), last_provider_activity_at = NULL,
 			lease_token = NULL, lease_expires_at = NULL, heartbeat_at = NULL, error_code = NULL
 		WHERE job_id = ? AND status = 'running' AND lease_token = ?
 			AND lease_expires_at > UTC_TIMESTAMP() AND attempt_count < max_attempts`,
@@ -228,7 +306,8 @@ func (r *AssessmentJobRepository) MarkFailed(
 	}
 	result, err := r.DB.ExecContext(ctx, `
 		UPDATE ai_report_jobs
-		SET status = 'failed', error_code = ?, finished_at = UTC_TIMESTAMP(),
+		SET status = 'failed', progress_phase = 'failed', phase_started_at = UTC_TIMESTAMP(),
+			error_code = ?, finished_at = UTC_TIMESTAMP(),
 			failure_wait_until = CASE WHEN ? > 0 THEN DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND) ELSE NULL END,
 			lease_token = NULL, lease_expires_at = NULL, heartbeat_at = NULL
 		WHERE job_id = ? AND status = 'running' AND lease_token = ?
@@ -257,7 +336,8 @@ func (r *AssessmentJobRepository) CompleteSuccessfully(
 	defer tx.Rollback()
 	result, err := tx.ExecContext(ctx, `
 		UPDATE ai_report_jobs
-		SET status = 'succeeded', finished_at = UTC_TIMESTAMP(),
+		SET status = 'succeeded', progress_phase = 'completed', phase_started_at = UTC_TIMESTAMP(),
+			finished_at = UTC_TIMESTAMP(),
 			lease_token = NULL, lease_expires_at = NULL, heartbeat_at = NULL,
 			error_code = NULL, failure_wait_until = NULL
 		WHERE job_id = ? AND status = 'running' AND lease_token = ?
@@ -282,6 +362,9 @@ func (r *AssessmentJobRepository) GetForOwner(ctx context.Context, scopeID uint6
 }
 
 func (r *AssessmentJobRepository) GetForUser(ctx context.Context, userID, jobID uint64) (models.AssessmentJob, error) {
+	if err := r.ReconcileStaleForUser(ctx, userID, jobID); err != nil {
+		return models.AssessmentJob{}, err
+	}
 	return scanAssessmentJob(r.DB.QueryRowContext(ctx, assessmentJobSelect+`
 		JOIN kku_enrollment_curricula roster
 			ON roster.enrollment_curriculum_id = ai_report_jobs.enrollment_curriculum_id
@@ -295,10 +378,16 @@ func (r *AssessmentJobRepository) GetForUser(ctx context.Context, userID, jobID 
 }
 
 func (r *AssessmentJobRepository) GetActive(ctx context.Context, scopeID uint64, semester uint) (models.AssessmentJob, error) {
+	if err := reconcileStaleAssessmentJobs(ctx, r.DB, scopeID, semester); err != nil {
+		return models.AssessmentJob{}, err
+	}
 	return getActiveAssessmentJob(ctx, r.DB, scopeID, semester)
 }
 
 func (r *AssessmentJobRepository) GetLatestForOwner(ctx context.Context, scopeID uint64, semester uint) (models.AssessmentJob, error) {
+	if err := reconcileStaleAssessmentJobs(ctx, r.DB, scopeID, semester); err != nil {
+		return models.AssessmentJob{}, err
+	}
 	return scanAssessmentJob(r.DB.QueryRowContext(ctx, assessmentJobSelect+`
 		WHERE enrollment_curriculum_id = ? AND semester = ?
 		ORDER BY job_id DESC LIMIT 1`, scopeID, semester))
@@ -317,7 +406,8 @@ func (r *AssessmentJobRepository) SupersedeActive(ctx context.Context, scopeID u
 func getActiveAssessmentJob(ctx context.Context, queryer AssessmentQueryer, scopeID uint64, semester uint) (models.AssessmentJob, error) {
 	return scanAssessmentJob(queryer.QueryRowContext(ctx, `
 		SELECT job_id, enrollment_curriculum_id, semester, target_year_be, input_hash,
-			input_snapshot, status, attempt_count, max_attempts, lease_token,
+			input_snapshot, status, progress_phase, phase_started_at, last_provider_activity_at,
+			attempt_count, max_attempts, lease_token,
 			lease_expires_at, heartbeat_at, next_attempt_at, failure_wait_until,
 			requested_at, started_at, finished_at, error_code
 		FROM ai_report_jobs
@@ -332,7 +422,9 @@ func getAssessmentJob(ctx context.Context, queryer AssessmentQueryer, jobID uint
 const assessmentJobSelect = `
 	SELECT ai_report_jobs.job_id, ai_report_jobs.enrollment_curriculum_id,
 		ai_report_jobs.semester, ai_report_jobs.target_year_be, ai_report_jobs.input_hash,
-		ai_report_jobs.input_snapshot, ai_report_jobs.status, ai_report_jobs.attempt_count,
+		ai_report_jobs.input_snapshot, ai_report_jobs.status, ai_report_jobs.progress_phase,
+		ai_report_jobs.phase_started_at, ai_report_jobs.last_provider_activity_at,
+		ai_report_jobs.attempt_count,
 		ai_report_jobs.max_attempts, ai_report_jobs.lease_token,
 		ai_report_jobs.lease_expires_at, ai_report_jobs.heartbeat_at,
 		ai_report_jobs.next_attempt_at, ai_report_jobs.failure_wait_until,
@@ -353,10 +445,12 @@ func scanAssessmentJob(scanner assessmentJobScanner) (models.AssessmentJob, erro
 	var job models.AssessmentJob
 	var snapshot []byte
 	var leaseToken, errorCode sql.NullString
+	var phaseStartedAt, lastProviderActivityAt sql.NullTime
 	var leaseExpiresAt, heartbeatAt, nextAttemptAt, failureWaitUntil, startedAt, finishedAt sql.NullTime
 	err := scanner.Scan(
 		&job.JobID, &job.EnrollmentCurriculumID, &job.Semester, &job.TargetYearBE,
-		&job.InputHash, &snapshot, &job.Status, &job.AttemptCount, &job.MaxAttempts,
+		&job.InputHash, &snapshot, &job.Status, &job.ProgressPhase, &phaseStartedAt,
+		&lastProviderActivityAt, &job.AttemptCount, &job.MaxAttempts,
 		&leaseToken, &leaseExpiresAt, &heartbeatAt, &nextAttemptAt, &failureWaitUntil,
 		&job.RequestedAt, &startedAt, &finishedAt, &errorCode,
 	)
@@ -369,6 +463,8 @@ func scanAssessmentJob(scanner assessmentJobScanner) (models.AssessmentJob, erro
 	job.InputSnapshot = append(job.InputSnapshot[:0], snapshot...)
 	job.LeaseToken = leaseToken.String
 	job.ErrorCode = errorCode.String
+	job.PhaseStartedAt = nullableAssessmentTime(phaseStartedAt)
+	job.LastProviderActivityAt = nullableAssessmentTime(lastProviderActivityAt)
 	job.LeaseExpiresAt = nullableAssessmentTime(leaseExpiresAt)
 	job.HeartbeatAt = nullableAssessmentTime(heartbeatAt)
 	job.NextAttemptAt = nullableAssessmentTime(nextAttemptAt)

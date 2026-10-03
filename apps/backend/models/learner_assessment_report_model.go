@@ -176,17 +176,21 @@ type AssessmentJob struct {
 	InputHash              string          `json:"-"`
 	InputSnapshot          json.RawMessage `json:"-"`
 	Status                 string          `json:"status"`
+	ProgressPhase          string          `json:"progress_phase,omitempty"`
+	PhaseStartedAt         *time.Time      `json:"phase_started_at,omitempty"`
+	LastProviderActivityAt *time.Time      `json:"last_provider_activity_at,omitempty"`
 	AttemptCount           uint            `json:"attempt_count"`
 	MaxAttempts            uint            `json:"max_attempts"`
 	LeaseToken             string          `json:"-"`
 	LeaseExpiresAt         *time.Time      `json:"-"`
-	HeartbeatAt            *time.Time      `json:"-"`
-	NextAttemptAt          *time.Time      `json:"-"`
+	HeartbeatAt            *time.Time      `json:"heartbeat_at,omitempty"`
+	NextAttemptAt          *time.Time      `json:"next_attempt_at,omitempty"`
 	FailureWaitUntil       *time.Time      `json:"-"`
 	RequestedAt            time.Time       `json:"requested_at"`
 	StartedAt              *time.Time      `json:"started_at,omitempty"`
 	FinishedAt             *time.Time      `json:"finished_at,omitempty"`
 	ErrorCode              string          `json:"error_code,omitempty"`
+	ServerTime             *time.Time      `json:"server_time,omitempty"`
 }
 
 type AssessmentReportRecord struct {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/spw32767/university-competency-system-backend/models"
@@ -48,6 +49,7 @@ func (h *LearnerAssessmentController) GetReport(w http.ResponseWriter, r *http.R
 		writeLearnerAssessmentError(w, err)
 		return
 	}
+	stampAssessmentServerTime(&state)
 	utils.OK(w, state)
 }
 
@@ -78,6 +80,7 @@ func (h *LearnerAssessmentController) GenerateReport(w http.ResponseWriter, r *h
 		writeLearnerAssessmentError(w, err)
 		return
 	}
+	stampAssessmentServerTime(&state)
 	if state.GenerationState == services.AssessmentReportQueued || state.GenerationState == services.AssessmentReportGenerating {
 		utils.JSON(w, http.StatusAccepted, utils.Envelope{"success": true, "data": state})
 		return
@@ -100,7 +103,17 @@ func (h *LearnerAssessmentController) GetJob(w http.ResponseWriter, r *http.Requ
 		writeLearnerAssessmentError(w, err)
 		return
 	}
+	now := time.Now().UTC()
+	job.ServerTime = &now
 	utils.OK(w, job)
+}
+
+func stampAssessmentServerTime(state *models.AssessmentReportState) {
+	if state == nil || state.Job == nil {
+		return
+	}
+	now := time.Now().UTC()
+	state.Job.ServerTime = &now
 }
 
 func learnerAssessmentClaims(w http.ResponseWriter, r *http.Request) (*utils.Claims, bool) {
