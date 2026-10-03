@@ -15,6 +15,9 @@ func main() {
 	_ = godotenv.Load(".env")
 
 	cfg := config.Load()
+	if err := cfg.ValidateAPI(); err != nil {
+		log.Fatalf("invalid API configuration: %v", err)
+	}
 
 	db, err := appdb.NewMySQL(cfg)
 	if err != nil {

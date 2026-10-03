@@ -1,8 +1,10 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -37,11 +39,11 @@ func Load() Config {
 
 		DBHost: getEnv("DB_HOST", "127.0.0.1"),
 		DBPort: getEnv("DB_PORT", "3306"),
-		DBUser: getEnv("DB_USER", "root"),
+		DBUser: getEnv("DB_USER", ""),
 		DBPass: getEnv("DB_PASS", ""),
 		DBName: getEnv("DB_NAME", "ucs"),
 
-		JWTSecret:        mustEnv("JWT_SECRET", "dev-secret-change-me"),
+		JWTSecret:        getEnv("JWT_SECRET", ""),
 		JWTIssuer:        getEnv("JWT_ISSUER", "ucs-api"),
 		JWTExpireMinutes: getEnvInt("JWT_EXPIRE_MINUTES", 120),
 
@@ -65,12 +67,14 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func mustEnv(key, fallback string) string {
-	// ใน production คุณอาจเลือก panic ถ้าไม่ตั้งค่า
-	if v := os.Getenv(key); v != "" {
-		return v
+func (c Config) ValidateAPI() error {
+	if strings.TrimSpace(c.DBUser) == "" {
+		return errors.New("DB_USER is required")
 	}
-	return fallback
+	if len(strings.TrimSpace(c.JWTSecret)) < 32 {
+		return errors.New("JWT_SECRET must contain at least 32 bytes")
+	}
+	return nil
 }
 
 func getEnvInt(key string, fallback int) int {
