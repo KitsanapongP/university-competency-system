@@ -42,16 +42,7 @@ func BuildAssessmentObservations(input models.AssessmentProviderInput) []models.
 		item.FactType = "readiness"
 		item.Values = models.AssessmentFactValues{CriterionType: result.CriterionType, Status: result.Status, CurrentValue: result.CurrentValue, RequiredValue: result.RequiredValue, CurrentGrade: result.CurrentGrade, RequiredGrade: result.RequiredGrade}
 	}
-	for _, course := range input.AcademicEvidence {
-		if course.Grade == "" {
-			continue
-		}
-		item := add("academic:"+course.EvidenceRef, "neutral",
-			models.AssessmentBilingualText{TH: course.CourseNameTH, EN: assessmentTextWithFallback(course.CourseNameEN, course.CourseNameTH)},
-			models.AssessmentBilingualText{TH: fmt.Sprintf("เกรด %s; ปีการศึกษา %d ภาคเรียน %d", course.Grade, course.AcademicYear, course.Semester), EN: fmt.Sprintf("Grade %s; academic year BE %d, semester %d.", course.Grade, course.AcademicYear, course.Semester)}, course.EvidenceRef)
-		item.FactType = "academic"
-		item.Values = models.AssessmentFactValues{Grade: course.Grade, AcademicYear: &course.AcademicYear, Semester: &course.Semester}
-	}
+	items = append(items, buildAcademicSummaryObservations(input.AcademicEvidence)...)
 	for _, competency := range input.CompetencyScores {
 		if !competency.HasEvidence {
 			continue
