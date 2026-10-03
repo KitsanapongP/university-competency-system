@@ -102,15 +102,35 @@ func assembleAssessmentOutput(output models.AssessmentNarrativeOutput, input mod
 
 // This rejects obvious cross-observation values, not arbitrary semantic hallucinations.
 func validateObservationAssertions(text models.AssessmentBilingualText, observation models.AssessmentObservation) error {
-	facts := observation.Fact.TH + " " + observation.Fact.EN
 	numbers := make(map[float64]bool)
-	for _, token := range assessmentNumericAssertion.FindAllString(facts, -1) {
-		value, _ := strconv.ParseFloat(token, 64)
-		numbers[value] = true
-	}
 	grades := make(map[string]bool)
-	for _, token := range assessmentGradeAssertion.FindAllString(facts, -1) {
-		grades[token] = true
+	values := observation.Values
+	for _, value := range []*float64{values.CurrentValue, values.RequiredValue, values.CoreScore, values.CourseBonusScore, values.FreeElectiveScore, values.ActivityScore} {
+		if value != nil {
+			numbers[*value] = true
+		}
+	}
+	for _, value := range []*uint64{values.AcademicYear, values.Semester} {
+		if value != nil {
+			numbers[float64(*value)] = true
+		}
+	}
+	for _, value := range []*int{values.RecordCount, values.MissingGradeCount} {
+		if value != nil {
+			numbers[float64(*value)] = true
+		}
+	}
+	for _, value := range []*string{values.CurrentGrade, values.RequiredGrade} {
+		if value != nil {
+			grades[*value] = true
+		}
+	}
+	if values.Grade != "" {
+		grades[values.Grade] = true
+	}
+	for _, bin := range values.GradeCounts {
+		grades[bin.Grade] = true
+		numbers[float64(bin.Count)] = true
 	}
 	for _, language := range []string{text.TH, text.EN} {
 		for _, token := range assessmentNumericAssertion.FindAllString(language, -1) {
