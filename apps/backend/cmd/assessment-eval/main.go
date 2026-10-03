@@ -170,6 +170,9 @@ func evaluateFixture(
 	}
 
 	startedAt := time.Now()
+	defer func() {
+		fmt.Printf("ATTEMPT %q context=%d input_tokens=%d elapsed=%s\n", fixture.Name, budget.ContextTokens, diagnostics.EstimatedInputTokens, time.Since(startedAt).Round(time.Millisecond))
+	}()
 	raw, err := provider.Generate(ctx, systemPrompt, userPrompt, services.AssessmentOutputJSONSchema(fixture.Input))
 	if err != nil {
 		return fmt.Errorf("fixture %s provider request failed: %w", fixture.Name, safeProviderError(err))
@@ -274,6 +277,9 @@ var assessmentOutputFieldNames = map[string]bool{
 	"reason":                true,
 	"development_advice":    true,
 	"evidence_refs":         true,
+	"observation_id":        true,
+	"explanation":           true,
+	"observations":          true,
 	"th":                    true,
 	"en":                    true,
 }
