@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -27,6 +28,9 @@ func TestLearnerAssessmentWorkerPersistsValidatedOutputAndSourceTrace(t *testing
 	if provider.calls != 1 || jobs.completed == nil || jobs.failedCode != "" {
 		t.Fatalf("provider calls=%d completed=%+v failed=%q", provider.calls, jobs.completed, jobs.failedCode)
 	}
+	if !reflect.DeepEqual(jobs.progressPhases, []string{"preparing", "generating", "validating", "saving"}) {
+		t.Fatalf("progress phases = %v", jobs.progressPhases)
+	}
 	if jobs.completed.SourceHash != job.InputHash || !json.Valid(jobs.completed.SourceSnapshot) || !json.Valid(jobs.completed.Content) {
 		t.Fatalf("persisted report is missing source data or validated content: %+v", jobs.completed)
 	}
@@ -36,6 +40,43 @@ func TestLearnerAssessmentWorkerPersistsValidatedOutputAndSourceTrace(t *testing
 	}
 	if len(stored.Provenance) == 0 {
 		t.Fatal("persisted report source snapshot must retain evidence provenance")
+	}
+}
+
+func TestLearnerAssessmentWorkerPersistsProviderActivityWithoutProviderText(t *testing.T) {
+	payload, job := workerTestJob(t, DefaultAssessmentContextBudget())
+	provider := &fakeStreamingAssessmentProvider{output: mustJSON(t, workerTestOutput(payload.ProviderInput))}
+	jobs := &fakeAssessmentWorkerJobs{job: job}
+	worker := workerTestInstance(jobs, provider, &fakeAssessmentSourceRebuilder{snapshot: &payload.Source})
+
+	processed, err := worker.ProcessOne(context.Background())
+	if err != nil || !processed {
+		t.Fatalf("worker processed=%v err=%v", processed, err)
+	}
+	if jobs.providerActivities != 1 || jobs.completed == nil {
+		t.Fatalf("provider activities=%d completed=%v", jobs.providerActivities, jobs.completed != nil)
+	}
+	if !reflect.DeepEqual(jobs.progressPhases, []string{"preparing", "generating", "generating", "validating", "saving"}) {
+		t.Fatalf("progress phases = %v", jobs.progressPhases)
+	}
+}
+
+func TestLearnerAssessmentWorkerRenewsLeaseDuringGeneration(t *testing.T) {
+	payload, job := workerTestJob(t, DefaultAssessmentContextBudget())
+	provider := &fakeAssessmentProvider{
+		output: mustJSON(t, workerTestOutput(payload.ProviderInput)),
+		delay:  80 * time.Millisecond,
+	}
+	jobs := &fakeAssessmentWorkerJobs{job: job}
+	worker := workerTestInstance(jobs, provider, &fakeAssessmentSourceRebuilder{snapshot: &payload.Source})
+	worker.LeaseDuration = 90 * time.Millisecond
+
+	processed, err := worker.ProcessOne(context.Background())
+	if err != nil || !processed {
+		t.Fatalf("worker processed=%v err=%v", processed, err)
+	}
+	if jobs.heartbeatCount == 0 || jobs.completed == nil {
+		t.Fatalf("heartbeats=%d completed=%v", jobs.heartbeatCount, jobs.completed != nil)
 	}
 }
 
@@ -203,7 +244,7 @@ func workerTestOutput(input models.AssessmentProviderInput) models.AssessmentNar
 
 func workerTestInstance(
 	jobs *fakeAssessmentWorkerJobs,
-	provider *fakeAssessmentProvider,
+	provider AssessmentProvider,
 	sourceBuilder *fakeAssessmentSourceRebuilder,
 ) *LearnerAssessmentWorker {
 	return &LearnerAssessmentWorker{
@@ -229,10 +270,48 @@ type fakeAssessmentProvider struct {
 	output []byte
 	err    error
 	calls  int
+	delay  time.Duration
+}
+
+type fakeStreamingAssessmentProvider struct {
+	output []byte
+	err    error
+	calls  int
+}
+
+func (f *fakeStreamingAssessmentProvider) Generate(ctx context.Context, _, _ string, _ json.RawMessage) ([]byte, error) {
+	return f.GenerateWithProgress(ctx, "", "", nil, nil)
+}
+
+func (f *fakeStreamingAssessmentProvider) GenerateWithProgress(
+	ctx context.Context,
+	_, _ string,
+	_ json.RawMessage,
+	onActivity func() error,
+) ([]byte, error) {
+	f.calls++
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if onActivity != nil {
+		if err := onActivity(); err != nil {
+			return nil, err
+		}
+	}
+	return f.output, f.err
 }
 
 func (f *fakeAssessmentProvider) Generate(ctx context.Context, _, _ string, _ json.RawMessage) ([]byte, error) {
 	f.calls++
+	if f.delay > 0 {
+		timer := time.NewTimer(f.delay)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -249,13 +328,16 @@ func (f *fakeAssessmentSourceRebuilder) BuildForEnrollmentCurriculum(context.Con
 }
 
 type fakeAssessmentWorkerJobs struct {
-	job          models.AssessmentJob
-	claimErr     error
-	heartbeatErr error
-	failedCode   string
-	failureWait  time.Duration
-	retryDelay   time.Duration
-	completed    *models.AssessmentReportRecord
+	job                models.AssessmentJob
+	claimErr           error
+	heartbeatErr       error
+	failedCode         string
+	failureWait        time.Duration
+	retryDelay         time.Duration
+	completed          *models.AssessmentReportRecord
+	progressPhases     []string
+	providerActivities int
+	heartbeatCount     int
 }
 
 func (f *fakeAssessmentWorkerJobs) ClaimNext(context.Context, time.Duration) (models.AssessmentJob, error) {
@@ -266,7 +348,16 @@ func (f *fakeAssessmentWorkerJobs) ClaimNext(context.Context, time.Duration) (mo
 }
 
 func (f *fakeAssessmentWorkerJobs) Heartbeat(context.Context, uint64, string, time.Duration) error {
+	f.heartbeatCount++
 	return f.heartbeatErr
+}
+
+func (f *fakeAssessmentWorkerJobs) UpdateProgress(_ context.Context, _ uint64, _ string, phase string, providerActivity bool) error {
+	f.progressPhases = append(f.progressPhases, phase)
+	if providerActivity {
+		f.providerActivities++
+	}
+	return nil
 }
 
 func (f *fakeAssessmentWorkerJobs) QueueRetry(_ context.Context, _ uint64, _ string, delay time.Duration) error {

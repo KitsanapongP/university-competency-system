@@ -16,6 +16,7 @@ import (
 type AssessmentWorkerJobStore interface {
 	ClaimNext(context.Context, time.Duration) (models.AssessmentJob, error)
 	Heartbeat(context.Context, uint64, string, time.Duration) error
+	UpdateProgress(context.Context, uint64, string, string, bool) error
 	QueueRetry(context.Context, uint64, string, time.Duration) error
 	MarkFailed(context.Context, uint64, string, string, time.Duration) error
 	CompleteSuccessfully(context.Context, uint64, string, models.AssessmentReportRecord, *repositories.AssessmentReportRepository) error
@@ -31,6 +32,7 @@ type LearnerAssessmentWorker struct {
 	Provider         AssessmentProvider
 	SourceBuilder    AssessmentSnapshotRebuilder
 	LeaseDuration    time.Duration
+	AttemptTimeout   time.Duration
 	ContextBudget    AssessmentContextBudget
 	GenerationConfig AssessmentGenerationConfig
 	Now              func() time.Time
@@ -43,13 +45,14 @@ func NewLearnerAssessmentWorker(
 	sourceBuilder AssessmentSnapshotRebuilder,
 ) *LearnerAssessmentWorker {
 	return &LearnerAssessmentWorker{
-		Jobs:          jobs,
-		Reports:       reports,
-		Provider:      provider,
-		SourceBuilder: sourceBuilder,
-		LeaseDuration: 2 * time.Minute,
-		ContextBudget: DefaultAssessmentContextBudget(),
-		Now:           time.Now,
+		Jobs:           jobs,
+		Reports:        reports,
+		Provider:       provider,
+		SourceBuilder:  sourceBuilder,
+		LeaseDuration:  2 * time.Minute,
+		AttemptTimeout: 3 * time.Minute,
+		ContextBudget:  DefaultAssessmentContextBudget(),
+		Now:            time.Now,
 	}
 }
 
@@ -68,13 +71,31 @@ func (w *LearnerAssessmentWorker) ProcessOne(ctx context.Context) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	if err := w.processClaimed(ctx, job, leaseDuration); err != nil {
-		return true, err
+	attemptTimeout := w.AttemptTimeout
+	if attemptTimeout <= 0 {
+		attemptTimeout = 3 * time.Minute
 	}
-	return true, nil
+	attemptContext, cancelAttempt := context.WithTimeout(ctx, attemptTimeout)
+	defer cancelAttempt()
+	jobContext, stopHeartbeat, heartbeatErrors := w.withLeaseHeartbeat(attemptContext, job, leaseDuration)
+	processErr := w.processClaimed(jobContext, job)
+	stopHeartbeat()
+	heartbeatErr := <-heartbeatErrors
+	if errors.Is(attemptContext.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+		retryContext, cancelRetry := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelRetry()
+		return true, w.retryClaim(retryContext, job, "attempt_timeout", context.DeadlineExceeded)
+	}
+	if heartbeatErr != nil {
+		return true, heartbeatErr
+	}
+	return true, processErr
 }
 
-func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models.AssessmentJob, leaseDuration time.Duration) error {
+func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models.AssessmentJob) error {
+	if err := w.Jobs.UpdateProgress(ctx, job.JobID, job.LeaseToken, "preparing", false); err != nil {
+		return err
+	}
 	var payload models.AssessmentReportSourceSnapshot
 	if err := json.Unmarshal(job.InputSnapshot, &payload); err != nil {
 		return w.failClaim(ctx, job, "invalid_job_snapshot", assessmentFailureWait)
@@ -123,15 +144,30 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 	if estimatedTokens > budgetLimit {
 		return w.failClaim(ctx, job, "context_exceeded", 0)
 	}
-	providerContext, stopHeartbeat, heartbeatErrors := w.withLeaseHeartbeat(ctx, job, leaseDuration)
-	providerOutput, providerErr := w.Provider.Generate(providerContext, systemPrompt, userPrompt, AssessmentOutputJSONSchema(payload.ProviderInput))
-	stopHeartbeat()
-	heartbeatErr := <-heartbeatErrors
-	if heartbeatErr != nil {
-		return heartbeatErr
+	if err := w.Jobs.UpdateProgress(ctx, job.JobID, job.LeaseToken, "generating", false); err != nil {
+		return err
+	}
+	var providerOutput []byte
+	var providerErr error
+	schema := AssessmentOutputJSONSchema(payload.ProviderInput)
+	if streamingProvider, ok := w.Provider.(StreamingAssessmentProvider); ok {
+		providerOutput, providerErr = streamingProvider.GenerateWithProgress(
+			ctx,
+			systemPrompt,
+			userPrompt,
+			schema,
+			func() error {
+				return w.Jobs.UpdateProgress(ctx, job.JobID, job.LeaseToken, "generating", true)
+			},
+		)
+	} else {
+		providerOutput, providerErr = w.Provider.Generate(ctx, systemPrompt, userPrompt, schema)
 	}
 	if providerErr != nil {
 		return w.handleProviderError(ctx, job, providerErr)
+	}
+	if err := w.Jobs.UpdateProgress(ctx, job.JobID, job.LeaseToken, "validating", false); err != nil {
+		return err
 	}
 	validated, err := ValidateAssessmentProviderOutput(providerOutput, payload.ProviderInput)
 	if err != nil {
@@ -146,6 +182,9 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 	}
 	if freshSnapshot.Metadata.SourceHash != job.InputHash {
 		return w.failClaim(ctx, job, "source_superseded", 0)
+	}
+	if err := w.Jobs.UpdateProgress(ctx, job.JobID, job.LeaseToken, "saving", false); err != nil {
+		return err
 	}
 	content, err := json.Marshal(validated)
 	if err != nil {
@@ -211,8 +250,8 @@ func (w *LearnerAssessmentWorker) withLeaseHeartbeat(
 	providerContext, cancelProvider := context.WithCancel(ctx)
 	heartbeatContext, cancelHeartbeat := context.WithCancel(ctx)
 	heartbeatErrors := make(chan error, 1)
-	interval := leaseDuration / 3
-	if interval < time.Second {
+	interval := min(leaseDuration/3, 10*time.Second)
+	if interval <= 0 {
 		interval = time.Second
 	}
 	stop := make(chan struct{})

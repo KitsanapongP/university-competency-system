@@ -240,6 +240,7 @@ func (r *AssessmentJobRepository) ClaimNext(ctx context.Context, leaseDuration t
 	result, err := r.DB.ExecContext(ctx, `
 		UPDATE ai_report_jobs
 		SET status = 'running', attempt_count = attempt_count + 1,
+			progress_phase = 'preparing', phase_started_at = UTC_TIMESTAMP(), last_provider_activity_at = NULL,
 			lease_token = ?, lease_expires_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND),
 			heartbeat_at = UTC_TIMESTAMP(), started_at = COALESCE(started_at, UTC_TIMESTAMP()),
 			next_attempt_at = NULL

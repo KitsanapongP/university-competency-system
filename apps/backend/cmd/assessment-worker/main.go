@@ -63,6 +63,7 @@ func main() {
 	worker.ContextBudget = budget
 	worker.GenerationConfig = generationConfig
 	worker.LeaseDuration = cfg.AssessmentWorkerLeaseDuration
+	worker.AttemptTimeout = cfg.AssessmentOllamaTimeout + 60*time.Second
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
