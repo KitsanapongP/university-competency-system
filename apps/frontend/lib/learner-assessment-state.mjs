@@ -8,9 +8,8 @@ export function isAssessmentJobActive(job) {
   return job?.status === 'queued' || job?.status === 'running';
 }
 
-export function assessmentPollDelay(attempt) {
-  const safeAttempt = Math.max(0, Number.isFinite(attempt) ? Math.floor(attempt) : 0);
-  return Math.min(2500 * (2 ** Math.min(safeAttempt, 2)), 8000);
+export function assessmentPollDelay() {
+  return 2500;
 }
 
 export function assessmentGenerationStateForJob(job) {
@@ -25,7 +24,7 @@ export function assessmentRetryAfter(error) {
   return Number.isFinite(headerValue) && headerValue > 0 ? Math.ceil(headerValue) : 0;
 }
 
-function abortableWait(delay, signal) {
+export function waitForAssessmentPoll(delay, signal) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       const error = new Error('Aborted');
@@ -33,17 +32,43 @@ function abortableWait(delay, signal) {
       reject(error);
       return;
     }
-    const timer = setTimeout(() => {
+
+    const visibilityDocument = globalThis.document;
+    let timer = null;
+    let settled = false;
+    const cleanup = () => {
+      if (timer !== null) clearTimeout(timer);
+      visibilityDocument?.removeEventListener?.('visibilitychange', onVisibilityChange);
       signal?.removeEventListener('abort', abort);
+    };
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
       resolve();
-    }, delay);
+    };
+    const onVisibilityChange = () => {
+      if (visibilityDocument.visibilityState === 'hidden') {
+        if (timer !== null) clearTimeout(timer);
+        timer = null;
+        return;
+      }
+      if (timer === null) finish();
+    };
     const abort = () => {
-      clearTimeout(timer);
+      if (settled) return;
+      settled = true;
+      cleanup();
       const error = new Error('Aborted');
       error.name = 'AbortError';
       reject(error);
     };
+
+    visibilityDocument?.addEventListener?.('visibilitychange', onVisibilityChange);
     signal?.addEventListener('abort', abort, { once: true });
+    if (visibilityDocument?.visibilityState !== 'hidden') {
+      timer = setTimeout(finish, delay);
+    }
   });
 }
 
@@ -54,9 +79,9 @@ export async function monitorAssessmentReport(initialState, dependencies, automa
     getReport,
     getJob,
     generate,
-    wait = abortableWait,
+    wait = waitForAssessmentPoll,
     getPollDelay = assessmentPollDelay,
-    maxPollAttempts = 40,
+    maxPollAttempts = 120,
   } = dependencies;
   let state = initialState;
   let attempt = 0;

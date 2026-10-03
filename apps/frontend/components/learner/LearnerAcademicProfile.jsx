@@ -242,7 +242,7 @@ function AcademicHistory({ courses, termSummaries, language, labels }) {
     );
 }
 
-export default function LearnerAcademicProfile({ activityHistory }) {
+export default function LearnerAcademicProfile({ activityHistory, onAssessmentJobActiveChange }) {
     const { user } = useAuth();
     const { language, t } = useLanguage();
     const [data, setData] = useState(null);
@@ -415,7 +415,7 @@ export default function LearnerAcademicProfile({ activityHistory }) {
                 </div>
             </div>
 
-            <CooperativeReadinessPanel />
+            <CooperativeReadinessPanel onAssessmentJobActiveChange={onAssessmentJobActiveChange} />
 
             <section className="learner-course-history card">
                 <div className="card-header learner-course-history__header">

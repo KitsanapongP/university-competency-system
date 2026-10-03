@@ -8,6 +8,7 @@ import {
   loadAssessmentReport,
   monitorAssessmentReport,
   shouldAutoGenerateAssessment,
+  waitForAssessmentPoll,
 } from './learner-assessment-state.mjs';
 
 test('automatic generation only starts for missing reports with available source data', () => {
@@ -26,8 +27,38 @@ test('job polling is limited to queued and running jobs', () => {
   assert.equal(assessmentGenerationStateForJob({ status: 'queued' }), 'queued');
 });
 
-test('poll interval backs off and remains bounded', () => {
-  assert.deepEqual([0, 1, 2, 3, 10].map(assessmentPollDelay), [2500, 5000, 8000, 8000, 8000]);
+test('poll interval stays fixed at 2.5 seconds', () => {
+  assert.deepEqual([0, 1, 2, 3, 10].map(assessmentPollDelay), [2500, 2500, 2500, 2500, 2500]);
+});
+
+test('poll wait pauses while the document is hidden and resumes immediately when visible', async () => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const listeners = new Set();
+  const documentStub = {
+    visibilityState: 'hidden',
+    addEventListener: (_type, listener) => listeners.add(listener),
+    removeEventListener: (_type, listener) => listeners.delete(listener),
+  };
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: documentStub,
+  });
+
+  try {
+    let settled = false;
+    const pending = waitForAssessmentPoll(2500).then(() => { settled = true; });
+    await Promise.resolve();
+    assert.equal(settled, false);
+
+    documentStub.visibilityState = 'visible';
+    listeners.forEach((listener) => listener());
+    await pending;
+    assert.equal(settled, true);
+    assert.equal(listeners.size, 0);
+  } finally {
+    if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument);
+    else delete globalThis.document;
+  }
 });
 
 test('cooldown retry time is read from the structured API error', () => {

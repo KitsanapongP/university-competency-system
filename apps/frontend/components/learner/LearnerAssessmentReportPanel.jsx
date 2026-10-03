@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Brain, CheckCircle2, RefreshCw } from 'lucide-react';
+import { AlertCircle, Brain, CheckCircle2, Circle, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../../providers/LanguageContext';
 import {
     fetchLearnerAssessmentJob,
@@ -11,6 +11,7 @@ import {
 import {
     loadAssessmentReport,
     monitorAssessmentReport,
+    assessmentGenerationStateForJob,
     assessmentRetryAfter,
     isAssessmentJobActive,
 } from '../../lib/learner-assessment-state.mjs';
@@ -93,6 +94,8 @@ function jobErrorMessage(code, t) {
         source_superseded: t('assessment_error_source_changed'),
         context_exceeded: t('assessment_report_context_exceeded'),
         pipeline_version_unsupported: t('assessment_error_version_changed'),
+        worker_unavailable: t('assessment_error_worker_unavailable'),
+        provider_stream_stalled: t('assessment_error_provider_stalled'),
     };
     return labels[code] || t('assessment_error_generic');
 }
@@ -143,6 +146,107 @@ function formatDiagnosticBytes(value) {
     return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
 }
 
+const GENERATION_PHASES = ['queued', 'preparing', 'generating', 'validating', 'saving', 'completed'];
+
+function timestampValue(value) {
+    const timestamp = Date.parse(value || '');
+    return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function formatElapsed(seconds) {
+    const safeSeconds = Math.max(0, Math.floor(seconds));
+    const minutes = Math.floor(safeSeconds / 60);
+    return `${minutes}:${String(safeSeconds % 60).padStart(2, '0')}`;
+}
+
+function GenerationProgress({ job, paused, t, onCheckStatus, checking }) {
+    const [clock, setClock] = useState(() => timestampValue(job?.server_time) || 0);
+    const serverTime = timestampValue(job?.server_time);
+    const now = clock;
+    const requestedAt = timestampValue(job?.requested_at);
+    const phaseStartedAt = timestampValue(job?.phase_started_at);
+    const lastProviderActivityAt = timestampValue(job?.last_provider_activity_at);
+    const phase = GENERATION_PHASES.includes(job?.progress_phase)
+        ? job.progress_phase
+        : job?.status === 'queued' ? 'queued' : 'generating';
+    const currentIndex = GENERATION_PHASES.indexOf(phase);
+    const inactiveSince = lastProviderActivityAt || (phase === 'generating' ? phaseStartedAt : null);
+    const inactivitySeconds = inactiveSince == null ? 0 : Math.floor((now - inactiveSince) / 1000);
+    const attemptCount = Number(job?.attempt_count) || 0;
+    const maxAttempts = Number(job?.max_attempts) || 0;
+    const totalSeconds = requestedAt == null ? null : Math.max(0, Math.floor((now - requestedAt) / 1000));
+    const phaseSeconds = phaseStartedAt == null ? null : Math.max(0, Math.floor((now - phaseStartedAt) / 1000));
+
+    useEffect(() => {
+        if (paused) return undefined;
+        const serverOffset = serverTime == null ? 0 : serverTime - Date.now();
+        const timer = window.setInterval(() => setClock(Date.now() + serverOffset), 1000);
+        return () => window.clearInterval(timer);
+    }, [paused, serverTime]);
+
+    return (
+        <section className={styles.generationProgress} aria-label={t('assessment_report_progress')}>
+            <div className={styles.progressHeading}>
+                <div>
+                    <strong>{t(`assessment_phase_${phase}`)}</strong>
+                    <span>{t('assessment_report_generation_explainer')}</span>
+                </div>
+                {!paused && <span className={styles.spinner} aria-hidden="true" />}
+            </div>
+
+            <ol className={styles.phaseList}>
+                {GENERATION_PHASES.map((item, index) => {
+                    const isComplete = index < currentIndex;
+                    const isCurrent = index === currentIndex;
+                    return (
+                        <li
+                            className={[
+                                styles.phaseItem,
+                                isComplete ? styles.phaseComplete : '',
+                                isCurrent ? styles.phaseCurrent : '',
+                            ].filter(Boolean).join(' ')}
+                            key={item}
+                            aria-current={isCurrent ? 'step' : undefined}
+                        >
+                            {isComplete
+                                ? <CheckCircle2 size={16} aria-hidden="true" />
+                                : isCurrent && !paused
+                                    ? <span className={styles.phaseSpinner} aria-hidden="true" />
+                                    : <Circle size={16} aria-hidden="true" />}
+                            <span>{t(`assessment_phase_${item}`)}</span>
+                        </li>
+                    );
+                })}
+            </ol>
+
+            <div className={styles.progressDetails}>
+                {totalSeconds != null && <span>{t('assessment_report_elapsed')}: {formatElapsed(totalSeconds)}</span>}
+                {phaseSeconds != null && <span>{t('assessment_report_phase_elapsed')}: {formatElapsed(phaseSeconds)}</span>}
+                {attemptCount > 0 && maxAttempts > 0 && (
+                    <span>{t('assessment_report_attempt')}: {attemptCount}/{maxAttempts}</span>
+                )}
+            </div>
+
+            {phase === 'generating' && inactivitySeconds >= 30 && (
+                <p className={styles.inactivityNotice}>
+                    <AlertCircle size={16} aria-hidden="true" />
+                    {t('assessment_report_no_provider_activity')} {formatElapsed(inactivitySeconds)}
+                </p>
+            )}
+
+            {paused && (
+                <div className={styles.pollingPaused}>
+                    <span>{t('assessment_report_polling_paused')}</span>
+                    <button type="button" className={styles.action} onClick={onCheckStatus} disabled={checking}>
+                        <RefreshCw size={15} aria-hidden="true" />
+                        {checking ? t('assessment_report_checking_status') : t('assessment_report_check_status')}
+                    </button>
+                </div>
+            )}
+        </section>
+    );
+}
+
 function ContextDiagnostics({ diagnostics, t }) {
     if (!diagnostics) return null;
 
@@ -180,7 +284,7 @@ function ContextDiagnostics({ diagnostics, t }) {
     );
 }
 
-export default function LearnerAssessmentReportPanel({ semester }) {
+export default function LearnerAssessmentReportPanel({ semester, onGenerationActiveChange }) {
     const { language, t } = useLanguage();
     const [view, setView] = useState({ phase: 'idle', data: null, error: null, pollingPaused: false, actionLoading: false });
     const controllerRef = useRef(null);
@@ -269,6 +373,33 @@ export default function LearnerAssessmentReportPanel({ semester }) {
         }
     };
 
+    const checkJobStatus = async () => {
+        const controller = controllerRef.current;
+        const jobID = view.data?.job?.job_id;
+        if (!controller || controller.signal.aborted || !jobID || view.actionLoading) return;
+        const { signal } = controller;
+        setView((current) => ({ ...current, actionLoading: true, error: null }));
+        try {
+            const job = await fetchLearnerAssessmentJob(jobID, { signal });
+            if (isAssessmentJobActive(job)) {
+                applyState({
+                    ...view.data,
+                    job,
+                    generation_state: assessmentGenerationStateForJob(job),
+                }, signal, true);
+            } else {
+                applyState(await fetchLearnerAssessmentReport(semester, { signal }), signal);
+            }
+        } catch (error) {
+            if (error?.name === 'AbortError' || signal.aborted) return;
+            setView((current) => ({ ...current, error }));
+        } finally {
+            if (!signal.aborted && controllerRef.current?.signal === signal) {
+                setView((current) => ({ ...current, actionLoading: false }));
+            }
+        }
+    };
+
     const data = view.data;
     const report = data?.report;
     const content = reportContent(report);
@@ -285,10 +416,16 @@ export default function LearnerAssessmentReportPanel({ semester }) {
     const currentErrorCode = view.error?.code;
     const jobFailed = data?.job?.status === 'failed';
 
+    useEffect(() => {
+        onGenerationActiveChange?.(active);
+    }, [active, onGenerationActiveChange]);
+
+    useEffect(() => () => onGenerationActiveChange?.(false), [onGenerationActiveChange]);
+
     if (!semester) return null;
 
     return (
-        <section className={styles.panel} aria-labelledby="learner-assessment-title" aria-live="polite">
+        <section className={styles.panel} aria-labelledby="learner-assessment-title">
             <div className={styles.header}>
                 <div>
                     <h3 id="learner-assessment-title">
@@ -365,10 +502,13 @@ export default function LearnerAssessmentReportPanel({ semester }) {
             )}
 
             {!isLoading && active && !report && (
-                <div className={styles.state} role="status">
-                    <span className={styles.spinner} aria-hidden="true" />
-                    {data.generation_state === 'queued' ? t('assessment_report_queued') : t('assessment_report_generating')}
-                </div>
+                <GenerationProgress
+                    job={data.job}
+                    paused={view.pollingPaused}
+                    t={t}
+                    onCheckStatus={checkJobStatus}
+                    checking={view.actionLoading}
+                />
             )}
 
             {!isLoading && data?.generation_state === 'missing' && !active && (
@@ -394,10 +534,18 @@ export default function LearnerAssessmentReportPanel({ semester }) {
             {report && content && (
                 <div className={styles.report}>
                     {active && (
-                        <p className={styles.progress} role="status">
-                            <span className={styles.spinner} aria-hidden="true" />
-                            {t('assessment_report_regenerating_current')}
-                        </p>
+                        <>
+                            <p className={styles.progress} role="status">
+                                {t('assessment_report_regenerating_current')}
+                            </p>
+                            <GenerationProgress
+                                job={data.job}
+                                paused={view.pollingPaused}
+                                t={t}
+                                onCheckStatus={checkJobStatus}
+                                checking={view.actionLoading}
+                            />
+                        </>
                     )}
                     <div className={styles.readinessExplanation}>
                         <h4>{t('assessment_report_readiness')}</h4>
@@ -446,15 +594,6 @@ export default function LearnerAssessmentReportPanel({ semester }) {
                 </section>
             )}
 
-            {view.pollingPaused && active && (
-                <div className={styles.pollingPaused}>
-                    <span>{t('assessment_report_polling_paused')}</span>
-                    <button type="button" className={styles.action} onClick={refresh} disabled={view.actionLoading}>
-                        <RefreshCw size={15} aria-hidden="true" />
-                        {t('assessment_report_check_status')}
-                    </button>
-                </div>
-            )}
         </section>
     );
 }

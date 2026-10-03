@@ -111,7 +111,7 @@ function RequirementResult({ item, language, t }) {
     );
 }
 
-export default function CooperativeReadinessPanel() {
+export default function CooperativeReadinessPanel({ onAssessmentJobActiveChange }) {
     const { language, t } = useLanguage();
     const [semester, setSemester] = useState('');
     const [result, setResult] = useState(null);
@@ -265,7 +265,10 @@ export default function CooperativeReadinessPanel() {
                 </div>
             )}
 
-            <LearnerAssessmentReportPanel semester={semester} />
+            <LearnerAssessmentReportPanel
+                semester={semester}
+                onGenerationActiveChange={onAssessmentJobActiveChange}
+            />
         </section>
     );
 }

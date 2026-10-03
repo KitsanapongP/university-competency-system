@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     BookOpenText,
@@ -38,6 +38,10 @@ export default function CompetencyPage() {
     const { user, loading, logout } = useAuth();
     const { t, language } = useLanguage();
     const [activePage, setActivePage] = useState('dashboard');
+    const [assessmentJobActive, setAssessmentJobActive] = useState(false);
+    const handleAssessmentJobActiveChange = useCallback((active) => {
+        setAssessmentJobActive(active);
+    }, []);
 
     // Dashboard States
     const [selectedCompetencies, setSelectedCompetencies] = useState([]);
@@ -531,6 +535,7 @@ export default function CompetencyPage() {
     return (
         <CompetencyLayout
             role="user"
+            showBackground={!assessmentJobActive}
             activePage={activePage}
             onNavigate={setActivePage}
             user={user}
@@ -618,7 +623,10 @@ export default function CompetencyPage() {
 
             {/* PROFILE PAGE */}
             {activePage === 'profile' && (
-                <LearnerAcademicProfile activityHistory={activityHistory} />
+                <LearnerAcademicProfile
+                    activityHistory={activityHistory}
+                    onAssessmentJobActiveChange={handleAssessmentJobActiveChange}
+                />
             )}
 
             {/* VERIFY PAGE */}
