@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -21,14 +23,15 @@ func DefaultAssessmentModel() string {
 }
 
 type OllamaAssessmentProvider struct {
-	BaseURL       string
-	Model         string
-	Timeout       time.Duration
-	KeepAlive     string
-	Think         bool
-	OutputTokens  int
-	ContextTokens int
-	HTTPClient    *http.Client
+	BaseURL           string
+	Model             string
+	Timeout           time.Duration
+	KeepAlive         string
+	Think             bool
+	OutputTokens      int
+	ContextTokens     int
+	StreamIdleTimeout time.Duration
+	HTTPClient        *http.Client
 }
 
 func NewOllamaAssessmentProvider(baseURL, model string, timeout time.Duration, keepAlive string, think bool, outputTokens int, contextTokens ...int) *OllamaAssessmentProvider {
@@ -49,14 +52,15 @@ func NewOllamaAssessmentProvider(baseURL, model string, timeout time.Duration, k
 		contextLimit = contextTokens[0]
 	}
 	return &OllamaAssessmentProvider{
-		BaseURL:       strings.TrimRight(strings.TrimSpace(baseURL), "/"),
-		Model:         strings.TrimSpace(model),
-		Timeout:       timeout,
-		KeepAlive:     keepAlive,
-		Think:         think,
-		OutputTokens:  outputTokens,
-		ContextTokens: contextLimit,
-		HTTPClient:    &http.Client{},
+		BaseURL:           strings.TrimRight(strings.TrimSpace(baseURL), "/"),
+		Model:             strings.TrimSpace(model),
+		Timeout:           timeout,
+		KeepAlive:         keepAlive,
+		Think:             think,
+		OutputTokens:      outputTokens,
+		ContextTokens:     contextLimit,
+		StreamIdleTimeout: 60 * time.Second,
+		HTTPClient:        &http.Client{},
 	}
 }
 
@@ -100,6 +104,16 @@ func (p *OllamaAssessmentProvider) Generate(
 	userPrompt string,
 	schema json.RawMessage,
 ) ([]byte, error) {
+	return p.GenerateWithProgress(ctx, systemPrompt, userPrompt, schema, nil)
+}
+
+func (p *OllamaAssessmentProvider) GenerateWithProgress(
+	ctx context.Context,
+	systemPrompt string,
+	userPrompt string,
+	schema json.RawMessage,
+	onActivity func() error,
+) ([]byte, error) {
 	if p == nil || strings.TrimSpace(p.BaseURL) == "" || strings.TrimSpace(p.Model) == "" ||
 		strings.TrimSpace(systemPrompt) == "" || strings.TrimSpace(userPrompt) == "" || !json.Valid(schema) {
 		return nil, AssessmentProviderError{Code: "invalid_provider_request", Retryable: false}
@@ -120,7 +134,7 @@ func (p *OllamaAssessmentProvider) Generate(
 		System:    systemPrompt,
 		Prompt:    userPrompt,
 		Format:    schema,
-		Stream:    false,
+		Stream:    true,
 		Think:     p.Think,
 		KeepAlive: p.KeepAlive,
 		Options: ollamaGenerateOptions{
@@ -137,7 +151,7 @@ func (p *OllamaAssessmentProvider) Generate(
 		return nil, AssessmentProviderError{Code: "invalid_provider_url", Retryable: false, Cause: err}
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Accept", "application/x-ndjson")
 
 	response, err := client.Do(request)
 	if err != nil {
@@ -151,46 +165,125 @@ func (p *OllamaAssessmentProvider) Generate(
 	}
 	defer response.Body.Close()
 
-	responseBody, err := io.ReadAll(io.LimitReader(response.Body, assessmentOllamaMaxResponseBytes+1))
-	if err != nil {
-		return nil, AssessmentProviderError{Code: "provider_response_read_failed", Retryable: true, Cause: err}
-	}
-	if len(responseBody) > assessmentOllamaMaxResponseBytes {
-		return nil, AssessmentProviderError{Code: "provider_response_too_large", Retryable: false}
-	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		responseBody, readErr := io.ReadAll(io.LimitReader(response.Body, assessmentOllamaMaxResponseBytes+1))
+		if readErr != nil || len(responseBody) > assessmentOllamaMaxResponseBytes {
+			return nil, AssessmentProviderError{Code: "provider_response_read_failed", Retryable: true, Cause: readErr}
+		}
 		return nil, ollamaHTTPError(response.StatusCode, responseBody)
 	}
 
-	var result ollamaGenerateResponse
-	if err := json.Unmarshal(responseBody, &result); err != nil {
-		return nil, AssessmentProviderError{Code: "provider_invalid_response", Retryable: true, Cause: err}
+	var streamStalled atomic.Bool
+	var idleTimer *time.Timer
+	idleTimeout := p.StreamIdleTimeout
+	if idleTimeout <= 0 {
+		idleTimeout = 60 * time.Second
 	}
-	if strings.TrimSpace(result.Error) != "" {
-		return nil, AssessmentProviderError{Code: "provider_rejected_request", Retryable: false}
+	resetIdleTimer := func() {
+		if idleTimer == nil {
+			idleTimer = time.AfterFunc(idleTimeout, func() {
+				streamStalled.Store(true)
+				cancel()
+			})
+			return
+		}
+		idleTimer.Reset(idleTimeout)
 	}
-	if result.Model != "" && result.Model != p.Model {
+	defer func() {
+		if idleTimer != nil {
+			idleTimer.Stop()
+		}
+	}()
+
+	reader := bufio.NewReader(io.LimitReader(response.Body, assessmentOllamaMaxResponseBytes+1))
+	var totalBytes int64
+	var output bytes.Buffer
+	var final ollamaGenerateResponse
+	done := false
+	for {
+		line, readErr := reader.ReadBytes('\n')
+		totalBytes += int64(len(line))
+		if totalBytes > assessmentOllamaMaxResponseBytes {
+			return nil, AssessmentProviderError{Code: "provider_response_too_large", Retryable: false}
+		}
+		if len(bytes.TrimSpace(line)) > 0 {
+			var part ollamaGenerateResponse
+			if err := json.Unmarshal(line, &part); err != nil {
+				return nil, AssessmentProviderError{Code: "provider_invalid_response", Retryable: true, Cause: err}
+			}
+			if strings.TrimSpace(part.Error) != "" {
+				return nil, AssessmentProviderError{Code: "provider_rejected_request", Retryable: false}
+			}
+			if part.Model != "" && part.Model != p.Model {
+				return nil, AssessmentProviderError{Code: "provider_model_mismatch", Retryable: false}
+			}
+			if len(part.Response) > 0 {
+				if output.Len()+len(part.Response) > assessmentMaxOutputBytes {
+					return nil, AssessmentProviderError{Code: "provider_output_too_large", Retryable: false}
+				}
+				_, _ = output.WriteString(part.Response)
+			}
+			if len(part.Response) > 0 || len(part.Thinking) > 0 {
+				resetIdleTimer()
+				if onActivity != nil {
+					if activityErr := onActivity(); activityErr != nil {
+						return nil, activityErr
+					}
+				}
+			}
+			if part.Done {
+				final = part
+				done = true
+				break
+			}
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			if errors.Is(requestContext.Err(), context.DeadlineExceeded) {
+				return nil, AssessmentProviderError{Code: "provider_timeout", Retryable: true, Cause: readErr}
+			}
+			if errors.Is(requestContext.Err(), context.Canceled) {
+				if streamStalled.Load() {
+					return nil, AssessmentProviderError{Code: "provider_stream_stalled", Retryable: true, Cause: readErr}
+				}
+				return nil, AssessmentProviderError{Code: "provider_canceled", Retryable: true, Cause: readErr}
+			}
+			return nil, AssessmentProviderError{Code: "provider_response_read_failed", Retryable: true, Cause: readErr}
+		}
+	}
+	if !done {
+		if errors.Is(requestContext.Err(), context.DeadlineExceeded) {
+			return nil, AssessmentProviderError{Code: "provider_timeout", Retryable: true, Cause: requestContext.Err()}
+		}
+		if streamStalled.Load() {
+			return nil, AssessmentProviderError{Code: "provider_stream_stalled", Retryable: true}
+		}
+		if errors.Is(requestContext.Err(), context.Canceled) {
+			return nil, AssessmentProviderError{Code: "provider_canceled", Retryable: true, Cause: requestContext.Err()}
+		}
+		return nil, AssessmentProviderError{Code: "provider_incomplete_response", Retryable: true}
+	}
+	if final.Model != "" && final.Model != p.Model {
 		return nil, AssessmentProviderError{Code: "provider_model_mismatch", Retryable: false}
 	}
 	// Only bounded completion metadata is logged, never the prompt or response text.
 	reason := "unknown"
-	if result.DoneReason == "stop" || result.DoneReason == "length" {
-		reason = result.DoneReason
+	if final.DoneReason == "stop" || final.DoneReason == "length" {
+		reason = final.DoneReason
 	}
-	slog.InfoContext(ctx, "assessment generation usage", "done_reason", reason, "prompt_eval_count", max(0, result.PromptEvalCount), "eval_count", max(0, result.EvalCount))
-	if result.DoneReason == "length" {
+	slog.InfoContext(ctx, "assessment generation usage", "done_reason", reason, "prompt_eval_count", max(0, final.PromptEvalCount), "eval_count", max(0, final.EvalCount))
+	if final.DoneReason == "length" {
 		return nil, AssessmentProviderError{Code: "provider_output_truncated", Retryable: false}
 	}
-	if result.DoneReason != "" && result.DoneReason != "stop" {
+	if final.DoneReason != "" && final.DoneReason != "stop" {
 		return nil, AssessmentProviderError{Code: "provider_incomplete_response", Retryable: false}
 	}
-	if !result.Done || strings.TrimSpace(result.Response) == "" {
+	if !final.Done || strings.TrimSpace(output.String()) == "" {
 		return nil, AssessmentProviderError{Code: "provider_incomplete_response", Retryable: true}
 	}
-	if len(result.Response) > assessmentMaxOutputBytes {
-		return nil, AssessmentProviderError{Code: "provider_output_too_large", Retryable: false}
-	}
-	return []byte(result.Response), nil
+	return output.Bytes(), nil
 }
 
 type ollamaGenerateRequest struct {
@@ -213,6 +306,7 @@ type ollamaGenerateOptions struct {
 type ollamaGenerateResponse struct {
 	Model           string `json:"model"`
 	Response        string `json:"response"`
+	Thinking        string `json:"thinking"`
 	Done            bool   `json:"done"`
 	Error           string `json:"error,omitempty"`
 	DoneReason      string `json:"done_reason"`

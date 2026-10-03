@@ -37,7 +37,7 @@ func TestOllamaAssessmentUsageLogsDoNotExposeResponseText(t *testing.T) {
 	}
 }
 
-func TestOllamaAssessmentProviderSendsStructuredNonStreamingRequest(t *testing.T) {
+func TestOllamaAssessmentProviderStreamsStructuredResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/api/generate" {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -46,7 +46,7 @@ func TestOllamaAssessmentProviderSendsStructuredNonStreamingRequest(t *testing.T
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatal(err)
 		}
-		if request.Model != "qwen3:4b" || request.Stream || request.Think || request.Options.Temperature != 0 || request.Options.NumPredict != 768 || request.Options.NumCtx != 3072 {
+		if request.Model != "qwen3:4b" || !request.Stream || request.Think || request.Options.Temperature != 0 || request.Options.NumPredict != 768 || request.Options.NumCtx != 3072 {
 			t.Fatalf("unexpected generation options: %+v", request)
 		}
 		if string(request.Format) != `{"type":"object"}` || request.System != "system" || request.Prompt != "user" {
@@ -64,6 +64,48 @@ func TestOllamaAssessmentProviderSendsStructuredNonStreamingRequest(t *testing.T
 	}
 	if string(output) != `{"ok":true}` {
 		t.Fatalf("unexpected provider output: %s", output)
+	}
+}
+
+func TestOllamaAssessmentProviderAccumulatesNDJSONAndReportsActivity(t *testing.T) {
+	var requestAccept string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestAccept = r.Header.Get("Accept")
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = w.Write([]byte("{\"model\":\"qwen3:4b\",\"response\":\"{\\\"answer\\\":\",\"done\":false}\n"))
+		_, _ = w.Write([]byte("{\"model\":\"qwen3:4b\",\"response\":\"true}\",\"done\":false}\n"))
+		_, _ = w.Write([]byte("{\"model\":\"qwen3:4b\",\"response\":\"\",\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":15,\"eval_count\":4}\n"))
+	}))
+	defer server.Close()
+
+	provider := NewOllamaAssessmentProvider(server.URL, "qwen3:4b", time.Second, "5m", false, 512)
+	activities := 0
+	output, err := provider.GenerateWithProgress(
+		context.Background(), "system", "user", json.RawMessage(`{"type":"object"}`),
+		func() error { activities++; return nil },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requestAccept != "application/x-ndjson" || string(output) != `{"answer":true}` || activities != 2 {
+		t.Fatalf("accept=%q output=%q activities=%d", requestAccept, output, activities)
+	}
+}
+
+func TestOllamaAssessmentProviderReportsStalledStream(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("{\"model\":\"qwen3:4b\",\"response\":\"{\",\"done\":false}\n"))
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	provider := NewOllamaAssessmentProvider(server.URL, "qwen3:4b", time.Second, "5m", false, 512)
+	provider.StreamIdleTimeout = 20 * time.Millisecond
+	_, err := provider.Generate(context.Background(), "system", "user", json.RawMessage(`{"type":"object"}`))
+	providerErr, ok := err.(AssessmentProviderError)
+	if !ok || providerErr.Code != "provider_stream_stalled" || !providerErr.Retryable {
+		t.Fatalf("expected retryable stream stall, got %#v", err)
 	}
 }
 

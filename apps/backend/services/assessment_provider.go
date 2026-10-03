@@ -11,6 +11,16 @@ type AssessmentProvider interface {
 	Generate(context.Context, string, string, json.RawMessage) ([]byte, error)
 }
 
+type StreamingAssessmentProvider interface {
+	GenerateWithProgress(
+		context.Context,
+		string,
+		string,
+		json.RawMessage,
+		func() error,
+	) ([]byte, error)
+}
+
 type AssessmentProviderError struct {
 	Code      string
 	Retryable bool
