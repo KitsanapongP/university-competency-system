@@ -12,7 +12,8 @@ const ClickSpark = ({
 }) => {
   const canvasRef = useRef(null);
   const sparksRef = useRef([]);
-  const startTimeRef = useRef(null);
+  const animationFrameRef = useRef(null);
+  const drawFrameRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -64,13 +65,9 @@ const ClickSpark = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-
-    let animationId;
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     const draw = timestamp => {
-      if (!startTimeRef.current) {
-        startTimeRef.current = timestamp;
-      }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       sparksRef.current = sparksRef.current.filter(spark => {
@@ -100,19 +97,39 @@ const ClickSpark = ({
         return true;
       });
 
-      animationId = requestAnimationFrame(draw);
+      if (sparksRef.current.length > 0 && !motionPreference.matches) {
+        animationFrameRef.current = requestAnimationFrame(draw);
+      } else {
+        animationFrameRef.current = null;
+      }
     };
 
-    animationId = requestAnimationFrame(draw);
+    drawFrameRef.current = draw;
+    if (sparksRef.current.length > 0 && !motionPreference.matches) {
+      animationFrameRef.current = requestAnimationFrame(draw);
+    }
+
+    const handleMotionPreferenceChange = event => {
+      if (!event.matches) return;
+      if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+      sparksRef.current = [];
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
+    motionPreference.addEventListener('change', handleMotionPreferenceChange);
 
     return () => {
-      cancelAnimationFrame(animationId);
+      if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+      drawFrameRef.current = null;
+      motionPreference.removeEventListener('change', handleMotionPreferenceChange);
     };
   }, [sparkColor, sparkSize, sparkRadius, sparkCount, duration, easeFunc, extraScale]);
 
   const handleClick = e => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !drawFrameRef.current) return;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -126,6 +143,9 @@ const ClickSpark = ({
     }));
 
     sparksRef.current.push(...newSparks);
+    if (animationFrameRef.current === null) {
+      animationFrameRef.current = requestAnimationFrame(drawFrameRef.current);
+    }
   };
 
   return (
