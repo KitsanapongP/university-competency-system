@@ -115,9 +115,38 @@ type AssessmentReportFinding struct {
 type AssessmentObservation struct {
 	ObservationID string                  `json:"observation_id"`
 	Kind          string                  `json:"kind"`
+	FactType      string                  `json:"fact_type"`
+	Values        AssessmentFactValues    `json:"values"`
 	Title         AssessmentBilingualText `json:"title"`
 	Fact          AssessmentBilingualText `json:"fact"`
 	EvidenceRefs  []string                `json:"evidence_refs"`
+}
+
+// These fields describe facts, not thresholds inferred by the language model.
+type AssessmentFactValues struct {
+	CriterionType     string                 `json:"criterion_type,omitempty"`
+	Status            string                 `json:"status,omitempty"`
+	CurrentValue      *float64               `json:"current_value,omitempty"`
+	RequiredValue     *float64               `json:"required_value,omitempty"`
+	CurrentGrade      *string                `json:"current_grade,omitempty"`
+	RequiredGrade     *string                `json:"required_grade,omitempty"`
+	AcademicYear      *uint64                `json:"academic_year_be,omitempty"`
+	Semester          *uint64                `json:"semester,omitempty"`
+	Grade             string                 `json:"grade,omitempty"`
+	RecordCount       *int                   `json:"record_count,omitempty"`
+	MissingGradeCount *int                   `json:"missing_grade_count,omitempty"`
+	GradeCounts       []AssessmentGradeCount `json:"grade_counts,omitempty"`
+	CoreScore         *float64               `json:"core_score,omitempty"`
+	CourseBonusScore  *float64               `json:"course_bonus_score,omitempty"`
+	FreeElectiveScore *float64               `json:"free_elective_score,omitempty"`
+	ActivityScore     *float64               `json:"activity_score,omitempty"`
+	AttendanceStatus  string                 `json:"attendance_status,omitempty"`
+}
+
+type AssessmentGradeCount struct {
+	GradeScheme string `json:"grade_scheme"`
+	Grade       string `json:"grade"`
+	Count       int    `json:"count"`
 }
 
 type AssessmentNarrativeFinding struct {

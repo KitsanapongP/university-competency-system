@@ -8,8 +8,9 @@ import (
 // BuildAssessmentObservations never assigns an ability threshold to grades or weighted contributions.
 func BuildAssessmentObservations(input models.AssessmentProviderInput) []models.AssessmentObservation {
 	items := make([]models.AssessmentObservation, 0)
-	add := func(id, kind string, title, fact models.AssessmentBilingualText, refs ...string) {
+	add := func(id, kind string, title, fact models.AssessmentBilingualText, refs ...string) *models.AssessmentObservation {
 		items = append(items, models.AssessmentObservation{ObservationID: id, Kind: kind, Title: title, Fact: fact, EvidenceRefs: refs})
+		return &items[len(items)-1]
 	}
 	for index, result := range input.Readiness.Results {
 		kind := "neutral"
@@ -37,23 +38,29 @@ func BuildAssessmentObservations(input models.AssessmentProviderInput) []models.
 			fact.TH += fmt.Sprintf(" เกรดปัจจุบัน %s; เกรดขั้นต่ำ %s", *result.CurrentGrade, *result.RequiredGrade)
 			fact.EN += fmt.Sprintf(" Current grade %s; minimum grade %s.", *result.CurrentGrade, *result.RequiredGrade)
 		}
-		add(id, kind, title, fact, id)
+		item := add(id, kind, title, fact, id)
+		item.FactType = "readiness"
+		item.Values = models.AssessmentFactValues{CriterionType: result.CriterionType, Status: result.Status, CurrentValue: result.CurrentValue, RequiredValue: result.RequiredValue, CurrentGrade: result.CurrentGrade, RequiredGrade: result.RequiredGrade}
 	}
 	for _, course := range input.AcademicEvidence {
 		if course.Grade == "" {
 			continue
 		}
-		add("academic:"+course.EvidenceRef, "neutral",
+		item := add("academic:"+course.EvidenceRef, "neutral",
 			models.AssessmentBilingualText{TH: course.CourseNameTH, EN: assessmentTextWithFallback(course.CourseNameEN, course.CourseNameTH)},
 			models.AssessmentBilingualText{TH: fmt.Sprintf("เกรด %s; ปีการศึกษา %d ภาคเรียน %d", course.Grade, course.AcademicYear, course.Semester), EN: fmt.Sprintf("Grade %s; academic year BE %d, semester %d.", course.Grade, course.AcademicYear, course.Semester)}, course.EvidenceRef)
+		item.FactType = "academic"
+		item.Values = models.AssessmentFactValues{Grade: course.Grade, AcademicYear: &course.AcademicYear, Semester: &course.Semester}
 	}
 	for _, competency := range input.CompetencyScores {
 		if !competency.HasEvidence {
 			continue
 		}
-		add("score:"+competency.CompetencyRef, "neutral",
+		item := add("score:"+competency.CompetencyRef, "neutral",
 			models.AssessmentBilingualText{TH: competency.NameTH, EN: assessmentTextWithFallback(competency.NameEN, competency.NameTH)},
 			models.AssessmentBilingualText{TH: fmt.Sprintf("คะแนนหลัก %.2f; คะแนนเสริมรายวิชา %.2f; วิชาเสรี %.2f; กิจกรรม %.2f เป็นคะแนนสะสม ไม่ใช่คะแนนเต็ม 100 และไม่มีเกณฑ์เปรียบเทียบในรายงานนี้", competency.CoreScore, competency.BonusScore, competency.FreeElectiveScore, competency.ActivityScore), EN: fmt.Sprintf("Core %.2f; course bonus %.2f; elective %.2f; activity %.2f. These are accumulated contributions, not scores out of 100; this report has no comparison threshold.", competency.CoreScore, competency.BonusScore, competency.FreeElectiveScore, competency.ActivityScore)}, competency.CompetencyRef)
+		item.FactType = "competency"
+		item.Values = models.AssessmentFactValues{CoreScore: &competency.CoreScore, CourseBonusScore: &competency.BonusScore, FreeElectiveScore: &competency.FreeElectiveScore, ActivityScore: &competency.ActivityScore}
 	}
 	for _, activity := range input.ActivityEvidence {
 		fact := models.AssessmentBilingualText{TH: "มีหลักฐานกิจกรรม; สถานะ " + activity.AttendanceStatus, EN: "Activity evidence recorded; attendance status " + activity.AttendanceStatus + "."}
@@ -61,7 +68,9 @@ func BuildAssessmentObservations(input models.AssessmentProviderInput) []models.
 			fact.TH += fmt.Sprintf(" คะแนนกิจกรรม %.2f%%", *activity.Score)
 			fact.EN += fmt.Sprintf(" Activity score %.2f%%.", *activity.Score)
 		}
-		add("participation:"+activity.EvidenceRef, "neutral", models.AssessmentBilingualText{TH: activity.ActivityNameTH, EN: assessmentTextWithFallback(activity.ActivityNameEN, activity.ActivityNameTH)}, fact, activity.EvidenceRef)
+		item := add("participation:"+activity.EvidenceRef, "neutral", models.AssessmentBilingualText{TH: activity.ActivityNameTH, EN: assessmentTextWithFallback(activity.ActivityNameEN, activity.ActivityNameTH)}, fact, activity.EvidenceRef)
+		item.FactType = "activity"
+		item.Values = models.AssessmentFactValues{AttendanceStatus: activity.AttendanceStatus, ActivityScore: activity.Score}
 	}
 	return items
 }
