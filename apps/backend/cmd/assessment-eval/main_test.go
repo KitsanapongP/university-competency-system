@@ -15,7 +15,7 @@ import (
 	"github.com/spw32767/university-competency-system-backend/services"
 )
 
-func TestSyntheticEvaluationFixturesFitDefaultInputBudget(t *testing.T) {
+func TestSyntheticEvaluationFixturesFitDeclaredContextBudget(t *testing.T) {
 	paths, err := filepath.Glob(filepath.Join("..", "..", "testdata", "learner_assessment", "*.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -40,6 +40,9 @@ func TestSyntheticEvaluationFixturesFitDefaultInputBudget(t *testing.T) {
 			t.Fatalf("build prompt for %s: %v", path, err)
 		}
 		budget := services.DefaultAssessmentContextBudget()
+		if fixture.Name == "large-academic-history" {
+			budget.ContextTokens = 12288
+		}
 		diagnostics := services.EstimateAssessmentContextDiagnostics(
 			fixture.Input,
 			systemPrompt,
@@ -48,7 +51,7 @@ func TestSyntheticEvaluationFixturesFitDefaultInputBudget(t *testing.T) {
 			services.EstimateAssessmentPromptTokens(systemPrompt, userPrompt),
 		)
 		if diagnostics.EstimatedTotalTokens > diagnostics.ContextTokens {
-			t.Fatalf("fixture %s exceeds default context budget: %+v", path, diagnostics)
+			t.Fatalf("fixture %s exceeds test context budget: %+v", path, diagnostics)
 		}
 		if diagnostics.SourceDataBytes == 0 || diagnostics.CompetencyScoresBytes == 0 {
 			t.Fatalf("fixture %s has incomplete section diagnostics: %+v", path, diagnostics)

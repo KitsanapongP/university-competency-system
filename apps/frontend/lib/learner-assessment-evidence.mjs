@@ -62,7 +62,7 @@ export function buildAssessmentEvidenceCatalog(sourceSnapshot, language, weighte
     });
   });
 
-  (input.activity_evidence || []).forEach((activity) => {
+  [...(input.activity_evidence || []), ...(sourceSnapshot.source?.activity_evidence || [])].forEach((activity) => {
     const name = localizedValue({ th: activity.activity_name_th, en: activity.activity_name_en }, language);
     const details = [activity.start_at?.slice(0, 10), activity.earned_percent != null ? `${activity.earned_percent}%` : '']
       .filter(Boolean)

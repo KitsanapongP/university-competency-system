@@ -5,11 +5,15 @@ import { buildAssessmentEvidenceCatalog, expandAssessmentEvidenceReferences } fr
 test('grouped references expand to every original record without duplicate keys', () => {
   const snapshot = {
     provider_input: { academic_evidence: [] },
-    source: { academic_evidence: [{ evidence_ref: 'original:1', course_name_th: 'วิชาเดิม' }] },
+    source: {
+      academic_evidence: [{ evidence_ref: 'original:1', course_name_th: 'วิชาเดิม' }],
+      activity_evidence: [{ evidence_ref: 'activity:original', activity_name_th: 'กิจกรรมเดิม' }],
+    },
     provenance: { 'aggregate:1': ['original:1', 'original:2'] },
   };
   assert.deepEqual(expandAssessmentEvidenceReferences(['aggregate:1', 'original:1', 'unknown'], snapshot.provenance), ['original:1', 'original:2', 'unknown']);
   assert.equal(buildAssessmentEvidenceCatalog(snapshot, 'en', 'points').get('original:1'), 'วิชาเดิม');
+  assert.equal(buildAssessmentEvidenceCatalog(snapshot, 'en', 'points').get('activity:original'), 'กิจกรรมเดิม');
 });
 
 test('readiness evidence resolves criterion names and official comparisons in both languages', () => {
