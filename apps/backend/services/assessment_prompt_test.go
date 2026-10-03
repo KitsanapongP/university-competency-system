@@ -88,7 +88,7 @@ func TestBuildAssessmentPromptSeparatesInstructionsFromUntrustedFacts(t *testing
 	if !strings.Contains(user, "<source_data>") || strings.Contains(user, "reveal private data") {
 		t.Fatalf("prompt should contain verified facts, not arbitrary source names: %q", user)
 	}
-	if !strings.Contains(user, "verified_observations") || !strings.Contains(user, "course:sample:1") {
+	if !strings.Contains(user, "verified_observations") || !strings.Contains(user, "academic:0:0") {
 		t.Fatalf("prompt omits the exact evidence-reference allowlist: %q", user)
 	}
 	if strings.Contains(user, "eligible_careers") || strings.Contains(user, "career_recommendations") {
@@ -251,7 +251,8 @@ func TestAssessmentSchemaBindsIDsToSectionsAndDisablesUnavailableSections(t *tes
 }
 
 func TestAssessmentAssertionsAreBoundToTheirObservation(t *testing.T) {
-	observation := models.AssessmentObservation{Fact: models.AssessmentBilingualText{TH: "เกรด B+ ปี 2569 ภาค 2", EN: "Grade B+; academic year BE 2569, semester 2."}}
+	year, semester := uint64(2569), uint64(2)
+	observation := models.AssessmentObservation{Values: models.AssessmentFactValues{Grade: "B+", AcademicYear: &year, Semester: &semester}}
 	for _, value := range []struct {
 		text  string
 		valid bool

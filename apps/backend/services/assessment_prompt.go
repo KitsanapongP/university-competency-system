@@ -17,6 +17,7 @@ Choose only supplied observation_id values, copied verbatim, in their permitted 
 Return at most 3 items per section; empty lists are valid. Each item contains observation_id and explanation in Thai and English. Limitations also require development_advice in both languages. Keep each sentence concise (maximum 240 characters per language).
 Explain the supplied fact without adding or recalculating numbers, grades, targets, or pass/fail status; the backend displays those facts separately. Suggestions must be explicitly phrased as suggestions, not diagnoses or claims about the learner.
 Neutral grades and accumulated competency contributions have no ability threshold. A grade below A is not a weakness. Missing data is not a personal limitation. Activity participation does not establish personality or expertise.
+Fact values: readiness status is authoritative; current_value/current_grade differ from required_value/required_grade. academic_year_be is the year, semester is the term. academic_summary grade_counts partition records by grade_scheme and grade, not passed or unique courses; missing_grade_count is unavailable data. competency core_score, course_bonus_score, free_elective_score and activity_score are accumulated contributions, not scores out of 100. activity attendance_status is separate from activity_score. Never swap these meanings. Do not repeat numbers or grades in your narrative; explain their significance cautiously, since Go displays exact facts.
 Do not recommend or name occupations, career paths, employers, or job titles. Return strict JSON only, no markdown or extra fields. Required keys: strengths, limitations, observations.`
 
 var (
@@ -108,13 +109,14 @@ func BuildAssessmentProviderInput(snapshot *models.LearnerAssessmentSnapshot) (m
 func BuildAssessmentPrompt(input models.AssessmentProviderInput) (systemPrompt string, userPrompt string, err error) {
 	// Official names remain in the snapshot/UI, not in the model's instruction surface.
 	type promptObservation struct {
-		ObservationID string                         `json:"observation_id"`
-		Kind          string                         `json:"kind"`
-		Fact          models.AssessmentBilingualText `json:"fact"`
+		ObservationID string                      `json:"observation_id"`
+		Kind          string                      `json:"kind"`
+		FactType      string                      `json:"fact_type"`
+		Values        models.AssessmentFactValues `json:"values"`
 	}
 	observations := make([]promptObservation, 0)
 	for _, item := range BuildAssessmentObservations(input) {
-		observations = append(observations, promptObservation{item.ObservationID, item.Kind, item.Fact})
+		observations = append(observations, promptObservation{item.ObservationID, item.Kind, item.FactType, item.Values})
 	}
 	encoded, err := json.Marshal(struct {
 		Observations []promptObservation `json:"verified_observations"`

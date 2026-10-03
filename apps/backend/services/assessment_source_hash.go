@@ -11,12 +11,12 @@ import (
 )
 
 const (
-	assessmentPipelineVersion   = "learner-assessment-v1.0.2"
+	assessmentPipelineVersion   = "learner-assessment-v1.0.3"
 	assessmentProvider          = "ollama"
 	assessmentModel             = "qwen3:4b"
-	assessmentPromptVersion     = "learner-assessment-prompt-v1.0.3"
+	assessmentPromptVersion     = "learner-assessment-prompt-v1.0.4"
 	assessmentSchemaVersion     = "learner-assessment-output-v1.0.2"
-	assessmentCompactionVersion = "learner-assessment-compaction-v2"
+	assessmentCompactionVersion = "learner-assessment-compaction-v3"
 )
 
 type assessmentHashScope struct {
