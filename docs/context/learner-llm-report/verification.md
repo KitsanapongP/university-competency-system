@@ -40,3 +40,12 @@ Latest verification on 2026-10-02:
 - Real Ollama: 4 fixtures x 3 repeats completed, with no truncated response, invalid ID, or rejected numeric/grade assertion. Semantic review still failed the production gate; see `model-evaluation.md`.
 
 No SQL files or existing unrelated changes were included in these implementation commits. Report content uses existing JSON columns; old versions become stale through versioned source hashes.
+
+## Compact Context Verification (2026-10-03)
+
+- Go tests passed across all packages. Added deterministic semester partitions, occurrence counting, letter/S-U separation, missing grades, Summer, no dropped evidence on overflow, structured numeric authorization, and the experimental large-fixture budget. Worker source-rebuild tests use the new summary IDs.
+- Frontend assessment tests passed: 12 tests, including expansion to original course/activity evidence and unique React keys. Targeted ESLint passed.
+- Production build passed after allowing existing Google Fonts network access.
+- Playwright synthetic API coverage passed all eight Thai/English, light/dark, 1440/390 combinations. Original records expand fully without document overflow or runtime errors. Mobile Thai/light and desktop English/dark screenshots were visually inspected. Temporary artifacts are under `outputs/assessment-compact-*`.
+- Real Ollama context comparison and resource limitations are recorded in [context-compaction.md](context-compaction.md). Do not interpret schema validity as release approval.
+- Additional overflow-diagnostics browser coverage completed Thai/light desktop and mobile before the machine interruption; remaining combinations were not completed in that follow-up. The earlier eight-combination grouped-evidence run passed. No model benchmark was repeated after resuming.

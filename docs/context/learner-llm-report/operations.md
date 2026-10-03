@@ -55,7 +55,7 @@ Automatic cleanup is intentionally disabled. The retention period for job snapsh
 - If generation reports `model_not_found`, install the configured model manually and request generation again after the failure wait.
 - To disable generation, stop the worker. Learner GET requests continue to return any current saved report and job state; source grade and competency tables are never changed by this feature.
 
-Prompt version `learner-assessment-prompt-v1.0.3` receives Go-verified observations without arbitrary official names. Dynamic JSON Schema constrains observation IDs to their sections. Go supplies readiness results, titles, facts, and evidence references after validating the model's short bilingual explanations. See [assessment-reliability.md](assessment-reliability.md) for the current contract and validation limits.
+Prompt version `learner-assessment-prompt-v1.0.4` receives compact Go-verified typed facts without arbitrary official names or repeated bilingual prose. Dynamic JSON Schema constrains observation IDs to their sections. Go supplies readiness results, titles, facts, and evidence references after validating the model's short bilingual explanations. See [assessment-reliability.md](assessment-reliability.md) for the current contract and validation limits.
 
 Usage logs contain only `done_reason`, `prompt_eval_count`, and `eval_count`. A response stopped by the output limit fails with `provider_output_truncated`; malformed JSON fails with `malformed_output`; invalid findings fail with `invalid_output`. None of these outputs is saved or automatically repaired.
 
@@ -63,10 +63,12 @@ For synthetic evaluation only, try the larger profile without changing productio
 
 ```powershell
 $env:LEARNER_ASSESSMENT_EVAL = '1'
-$env:LEARNER_ASSESSMENT_CONTEXT_TOKENS = '6144'
-$env:LEARNER_ASSESSMENT_OUTPUT_RESERVE_TOKENS = '2048'
+$env:LEARNER_ASSESSMENT_CONTEXT_TOKENS = '12288'
+$env:LEARNER_ASSESSMENT_OUTPUT_RESERVE_TOKENS = '1024'
 $env:LEARNER_ASSESSMENT_OLLAMA_THINK = 'false'
 go run ./cmd/assessment-eval -repeat 3
 ```
 
-The latest evaluation completed all 12 synthetic generations without truncation or ID-validation failures, but semantic review still found inaccurate English wording. The larger profile is not production-approved; defaults remain unchanged. See `model-evaluation.md` for actual observations and resource-measurement limitations.
+For the measured Windows comparison, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/assessment-context-benchmark.ps1` from the backend directory. It runs the same synthetic fixtures three times at 4096 and 12288, serially, with output 1024 and safety 128. It restores process environment variables and never edits `.env`. Logs and sampled memory metrics go to `outputs/assessment-context-benchmark`. The first request after a context change includes model-loading effects; later requests are warm. RSS/private memory are sampled process totals, not whole-system RAM, and `/api/ps` allocation is not a measured CPU/GPU execution percentage.
+
+Use matching API and worker settings for an actual development deployment and restart both after changing them. A 12288 experiment is not a default change or quality approval. See [context-compaction.md](context-compaction.md) for current results and `model-evaluation.md` for the historical evaluation.

@@ -1,5 +1,7 @@
 # Qwen3:4b Model Evaluation
 
+Latest follow-up (2026-10-03): structured facts and the 4096/12288 comparison are recorded in [context-compaction.md](context-compaction.md). The large fixture fits 12288 after compaction, but numerical rejection and semantic inaccuracies keep the release gate open. Historical results below are not approval of the current pipeline.
+
 This is a reproducible evaluation protocol, not an approval record. No real learner data may be used by the evaluation command. The checked-in cases are synthetic and intentionally include incomplete evidence and instruction-like source text.
 
 ## Run
