@@ -52,6 +52,14 @@ func TestAssessmentJobRepositoryMySQLConcurrencyAndFencing(t *testing.T) {
 				SELECT 1 FROM ai_learner_reports report
 				WHERE report.enrollment_curriculum_id = enrollment.enrollment_curriculum_id AND report.semester = 1
 			)
+			AND NOT EXISTS (
+				SELECT 1 FROM ai_report_jobs job
+				WHERE job.enrollment_curriculum_id = enrollment.enrollment_curriculum_id AND job.semester = 2
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM ai_learner_reports report
+				WHERE report.enrollment_curriculum_id = enrollment.enrollment_curriculum_id AND report.semester = 2
+			)
 		ORDER BY enrollment.enrollment_curriculum_id
 		LIMIT 1`).Scan(&scopeID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -219,6 +227,38 @@ func TestAssessmentJobRepositoryMySQLConcurrencyAndFencing(t *testing.T) {
 	thirdRequest.InputHash = strings.Repeat("c", 64)
 	if _, _, err := jobs.Enqueue(ctx, thirdRequest); !errors.Is(err, ErrAssessmentJobCooldown) {
 		t.Fatalf("enqueue during failure wait error = %v, want cooldown", err)
+	}
+
+	staleRequest := request
+	staleRequest.Semester = 2
+	staleRequest.InputHash = strings.Repeat("e", 64)
+	staleJob, _, err := jobs.Enqueue(ctx, staleRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanup = append(cleanup, staleJob.JobID)
+	staleClaim, err := jobs.ClaimNext(ctx, 2*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := jobs.UpdateProgress(ctx, staleClaim.JobID, staleClaim.LeaseToken, "generating", true); err != nil {
+		t.Fatal(err)
+	}
+	progress, err := jobs.GetForUser(ctx, ownerUserID, staleClaim.JobID)
+	if err != nil || progress.ProgressPhase != "generating" || progress.LastProviderActivityAt == nil {
+		t.Fatalf("job progress was not persisted: %+v, err=%v", progress, err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		UPDATE ai_report_jobs SET heartbeat_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 46 SECOND)
+		WHERE job_id = ? AND lease_token = ?`, staleClaim.JobID, staleClaim.LeaseToken); err != nil {
+		t.Fatal(err)
+	}
+	reconciled, err := jobs.GetForUser(ctx, ownerUserID, staleClaim.JobID)
+	if err != nil || reconciled.Status != "failed" || reconciled.ErrorCode != "worker_unavailable" {
+		t.Fatalf("stale worker heartbeat was not reconciled: %+v, err=%v", reconciled, err)
+	}
+	if err := jobs.UpdateProgress(ctx, staleClaim.JobID, staleClaim.LeaseToken, "validating", false); !errors.Is(err, ErrAssessmentLeaseLost) {
+		t.Fatalf("stale worker progress update error = %v, want lease lost", err)
 	}
 }
 

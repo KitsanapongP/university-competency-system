@@ -135,3 +135,23 @@ test('polling is bounded and reports that the job is still active', async () => 
   assert.equal(result.pollingPaused, true);
   assert.equal(result.state.job.status, 'running');
 });
+
+test('default foreground polling stops after five minutes', async () => {
+  let jobsRead = 0;
+  const delays = [];
+  const result = await monitorAssessmentReport({
+    semester: 1,
+    generation_state: 'queued',
+    job: { job_id: 6, status: 'queued' },
+  }, {
+    getJob: async () => {
+      jobsRead += 1;
+      return { job_id: 6, status: 'running' };
+    },
+    wait: async (delay) => delays.push(delay),
+  });
+
+  assert.equal(jobsRead, 120);
+  assert.equal(delays.reduce((total, delay) => total + delay, 0), 300000);
+  assert.equal(result.pollingPaused, true);
+});

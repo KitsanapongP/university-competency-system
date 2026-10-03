@@ -2,10 +2,12 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/spw32767/university-competency-system-backend/models"
@@ -103,6 +105,45 @@ func TestLearnerAssessmentJobLookupIsScopedToAuthenticatedUser(t *testing.T) {
 	router.ServeHTTP(response, request)
 	if response.Code != http.StatusNotFound || jobs.userID != 42 || jobs.jobID != 91 {
 		t.Fatalf("expected owner-scoped 404, got status=%d user=%d job=%d", response.Code, jobs.userID, jobs.jobID)
+	}
+}
+
+func TestLearnerAssessmentJobResponseIncludesProgressAndServerClock(t *testing.T) {
+	phaseStartedAt := time.Date(2026, time.October, 3, 9, 0, 0, 0, time.UTC)
+	lastActivityAt := phaseStartedAt.Add(12 * time.Second)
+	jobs := &learnerAssessmentJobReaderStub{
+		job: models.AssessmentJob{
+			JobID:                  91,
+			Status:                 "running",
+			ProgressPhase:          "generating",
+			PhaseStartedAt:         &phaseStartedAt,
+			LastProviderActivityAt: &lastActivityAt,
+			AttemptCount:           2,
+			MaxAttempts:            3,
+			RequestedAt:            phaseStartedAt.Add(-time.Minute),
+		},
+	}
+	handler := &LearnerAssessmentController{Jobs: jobs}
+	router := chi.NewRouter()
+	router.Get("/jobs/{job_id}", handler.GetJob)
+	request := httptest.NewRequest(http.MethodGet, "/jobs/91", nil)
+	request = request.WithContext(utils.WithClaims(request.Context(), &utils.Claims{UserID: 42, Roles: []string{"learner"}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		Data models.AssessmentJob `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Data.ProgressPhase != "generating" || payload.Data.PhaseStartedAt == nil || payload.Data.LastProviderActivityAt == nil {
+		t.Fatalf("progress metadata missing from response: %+v", payload.Data)
+	}
+	if payload.Data.AttemptCount != 2 || payload.Data.MaxAttempts != 3 || payload.Data.ServerTime == nil {
+		t.Fatalf("retry or server clock metadata missing from response: %+v", payload.Data)
 	}
 }
 
