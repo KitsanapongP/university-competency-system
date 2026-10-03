@@ -149,21 +149,28 @@ func EstimateAssessmentContextDiagnostics(
 	budget AssessmentContextBudget,
 	estimatedInputTokens int,
 ) models.AssessmentContextDiagnostics {
+	recordCount := 0
+	for _, course := range input.AcademicEvidence {
+		recordCount += max(1, course.OccurrenceCount)
+	}
 	return models.AssessmentContextDiagnostics{
-		ContextTokens:         budget.ContextTokens,
-		InputBudgetTokens:     budget.ContextTokens - budget.OutputReserveTokens - budget.SafetyMarginTokens,
-		EstimatedInputTokens:  estimatedInputTokens,
-		EstimatedTotalTokens:  estimatedInputTokens + budget.OutputReserveTokens + budget.SafetyMarginTokens,
-		OutputReserveTokens:   budget.OutputReserveTokens,
-		SafetyMarginTokens:    budget.SafetyMarginTokens,
-		SystemPromptBytes:     len(systemPrompt),
-		UserPromptBytes:       len(userPrompt),
-		SourceDataBytes:       assessmentJSONSize(input),
-		ReadinessBytes:        assessmentJSONSize(input.Readiness),
-		AvailabilityBytes:     assessmentJSONSize(input.Availability),
-		AcademicEvidenceBytes: assessmentJSONSize(input.AcademicEvidence),
-		CompetencyScoresBytes: assessmentJSONSize(input.CompetencyScores),
-		ActivityEvidenceBytes: assessmentJSONSize(input.ActivityEvidence),
+		AcademicRecordCount:      recordCount,
+		AcademicGroupCount:       len(buildAcademicSummaryObservations(input.AcademicEvidence)),
+		VerifiedObservationCount: len(BuildAssessmentObservations(input)),
+		ContextTokens:            budget.ContextTokens,
+		InputBudgetTokens:        budget.ContextTokens - budget.OutputReserveTokens - budget.SafetyMarginTokens,
+		EstimatedInputTokens:     estimatedInputTokens,
+		EstimatedTotalTokens:     estimatedInputTokens + budget.OutputReserveTokens + budget.SafetyMarginTokens,
+		OutputReserveTokens:      budget.OutputReserveTokens,
+		SafetyMarginTokens:       budget.SafetyMarginTokens,
+		SystemPromptBytes:        len(systemPrompt),
+		UserPromptBytes:          len(userPrompt),
+		SourceDataBytes:          assessmentJSONSize(input),
+		ReadinessBytes:           assessmentJSONSize(input.Readiness),
+		AvailabilityBytes:        assessmentJSONSize(input.Availability),
+		AcademicEvidenceBytes:    assessmentJSONSize(input.AcademicEvidence),
+		CompetencyScoresBytes:    assessmentJSONSize(input.CompetencyScores),
+		ActivityEvidenceBytes:    assessmentJSONSize(input.ActivityEvidence),
 	}
 }
 

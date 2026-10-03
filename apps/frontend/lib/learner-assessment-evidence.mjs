@@ -40,6 +40,10 @@ export function buildAssessmentEvidenceCatalog(sourceSnapshot, language, weighte
     add(course.evidence_ref, courseLabel(course, language));
   });
 
+  (sourceSnapshot.source?.academic_evidence || []).forEach((course) => {
+    add(course.evidence_ref, courseLabel(course, language));
+  });
+
   (input.competency_scores || []).forEach((competency) => {
     const competencyName = localizedValue({ th: competency.name_th, en: competency.name_en }, language);
     add(competency.competency_ref, competencyName);
@@ -69,4 +73,11 @@ export function buildAssessmentEvidenceCatalog(sourceSnapshot, language, weighte
   });
 
   return catalog;
+}
+
+export function expandAssessmentEvidenceReferences(references, provenance = {}) {
+  return [...new Set((references || []).flatMap((reference) => {
+    const originals = provenance[reference];
+    return Array.isArray(originals) && originals.length ? originals : [reference];
+  }))];
 }

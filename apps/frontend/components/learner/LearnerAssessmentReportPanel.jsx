@@ -14,7 +14,7 @@ import {
     assessmentRetryAfter,
     isAssessmentJobActive,
 } from '../../lib/learner-assessment-state.mjs';
-import { buildAssessmentEvidenceCatalog } from '../../lib/learner-assessment-evidence.mjs';
+import { buildAssessmentEvidenceCatalog, expandAssessmentEvidenceReferences } from '../../lib/learner-assessment-evidence.mjs';
 import styles from './LearnerAssessmentReportPanel.module.css';
 
 function localizedValue(value, language, fallback = '-') {
@@ -97,7 +97,7 @@ function jobErrorMessage(code, t) {
     return labels[code] || t('assessment_error_generic');
 }
 
-function ReportFindings({ title, items, language, t, catalog }) {
+function ReportFindings({ title, items, language, t, catalog, provenance }) {
     return (
         <section className={styles.findingGroup}>
             <h4>{title}</h4>
@@ -116,7 +116,7 @@ function ReportFindings({ title, items, language, t, catalog }) {
                                 {localizedValue(item.development_advice, language)}
                             </p>
                         )}
-                        <EvidenceList references={item.evidence_refs} catalog={catalog} t={t} />
+                        <EvidenceList references={expandAssessmentEvidenceReferences(item.evidence_refs, provenance)} catalog={catalog} t={t} />
                     </article>
                 ))}
             </div>
@@ -164,6 +164,9 @@ function ContextDiagnostics({ diagnostics, t }) {
                 <span>{t('assessment_context_input_budget')}: {diagnostics.estimated_input_tokens} / {diagnostics.input_budget_tokens} tokens</span>
                 <span>{t('assessment_context_output_reserve')}: {diagnostics.output_reserve_tokens} tokens · {t('assessment_context_safety_margin')}: {diagnostics.safety_margin_tokens} tokens</span>
                 <span>{t('assessment_context_source_data')}: {formatDiagnosticBytes(diagnostics.source_data_bytes)}</span>
+                {diagnostics.academic_record_count != null && (
+                    <span>{t('assessment_context_academic_groups')}: {diagnostics.academic_record_count} / {diagnostics.academic_group_count}</span>
+                )}
             </div>
             <dl>
                 {sections.map(([label, bytes]) => (
@@ -402,11 +405,11 @@ export default function LearnerAssessmentReportPanel({ semester }) {
                     </div>
 
                     <div className={styles.findings}>
-                        <ReportFindings title={t('assessment_report_strengths')} items={content.strengths} language={language} t={t} catalog={catalog} />
-                        <ReportFindings title={t('assessment_report_limitations')} items={content.limitations} language={language} t={t} catalog={catalog} />
+                        <ReportFindings title={t('assessment_report_strengths')} items={content.strengths} language={language} t={t} catalog={catalog} provenance={sourceSnapshot?.provenance} />
+                        <ReportFindings title={t('assessment_report_limitations')} items={content.limitations} language={language} t={t} catalog={catalog} provenance={sourceSnapshot?.provenance} />
                     </div>
 
-                    <ReportFindings title={t('assessment_report_observations')} items={content.observations} language={language} t={t} catalog={catalog} />
+                    <ReportFindings title={t('assessment_report_observations')} items={content.observations} language={language} t={t} catalog={catalog} provenance={sourceSnapshot?.provenance} />
 
                     {unavailableSources.length > 0 && (
                         <section className={styles.availability}>

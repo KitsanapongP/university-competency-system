@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildAssessmentEvidenceCatalog } from './learner-assessment-evidence.mjs';
+import { buildAssessmentEvidenceCatalog, expandAssessmentEvidenceReferences } from './learner-assessment-evidence.mjs';
+
+test('grouped references expand to every original record without duplicate keys', () => {
+  const snapshot = {
+    provider_input: { academic_evidence: [] },
+    source: { academic_evidence: [{ evidence_ref: 'original:1', course_name_th: 'วิชาเดิม' }] },
+    provenance: { 'aggregate:1': ['original:1', 'original:2'] },
+  };
+  assert.deepEqual(expandAssessmentEvidenceReferences(['aggregate:1', 'original:1', 'unknown'], snapshot.provenance), ['original:1', 'original:2', 'unknown']);
+  assert.equal(buildAssessmentEvidenceCatalog(snapshot, 'en', 'points').get('original:1'), 'วิชาเดิม');
+});
 
 test('readiness evidence resolves criterion names and official comparisons in both languages', () => {
   const snapshot = { provider_input: { readiness: { results: [

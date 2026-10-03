@@ -195,7 +195,7 @@ func workerTestOutput(input models.AssessmentProviderInput) models.AssessmentNar
 		Strengths:   []models.AssessmentNarrativeFinding{},
 		Limitations: []models.AssessmentNarrativeFinding{},
 		Observations: []models.AssessmentNarrativeFinding{{
-			ObservationID: "academic:" + input.AcademicEvidence[0].EvidenceRef,
+			ObservationID: buildAcademicSummaryObservations(input.AcademicEvidence)[0].ObservationID,
 			Explanation:   models.AssessmentBilingualText{TH: "มีหลักฐานรายวิชา", EN: "Supported by course evidence"},
 		}},
 	}

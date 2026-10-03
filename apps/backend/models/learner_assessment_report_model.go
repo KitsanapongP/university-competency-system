@@ -223,20 +223,23 @@ type AssessmentReportState struct {
 }
 
 type AssessmentContextDiagnostics struct {
-	ContextTokens         int `json:"context_tokens"`
-	InputBudgetTokens     int `json:"input_budget_tokens"`
-	EstimatedInputTokens  int `json:"estimated_input_tokens"`
-	EstimatedTotalTokens  int `json:"estimated_total_tokens"`
-	OutputReserveTokens   int `json:"output_reserve_tokens"`
-	SafetyMarginTokens    int `json:"safety_margin_tokens"`
-	SystemPromptBytes     int `json:"system_prompt_bytes"`
-	UserPromptBytes       int `json:"user_prompt_bytes"`
-	SourceDataBytes       int `json:"source_data_bytes"`
-	ReadinessBytes        int `json:"readiness_bytes"`
-	AvailabilityBytes     int `json:"availability_bytes"`
-	AcademicEvidenceBytes int `json:"academic_evidence_bytes"`
-	CompetencyScoresBytes int `json:"competency_scores_bytes"`
-	ActivityEvidenceBytes int `json:"activity_evidence_bytes"`
+	AcademicRecordCount      int `json:"academic_record_count"`
+	AcademicGroupCount       int `json:"academic_group_count"`
+	VerifiedObservationCount int `json:"verified_observation_count"`
+	ContextTokens            int `json:"context_tokens"`
+	InputBudgetTokens        int `json:"input_budget_tokens"`
+	EstimatedInputTokens     int `json:"estimated_input_tokens"`
+	EstimatedTotalTokens     int `json:"estimated_total_tokens"`
+	OutputReserveTokens      int `json:"output_reserve_tokens"`
+	SafetyMarginTokens       int `json:"safety_margin_tokens"`
+	SystemPromptBytes        int `json:"system_prompt_bytes"`
+	UserPromptBytes          int `json:"user_prompt_bytes"`
+	SourceDataBytes          int `json:"source_data_bytes"`
+	ReadinessBytes           int `json:"readiness_bytes"`
+	AvailabilityBytes        int `json:"availability_bytes"`
+	AcademicEvidenceBytes    int `json:"academic_evidence_bytes"`
+	CompetencyScoresBytes    int `json:"competency_scores_bytes"`
+	ActivityEvidenceBytes    int `json:"activity_evidence_bytes"`
 }
 
 type AssessmentReportSourceSnapshot struct {
