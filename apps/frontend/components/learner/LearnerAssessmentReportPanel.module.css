@@ -178,6 +178,40 @@
   gap: 18px;
 }
 
+.prose {
+  display: grid;
+  gap: 28px;
+  width: min(100%, 78ch);
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.proseSection,
+.proseParagraph {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.proseSection h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.96rem;
+  font-weight: 650;
+}
+
+.proseParagraph p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.prose .evidence li {
+  overflow-wrap: anywhere;
+}
+
 .progress {
   display: flex;
   align-items: center;

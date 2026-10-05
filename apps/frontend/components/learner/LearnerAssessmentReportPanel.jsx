@@ -15,15 +15,10 @@ import {
     assessmentRetryAfter,
     isAssessmentJobActive,
 } from '../../lib/learner-assessment-state.mjs';
-import { buildAssessmentEvidenceCatalog, expandAssessmentEvidenceReferences } from '../../lib/learner-assessment-evidence.mjs';
+import { buildAssessmentEvidenceCatalog } from '../../lib/learner-assessment-evidence.mjs';
+import { isAssessmentNarrative } from '../../lib/learner-assessment-narrative.mjs';
+import { LearnerAssessmentNarrative } from './LearnerAssessmentNarrative';
 import styles from './LearnerAssessmentReportPanel.module.css';
-
-function localizedValue(value, language, fallback = '-') {
-    if (typeof value === 'string') return value || fallback;
-    const english = String(value?.en || '').trim();
-    const thai = String(value?.th || '').trim();
-    return language === 'en' ? english || thai || fallback : thai || english || fallback;
-}
 
 function reportContent(report) {
     if (!report?.content) return null;
@@ -98,47 +93,6 @@ function jobErrorMessage(code, t) {
         provider_stream_stalled: t('assessment_error_provider_stalled'),
     };
     return labels[code] || t('assessment_error_generic');
-}
-
-function ReportFindings({ title, items, language, t, catalog, provenance }) {
-    return (
-        <section className={styles.findingGroup}>
-            <h4>{title}</h4>
-            {!items?.length && <p className={styles.muted}>{t('assessment_report_no_verified_findings')}</p>}
-            <div className={styles.findingList}>
-                {(items || []).map((item, index) => (
-                    <article className={styles.finding} key={item.observation_id || `${title}-${index}`}>
-                        <h5>{localizedValue(item.title, language)}</h5>
-                        <p>{localizedValue(item.reason, language)}</p>
-                        {item.explanation && (
-                            <p>{localizedValue(item.explanation, language)}</p>
-                        )}
-                        {item.development_advice && (
-                            <p className={styles.advice}>
-                                <strong>{t('assessment_report_advice')}: </strong>
-                                {localizedValue(item.development_advice, language)}
-                            </p>
-                        )}
-                        <EvidenceList references={expandAssessmentEvidenceReferences(item.evidence_refs, provenance)} catalog={catalog} t={t} />
-                    </article>
-                ))}
-            </div>
-        </section>
-    );
-}
-
-function EvidenceList({ references, catalog, t }) {
-    if (!references?.length) return null;
-    return (
-        <details className={styles.evidence}>
-            <summary>{t('assessment_report_evidence')}</summary>
-            <ul>
-                {references.map((reference) => (
-                    <li key={reference}>{catalog.get(reference) || t('assessment_report_evidence_unavailable')}</li>
-                ))}
-            </ul>
-        </details>
-    );
 }
 
 function formatDiagnosticBytes(value) {
@@ -402,7 +356,8 @@ export default function LearnerAssessmentReportPanel({ semester, onGenerationAct
 
     const data = view.data;
     const report = data?.report;
-    const content = reportContent(report);
+    const parsedContent = reportContent(report);
+    const content = isAssessmentNarrative(parsedContent) ? parsedContent : null;
     const sourceSnapshot = report?.source_snapshot;
     const catalog = buildAssessmentEvidenceCatalog(
         sourceSnapshot,
@@ -412,7 +367,6 @@ export default function LearnerAssessmentReportPanel({ semester, onGenerationAct
     const active = isAssessmentJobActive(data?.job);
     const isLoading = view.phase === 'loading';
     const sourceAvailability = data?.availability || [];
-    const unavailableSources = sourceAvailability.filter((source) => !source.available || source.reason_code);
     const currentErrorCode = view.error?.code;
     const jobFailed = data?.job?.status === 'failed';
 
@@ -531,6 +485,12 @@ export default function LearnerAssessmentReportPanel({ semester, onGenerationAct
                 </div>
             )}
 
+            {report && !content && !active && (
+                <p className={styles.inlineError} role="status">
+                    {t('assessment_report_format_changed')}
+                </p>
+            )}
+
             {report && content && (
                 <div className={styles.report}>
                     {active && (
@@ -547,31 +507,13 @@ export default function LearnerAssessmentReportPanel({ semester, onGenerationAct
                             />
                         </>
                     )}
-                    <div className={styles.readinessExplanation}>
-                        <h4>{t('assessment_report_readiness')}</h4>
-                        <p>{localizedValue(content.readiness_explanation, language)}</p>
-                    </div>
-
-                    <div className={styles.findings}>
-                        <ReportFindings title={t('assessment_report_strengths')} items={content.strengths} language={language} t={t} catalog={catalog} provenance={sourceSnapshot?.provenance} />
-                        <ReportFindings title={t('assessment_report_limitations')} items={content.limitations} language={language} t={t} catalog={catalog} provenance={sourceSnapshot?.provenance} />
-                    </div>
-
-                    <ReportFindings title={t('assessment_report_observations')} items={content.observations} language={language} t={t} catalog={catalog} provenance={sourceSnapshot?.provenance} />
-
-                    {unavailableSources.length > 0 && (
-                        <section className={styles.availability}>
-                            <h4>{t('assessment_report_partial_sources')}</h4>
-                            <ul>
-                                {unavailableSources.map((source) => (
-                                    <li key={source.source}>
-                                        <span>{availabilityLabel(source.source, t)}</span>
-                                        <span>{availabilityReason(source.reason_code, t)}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </section>
-                    )}
+                    <LearnerAssessmentNarrative
+                        content={content}
+                        language={language}
+                        t={t}
+                        catalog={catalog}
+                        provenance={sourceSnapshot?.provenance}
+                    />
 
                     <p className={styles.disclaimer}>{t('assessment_report_disclaimer')}</p>
                 </div>
