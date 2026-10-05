@@ -168,6 +168,40 @@ type AssessmentValidatedOutput struct {
 	Observations         []AssessmentReportFinding `json:"observations"`
 }
 
+type AssessmentNarrativeSentence struct {
+	ObservationID string                  `json:"observation_id"`
+	Intent        string                  `json:"intent"`
+	Text          AssessmentBilingualText `json:"text"`
+}
+
+type AssessmentNarrativeParagraph struct {
+	Section   string                        `json:"section"`
+	Sentences []AssessmentNarrativeSentence `json:"sentences"`
+}
+
+type AssessmentProseOutput struct {
+	Paragraphs []AssessmentNarrativeParagraph `json:"paragraphs"`
+}
+
+type AssessmentReportParagraph struct {
+	Text         AssessmentBilingualText       `json:"text"`
+	Sentences    []AssessmentNarrativeSentence `json:"sentences,omitempty"`
+	EvidenceRefs []string                      `json:"evidence_refs"`
+}
+
+type AssessmentReportNarrative struct {
+	Readiness    []AssessmentReportParagraph `json:"readiness"`
+	Strengths    []AssessmentReportParagraph `json:"strengths"`
+	Development  []AssessmentReportParagraph `json:"development"`
+	Observations []AssessmentReportParagraph `json:"observations"`
+	DataScope    []AssessmentReportParagraph `json:"data_scope"`
+}
+
+type AssessmentProseReport struct {
+	SchemaVersion string                    `json:"schema_version"`
+	Narrative     AssessmentReportNarrative `json:"narrative"`
+}
+
 type AssessmentJob struct {
 	JobID                  uint64          `json:"job_id"`
 	EnrollmentCurriculumID uint64          `json:"-"`
