@@ -83,7 +83,7 @@ func TestLearnerAssessmentWorkerRenewsLeaseDuringGeneration(t *testing.T) {
 func TestLearnerAssessmentWorkerRejectsInvalidOutputAndDoesNotPersist(t *testing.T) {
 	payload, job := workerTestJob(t, DefaultAssessmentContextBudget())
 	output := workerTestOutput(payload.ProviderInput)
-	output.Observations[0].ObservationID = "foreign:evidence:1"
+	output.Paragraphs[0].Sentences[0].ObservationID = "foreign:evidence:1"
 	provider := &fakeAssessmentProvider{output: mustJSON(t, output)}
 	jobs := &fakeAssessmentWorkerJobs{job: job}
 	worker := workerTestInstance(jobs, provider, &fakeAssessmentSourceRebuilder{snapshot: &payload.Source})
@@ -231,15 +231,11 @@ func workerTestJob(t *testing.T, budget AssessmentContextBudget) (models.Assessm
 	return payload, job
 }
 
-func workerTestOutput(input models.AssessmentProviderInput) models.AssessmentNarrativeOutput {
-	return models.AssessmentNarrativeOutput{
-		Strengths:   []models.AssessmentNarrativeFinding{},
-		Limitations: []models.AssessmentNarrativeFinding{},
-		Observations: []models.AssessmentNarrativeFinding{{
-			ObservationID: buildAcademicSummaryObservations(input.AcademicEvidence)[0].ObservationID,
-			Explanation:   models.AssessmentBilingualText{TH: "มีหลักฐานรายวิชา", EN: "Supported by course evidence"},
-		}},
-	}
+func workerTestOutput(input models.AssessmentProviderInput) models.AssessmentProseOutput {
+	return models.AssessmentProseOutput{Paragraphs: []models.AssessmentNarrativeParagraph{{Section: "observations", Sentences: []models.AssessmentNarrativeSentence{{
+		ObservationID: buildAcademicSummaryObservations(input.AcademicEvidence)[0].ObservationID,
+		Intent:        "explanation", Text: models.AssessmentBilingualText{TH: "มีหลักฐานรายวิชา", EN: "Supported by course evidence"},
+	}}}}}
 }
 
 func workerTestInstance(
