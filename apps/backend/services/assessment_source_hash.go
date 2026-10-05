@@ -11,11 +11,11 @@ import (
 )
 
 const (
-	assessmentPipelineVersion   = "learner-assessment-v1.0.3"
+	assessmentPipelineVersion   = "learner-assessment-v1.1.0"
 	assessmentProvider          = "ollama"
 	assessmentModel             = "qwen3:4b"
-	assessmentPromptVersion     = "learner-assessment-prompt-v1.0.4"
-	assessmentSchemaVersion     = "learner-assessment-output-v1.0.2"
+	assessmentPromptVersion     = "learner-assessment-prompt-v1.1.0"
+	assessmentSchemaVersion     = assessmentNarrativeSchemaVersion
 	assessmentCompactionVersion = "learner-assessment-compaction-v3"
 )
 

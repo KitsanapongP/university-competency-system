@@ -36,6 +36,24 @@ func TestLearnerAssessmentReportGetReturnsOnlyCurrentReport(t *testing.T) {
 	}
 }
 
+func TestNarrativeVersionHidesLegacyAssessmentReport(t *testing.T) {
+	now := time.Now().UTC()
+	snapshot := reportServiceSnapshot(t)
+	legacy := snapshot
+	legacy.Metadata.PipelineVersion = "learner-assessment-v1.0.3"
+	legacy.Metadata.PromptVersion = "learner-assessment-prompt-v1.0.4"
+	legacy.Metadata.SchemaVersion = "learner-assessment-output-v1.0.2"
+	hash, err := calculateAssessmentSourceHash(&legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, _, _, _ := reportServiceFixture(snapshot, models.AssessmentReportRecord{SourceHash: hash, SchemaVersion: legacy.Metadata.SchemaVersion}, now)
+	state, err := service.Get(context.Background(), 77, 2)
+	if err != nil || state.Report != nil || !state.IsStale || state.GenerationState != AssessmentReportMissing {
+		t.Fatalf("legacy report must be replaced: %+v, err=%v", state, err)
+	}
+}
+
 func TestLearnerAssessmentReportGetUsesActiveAndFailedJobStates(t *testing.T) {
 	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	snapshot := reportServiceSnapshot(t)
