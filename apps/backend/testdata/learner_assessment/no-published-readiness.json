@@ -1,0 +1,23 @@
+{
+  "name": "academic evidence without published readiness criteria",
+  "review_checklist": [
+    "Backend states readiness cannot be checked without published criteria",
+    "Academic observations remain available but do not imply a passed or failed criterion",
+    "Missing competencies do not imply absent skills",
+    "No minimum paragraph count forces invented conclusions"
+  ],
+  "input": {
+    "semester": 2,
+    "target_year_be": 2570,
+    "completeness": "partial",
+    "readiness": {"status": "not_configured", "passed_count": 0, "requirement_count": 0, "results": []},
+    "availability": [
+      {"source": "cooperative_readiness", "available": false, "reason": "criteria_not_published"},
+      {"source": "academic_grades", "available": true},
+      {"source": "course_competency_scores", "available": false, "reason": "course_scores_recalculation_required"}
+    ],
+    "academic_evidence": [{"evidence_ref": "course:core:401", "occurrence_count": 1, "course_code": "CS401", "course_name_th": "วิจัย", "course_name_en": "Research", "academic_year_be": 2570, "semester": 1, "credits": 3, "grade_scheme": "letter", "grade": "B+"}],
+    "competency_scores": [],
+    "activity_evidence": []
+  }
+}

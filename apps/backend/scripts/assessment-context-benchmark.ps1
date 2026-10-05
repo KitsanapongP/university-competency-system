@@ -1,6 +1,7 @@
 param(
     [int[]]$Contexts = @(4096, 12288),
-    [ValidateRange(1, 10)][int]$Repeat = 3
+    [ValidateRange(1, 10)][int]$Repeat = 3,
+    [ValidateSet(1024, 3072, 4096)][int]$OutputReserve = 1024
 )
 
 $ErrorActionPreference = 'Stop'
@@ -13,15 +14,17 @@ $original = @{}
 foreach ($name in $names) { $original[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 try {
     $env:LEARNER_ASSESSMENT_EVAL = '1'
-    $env:LEARNER_ASSESSMENT_OUTPUT_RESERVE_TOKENS = '1024'
+    $env:LEARNER_ASSESSMENT_OUTPUT_RESERVE_TOKENS = [string]$OutputReserve
     $env:LEARNER_ASSESSMENT_TOKEN_SAFETY_MARGIN = '128'
     $env:LEARNER_ASSESSMENT_OLLAMA_THINK = 'false'
     $env:GOCACHE = Join-Path $backend '.codex-go-cache'
     foreach ($context in $Contexts) {
         if ($context -notin @(4096, 12288)) { throw 'Only reviewed experiment contexts 4096 and 12288 are allowed.' }
         $env:LEARNER_ASSESSMENT_CONTEXT_TOKENS = [string]$context
-        $stdout = Join-Path $output "$context.stdout.txt"
-        $stderr = Join-Path $output "$context.stderr.txt"
+        if ($context -le ($OutputReserve + 128)) { throw 'Context must leave room for input after output reserve and safety margin.' }
+        $profile = "$context-output-$OutputReserve"
+        $stdout = Join-Path $output "$profile.stdout.txt"
+        $stderr = Join-Path $output "$profile.stderr.txt"
         $started = Get-Date
         $process = Start-Process -FilePath 'go.exe' -ArgumentList @('run', './cmd/assessment-eval', '-repeat', $Repeat) -WorkingDirectory $backend -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
         [void]$process.Handle
@@ -52,8 +55,8 @@ try {
             $process.Refresh()
         }
         $process.WaitForExit()
-        $result = [ordered]@{ context=$context; repeat=$Repeat; exit_code=$process.ExitCode; elapsed_seconds=((Get-Date)-$started).TotalSeconds; samples=$samples; peak_ollama_rss_bytes=$peakRSS; peak_ollama_private_bytes=$peakPrivate; peak_model_vram_bytes=$peakModelVRAM; peak_gpu_used_mib=$peakGPUUsedMiB; last_loaded_models=$models; stdout=$stdout; stderr=$stderr }
-        $result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output "$context.metrics.json") -Encoding UTF8
+        $result = [ordered]@{ context=$context; output_reserve=$OutputReserve; repeat=$Repeat; exit_code=$process.ExitCode; elapsed_seconds=((Get-Date)-$started).TotalSeconds; samples=$samples; peak_ollama_rss_bytes=$peakRSS; peak_ollama_private_bytes=$peakPrivate; peak_model_vram_bytes=$peakModelVRAM; peak_gpu_used_mib=$peakGPUUsedMiB; last_loaded_models=$models; stdout=$stdout; stderr=$stderr }
+        $result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output "$profile.metrics.json") -Encoding UTF8
         $result | ConvertTo-Json -Depth 5
     }
 } finally {

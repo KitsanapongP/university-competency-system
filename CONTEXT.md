@@ -1,5 +1,11 @@
 # Project Context: University Competency System
 
+## Learner Assessment Narrative v1.1
+* Reports use coherent bilingual paragraphs with expandable evidence, not repeated fact/explanation cards. Go owns readiness and data scope; the model explains verified observations and offers bounded preparation advice.
+* Provider sentences carry observation IDs and explanation/advice intents. Go validates section permissions, bilingual text, bounded length and duplicate sentences, then resolves evidence references. Missing data is not a weakness; no occupational recommendations or placement approval are generated.
+* Pipeline, prompt and output schema use v1.1.0. Old-version reports are stale and regenerated through the existing flow. No database migration is required.
+* Context 12288/output 3072 is an evaluation candidate, not a production default. Live Ollama evaluation and bilingual human review must pass before approving this profile; see `docs/context/learner-llm-report/narrative-evaluation.md`.
+
 ## Session Attendance And Score Rules
 * **Session Setup Finalization:** `is_setup_finalized = 1` locks session configuration (time, location, assignments, and competency mapping). It does not block the lifecycle transition from `scheduled` to `completed` or `cancelled`.
 * **Score Finalization:** `scores_finalized_at` and `scores_finalized_by` lock attendance-derived scores and competency results after completion. Finalization requires setup lock, recorded attendance for every approved participant, and complete scores for all eligible participant-competency pairs.

@@ -60,6 +60,7 @@ func validAssessmentProviderOutput() models.AssessmentProseOutput {
 func TestValidateAssessmentProviderOutputAcceptsGroundedBilingualResult(t *testing.T) {
 	output := validAssessmentProviderOutput()
 	output.Paragraphs[1].Sentences[0].ObservationID = "readiness:7:0"
+	output.Paragraphs[1].Sentences[0].Text = models.AssessmentBilingualText{TH: "แนะนำให้ทบทวนสิ่งที่เรียนและเตรียมผลงานประกอบการอธิบายประสบการณ์", EN: "Consider reviewing your learning and preparing examples to explain your experience."}
 	raw, _ := json.Marshal(output)
 	report, err := ValidateAssessmentProviderOutput(raw, validAssessmentProviderInput())
 	if err != nil {
@@ -91,6 +92,13 @@ func TestValidateAssessmentProviderOutputRejectsUnsupportedOutput(t *testing.T) 
 		},
 		"contradiction": func(v *models.AssessmentProseOutput) {
 			v.Paragraphs[0].Sentences[0].Text.EN = "This criterion is not yet met."
+		},
+		"advice reverses unmet criterion": func(v *models.AssessmentProseOutput) {
+			v.Paragraphs[1].Sentences[0].Text.EN = "This criterion is met; consider preparing your work."
+		},
+		"advice invents unmet criterion": func(v *models.AssessmentProseOutput) {
+			v.Paragraphs[1].Sentences[0].ObservationID = "readiness:7:0"
+			v.Paragraphs[1].Sentences[0].Text.EN = "This criterion is not yet met; consider reviewing it."
 		},
 		"too many sections": func(v *models.AssessmentProseOutput) { v.Paragraphs = append(v.Paragraphs, v.Paragraphs[1]) },
 	}

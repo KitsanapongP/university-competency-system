@@ -123,6 +123,8 @@ func evaluateDirectory(
 			failures = append(failures, fmt.Errorf("%s: %w", filepath.Base(path), err))
 		}
 	}
+	fmt.Printf("SUMMARY attempted=%d succeeded=%d failed=%d first_attempt_success=%.1f%% retries=0 human_review=pending\n",
+		len(paths), len(paths)-len(failures), len(failures), float64(len(paths)-len(failures))*100/float64(len(paths)))
 	if len(failures) > 0 {
 		return fmt.Errorf("%d evaluation fixture(s) failed: %w", len(failures), errors.Join(failures...))
 	}
@@ -270,6 +272,11 @@ func summarizeAssessmentJSONShape(value any) any {
 }
 
 var assessmentOutputFieldNames = map[string]bool{
+	"paragraphs":            true,
+	"section":               true,
+	"sentences":             true,
+	"intent":                true,
+	"text":                  true,
 	"readiness_explanation": true,
 	"strengths":             true,
 	"limitations":           true,

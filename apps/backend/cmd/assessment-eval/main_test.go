@@ -20,7 +20,7 @@ func TestSyntheticEvaluationFixturesFitDeclaredContextBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(paths) < 2 {
+	if len(paths) < 6 {
 		t.Fatalf("expected synthetic evaluation fixtures, got %d", len(paths))
 	}
 	for _, path := range paths {
@@ -55,6 +55,20 @@ func TestSyntheticEvaluationFixturesFitDeclaredContextBudget(t *testing.T) {
 		}
 		if diagnostics.SourceDataBytes == 0 || diagnostics.CompetencyScoresBytes == 0 {
 			t.Fatalf("fixture %s has incomplete section diagnostics: %+v", path, diagnostics)
+		}
+	}
+}
+
+func TestNarrativeOutputShapeOmitsGeneratedProse(t *testing.T) {
+	shape := assessmentOutputShape([]byte(`{"paragraphs":[{"section":"strengths","sentences":[{"observation_id":"private-id","intent":"explanation","text":{"th":"private-thai","en":"private-english"}}]}]}`))
+	for _, forbidden := range []string{"private-id", "private-thai", "private-english"} {
+		if strings.Contains(shape, forbidden) {
+			t.Fatalf("diagnostics exposed prose: %s", shape)
+		}
+	}
+	for _, expected := range []string{`"paragraphs"`, `"sentences"`, `"intent"`, `"text"`} {
+		if !strings.Contains(shape, expected) {
+			t.Fatalf("diagnostics omitted narrative field %s: %s", expected, shape)
 		}
 	}
 }

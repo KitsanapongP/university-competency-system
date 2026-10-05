@@ -80,3 +80,7 @@ Record one row per mode and repeat:
 |---|---|---:|---:|---|---:|---:|---:|---|---|
 
 Measure peak memory while the API, worker, Ollama, and normal development workload are running together. Capture timeout, malformed-output, unavailable-model, and repeated-input behavior. Set latency and memory acceptance limits with the system owner before describing the model as production-ready. Never fill this table with estimated or fabricated measurements.
+
+## Narrative v1.1 Follow-up (2026-10-05)
+
+The new contract has separate evaluation instructions in [narrative-evaluation.md](narrative-evaluation.md). Seven fixture groups are available. A context 12288/output 3072, two-repeat run could not start because the local Ollama endpoint was unavailable. No performance or semantic approval is claimed; historical samples do not validate the new prose schema.

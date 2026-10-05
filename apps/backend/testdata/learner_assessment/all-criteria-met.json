@@ -1,0 +1,28 @@
+{
+  "name": "all criteria met with preparation advice",
+  "review_checklist": [
+    "Readiness remains met without approving cooperative placement",
+    "Development advice offers preparation without inventing a weakness",
+    "Prose connects sentences instead of repeating backend facts",
+    "Thai and English carry equivalent cautious meaning"
+  ],
+  "input": {
+    "semester": 1,
+    "target_year_be": 2570,
+    "completeness": "partial",
+    "readiness": {
+      "status": "ready",
+      "passed_count": 1,
+      "requirement_count": 1,
+      "results": [{"requirement_id": 1, "criterion_type": "overall_gpa", "name_th": "เกรดเฉลี่ยรวม", "name_en": "Overall GPA", "status": "met", "current_value": 3.53, "required_value": 3.00}]
+    },
+    "availability": [
+      {"source": "cooperative_readiness", "available": true},
+      {"source": "academic_grades", "available": true},
+      {"source": "activity_participation", "available": false, "reason": "no_confirmed_activity_participation"}
+    ],
+    "academic_evidence": [{"evidence_ref": "course:core:101", "occurrence_count": 1, "course_code": "CS101", "course_name_th": "การเขียนโปรแกรม", "course_name_en": "Programming", "academic_year_be": 2569, "semester": 3, "credits": 3, "grade_scheme": "letter", "grade": "A"}],
+    "competency_scores": [],
+    "activity_evidence": []
+  }
+}

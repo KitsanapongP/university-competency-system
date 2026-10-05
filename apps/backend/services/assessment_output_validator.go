@@ -83,7 +83,9 @@ func assembleAssessmentOutput(output models.AssessmentProseOutput, input models.
 				if assessmentProseNumber.MatchString(text) || assessmentProseGrade.MatchString(text) || assessmentProseForbidden.MatchString(text) {
 					return models.AssessmentProseReport{}, fmt.Errorf("%w: unsupported prose assertion", ErrAssessmentOutputInvalid)
 				}
-				if observation.Kind == "strength" && sentence.Intent == "explanation" && assessmentProseNotMet.MatchString(text) {
+				negativeStatus := assessmentProseNotMet.MatchString(text)
+				positiveStatus := assessmentProseMet.MatchString(assessmentProseNotMet.ReplaceAllString(text, ""))
+				if (observation.Kind == "strength" && negativeStatus) || (observation.Kind == "limitation" && positiveStatus) {
 					return models.AssessmentProseReport{}, fmt.Errorf("%w: contradictory criterion status", ErrAssessmentOutputInvalid)
 				}
 			}
@@ -133,7 +135,8 @@ var (
 	assessmentProseNumber    = regexp.MustCompile(`[0-9๐-๙]`)
 	assessmentProseGrade     = regexp.MustCompile(`(?i)(?:grade|เกรด)\s*(?:is|of|เป็น|คือ|[:=])?\s*[ABCDFSUWI]\b`)
 	assessmentProseForbidden = regexp.MustCompile(`(?i)(?:approved for|authorized to|eligible to start|career as|software developer|data scientist|ได้รับอนุมัติ|อนุมัติให้|อาชีพ|<[^>]+>|\*\*|\x60)`)
-	assessmentProseNotMet    = regexp.MustCompile(`(?i)(?:does not meet|not yet met|below the requirement|ยังไม่ผ่าน|ไม่ถึงเกณฑ์|ต่ำกว่าเกณฑ์)`)
+	assessmentProseNotMet    = regexp.MustCompile(`(?i)(?:does not (?:yet )?meet|not yet met|below the requirement|ยังไม่ผ่าน|ยังไม่ถึงเกณฑ์|ไม่ถึงเกณฑ์|ต่ำกว่าเกณฑ์)`)
+	assessmentProseMet       = regexp.MustCompile(`(?i)(?:meets? the (?:curriculum )?(?:criterion|requirement)|criterion is met|requirement is met|ถึงเกณฑ์แล้ว|ผ่านเกณฑ์แล้ว)`)
 	assessmentAdviceTH       = regexp.MustCompile(`(?:แนะนำ|อาจ|ควร|ลอง)`)
 	assessmentAdviceEN       = regexp.MustCompile(`(?i)\b(?:consider|recommend|suggest|could|may)\b`)
 )

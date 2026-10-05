@@ -49,3 +49,10 @@ No SQL files or existing unrelated changes were included in these implementation
 - Playwright synthetic API coverage passed all eight Thai/English, light/dark, 1440/390 combinations. Original records expand fully without document overflow or runtime errors. Mobile Thai/light and desktop English/dark screenshots were visually inspected. Temporary artifacts are under `outputs/assessment-compact-*`.
 - Real Ollama context comparison and resource limitations are recorded in [context-compaction.md](context-compaction.md). Do not interpret schema validity as release approval.
 - Additional overflow-diagnostics browser coverage completed Thai/light desktop and mobile before the machine interruption; remaining combinations were not completed in that follow-up. The earlier eight-combination grouped-evidence run passed. No model benchmark was repeated after resuming.
+
+## Narrative v1.1 Verification (2026-10-05)
+
+- `go test ./...` passed. New coverage checks narrative schema/permissions, suggestion intents, duplicate and overlong prose, unauthorized numeric/grade claims, readiness contradictions (including advice), missing grades, source scope, legacy-version staleness and safe shape diagnostics. Database integration tests remain opt-in.
+- Frontend assessment tests passed (15 tests), and targeted ESLint passed. Production build passed with Google Fonts network access.
+- Playwright presentation checks passed eight desktop/mobile, Thai/English, light/dark combinations with keyboard-expandable evidence and no horizontal overflow or page errors. This used synthetic props and is not authenticated end-to-end verification.
+- Live two-round candidate evaluation was attempted but failed preflight because Ollama was unavailable. The narrative release gate remains pending, not passed. See [narrative-evaluation.md](narrative-evaluation.md).
