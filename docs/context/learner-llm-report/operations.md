@@ -63,7 +63,7 @@ Automatic cleanup is intentionally disabled. The retention period for job snapsh
 
 Prompt version `learner-assessment-prompt-v1.1.0` receives compact Go-verified typed facts without arbitrary official names. The model returns bounded bilingual sentences grouped into narrative paragraphs, with an observation ID and explanation/advice intent. Go validates section permissions and resolves evidence, then adds authoritative readiness and data-scope paragraphs. See [narrative-evaluation.md](narrative-evaluation.md) for the current contract and pending release gate; `assessment-reliability.md` describes the earlier contract.
 
-Usage logs contain only `done_reason`, `prompt_eval_count`, and `eval_count`. A response stopped by the output limit fails with `provider_output_truncated`; malformed JSON fails with `malformed_output`; invalid findings fail with `invalid_output`. None of these outputs is saved or automatically repaired.
+Usage logs contain `done_reason`, `prompt_eval_count`, and `eval_count`, plus `job_id` and `attempt_count` when invoked by the worker. Standalone synthetic provider calls omit the job fields. A response stopped by the output limit fails with `provider_output_truncated`; malformed JSON fails with `malformed_output`; invalid findings fail with `invalid_output`. None of these outputs is saved or automatically repaired. Validation rejection logs include a bounded reason code and available positions; see Validation Diagnostics below.
 
 For synthetic evaluation only, try the larger profile without changing production defaults:
 
@@ -82,3 +82,47 @@ Use matching API and worker settings for an actual development deployment and re
 ## Narrative v1.1 Rollout
 
 For the narrative experiment, use context `12288` and output reserve `3072` rather than the earlier output `1024` profile above. Run the seven synthetic cases at least twice and review both languages. The benchmark accepts `-Contexts 12288 -OutputReserve 3072 -Repeat 2`. Production defaults remain unchanged until evaluation passes. Install/restart matching API and worker binaries together; VersionHash hides old-schema reports and uses the existing regeneration flow. No additional migration is required. See [narrative-evaluation.md](narrative-evaluation.md) for commands, review requirements and known verification limits.
+
+## Validation Diagnostics
+
+The worker emits one `WARN assessment output rejected` event when `ValidateAssessmentProviderOutput` rejects a completed response. Match this event with `INFO assessment generation usage` using both `job_id` and `attempt_count`; a retried job keeps its ID but has a different attempt count. These IDs identify internal work, not learners. For example, the following synthetic response finished normally at Ollama and then failed validation:
+
+```text
+INFO assessment generation usage job_id=501 attempt_count=1 done_reason=stop prompt_eval_count=1669 eval_count=518
+WARN assessment output rejected job_id=501 attempt_count=1 error_code=invalid_output validation_reason=observation_section_mismatch output_bytes=2841 schema_version=learner-assessment-output-v1.1.0 section=strengths paragraph_index=1 sentence_index=2 field=observation_id
+```
+
+`done_reason=stop` describes generation completion; it does not mean the report passed validation. `output_bytes` measures the UTF-8 response bytes handed to the validator, not the token count. `schema_version` identifies the backend's expected output contract. Paragraph positions count from the start of the complete output array; sentence positions count within that paragraph. Both start at 1. The worker omits unavailable positions, rather than inventing a location for malformed JSON.
+
+The validator reports its first failure in the existing check order. `section` is one of `strengths`, `development`, or `observations`; an unrecognized supplied section is recorded as `unknown`. Optional `language` identifies `th` or `en`. `field` is a fixed structural label such as `output`, `paragraphs`, `sentences`, `observation_id`, `sentence.text`, or `paragraph.text`; it never includes a model-supplied unknown field name or observation ID.
+
+| Validation reason | Meaning |
+|---|---|
+| `output_empty` / `output_too_large` | No output bytes or output exceeds the validator's byte limit. |
+| `malformed_json` | Invalid JSON, including incomplete JSON or trailing content; the stored job code remains `malformed_output`. |
+| `invalid_json_structure` / `unknown_field` | JSON has an incompatible structure/type or an unrecognized field. |
+| `paragraphs_missing` | The paragraph array is absent or null. An explicit empty array remains allowed. |
+| `paragraph_count_exceeded` | Total paragraph count or the count for a section exceeds the existing limit. |
+| `sentence_count_invalid` | A paragraph has no sentences or exceeds its sentence limit. |
+| `unknown_section` / `invalid_intent` | An unrecognized narrative section or sentence intent. |
+| `observation_unknown` / `observation_section_mismatch` | The observation cannot be resolved, or its kind is incompatible with the section/intent. |
+| `bilingual_text_missing` | Thai or English text is absent or blank. |
+| `text_too_long` | The text exceeds an existing byte/rune limit; `field` distinguishes sentence and paragraph text. |
+| `pii_detected` | Text matches an existing email, phone, national ID, or student ID detector. |
+| `duplicate_sentence` | A trimmed Thai or English sentence was already used. |
+| `unsupported_claim` | Text matches an existing prohibited numeric, grade, authorization, career, or formatting assertion rule. |
+| `readiness_contradiction` | Text contradicts the observation's verified criterion status. |
+| `advice_not_suggestion` / `advice_missing` | Advice lacks the existing suggestion wording, or a development paragraph contains no advice. |
+| `validation_unknown` | The failure does not carry a recognized typed diagnostic; inspect the code path without logging raw error content. |
+
+Detailed reasons stay in the worker log. The database/API still use the existing `invalid_output` and `malformed_output` codes, and the learner page keeps its existing localized messages. Provider failures before validation, including `provider_output_truncated`, retain their existing provider codes and do not emit a validator rejection event. Validation limits, accepted reports, retries, and failure cooldowns are unchanged.
+
+Log events allow only fixed reason codes, safe structural metadata, numeric positions/sizes, and internal job correlation fields. Do not add raw model output, thinking content, prompts, source evidence, names, student IDs, enrollment IDs, observation IDs, lease tokens, snapshots, or decoder error messages. Unknown diagnostic values are normalized to `unknown` or `validation_unknown`.
+
+Restart the worker after rebuilding to enable these logs. This change needs no migration or generation configuration update. To verify diagnostics without a running Ollama server or database, run from `apps/backend`:
+
+```powershell
+go test ./services -run 'TestAssessmentValidation|TestAssessmentRejection|TestWorkerValidation|TestWorkerOllama|TestOllamaAssessmentUsage' -count=1
+```
+
+These tests use synthetic outputs and an `httptest` Ollama server, assert reason/location codes and shared correlation fields, and check that private response/prompt markers and untrusted metadata never enter the captured logs.
