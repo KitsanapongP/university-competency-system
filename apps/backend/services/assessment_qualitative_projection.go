@@ -18,24 +18,24 @@ func buildAssessmentQualitativeObservations(input models.AssessmentProviderInput
 		switch item.FactType {
 		case "readiness":
 			if item.Kind == "strength" {
-				meaning = "The specified curriculum readiness criterion is met; this is not placement approval."
+				meaning = "The readiness criterion is met; not placement approval."
 			} else if item.Kind == "limitation" {
-				meaning = "The specified curriculum readiness criterion is not yet met; plan preparation with an advisor."
+				meaning = "The readiness criterion is not yet met; plan with an advisor."
 			}
 		case "academic_summary":
-			meaning = "Recorded academic results are available for review; no ability judgment or comparison threshold is supplied."
+			meaning = "Recorded academic results are available; no ability threshold."
 			if item.Values.MissingGradeCount != nil && *item.Values.MissingGradeCount > 0 {
-				meaning = "Some academic results are awaiting publication; missing results do not establish failure or a personal weakness."
+				meaning = "Results are awaiting publication; not failure or weakness."
 				if item.Values.RecordCount != nil && *item.Values.MissingGradeCount < *item.Values.RecordCount {
-					meaning = "Published academic results and results awaiting publication coexist; review available results without treating pending results as failure."
+					meaning = "Published and pending results coexist; pending is not failure."
 				}
 			}
 		case "competency":
-			meaning = "Accumulated competency contributions have supporting evidence; there is no ability threshold or comparison scale in this report."
+			meaning = "Evidence supports accumulated competency contributions; no ability threshold."
 		case "activity":
-			meaning = "Activity evidence is recorded; it does not establish expertise or personality."
+			meaning = "Activity evidence exists; not expertise or personality."
 			if item.Values.AttendanceStatus == "attended" {
-				meaning = "Activity attendance is recorded; it supports describing participation, not expertise or personality."
+				meaning = "Activity attendance is recorded; not expertise or personality."
 			}
 		}
 		if meaning != "" {
@@ -49,24 +49,24 @@ func assessmentQualitativeThaiMeaning(item models.AssessmentObservation) string 
 	switch item.FactType {
 	case "readiness":
 		if item.Kind == "strength" {
-			return "ถึงเกณฑ์ความพร้อมที่หลักสูตรกำหนดแล้ว แต่ไม่ใช่การอนุมัติสิทธิ์ไปสหกิจศึกษา"
+			return "ถึงเกณฑ์แล้ว ไม่ใช่การอนุมัติสิทธิ์"
 		}
-		return "ยังไม่ถึงเกณฑ์ความพร้อมที่หลักสูตรกำหนด ควรวางแผนเตรียมตัวร่วมกับอาจารย์ที่ปรึกษา"
+		return "ยังไม่ถึงเกณฑ์ ควรวางแผนกับอาจารย์ที่ปรึกษา"
 	case "academic_summary":
 		if item.Values.MissingGradeCount != nil && *item.Values.MissingGradeCount > 0 {
 			if item.Values.RecordCount != nil && *item.Values.MissingGradeCount < *item.Values.RecordCount {
-				return "มีทั้งผลการเรียนที่ประกาศแล้วและผลที่รอประกาศ สามารถทบทวนข้อมูลที่พร้อมได้โดยไม่ถือว่าผลที่รอเป็นการไม่ผ่าน"
+				return "มีผลที่ประกาศและรอประกาศ ผลที่รอไม่ใช่การไม่ผ่าน"
 			}
-			return "มีผลการเรียนที่รอประกาศ การไม่มีผลยังไม่ใช่การไม่ผ่านหรือข้อจำกัดส่วนบุคคล"
+			return "ผลรอประกาศ ไม่ใช่ข้อจำกัดส่วนบุคคล"
 		}
-		return "มีผลการเรียนที่บันทึกแล้วให้ทบทวน แต่ไม่มีเกณฑ์ประเมินระดับความสามารถหรือเปรียบเทียบในรายงานนี้"
+		return "มีผลการเรียนแล้ว ไม่มีเกณฑ์วัดความสามารถ"
 	case "competency":
-		return "มีหลักฐานคะแนนสมรรถนะสะสม แต่ไม่มีเกณฑ์หรือมาตราส่วนสำหรับตัดสินระดับความสามารถในรายงานนี้"
+		return "มีคะแนนสมรรถนะสะสม ไม่มีเกณฑ์วัดความสามารถ"
 	case "activity":
 		if item.Values.AttendanceStatus == "attended" {
-			return "มีบันทึกการเข้าร่วมกิจกรรม ใช้อธิบายการมีส่วนร่วมได้ แต่ไม่ยืนยันความเชี่ยวชาญหรือบุคลิกภาพ"
+			return "มีการเข้าร่วมกิจกรรม ไม่ยืนยันความเชี่ยวชาญหรือบุคลิกภาพ"
 		}
-		return "มีหลักฐานกิจกรรม แต่ไม่ยืนยันความเชี่ยวชาญหรือบุคลิกภาพ"
+		return "มีหลักฐานกิจกรรม ไม่ยืนยันความเชี่ยวชาญหรือบุคลิกภาพ"
 	default:
 		return ""
 	}

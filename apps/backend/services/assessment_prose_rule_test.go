@@ -60,7 +60,7 @@ func TestAssessmentProsePreparationWithoutClaims(t *testing.T) {
 			t.Fatalf("unexpected rule %s for plain preparation prose", rule)
 		}
 	}
-	if !strings.Contains(assessmentSystemPrompt, "These examples illustrate wording only") || assessmentPromptVersion != "learner-assessment-prompt-v1.1.6" {
+	if !strings.Contains(assessmentSystemPrompt, "These examples illustrate wording only") || assessmentPromptVersion != "learner-assessment-prompt-v1.1.7" {
 		t.Fatal("prompt clarification or version missing")
 	}
 }

@@ -130,6 +130,18 @@ func TestAssessmentSchemaBindsIDsToSectionsAndDisablesUnavailableSections(t *tes
 		if items["uniqueItems"] != true || items["maxItems"] != float64(1) {
 			t.Fatal("generation schema must discourage identical sentence objects")
 		}
+		for _, value := range items["items"].(map[string]any)["anyOf"].([]any) {
+			properties := value.(map[string]any)["properties"].(map[string]any)
+			intent := properties["intent"].(map[string]any)["enum"].([]any)[0]
+			text := properties["text"].(map[string]any)["properties"].(map[string]any)
+			if intent == "advice" {
+				if text["en"].(map[string]any)["pattern"] != "^Consider " || text["th"].(map[string]any)["pattern"] != "^แนะนำให้" {
+					t.Fatal("advice schema must enforce suggestion wording")
+				}
+			} else if _, ok := text["en"].(map[string]any)["pattern"]; ok {
+				t.Fatal("explanation should not require advice prefix")
+			}
+		}
 	}
 	branches := paragraphs["items"].(map[string]any)["anyOf"].([]any)
 	strengths := branches[0].(map[string]any)["properties"].(map[string]any)
