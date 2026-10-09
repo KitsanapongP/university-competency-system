@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/spw32767/university-competency-system-backend/models"
 	"io"
 	"regexp"
@@ -25,21 +24,28 @@ var assessmentNumericAssertion = regexp.MustCompile(`[0-9]+(?:\.[0-9]+)?`)
 var assessmentGradeAssertion = regexp.MustCompile(`\b(?:A|B|C|D|F|S|U|W|I)\b\+?`)
 
 func ValidateAssessmentProviderOutput(raw []byte, input models.AssessmentProviderInput) (models.AssessmentProseReport, error) {
-	if len(raw) == 0 || len(raw) > assessmentMaxOutputBytes {
-		return models.AssessmentProseReport{}, ErrAssessmentOutputInvalid
+	if len(raw) == 0 {
+		return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonOutputEmpty, "output", "")
+	}
+	if len(raw) > assessmentMaxOutputBytes {
+		return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonOutputTooLarge, "output", "")
 	}
 	if !json.Valid(raw) {
-		return models.AssessmentProseReport{}, ErrAssessmentOutputMalformed
+		return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonMalformedJSON, "output", "")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	var output models.AssessmentProseOutput
 	if err := decoder.Decode(&output); err != nil {
-		return models.AssessmentProseReport{}, fmt.Errorf("%w: invalid JSON structure", ErrAssessmentOutputInvalid)
+		reason := assessmentReasonInvalidJSONStructure
+		if strings.HasPrefix(err.Error(), "json: unknown field ") {
+			reason = assessmentReasonUnknownField
+		}
+		return models.AssessmentProseReport{}, assessmentValidationFailure(reason, "output", "")
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
-		return models.AssessmentProseReport{}, fmt.Errorf("%w: trailing content", ErrAssessmentOutputInvalid)
+		return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonInvalidJSONStructure, "output", "")
 	}
 	return assembleAssessmentOutput(output, input)
 }
@@ -50,48 +56,78 @@ func assembleAssessmentOutput(output models.AssessmentProseOutput, input models.
 		observations[observation.ObservationID] = observation
 	}
 	validated := newAssessmentProseReport(input)
-	if output.Paragraphs == nil || len(output.Paragraphs) > 4 {
-		return models.AssessmentProseReport{}, fmt.Errorf("%w: bounded paragraphs are required", ErrAssessmentOutputInvalid)
+	if output.Paragraphs == nil {
+		return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonParagraphsMissing, "paragraphs", "")
+	}
+	if len(output.Paragraphs) > 4 {
+		return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonParagraphCountExceeded, "paragraphs", "")
 	}
 	counts := make(map[string]int)
 	seenTH, seenEN := make(map[string]bool), make(map[string]bool)
-	for _, paragraph := range output.Paragraphs {
+	for paragraphIndex, paragraph := range output.Paragraphs {
 		limit := 1
 		if paragraph.Section == "strengths" {
 			limit = 2
 		}
 		counts[paragraph.Section]++
-		if counts[paragraph.Section] > limit || len(paragraph.Sentences) == 0 || len(paragraph.Sentences) > 4 {
-			return models.AssessmentProseReport{}, fmt.Errorf("%w: paragraph bounds", ErrAssessmentOutputInvalid)
+		if counts[paragraph.Section] > limit {
+			return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonParagraphCountExceeded, "paragraphs", "").at(paragraph.Section, paragraphIndex+1, 0)
+		}
+		if len(paragraph.Sentences) == 0 || len(paragraph.Sentences) > 4 {
+			return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonSentenceCountInvalid, "sentences", "").at(paragraph.Section, paragraphIndex+1, 0)
 		}
 		refs, seenRefs := []string{}, make(map[string]bool)
 		hasAdvice := false
-		for _, sentence := range paragraph.Sentences {
+		for sentenceIndex, sentence := range paragraph.Sentences {
 			observation, exists := observations[sentence.ObservationID]
-			if !exists || !assessmentNarrativePermits(paragraph.Section, sentence.Intent, observation.Kind) {
-				return models.AssessmentProseReport{}, fmt.Errorf("%w: unknown or misplaced observation", ErrAssessmentOutputInvalid)
+			if !exists {
+				return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonObservationUnknown, "observation_id", "").at(paragraph.Section, paragraphIndex+1, sentenceIndex+1)
+			}
+			if !assessmentNarrativePermits(paragraph.Section, sentence.Intent, observation.Kind) {
+				reason, field := assessmentReasonObservationSectionMismatch, "observation_id"
+				if paragraph.Section != "strengths" && paragraph.Section != "development" && paragraph.Section != "observations" {
+					reason, field = assessmentReasonUnknownSection, "section"
+				} else if sentence.Intent != "explanation" && sentence.Intent != "advice" {
+					reason, field = assessmentReasonInvalidIntent, "intent"
+				}
+				return models.AssessmentProseReport{}, assessmentValidationFailure(reason, field, "").at(paragraph.Section, paragraphIndex+1, sentenceIndex+1)
 			}
 			if err := validateAssessmentNarrative(sentence.Text, "text"); err != nil {
+				var diagnostic *AssessmentOutputValidationError
+				if errors.As(err, &diagnostic) {
+					diagnostic = diagnostic.at(paragraph.Section, paragraphIndex+1, sentenceIndex+1)
+					diagnostic.Field = "sentence.text"
+					return models.AssessmentProseReport{}, diagnostic
+				}
 				return models.AssessmentProseReport{}, err
 			}
 			thai, english := strings.TrimSpace(sentence.Text.TH), strings.TrimSpace(sentence.Text.EN)
 			if seenTH[thai] || seenEN[english] {
-				return models.AssessmentProseReport{}, fmt.Errorf("%w: duplicate sentence", ErrAssessmentOutputInvalid)
+				language := "en"
+				if seenTH[thai] {
+					language = "th"
+				}
+				return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonDuplicateSentence, "sentence.text", language).at(paragraph.Section, paragraphIndex+1, sentenceIndex+1)
 			}
 			seenTH[thai], seenEN[english] = true, true
-			for _, text := range []string{thai, english} {
+			for languageIndex, text := range []string{thai, english} {
+				language := []string{"th", "en"}[languageIndex]
 				if assessmentProseNumber.MatchString(text) || assessmentProseGrade.MatchString(text) || assessmentProseForbidden.MatchString(text) {
-					return models.AssessmentProseReport{}, fmt.Errorf("%w: unsupported prose assertion", ErrAssessmentOutputInvalid)
+					return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonUnsupportedClaim, "sentence.text", language).at(paragraph.Section, paragraphIndex+1, sentenceIndex+1)
 				}
 				negativeStatus := assessmentProseNotMet.MatchString(text)
 				positiveStatus := assessmentProseMet.MatchString(assessmentProseNotMet.ReplaceAllString(text, ""))
 				if (observation.Kind == "strength" && negativeStatus) || (observation.Kind == "limitation" && positiveStatus) {
-					return models.AssessmentProseReport{}, fmt.Errorf("%w: contradictory criterion status", ErrAssessmentOutputInvalid)
+					return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonReadinessContradiction, "sentence.text", language).at(paragraph.Section, paragraphIndex+1, sentenceIndex+1)
 				}
 			}
 			if sentence.Intent == "advice" {
 				if !assessmentAdviceTH.MatchString(thai) || !assessmentAdviceEN.MatchString(english) {
-					return models.AssessmentProseReport{}, fmt.Errorf("%w: advice must be phrased as a suggestion", ErrAssessmentOutputInvalid)
+					language := "en"
+					if !assessmentAdviceTH.MatchString(thai) {
+						language = "th"
+					}
+					return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonAdviceNotSuggestion, "sentence.text", language).at(paragraph.Section, paragraphIndex+1, sentenceIndex+1)
 				}
 				hasAdvice = true
 			}
@@ -103,8 +139,15 @@ func assembleAssessmentOutput(output models.AssessmentProseOutput, input models.
 			}
 		}
 		text := joinAssessmentSentences(paragraph.Sentences)
-		if utf8.RuneCountInString(text.TH) > 700 || utf8.RuneCountInString(text.EN) > 700 || (paragraph.Section == "development" && !hasAdvice) {
-			return models.AssessmentProseReport{}, fmt.Errorf("%w: paragraph length or missing advice", ErrAssessmentOutputInvalid)
+		if utf8.RuneCountInString(text.TH) > 700 || utf8.RuneCountInString(text.EN) > 700 {
+			language := "en"
+			if utf8.RuneCountInString(text.TH) > 700 {
+				language = "th"
+			}
+			return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonTextTooLong, "paragraph.text", language).at(paragraph.Section, paragraphIndex+1, 0)
+		}
+		if paragraph.Section == "development" && !hasAdvice {
+			return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonAdviceMissing, "paragraphs", "").at(paragraph.Section, paragraphIndex+1, 0)
 		}
 		item := models.AssessmentReportParagraph{Text: text, Sentences: paragraph.Sentences, EvidenceRefs: refs}
 		switch paragraph.Section {
@@ -115,7 +158,7 @@ func assembleAssessmentOutput(output models.AssessmentProseOutput, input models.
 		case "observations":
 			validated.Narrative.Observations = append(validated.Narrative.Observations, item)
 		default:
-			return models.AssessmentProseReport{}, ErrAssessmentOutputInvalid
+			return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonUnknownSection, "section", "").at(paragraph.Section, paragraphIndex+1, 0)
 		}
 	}
 	return validated, nil
@@ -173,16 +216,17 @@ func validateObservationAssertions(text models.AssessmentBilingualText, observat
 		grades[bin.Grade] = true
 		numbers[float64(bin.Count)] = true
 	}
-	for _, language := range []string{text.TH, text.EN} {
+	for languageIndex, language := range []string{text.TH, text.EN} {
+		languageName := []string{"th", "en"}[languageIndex]
 		for _, token := range assessmentNumericAssertion.FindAllString(language, -1) {
 			value, _ := strconv.ParseFloat(token, 64)
 			if !numbers[value] {
-				return fmt.Errorf("%w: unsupported numeric assertion", ErrAssessmentOutputInvalid)
+				return assessmentValidationFailure(assessmentReasonUnsupportedClaim, "text", languageName)
 			}
 		}
 		for _, token := range assessmentGradeAssertion.FindAllString(language, -1) {
 			if !grades[token] {
-				return fmt.Errorf("%w: unsupported grade assertion", ErrAssessmentOutputInvalid)
+				return assessmentValidationFailure(assessmentReasonUnsupportedClaim, "text", languageName)
 			}
 		}
 	}
@@ -194,7 +238,11 @@ func validateAssessmentNarrative(text models.AssessmentBilingualText, field stri
 		return err
 	}
 	if utf8.RuneCountInString(text.TH) > 240 || utf8.RuneCountInString(text.EN) > 240 {
-		return fmt.Errorf("%w: narrative too long", ErrAssessmentOutputInvalid)
+		language := "en"
+		if utf8.RuneCountInString(text.TH) > 240 {
+			language = "th"
+		}
+		return assessmentValidationFailure(assessmentReasonTextTooLong, safeAssessmentField(field), language)
 	}
 	return nil
 }
@@ -202,8 +250,14 @@ func validateAssessmentNarrative(text models.AssessmentBilingualText, field stri
 func validateBilingualText(value models.AssessmentBilingualText, field string) error {
 	for _, language := range []struct{ name, text string }{{"th", value.TH}, {"en", value.EN}} {
 		trimmed := strings.TrimSpace(language.text)
-		if trimmed == "" || len(trimmed) > assessmentMaxTextBytes || containsAssessmentPII(trimmed) {
-			return fmt.Errorf("%w: invalid %s text for %s", ErrAssessmentOutputInvalid, language.name, field)
+		if trimmed == "" {
+			return assessmentValidationFailure(assessmentReasonBilingualTextMissing, safeAssessmentField(field), language.name)
+		}
+		if len(trimmed) > assessmentMaxTextBytes {
+			return assessmentValidationFailure(assessmentReasonTextTooLong, safeAssessmentField(field), language.name)
+		}
+		if containsAssessmentPII(trimmed) {
+			return assessmentValidationFailure(assessmentReasonPIIDetected, safeAssessmentField(field), language.name)
 		}
 	}
 	return nil
