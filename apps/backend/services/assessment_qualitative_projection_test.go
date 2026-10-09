@@ -30,7 +30,7 @@ func TestAssessmentQualitativeProjectionPreservesEvidenceAndInput(t *testing.T) 
 		if item.ObservationID != original[i].ObservationID || item.Kind != original[i].Kind {
 			t.Fatal("changed lineage or classification")
 		}
-		if item.Meaning == "" {
+		if item.Meaning == "" || item.MeaningTH == "" {
 			t.Fatal("missing qualitative meaning")
 		}
 	}
@@ -49,6 +49,9 @@ func TestAssessmentQualitativeProjectionPreservesEvidenceAndInput(t *testing.T) 
 	}
 	if !strings.Contains(projected[0].Meaning, "criterion is met") || !strings.Contains(projected[1].Meaning, "not yet met") {
 		t.Fatal("readiness reversed")
+	}
+	if !strings.Contains(projected[3].MeaningTH, "คะแนนสมรรถนะสะสม") || !strings.Contains(projected[4].MeaningTH, "การเข้าร่วมกิจกรรม") {
+		t.Fatal("missing reviewed Thai terminology")
 	}
 }
 
