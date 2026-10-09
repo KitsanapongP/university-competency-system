@@ -1,0 +1,5 @@
+{
+  "name": "qualitative-met",
+  "review_checklist": ["Explain a met criterion without numbers or approval", "Advice is distinct from the strength", "Both languages preserve the same meaning"],
+  "input": {"semester": 1, "completeness": "partial", "readiness": {"status": "ready", "passed_count": 1, "requirement_count": 1, "results": [{"requirement_id": 1, "criterion_type": "overall_gpa", "status": "met", "current_value": 3.57, "required_value": 3.00}]}, "academic_evidence": [], "competency_scores": [], "activity_evidence": []}
+}

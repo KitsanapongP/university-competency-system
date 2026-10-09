@@ -28,7 +28,11 @@ type evalFixture struct {
 func main() {
 	fixtureDir := flag.String("cases", "testdata/learner_assessment", "directory containing synthetic JSON evaluation cases")
 	repeats := flag.Int("repeat", 1, "repeat every fixture (1-10); use 3 for the release gate")
+	minutes := flag.Int("minutes", 90, "maximum evaluation duration in minutes (1-90)")
 	flag.Parse()
+	if *minutes < 1 || *minutes > 90 {
+		fatalf("minutes must be between 1 and 90")
+	}
 	if *repeats < 1 || *repeats > 10 {
 		fatalf("repeat must be between 1 and 10")
 	}
@@ -42,7 +46,8 @@ func main() {
 	}
 
 	cfg := config.Load()
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*minutes)*time.Minute)
+	defer cancel()
 	digest, err := services.ResolveOllamaModelDigest(ctx, cfg.AssessmentOllamaURL, services.DefaultAssessmentModel())
 	if err != nil {
 		fatalf("could not verify the configured Ollama model: %v", err)
@@ -58,6 +63,10 @@ func main() {
 	)
 	var failures []error
 	for round := 1; round <= *repeats; round++ {
+		if ctx.Err() != nil {
+			failures = append(failures, ctx.Err())
+			break
+		}
 		fmt.Printf("ROUND %d/%d\n", round, *repeats)
 		if err := evaluateDirectory(ctx, casesDirectory, provider, cfg, digest); err != nil {
 			failures = append(failures, err)
@@ -119,6 +128,9 @@ func evaluateDirectory(
 	}
 	var failures []error
 	for _, path := range paths {
+		if ctx.Err() != nil {
+			return fmt.Errorf("evaluation deadline reached: %w", ctx.Err())
+		}
 		if err := evaluateFixture(ctx, path, provider, budget, cfg.AssessmentOllamaThink, modelDigest); err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", filepath.Base(path), err))
 		}
@@ -181,6 +193,7 @@ func evaluateFixture(
 	}
 	validated, err := services.ValidateAssessmentProviderOutput(raw, fixture.Input)
 	if err != nil {
+		services.LogAssessmentOutputRejection(ctx, err, len(raw))
 		return fmt.Errorf("fixture %s returned invalid structured output (shape=%s input_tokens=%d total_tokens=%d context=%d output_reserve=%d): %w",
 			fixture.Name,
 			assessmentOutputShape(raw),

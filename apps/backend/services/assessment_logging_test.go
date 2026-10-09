@@ -25,6 +25,19 @@ func captureAssessmentLog(t *testing.T) *bytes.Buffer {
 	return &buffer
 }
 
+func TestAssessmentEvaluationRejectionLogUsesSafeWorkerDiagnostics(t *testing.T) {
+	buffer := captureAssessmentLog(t)
+	LogAssessmentOutputRejection(context.Background(), &AssessmentOutputValidationError{Reason: assessmentReasonUnsupportedClaim, Rule: "grade_literal", Section: "observations", ParagraphIndex: 1, SentenceIndex: 1, Language: "en", Field: "sentence.text"}, 512)
+	entries := readAssessmentLog(t, buffer)
+	if len(entries) != 1 {
+		t.Fatal("missing rejection diagnostic")
+	}
+	assertAssessmentLogAllowedFields(t, entries[0])
+	if entries[0]["validation_rule"] != "grade_literal" || entries[0]["language"] != "en" {
+		t.Fatal("lost safe reason or location")
+	}
+}
+
 func readAssessmentLog(t *testing.T, buffer *bytes.Buffer) []map[string]any {
 	t.Helper()
 	var entries []map[string]any

@@ -1,0 +1,5 @@
+{
+  "name": "qualitative-mixed",
+  "review_checklist": ["Sections have different purposes without repeated prose", "Strengths and unmet criteria are not reversed", "Neutral evidence does not establish ability", "Thai and English are equivalent"],
+  "input": {"semester": 2, "completeness": "partial", "readiness": {"status": "not_ready", "passed_count": 1, "requirement_count": 2, "results": [{"requirement_id": 7, "status": "met", "current_value": 3.57, "required_value": 3.00}, {"requirement_id": 8, "status": "not_met", "current_grade": "C", "required_grade": "B"}]}, "academic_evidence": [{"evidence_ref": "course:synthetic:7", "academic_year_be": 2569, "semester": 2, "grade_scheme": "letter", "grade": "B+"}], "competency_scores": [{"competency_ref": "competency:7", "core_score": 75, "has_evidence": true, "course_scores": [], "activity_scores": []}], "activity_evidence": [{"evidence_ref": "activity:7", "attendance_status": "attended"}]}
+}

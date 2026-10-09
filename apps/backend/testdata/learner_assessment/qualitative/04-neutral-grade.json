@@ -1,0 +1,5 @@
+{
+  "name": "qualitative-neutral-grade",
+  "review_checklist": ["Do not interpret a grade below A as a weakness", "No claim about expertise", "Do not repeat grade values or academic period"],
+  "input": {"semester": 1, "completeness": "partial", "readiness": {"results": []}, "academic_evidence": [{"evidence_ref": "course:synthetic:4", "academic_year_be": 2569, "semester": 2, "grade_scheme": "letter", "grade": "C"}], "competency_scores": [], "activity_evidence": []}
+}

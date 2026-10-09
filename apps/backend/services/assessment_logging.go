@@ -10,6 +10,11 @@ import (
 
 type assessmentLogContextKey struct{}
 
+// LogAssessmentOutputRejection shares allowlisted diagnostics with synthetic evaluators.
+func LogAssessmentOutputRejection(ctx context.Context, err error, outputBytes int) {
+	logAssessmentOutputRejection(ctx, err, outputBytes)
+}
+
 func withAssessmentJobLogContext(ctx context.Context, job models.AssessmentJob) context.Context {
 	logger := slog.Default().With("job_id", job.JobID, "attempt_count", job.AttemptCount)
 	return context.WithValue(ctx, assessmentLogContextKey{}, logger)

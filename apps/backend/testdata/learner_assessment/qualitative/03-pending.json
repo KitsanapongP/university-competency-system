@@ -1,0 +1,5 @@
+{
+  "name": "qualitative-pending",
+  "review_checklist": ["Pending results are not failure or personal weakness", "Do not restate the grade or year", "Only neutral observations and supported advice"],
+  "input": {"semester": 1, "completeness": "partial", "readiness": {"status": "not_ready", "results": [{"requirement_id": 3, "status": "missing_grade"}]}, "academic_evidence": [{"evidence_ref": "course:synthetic:1", "academic_year_be": 2569, "semester": 2, "grade_scheme": "letter", "grade": "B+"}, {"evidence_ref": "course:synthetic:2", "academic_year_be": 2569, "semester": 2, "grade_scheme": "letter", "grade": ""}], "competency_scores": [], "activity_evidence": []}
+}

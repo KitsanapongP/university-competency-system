@@ -1,0 +1,5 @@
+{
+  "name": "qualitative-competency",
+  "review_checklist": ["Accumulated contributions are not an ability rating", "Do not invent thresholds or comparisons", "No scores in generated prose"],
+  "input": {"semester": 1, "completeness": "partial", "readiness": {"results": []}, "academic_evidence": [], "competency_scores": [{"competency_ref": "competency:5", "core_score": 123.45, "bonus_score": 8, "has_evidence": true, "course_scores": [], "activity_scores": []}], "activity_evidence": []}
+}

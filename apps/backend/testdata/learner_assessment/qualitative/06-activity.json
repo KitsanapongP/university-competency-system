@@ -1,0 +1,5 @@
+{
+  "name": "qualitative-activity",
+  "review_checklist": ["Participation does not establish expertise or personality", "Advice is a suggestion, not a diagnosed weakness", "No scores or occupations"],
+  "input": {"semester": 1, "completeness": "partial", "readiness": {"results": []}, "academic_evidence": [], "competency_scores": [], "activity_evidence": [{"evidence_ref": "activity:6", "attendance_status": "attended", "earned_percent": 95}]}
+}

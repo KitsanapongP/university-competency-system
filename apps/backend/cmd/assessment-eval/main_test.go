@@ -59,6 +59,54 @@ func TestSyntheticEvaluationFixturesFitDeclaredContextBudget(t *testing.T) {
 	}
 }
 
+func TestQualitativeEvaluationFixturesRemainSyntheticAndGrounded(t *testing.T) {
+	paths, err := filepath.Glob(filepath.Join("..", "..", "testdata", "learner_assessment", "qualitative", "*.json"))
+	if err != nil || len(paths) != 7 {
+		t.Fatalf("qualitative cases: %d, %v", len(paths), err)
+	}
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fixture evalFixture
+		if err := json.Unmarshal(data, &fixture); err != nil {
+			t.Fatal(err)
+		}
+		observations := services.BuildAssessmentObservations(fixture.Input)
+		if len(observations) == 0 || len(fixture.ReviewChecklist) == 0 {
+			t.Fatalf("case has no verified evidence: %s", path)
+		}
+		_, prompt, err := services.BuildAssessmentPrompt(fixture.Input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, observation := range observations {
+			if !strings.Contains(prompt, observation.ObservationID) {
+				t.Fatalf("missing lineage: %s", path)
+			}
+		}
+		for _, forbidden := range []string{"3.57", "123.45", "B+", "grade_counts", "earned_percent", "current_grade"} {
+			if strings.Contains(prompt, forbidden) {
+				t.Fatalf("exact fact leaked in %s: %s", path, forbidden)
+			}
+		}
+	}
+}
+
+func TestEvaluateDirectoryHonorsDeadlineWithoutProviderCall(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(directory, "case.json"), []byte(`{}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	provider := &invalidAssessmentProvider{}
+	if err := evaluateDirectory(ctx, directory, provider, config.Config{}, "synthetic"); err == nil || provider.calls != 0 {
+		t.Fatal("deadline did not stop generation")
+	}
+}
+
 func TestNarrativeOutputShapeOmitsGeneratedProse(t *testing.T) {
 	shape := assessmentOutputShape([]byte(`{"paragraphs":[{"section":"strengths","sentences":[{"observation_id":"private-id","intent":"explanation","text":{"th":"private-thai","en":"private-english"}}]}]}`))
 	for _, forbidden := range []string{"private-id", "private-thai", "private-english"} {

@@ -1,0 +1,5 @@
+{
+  "name": "qualitative-not-met",
+  "review_checklist": ["Identify an unmet criterion without inventing strengths", "Offer preparation advice without grade literals", "Do not reverse the readiness result"],
+  "input": {"semester": 1, "completeness": "partial", "readiness": {"status": "not_ready", "passed_count": 0, "requirement_count": 1, "results": [{"requirement_id": 2, "criterion_type": "course_grade", "status": "not_met", "current_grade": "C", "required_grade": "B"}]}, "academic_evidence": [], "competency_scores": [], "activity_evidence": []}
+}
