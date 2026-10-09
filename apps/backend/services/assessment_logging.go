@@ -39,6 +39,9 @@ func logAssessmentOutputRejection(ctx context.Context, err error, outputBytes in
 		slog.String("schema_version", assessmentNarrativeSchemaVersion),
 	}
 	if diagnostic != nil {
+		if diagnostic.Rule != "" {
+			attributes = append(attributes, slog.String("validation_rule", safeAssessmentValidationRule(diagnostic.Rule)))
+		}
 		if diagnostic.Section != "" {
 			attributes = append(attributes, slog.String("section", safeAssessmentSection(diagnostic.Section)))
 		}

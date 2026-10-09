@@ -32,6 +32,16 @@ type AssessmentOutputValidationError struct {
 	SentenceIndex  int
 	Language       string
 	Field          string
+	Rule           string
+}
+
+func safeAssessmentValidationRule(value string) string {
+	switch value {
+	case "", "numeric_literal", "grade_literal", "placement_approval", "career_content", "prose_markup":
+		return value
+	default:
+		return "unknown"
+	}
 }
 
 func (e *AssessmentOutputValidationError) Error() string {

@@ -14,7 +14,7 @@ const (
 	assessmentPipelineVersion   = "learner-assessment-v1.1.0"
 	assessmentProvider          = "ollama"
 	assessmentModel             = "qwen3:4b"
-	assessmentPromptVersion     = "learner-assessment-prompt-v1.1.0"
+	assessmentPromptVersion     = "learner-assessment-prompt-v1.1.2"
 	assessmentSchemaVersion     = assessmentNarrativeSchemaVersion
 	assessmentCompactionVersion = "learner-assessment-compaction-v3"
 )

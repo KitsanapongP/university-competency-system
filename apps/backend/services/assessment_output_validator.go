@@ -112,8 +112,10 @@ func assembleAssessmentOutput(output models.AssessmentProseOutput, input models.
 			seenTH[thai], seenEN[english] = true, true
 			for languageIndex, text := range []string{thai, english} {
 				language := []string{"th", "en"}[languageIndex]
-				if assessmentProseNumber.MatchString(text) || assessmentProseGrade.MatchString(text) || assessmentProseForbidden.MatchString(text) {
-					return models.AssessmentProseReport{}, assessmentValidationFailure(assessmentReasonUnsupportedClaim, "sentence.text", language).at(paragraph.Section, paragraphIndex+1, sentenceIndex+1)
+				if rule := assessmentUnsupportedProseRule(text); rule != "" {
+					diagnostic := assessmentValidationFailure(assessmentReasonUnsupportedClaim, "sentence.text", language).at(paragraph.Section, paragraphIndex+1, sentenceIndex+1)
+					diagnostic.Rule = rule
+					return models.AssessmentProseReport{}, diagnostic
 				}
 				negativeStatus := assessmentProseNotMet.MatchString(text)
 				positiveStatus := assessmentProseMet.MatchString(assessmentProseNotMet.ReplaceAllString(text, ""))
@@ -175,14 +177,35 @@ func assessmentNarrativePermits(section, intent, kind string) bool {
 }
 
 var (
-	assessmentProseNumber    = regexp.MustCompile(`[0-9๐-๙]`)
-	assessmentProseGrade     = regexp.MustCompile(`(?i)(?:grade|เกรด)\s*(?:is|of|เป็น|คือ|[:=])?\s*[ABCDFSUWI]\b`)
-	assessmentProseForbidden = regexp.MustCompile(`(?i)(?:approved for|authorized to|eligible to start|career as|software developer|data scientist|ได้รับอนุมัติ|อนุมัติให้|อาชีพ|<[^>]+>|\*\*|\x60)`)
-	assessmentProseNotMet    = regexp.MustCompile(`(?i)(?:does not (?:yet )?meet|not yet met|below the requirement|ยังไม่ผ่าน|ยังไม่ถึงเกณฑ์|ไม่ถึงเกณฑ์|ต่ำกว่าเกณฑ์)`)
-	assessmentProseMet       = regexp.MustCompile(`(?i)(?:meets? the (?:curriculum )?(?:criterion|requirement)|criterion is met|requirement is met|ถึงเกณฑ์แล้ว|ผ่านเกณฑ์แล้ว)`)
-	assessmentAdviceTH       = regexp.MustCompile(`(?:แนะนำ|อาจ|ควร|ลอง)`)
-	assessmentAdviceEN       = regexp.MustCompile(`(?i)\b(?:consider|recommend|suggest|could|may)\b`)
+	assessmentProseNumber   = regexp.MustCompile(`[0-9๐-๙]`)
+	assessmentProseGrade    = regexp.MustCompile(`(?i)(?:grade|เกรด)\s*(?:is|of|เป็น|คือ|[:=])?\s*[ABCDFSUWI]\b`)
+	assessmentProseApproval = regexp.MustCompile(`(?i)(?:approved for|authorized to|eligible to start|ได้รับอนุมัติ|อนุมัติให้)`)
+	assessmentProseCareer   = regexp.MustCompile(`(?i)(?:career as|software developer|data scientist|อาชีพ)`)
+	assessmentProseMarkup   = regexp.MustCompile("(?i)(?:<[^>]+>|\\*\\*|`)")
+	assessmentProseNotMet   = regexp.MustCompile(`(?i)(?:does not (?:yet )?meet|not yet met|below the requirement|ยังไม่ผ่าน|ยังไม่ถึงเกณฑ์|ไม่ถึงเกณฑ์|ต่ำกว่าเกณฑ์)`)
+	assessmentProseMet      = regexp.MustCompile(`(?i)(?:meets? the (?:curriculum )?(?:criterion|requirement)|criterion is met|requirement is met|ถึงเกณฑ์แล้ว|ผ่านเกณฑ์แล้ว)`)
+	assessmentAdviceTH      = regexp.MustCompile(`(?:แนะนำ|อาจ|ควร|ลอง)`)
+	assessmentAdviceEN      = regexp.MustCompile(`(?i)\b(?:consider|recommend|suggest|could|may)\b`)
 )
+
+// Return only a static rule identifier, never the matching learner text.
+func assessmentUnsupportedProseRule(text string) string {
+	for _, rule := range []struct {
+		name    string
+		pattern *regexp.Regexp
+	}{
+		{"numeric_literal", assessmentProseNumber},
+		{"grade_literal", assessmentProseGrade},
+		{"placement_approval", assessmentProseApproval},
+		{"career_content", assessmentProseCareer},
+		{"prose_markup", assessmentProseMarkup},
+	} {
+		if rule.pattern.MatchString(text) {
+			return rule.name
+		}
+	}
+	return ""
+}
 
 // This rejects obvious cross-observation values, not arbitrary semantic hallucinations.
 func validateObservationAssertions(text models.AssessmentBilingualText, observation models.AssessmentObservation) error {

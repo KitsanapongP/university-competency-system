@@ -33,7 +33,7 @@ func TestBuildAssessmentPromptSeparatesInstructionsFromUntrustedFacts(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, instruction := range []string{"untrusted data", "Do not invent facts, scores", "copied verbatim", "Do not recommend or name occupations", "2-3 sentences"} {
+	for _, instruction := range []string{"untrusted data", "Do not invent facts, scores", "copied verbatim", "Do not recommend or name occupations", "1-3 sentences", "One sentence is enough", "including across paragraphs"} {
 		if !strings.Contains(system, instruction) {
 			t.Fatalf("missing instruction %q", instruction)
 		}

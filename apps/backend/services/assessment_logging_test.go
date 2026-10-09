@@ -45,7 +45,7 @@ func readAssessmentLog(t *testing.T, buffer *bytes.Buffer) []map[string]any {
 func assertAssessmentLogAllowedFields(t *testing.T, entry map[string]any) {
 	t.Helper()
 	allowed := map[string]bool{}
-	for _, key := range []string{"time", "level", "msg", "job_id", "attempt_count", "error_code", "validation_reason", "output_bytes", "schema_version", "section", "paragraph_index", "sentence_index", "language", "field", "done_reason", "prompt_eval_count", "eval_count"} {
+	for _, key := range []string{"time", "level", "msg", "job_id", "attempt_count", "error_code", "validation_reason", "validation_rule", "output_bytes", "schema_version", "section", "paragraph_index", "sentence_index", "language", "field", "done_reason", "prompt_eval_count", "eval_count"} {
 		allowed[key] = true
 	}
 	for key := range entry {
@@ -61,7 +61,7 @@ func TestAssessmentRejectionLogSanitizesMetadataAndUnknownErrors(t *testing.T) {
 		err  error
 	}{
 		{"untyped", errors.New("PRIVATE_ERROR_CONTENT")},
-		{"typed", &AssessmentOutputValidationError{Reason: "PRIVATE_REASON", Section: "PRIVATE_SECTION", ParagraphIndex: 2, SentenceIndex: 3, Language: "PRIVATE_LANGUAGE", Field: "PRIVATE_FIELD"}},
+		{"typed", &AssessmentOutputValidationError{Reason: "PRIVATE_REASON", Section: "PRIVATE_SECTION", ParagraphIndex: 2, SentenceIndex: 3, Language: "PRIVATE_LANGUAGE", Field: "PRIVATE_FIELD", Rule: "PRIVATE_RULE"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			buffer := captureAssessmentLog(t)
@@ -80,7 +80,7 @@ func TestAssessmentRejectionLogSanitizesMetadataAndUnknownErrors(t *testing.T) {
 				t.Fatalf("unexpected fallback log: %#v", entry)
 			}
 			if test.name == "typed" {
-				for _, key := range []string{"section", "language", "field"} {
+				for _, key := range []string{"section", "language", "field", "validation_rule"} {
 					if entry[key] != "unknown" {
 						t.Fatalf("%s not sanitized", key)
 					}
