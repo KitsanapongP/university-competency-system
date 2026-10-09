@@ -33,7 +33,7 @@ func TestBuildAssessmentPromptSeparatesInstructionsFromUntrustedFacts(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, instruction := range []string{"untrusted data", "Do not invent facts, scores", "copied verbatim", "Do not recommend or name occupations", "1-3 sentences", "One sentence is enough", "including across paragraphs"} {
+	for _, instruction := range []string{"untrusted data", "Do not invent facts, scores", "copied verbatim", "Do not recommend or name occupations", "exactly one coherent sentence", "One sentence is enough", "including across paragraphs"} {
 		if !strings.Contains(system, instruction) {
 			t.Fatalf("missing instruction %q", instruction)
 		}
@@ -125,6 +125,12 @@ func TestAssessmentSchemaBindsIDsToSectionsAndDisablesUnavailableSections(t *tes
 		t.Fatal(err)
 	}
 	paragraphs := schema["properties"].(map[string]any)["paragraphs"].(map[string]any)
+	for _, branch := range paragraphs["items"].(map[string]any)["anyOf"].([]any) {
+		items := branch.(map[string]any)["properties"].(map[string]any)["sentences"].(map[string]any)
+		if items["uniqueItems"] != true || items["maxItems"] != float64(1) {
+			t.Fatal("generation schema must discourage identical sentence objects")
+		}
+	}
 	branches := paragraphs["items"].(map[string]any)["anyOf"].([]any)
 	strengths := branches[0].(map[string]any)["properties"].(map[string]any)
 	sentences := strengths["sentences"].(map[string]any)["items"].(map[string]any)["anyOf"].([]any)
