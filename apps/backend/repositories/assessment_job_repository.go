@@ -274,7 +274,29 @@ func (r *AssessmentJobRepository) Heartbeat(ctx context.Context, jobID uint64, l
 		SET heartbeat_at = UTC_TIMESTAMP(), lease_expires_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND)
 		WHERE job_id = ? AND status = 'running' AND lease_token = ?
 		AND lease_expires_at > UTC_TIMESTAMP()`, assessmentDurationSeconds(leaseDuration), jobID, leaseToken)
-	return assessmentRequireOwnedRows(result, err)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 1 {
+		return nil
+	}
+	if rows != 0 {
+		return ErrAssessmentLeaseLost
+	}
+	// A same-second heartbeat may change no values while the lease remains owned.
+	var ownedJobID uint64
+	err = r.DB.QueryRowContext(ctx, `
+		SELECT job_id FROM ai_report_jobs
+		WHERE job_id = ? AND status = 'running' AND lease_token = ?
+			AND lease_expires_at > UTC_TIMESTAMP()`, jobID, leaseToken).Scan(&ownedJobID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrAssessmentLeaseLost
+	}
+	return err
 }
 
 func (r *AssessmentJobRepository) QueueRetry(ctx context.Context, jobID uint64, leaseToken string, delay time.Duration) error {
