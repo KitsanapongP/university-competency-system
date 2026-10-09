@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -273,7 +272,7 @@ func (p *OllamaAssessmentProvider) GenerateWithProgress(
 	if final.DoneReason == "stop" || final.DoneReason == "length" {
 		reason = final.DoneReason
 	}
-	slog.InfoContext(ctx, "assessment generation usage", "done_reason", reason, "prompt_eval_count", max(0, final.PromptEvalCount), "eval_count", max(0, final.EvalCount))
+	assessmentLogger(ctx).InfoContext(ctx, "assessment generation usage", "done_reason", reason, "prompt_eval_count", max(0, final.PromptEvalCount), "eval_count", max(0, final.EvalCount))
 	if final.DoneReason == "length" {
 		return nil, AssessmentProviderError{Code: "provider_output_truncated", Retryable: false}
 	}

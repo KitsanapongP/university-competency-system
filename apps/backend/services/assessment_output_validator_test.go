@@ -36,6 +36,9 @@ func TestAssessmentValidationDiagnostics(t *testing.T) {
 			v.Paragraphs[0].Sentences[0].ObservationID = "PRIVATE_OBSERVATION"
 		}},
 		{name: "wrong observation section", reason: assessmentReasonObservationSectionMismatch, section: "strengths", field: "observation_id", paragraph: 1, sentence: 1, mutate: func(v *models.AssessmentProseOutput) { v.Paragraphs[0].Sentences[0].ObservationID = "readiness:8:1" }},
+		{name: "second sentence location", reason: assessmentReasonObservationSectionMismatch, section: "development", field: "observation_id", paragraph: 2, sentence: 2, mutate: func(v *models.AssessmentProseOutput) {
+			v.Paragraphs[1].Sentences = append(v.Paragraphs[1].Sentences, v.Paragraphs[0].Sentences[0])
+		}},
 		{name: "Thai missing", reason: assessmentReasonBilingualTextMissing, section: "strengths", field: "sentence.text", language: "th", paragraph: 1, sentence: 1, mutate: func(v *models.AssessmentProseOutput) { v.Paragraphs[0].Sentences[0].Text.TH = " " }},
 		{name: "English missing", reason: assessmentReasonBilingualTextMissing, section: "strengths", field: "sentence.text", language: "en", paragraph: 1, sentence: 1, mutate: func(v *models.AssessmentProseOutput) { v.Paragraphs[0].Sentences[0].Text.EN = "" }},
 		{name: "sentence length", reason: assessmentReasonTextTooLong, section: "strengths", field: "sentence.text", language: "en", paragraph: 1, sentence: 1, mutate: func(v *models.AssessmentProseOutput) { v.Paragraphs[0].Sentences[0].Text.EN = strings.Repeat("x", 241) }},

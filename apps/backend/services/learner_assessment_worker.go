@@ -93,6 +93,7 @@ func (w *LearnerAssessmentWorker) ProcessOne(ctx context.Context) (bool, error) 
 }
 
 func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models.AssessmentJob) error {
+	ctx = withAssessmentJobLogContext(ctx, job)
 	if err := w.Jobs.UpdateProgress(ctx, job.JobID, job.LeaseToken, "preparing", false); err != nil {
 		return err
 	}
@@ -171,6 +172,7 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 	}
 	validated, err := ValidateAssessmentProviderOutput(providerOutput, payload.ProviderInput)
 	if err != nil {
+		logAssessmentOutputRejection(ctx, err, len(providerOutput))
 		if errors.Is(err, ErrAssessmentOutputMalformed) {
 			return w.failClaim(ctx, job, "malformed_output", assessmentFailureWait)
 		}

@@ -35,6 +35,12 @@ func TestOllamaAssessmentUsageLogsDoNotExposeResponseText(t *testing.T) {
 	if entry["done_reason"] != "stop" || entry["prompt_eval_count"] != float64(123) || entry["eval_count"] != float64(45) {
 		t.Fatalf("usage entry = %#v", entry)
 	}
+	if _, exists := entry["job_id"]; exists {
+		t.Fatal("standalone provider calls must not invent a job ID")
+	}
+	if _, exists := entry["attempt_count"]; exists {
+		t.Fatal("standalone provider calls must not invent an attempt count")
+	}
 }
 
 func TestOllamaAssessmentProviderStreamsStructuredResponse(t *testing.T) {
