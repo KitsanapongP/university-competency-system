@@ -49,7 +49,7 @@ func connect(cfg config.Config) (*sql.DB, error) {
 }
 
 func main() {
-	mode := flag.String("mode", "inspect", "inspect or setup")
+	mode := flag.String("mode", "inspect", "inspect, setup, or verify")
 	target := flag.String("target", "ucs_assessment_llm_test", "new isolated database")
 	email := flag.String("account", "veerapat@dev.local", "learner to copy")
 	envPath := flag.String("env-out", "", "private environment file outside the repository")
@@ -72,6 +72,19 @@ func main() {
 		err = inspect(ctx, db, cfg.DBName)
 	} else if *mode == "setup" {
 		err = setup(ctx, db, cfg, *target, *email, *envPath)
+	} else if *mode == "verify" {
+		var userID uint64
+		if queryErr := db.QueryRowContext(ctx, "SELECT user_id FROM auth_users WHERE email=?", *email).Scan(&userID); queryErr != nil {
+			err = fmt.Errorf("source test account unavailable")
+		} else {
+			cfg.DBName = *target
+			var targetDB *sql.DB
+			targetDB, err = connect(cfg)
+			if err == nil {
+				err = compareSnapshots(ctx, db, targetDB, userID)
+				targetDB.Close()
+			}
+		}
 	} else {
 		err = fmt.Errorf("unknown mode")
 	}
