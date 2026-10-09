@@ -110,20 +110,9 @@ func BuildAssessmentProviderInput(snapshot *models.LearnerAssessmentSnapshot) (m
 }
 
 func BuildAssessmentPrompt(input models.AssessmentProviderInput) (systemPrompt string, userPrompt string, err error) {
-	// Official names remain in the snapshot/UI, not in the model's instruction surface.
-	type promptObservation struct {
-		ObservationID string                      `json:"observation_id"`
-		Kind          string                      `json:"kind"`
-		FactType      string                      `json:"fact_type"`
-		Values        models.AssessmentFactValues `json:"values"`
-	}
-	observations := make([]promptObservation, 0)
-	for _, item := range BuildAssessmentObservations(input) {
-		observations = append(observations, promptObservation{item.ObservationID, item.Kind, item.FactType, item.Values})
-	}
 	encoded, err := json.Marshal(struct {
-		Observations []promptObservation `json:"verified_observations"`
-	}{observations})
+		Observations []assessmentQualitativeObservation `json:"verified_observations"`
+	}{buildAssessmentQualitativeObservations(input)})
 	if err != nil {
 		return "", "", err
 	}
@@ -166,7 +155,7 @@ func AssessmentOutputJSONSchema(inputs ...models.AssessmentProviderInput) json.R
 		branches = append(branches, map[string]any{"type": "object", "additionalProperties": false,
 			"required": []string{"section", "sentences"}, "properties": map[string]any{
 				"section":   map[string]any{"type": "string", "enum": []string{section}},
-					"sentences": map[string]any{"type": "array", "minItems": 1, "maxItems": 1, "uniqueItems": true, "items": map[string]any{"anyOf": sentences}},
+				"sentences": map[string]any{"type": "array", "minItems": 1, "maxItems": 1, "uniqueItems": true, "items": map[string]any{"anyOf": sentences}},
 			}})
 	}
 	paragraphs := map[string]any{"type": "array", "maxItems": 4, "items": map[string]any{"anyOf": branches}}
