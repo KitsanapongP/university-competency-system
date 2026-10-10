@@ -249,18 +249,19 @@ type AssessmentReportRecord struct {
 }
 
 type AssessmentReportState struct {
-	RejectedDraft      *AssessmentRejectedDraft       `json:"rejected_draft,omitempty"`
-	GenerationState    string                         `json:"generation_state"`
-	Completeness       string                         `json:"completeness"`
-	IsStale            bool                           `json:"is_stale,omitempty"`
-	Semester           uint                           `json:"semester"`
-	TargetYearBE       uint64                         `json:"target_year_be"`
-	Readiness          CooperativeReadinessResult     `json:"readiness"`
-	Availability       []AssessmentSourceAvailability `json:"availability"`
-	ContextDiagnostics *AssessmentContextDiagnostics  `json:"context_diagnostics,omitempty"`
-	Job                *AssessmentJob                 `json:"job,omitempty"`
-	Report             *AssessmentReportRecord        `json:"report,omitempty"`
-	RetryAfterSeconds  int                            `json:"retry_after_seconds,omitempty"`
+	GenerationAvailable *bool                          `json:"generation_available,omitempty"`
+	RejectedDraft       *AssessmentRejectedDraft       `json:"rejected_draft,omitempty"`
+	GenerationState     string                         `json:"generation_state"`
+	Completeness        string                         `json:"completeness"`
+	IsStale             bool                           `json:"is_stale,omitempty"`
+	Semester            uint                           `json:"semester"`
+	TargetYearBE        uint64                         `json:"target_year_be"`
+	Readiness           CooperativeReadinessResult     `json:"readiness"`
+	Availability        []AssessmentSourceAvailability `json:"availability"`
+	ContextDiagnostics  *AssessmentContextDiagnostics  `json:"context_diagnostics,omitempty"`
+	Job                 *AssessmentJob                 `json:"job,omitempty"`
+	Report              *AssessmentReportRecord        `json:"report,omitempty"`
+	RetryAfterSeconds   int                            `json:"retry_after_seconds,omitempty"`
 }
 
 type AssessmentContextDiagnostics struct {

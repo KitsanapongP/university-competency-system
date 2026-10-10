@@ -402,7 +402,7 @@ export default function LearnerAssessmentReportPanel({ semester, onGenerationAct
                         type="button"
                         className={styles.action}
                         onClick={() => generate(true)}
-                        disabled={view.actionLoading || data?.generation_state === 'context_exceeded'}
+                        disabled={view.actionLoading || data?.generation_available === false || data?.generation_state === 'context_exceeded'}
                     >
                         <RefreshCw size={15} aria-hidden="true" />
                         {t('assessment_report_regenerate')}
@@ -474,7 +474,11 @@ export default function LearnerAssessmentReportPanel({ semester, onGenerationAct
                 />
             )}
 
-            {!isLoading && data?.generation_state === 'missing' && !active && (
+            {!isLoading && data?.generation_available === false && (
+                <p className={styles.inlineError} role="status">{t('assessment_error_api_configuration')}</p>
+            )}
+
+            {!isLoading && data?.generation_state === 'missing' && data?.generation_available !== false && !active && (
                 <div className={styles.state}>
                     <span>{t('assessment_report_not_created')}</span>
                     <button type="button" className={styles.action} onClick={() => generate(false)} disabled={view.actionLoading}>
@@ -484,7 +488,7 @@ export default function LearnerAssessmentReportPanel({ semester, onGenerationAct
                 </div>
             )}
 
-            {!isLoading && data?.generation_state === 'failed' && !report && (
+            {!isLoading && data?.generation_state === 'failed' && data?.generation_available !== false && !report && (
                 <div className={styles.state}>
                     <span>{t('assessment_report_not_created')}</span>
                     <button type="button" className={styles.action} onClick={() => generate(false)} disabled={view.actionLoading}>

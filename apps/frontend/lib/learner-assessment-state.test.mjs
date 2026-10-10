@@ -14,6 +14,7 @@ import {
 test('automatic generation only starts for missing reports with available source data', () => {
   assert.equal(shouldAutoGenerateAssessment({ generation_state: 'missing', completeness: 'partial' }), true);
   assert.equal(shouldAutoGenerateAssessment({ generation_state: 'missing', completeness: 'none' }), false);
+  assert.equal(shouldAutoGenerateAssessment({ generation_state: 'missing', completeness: 'full', generation_available: false }), false);
   assert.equal(shouldAutoGenerateAssessment({ generation_state: 'failed', completeness: 'full' }), false);
   assert.equal(shouldAutoGenerateAssessment({ generation_state: 'missing', completeness: 'full', report: {} }), false);
 });

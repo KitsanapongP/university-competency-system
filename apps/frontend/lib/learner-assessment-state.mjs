@@ -1,5 +1,6 @@
 export function shouldAutoGenerateAssessment(state) {
   return state?.generation_state === 'missing'
+    && state?.generation_available !== false
     && state?.completeness !== 'none'
     && !state?.report;
 }

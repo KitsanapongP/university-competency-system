@@ -88,6 +88,8 @@ func (s *LearnerAssessmentReportService) Get(ctx context.Context, userID uint64,
 		return models.AssessmentReportState{}, err
 	}
 	state = assessmentReportStateFromSnapshot(snapshot)
+	generationAvailable := s.GenerationEnabled
+	state.GenerationAvailable = &generationAvailable
 	defer func() {
 		if resultErr != nil || s.Drafts == nil {
 			return
