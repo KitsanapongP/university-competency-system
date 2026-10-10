@@ -52,9 +52,10 @@ func (r *AssessmentReportRepository) GetLatest(
 
 func (r *AssessmentReportRepository) upsertLatestWith(ctx context.Context, execer assessmentReportExecer, report models.AssessmentReportRecord) error {
 	_, fingerprintErr := hex.DecodeString(report.ProviderConfigFingerprint)
+	apiProvider := report.ProviderName == "deepseek" || report.ProviderName == "openai" || report.ProviderName == "gemini"
 	if report.EnrollmentCurriculumID == 0 || (report.Semester != 1 && report.Semester != 2) ||
 		(report.Completeness != "full" && report.Completeness != "partial") ||
-		report.ModelDigest == "" || len(report.ProviderConfigFingerprint) != 64 || fingerprintErr != nil ||
+		(!apiProvider && report.ModelDigest == "") || len(report.ProviderConfigFingerprint) != 64 || fingerprintErr != nil ||
 		!json.Valid(report.SourceSnapshot) || !json.Valid(report.Content) {
 		return errors.New("invalid assessment report record")
 	}
