@@ -106,21 +106,13 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	cooperativeReadinessHandler := &controllers.CooperativeReadinessController{Service: cooperativeReadinessSvc}
 	assessmentSourceRepo := repositories.NewAssessmentSourceRepository(db)
 	assessmentSourceBuilder := services.NewAssessmentSourceBuilder(db, assessmentSourceRepo, cooperativeReadinessRepo, curriculumRepo)
-	assessmentBudget := services.AssessmentContextBudget{
-		ContextTokens:       cfg.AssessmentContextTokens,
-		OutputReserveTokens: cfg.AssessmentOutputReserveTokens,
-		SafetyMarginTokens:  cfg.AssessmentTokenSafetyMargin,
-	}
+	assessmentBudget, assessmentGenerationConfig, assessmentConfigError := services.AssessmentRuntime(cfg)
 	assessmentSourceBuilder.ContextBudget = assessmentBudget
-	assessmentSourceBuilder.GenerationConfig = services.AssessmentGenerationConfig{
-		ModelDigest:  cfg.AssessmentOllamaModelDigest,
-		ThinkEnabled: cfg.AssessmentOllamaThink,
-		KeepAlive:    cfg.AssessmentOllamaKeepAlive,
-	}
+	assessmentSourceBuilder.GenerationConfig = assessmentGenerationConfig
 	assessmentReportRepo := repositories.NewAssessmentReportRepository(db)
 	assessmentJobRepo := repositories.NewAssessmentJobRepository(db)
 	assessmentReportSvc := services.NewLearnerAssessmentReportService(assessmentSourceBuilder, assessmentReportRepo, assessmentJobRepo)
-	assessmentReportSvc.GenerationEnabled = cfg.AssessmentOllamaModelDigest != ""
+	assessmentReportSvc.GenerationEnabled = assessmentConfigError == nil
 	assessmentReportHandler := &controllers.LearnerAssessmentController{Service: assessmentReportSvc, Jobs: assessmentJobRepo}
 	careerPathRepo := repositories.NewCareerPathRepository(db)
 	careerPathSvc := services.NewCareerPathService(careerPathRepo)

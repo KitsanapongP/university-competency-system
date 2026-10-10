@@ -60,6 +60,8 @@ type assessmentHashPayload struct {
 }
 
 type AssessmentGenerationConfig struct {
+	Provider     string
+	Model        string
 	ModelDigest  string
 	ThinkEnabled bool
 	KeepAlive    string
@@ -85,6 +87,15 @@ func assessmentSourceMetadata(budget AssessmentContextBudget, configs ...Assessm
 		ContextTokenLimit:  budget.ContextTokens,
 		OutputTokenReserve: budget.OutputReserveTokens,
 		TokenSafetyMargin:  budget.SafetyMarginTokens,
+	}
+	if config.Provider != "" && config.Provider != "ollama" {
+		metadata.Provider = config.Provider
+		metadata.Model = config.Model
+		metadata.ModelDigest = ""
+		metadata.ThinkEnabled = false
+		metadata.PromptVersion = "learner-assessment-api-prompt-v1"
+		metadata.SchemaVersion = "learner-assessment-api-output-v1"
+		config.KeepAlive = ""
 	}
 	metadata.ProviderConfigFingerprint = assessmentProviderConfigFingerprint(metadata, config.KeepAlive)
 	return metadata

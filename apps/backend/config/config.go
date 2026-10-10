@@ -22,6 +22,13 @@ type Config struct {
 	JWTExpireMinutes int
 
 	AssessmentContextTokens       int
+	AssessmentProvider            string
+	AssessmentAPIEnabled          bool
+	AssessmentAPIKey              string
+	AssessmentAPIModel            string
+	AssessmentAPITimeout          time.Duration
+	AssessmentAPIIdleTimeout      time.Duration
+	AssessmentAPIDailyLimit       int
 	AssessmentOutputReserveTokens int
 	AssessmentTokenSafetyMargin   int
 	AssessmentOllamaURL           string
@@ -34,6 +41,12 @@ type Config struct {
 }
 
 func Load() Config {
+	provider := strings.ToLower(strings.TrimSpace(getEnv("LEARNER_ASSESSMENT_PROVIDER", "ollama")))
+	contextTokens, outputTokens := 4096, 1024
+	if provider != "ollama" {
+		contextTokens, outputTokens = 12288, 3072
+	}
+	prefix := "LEARNER_ASSESSMENT_" + strings.ToUpper(provider)
 	return Config{
 		HTTPAddr: getEnv("HTTP_ADDR", ":8080"),
 
@@ -47,8 +60,15 @@ func Load() Config {
 		JWTIssuer:        getEnv("JWT_ISSUER", "ucs-api"),
 		JWTExpireMinutes: getEnvInt("JWT_EXPIRE_MINUTES", 120),
 
-		AssessmentContextTokens:       getEnvInt("LEARNER_ASSESSMENT_CONTEXT_TOKENS", 4096),
-		AssessmentOutputReserveTokens: getEnvInt("LEARNER_ASSESSMENT_OUTPUT_RESERVE_TOKENS", 1024),
+		AssessmentProvider:            provider,
+		AssessmentAPIEnabled:          getEnvBool("LEARNER_ASSESSMENT_API_ENABLED", false),
+		AssessmentAPIKey:              getEnv(prefix+"_API_KEY", ""),
+		AssessmentAPIModel:            getEnv(prefix+"_MODEL", ""),
+		AssessmentAPITimeout:          time.Duration(getEnvInt("LEARNER_ASSESSMENT_API_TIMEOUT_SECONDS", 240)) * time.Second,
+		AssessmentAPIIdleTimeout:      time.Duration(getEnvInt("LEARNER_ASSESSMENT_API_IDLE_TIMEOUT_SECONDS", 60)) * time.Second,
+		AssessmentAPIDailyLimit:       getEnvInt("LEARNER_ASSESSMENT_API_DAILY_LIMIT", 20),
+		AssessmentContextTokens:       getEnvInt("LEARNER_ASSESSMENT_CONTEXT_TOKENS", contextTokens),
+		AssessmentOutputReserveTokens: getEnvInt("LEARNER_ASSESSMENT_OUTPUT_RESERVE_TOKENS", outputTokens),
 		AssessmentTokenSafetyMargin:   getEnvInt("LEARNER_ASSESSMENT_TOKEN_SAFETY_MARGIN", 128),
 		AssessmentOllamaURL:           getEnv("LEARNER_ASSESSMENT_OLLAMA_URL", "http://127.0.0.1:11434"),
 		AssessmentOllamaTimeout:       time.Duration(getEnvInt("LEARNER_ASSESSMENT_OLLAMA_TIMEOUT_SECONDS", 120)) * time.Second,
