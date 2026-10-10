@@ -180,7 +180,7 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 			return w.failClaim(ctx, job, "provider_busy", assessmentFailureWait)
 		}
 		if errors.Is(providerErr, repositories.ErrAssessmentAPIQuota) {
-			return w.failClaim(ctx, job, "api_quota_exhausted", time.Until(w.now().Truncate(24*time.Hour).Add(24*time.Hour)))
+			return w.failClaim(ctx, job, "api_quota_exhausted", w.now().Truncate(24*time.Hour).Add(24*time.Hour).Sub(w.now()))
 		}
 	} else {
 		if streamingProvider, ok := w.Provider.(StreamingAssessmentProvider); ok {

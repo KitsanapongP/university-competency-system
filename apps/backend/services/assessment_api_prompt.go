@@ -21,7 +21,7 @@ func BuildAssessmentPromptForProvider(input models.AssessmentProviderInput, prov
 	if err != nil {
 		return "", "", err
 	}
-	return assessmentAPISystemPrompt, "Compose evidence-supported paragraphs from this JSON data:\n<source_data>\n" + string(data) + "\n</source_data>", nil
+	return assessmentAPISystemPrompt + "\nRequired output JSON schema:\n" + string(AssessmentAPIOutputJSONSchema(input)), "Compose evidence-supported paragraphs from this JSON data:\n<source_data>\n" + string(data) + "\n</source_data>", nil
 }
 
 func BuildAssessmentAPIEvidence(input models.AssessmentProviderInput) map[string]any {

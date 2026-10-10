@@ -48,7 +48,7 @@ func (p *APIAssessmentProvider) requestBody(system, user string, schema json.Raw
 	}
 	switch p.Provider {
 	case "deepseek":
-		return map[string]any{"model": p.Model, "messages": []any{map[string]string{"role": "system", "content": system + "\nReturn JSON matching this schema: " + string(schema)}, map[string]string{"role": "user", "content": user}}, "stream": true, "stream_options": map[string]bool{"include_usage": true}, "response_format": map[string]string{"type": "json_object"}, "max_tokens": p.outputTokens, "temperature": 0, "thinking": map[string]string{"type": "disabled"}}, nil
+		return map[string]any{"model": p.Model, "messages": []any{map[string]string{"role": "system", "content": system + "\nReturn JSON."}, map[string]string{"role": "user", "content": user}}, "stream": true, "stream_options": map[string]bool{"include_usage": true}, "response_format": map[string]string{"type": "json_object"}, "max_tokens": p.outputTokens, "temperature": 0, "thinking": map[string]string{"type": "disabled"}}, nil
 	case "openai":
 		return map[string]any{"model": p.Model, "instructions": system, "input": user, "stream": true, "store": false, "max_output_tokens": p.outputTokens, "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "learner_assessment", "strict": true, "schema": shape}}}, nil
 	case "gemini":
@@ -154,7 +154,7 @@ func (p *APIAssessmentProvider) GenerateWithProgress(ctx context.Context, system
 	if dst, ok := ctx.Value(assessmentUsageContextKey{}).(*AssessmentAPIUsage); ok {
 		*dst = usage
 	}
-	assessmentLogger(ctx).InfoContext(ctx, "assessment API usage", "provider", p.Provider, "input_tokens", usage.InputTokens, "output_tokens", usage.OutputTokens)
+	assessmentLogger(ctx).InfoContext(ctx, "assessment API usage", "provider", p.Provider, "input_tokens", assessmentUsageValue(usage.InputTokens), "output_tokens", assessmentUsageValue(usage.OutputTokens))
 	if !done {
 		return []byte(output.String()), AssessmentProviderError{Code: "truncated_output"}
 	}
@@ -162,6 +162,13 @@ func (p *APIAssessmentProvider) GenerateWithProgress(ctx context.Context, system
 		return nil, AssessmentProviderError{Code: "empty_output"}
 	}
 	return []byte(output.String()), nil
+}
+
+func assessmentUsageValue(value *int) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 func apiTransportError(request, parent context.Context) error {

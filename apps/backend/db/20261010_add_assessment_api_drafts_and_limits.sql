@@ -8,8 +8,8 @@ BEGIN
     OR NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'kku_enrollment_curricula' AND engine = 'InnoDB') THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Assessment jobs and enrollment curricula must exist with InnoDB';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ai_report_jobs' AND column_name = 'job_id' AND column_type = 'bigint unsigned')
-    OR NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'kku_enrollment_curricula' AND column_name = 'enrollment_curriculum_id' AND column_type = 'bigint unsigned') THEN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ai_report_jobs' AND column_name = 'job_id' AND data_type = 'bigint' AND column_type LIKE '%unsigned%')
+    OR NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'kku_enrollment_curricula' AND column_name = 'enrollment_curriculum_id' AND data_type = 'bigint' AND column_type LIKE '%unsigned%') THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Referenced assessment IDs must be BIGINT UNSIGNED';
   END IF;
 
@@ -55,7 +55,10 @@ BEGIN
 
   IF (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ai_report_drafts' AND column_name IN ('enrollment_curriculum_id','semester','job_id','source_hash','preview','truncated','violation','created_at')) <> 8
     OR (SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND table_name = 'ai_report_drafts' AND constraint_type = 'FOREIGN KEY') <> 2
-    OR NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'ai_api_calls' AND index_name = 'uq_ai_api_attempt' AND non_unique = 0) THEN
+    OR NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'ai_api_calls' AND index_name = 'uq_ai_api_attempt' AND non_unique = 0)
+    OR (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ai_api_calls' AND column_name IN ('call_id','job_id','attempt_count','provider_name','model_name','input_tokens','output_tokens','reserved_at','finished_at')) <> 9
+    OR (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ai_api_daily_usage' AND column_name IN ('usage_date','call_count')) <> 2
+    OR (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ai_api_gate' AND column_name IN ('gate_id','active_call_id','active_until')) <> 3 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Partial or incompatible assessment API schema: inspect before retrying';
   END IF;
 END$$

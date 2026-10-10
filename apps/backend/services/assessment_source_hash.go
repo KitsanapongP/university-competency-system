@@ -61,11 +61,13 @@ type assessmentHashPayload struct {
 }
 
 type AssessmentGenerationConfig struct {
-	Provider     string
-	Model        string
-	ModelDigest  string
-	ThinkEnabled bool
-	KeepAlive    string
+	Provider           string
+	Model              string
+	ModelDigest        string
+	ThinkEnabled       bool
+	KeepAlive          string
+	TimeoutSeconds     int
+	IdleTimeoutSeconds int
 }
 
 func assessmentSourceMetadata(budget AssessmentContextBudget, configs ...AssessmentGenerationConfig) models.AssessmentSourceMetadata {
@@ -99,6 +101,15 @@ func assessmentSourceMetadata(budget AssessmentContextBudget, configs ...Assessm
 		config.KeepAlive = ""
 	}
 	metadata.ProviderConfigFingerprint = assessmentProviderConfigFingerprint(metadata, config.KeepAlive)
+	if metadata.Provider != "ollama" {
+		settings, _ := json.Marshal(struct {
+			Base          string
+			Timeout, Idle int
+			Temperature   string
+		}{metadata.ProviderConfigFingerprint, config.TimeoutSeconds, config.IdleTimeoutSeconds, map[string]string{"deepseek": "0-thinking-disabled", "gemini": "0", "openai": "provider-default"}[metadata.Provider]})
+		digest := sha256.Sum256(settings)
+		metadata.ProviderConfigFingerprint = hex.EncodeToString(digest[:])
+	}
 	return metadata
 }
 

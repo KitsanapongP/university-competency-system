@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/spw32767/university-competency-system-backend/config"
 	"strings"
+	"time"
 )
 
 // API and worker must use the same effective settings when hashing evidence.
@@ -24,7 +25,9 @@ func AssessmentRuntime(c config.Config) (AssessmentContextBudget, AssessmentGene
 	default:
 		return b, g, errors.New("unsupported assessment provider")
 	}
-	if !c.AssessmentAPIEnabled || strings.TrimSpace(c.AssessmentAPIKey) == "" || strings.TrimSpace(g.Model) == "" {
+	g.TimeoutSeconds = int(c.AssessmentAPITimeout / time.Second)
+	g.IdleTimeoutSeconds = int(c.AssessmentAPIIdleTimeout / time.Second)
+	if !c.AssessmentAPIEnabled || strings.TrimSpace(c.AssessmentAPIKey) == "" || strings.TrimSpace(g.Model) == "" || len(g.Model) > 120 {
 		return b, g, errors.New("assessment API disabled or selected provider key/model missing")
 	}
 	if c.AssessmentAPITimeout <= 0 || c.AssessmentAPIIdleTimeout <= 0 || c.AssessmentAPIDailyLimit <= 0 || b.ContextTokens <= b.OutputReserveTokens+b.SafetyMarginTokens || b.OutputReserveTokens <= 0 || b.SafetyMarginTokens < 0 {
