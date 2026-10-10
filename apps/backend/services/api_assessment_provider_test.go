@@ -1,10 +1,12 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -123,5 +125,48 @@ func TestAPIIncompleteRefusalEmptyAndIdle(t *testing.T) {
 				t.Fatalf("%v", err)
 			}
 		})
+	}
+}
+
+func TestAPIUsageLogContainsOnlySafeMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"private-output\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":2}}\n\n")
+	}))
+	defer server.Close()
+	p := NewAPIAssessmentProvider("deepseek", "test", "private-api-key", time.Second, time.Second, 100)
+	p.endpoint = server.URL
+	var log bytes.Buffer
+	ctx := context.WithValue(context.Background(), assessmentLogContextKey{}, slog.New(slog.NewJSONHandler(&log, nil)))
+	if _, err := p.Generate(ctx, "private-system", "private-user", json.RawMessage(`{}`)); err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{"private-output", "private-api-key", "private-system", "private-user"} {
+		if strings.Contains(log.String(), secret) {
+			t.Fatal("log leaked content")
+		}
+	}
+	if !strings.Contains(log.String(), `"input_tokens":12`) || !strings.Contains(log.String(), `"output_tokens":2`) {
+		t.Fatal("usage log is not numeric")
+	}
+}
+
+func TestAPIStreamResponseIsBounded(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		for i := 0; i < 40; i++ {
+			event, _ := json.Marshal(map[string]any{"type": "response.output_text.delta", "delta": strings.Repeat("x", 10000)})
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", event); err != nil {
+				return
+			}
+		}
+	}))
+	defer server.Close()
+	p := NewAPIAssessmentProvider("openai", "test", "key", time.Second, time.Second, 100)
+	p.endpoint = server.URL
+	out, err := p.Generate(context.Background(), "system", "user", json.RawMessage(`{}`))
+	var failure AssessmentProviderError
+	if !errors.As(err, &failure) || failure.Code != "output_too_large" || len(out) > assessmentAPIResponseLimit {
+		t.Fatalf("unbounded output/error: %d %v", len(out), err)
 	}
 }

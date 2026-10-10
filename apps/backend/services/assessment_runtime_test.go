@@ -31,4 +31,9 @@ func TestAPIRuntimeRequiresExplicitConfiguration(t *testing.T) {
 	if assessmentSourceMetadata(b, other).ProviderConfigFingerprint == m.ProviderConfigFingerprint {
 		t.Fatal("model not hashed")
 	}
+	other = g
+	other.TimeoutSeconds++
+	if assessmentSourceMetadata(b, other).ProviderConfigFingerprint == m.ProviderConfigFingerprint {
+		t.Fatal("timeout not hashed")
+	}
 }
