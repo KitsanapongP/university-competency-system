@@ -1,0 +1,20 @@
+{
+  "name": "Synthetic API prose with partial evidence",
+  "input": {
+    "semester": 1,
+    "target_year_be": 2569,
+    "completeness": "partial",
+    "curriculum": { "th": "หลักสูตรตัวอย่าง", "en": "Example Curriculum" },
+    "readiness": { "status": "not_configured", "passed_count": 0, "requirement_count": 0, "results": [] },
+    "availability": [
+      { "source": "academic_grades", "available": true },
+      { "source": "course_competency_scores", "available": false, "reason_code": "template_assignment_missing" },
+      { "source": "activity_participation", "available": false, "reason_code": "no_confirmed_activity_participation" }
+    ],
+    "academic_evidence": [
+      { "evidence_ref": "course:curriculum:alpha", "source": "curriculum", "occurrence_count": 1, "course_code": "EXAMPLE", "course_name_th": "วิชาตัวอย่าง", "course_name_en": "Example Course", "academic_year_be": 2568, "semester": 2, "credits": 3, "grade_scheme": "letter", "grade": "B" }
+    ],
+    "competency_scores": [],
+    "activity_evidence": []
+  }
+}

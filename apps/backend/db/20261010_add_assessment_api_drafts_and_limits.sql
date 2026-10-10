@@ -34,7 +34,8 @@ BEGIN
 
   CREATE TABLE IF NOT EXISTS ai_api_calls (
     call_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    job_id BIGINT UNSIGNED NOT NULL,
+    job_id BIGINT UNSIGNED NULL,
+    evaluation_ref VARCHAR(64) CHARACTER SET ascii NULL,
     attempt_count INT UNSIGNED NOT NULL,
     provider_name VARCHAR(40) NOT NULL,
     model_name VARCHAR(120) NOT NULL,
@@ -43,6 +44,7 @@ BEGIN
     reserved_at DATETIME NOT NULL,
     finished_at DATETIME NULL,
     UNIQUE KEY uq_ai_api_attempt (job_id, attempt_count),
+    UNIQUE KEY uq_ai_api_evaluation (evaluation_ref),
     CONSTRAINT fk_ai_call_job FOREIGN KEY (job_id) REFERENCES ai_report_jobs (job_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -56,7 +58,7 @@ BEGIN
   IF (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ai_report_drafts' AND column_name IN ('enrollment_curriculum_id','semester','job_id','source_hash','preview','truncated','violation','created_at')) <> 8
     OR (SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = DATABASE() AND table_name = 'ai_report_drafts' AND constraint_type = 'FOREIGN KEY') <> 2
     OR NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'ai_api_calls' AND index_name = 'uq_ai_api_attempt' AND non_unique = 0)
-    OR (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ai_api_calls' AND column_name IN ('call_id','job_id','attempt_count','provider_name','model_name','input_tokens','output_tokens','reserved_at','finished_at')) <> 9
+    OR (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ai_api_calls' AND column_name IN ('call_id','job_id','evaluation_ref','attempt_count','provider_name','model_name','input_tokens','output_tokens','reserved_at','finished_at')) <> 10
     OR (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ai_api_daily_usage' AND column_name IN ('usage_date','call_count')) <> 2
     OR (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'ai_api_gate' AND column_name IN ('gate_id','active_call_id','active_until')) <> 3 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Partial or incompatible assessment API schema: inspect before retrying';

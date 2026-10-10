@@ -23,6 +23,10 @@ func withAssessmentAPIUsage(ctx context.Context, usage *AssessmentAPIUsage) cont
 	return context.WithValue(ctx, assessmentUsageContextKey{}, usage)
 }
 
+func WithAssessmentAPIUsage(ctx context.Context, usage *AssessmentAPIUsage) context.Context {
+	return withAssessmentAPIUsage(ctx, usage)
+}
+
 type APIAssessmentProvider struct {
 	Provider, Model      string
 	apiKey               string

@@ -16,6 +16,17 @@ var ErrAssessmentAPIAttemptReserved = errors.New("assessment API attempt already
 type AssessmentAPIRepository struct{ DB *sql.DB }
 
 func (r *AssessmentAPIRepository) Reserve(ctx context.Context, job models.AssessmentJob, provider, model string, limit int, hold time.Duration) (uint64, error) {
+	return r.reserve(ctx, job, "", provider, model, limit, hold)
+}
+
+func (r *AssessmentAPIRepository) ReserveEvaluation(ctx context.Context, ref, provider, model string, limit int, hold time.Duration) (uint64, error) {
+	if len(ref) != 32 {
+		return 0, errors.New("evaluation reference must be 32 characters")
+	}
+	return r.reserve(ctx, models.AssessmentJob{}, ref, provider, model, limit, hold)
+}
+
+func (r *AssessmentAPIRepository) reserve(ctx context.Context, job models.AssessmentJob, evaluation, provider, model string, limit int, hold time.Duration) (uint64, error) {
 	if limit <= 0 || hold <= 0 {
 		return 0, ErrAssessmentAPIQuota
 	}
@@ -33,15 +44,25 @@ func (r *AssessmentAPIRepository) Reserve(ctx context.Context, job models.Assess
 		return 0, ErrAssessmentAPIBusy
 	}
 	var owned int
-	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM ai_report_jobs WHERE job_id = ? AND status = 'running' AND lease_token = ? AND lease_expires_at > UTC_TIMESTAMP()`, job.JobID, job.LeaseToken).Scan(&owned); err != nil {
-		return 0, err
-	}
-	if owned != 1 {
-		return 0, ErrAssessmentLeaseLost
-	}
 	var existing int
-	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM ai_api_calls WHERE job_id = ? AND attempt_count = ?`, job.JobID, job.AttemptCount).Scan(&existing); err != nil {
-		return 0, err
+	var jobID any = job.JobID
+	var evaluationRef any
+	if evaluation == "" {
+		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM ai_report_jobs WHERE job_id = ? AND status = 'running' AND lease_token = ? AND lease_expires_at > UTC_TIMESTAMP()`, job.JobID, job.LeaseToken).Scan(&owned); err != nil {
+			return 0, err
+		}
+		if owned != 1 {
+			return 0, ErrAssessmentLeaseLost
+		}
+		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM ai_api_calls WHERE job_id = ? AND attempt_count = ?`, job.JobID, job.AttemptCount).Scan(&existing); err != nil {
+			return 0, err
+		}
+	} else {
+		jobID = nil
+		evaluationRef = evaluation
+		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM ai_api_calls WHERE evaluation_ref = ?`, evaluation).Scan(&existing); err != nil {
+			return 0, err
+		}
 	}
 	if existing > 0 {
 		return 0, ErrAssessmentAPIAttemptReserved
@@ -56,7 +77,7 @@ func (r *AssessmentAPIRepository) Reserve(ctx context.Context, job models.Assess
 	if count >= limit {
 		return 0, ErrAssessmentAPIQuota
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO ai_api_calls (job_id, attempt_count, provider_name, model_name, reserved_at) VALUES (?, ?, ?, ?, UTC_TIMESTAMP())`, job.JobID, job.AttemptCount, provider, model)
+	result, err := tx.ExecContext(ctx, `INSERT INTO ai_api_calls (job_id, evaluation_ref, attempt_count, provider_name, model_name, reserved_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`, jobID, evaluationRef, job.AttemptCount, provider, model)
 	if err != nil {
 		return 0, err
 	}
@@ -104,6 +125,7 @@ func (r *AssessmentAPIRepository) GetLatestDraft(ctx context.Context, owner uint
 	if err = json.Unmarshal(violation, &d.Violation); err != nil {
 		return nil, err
 	}
+	d.CreatedAt = time.Date(d.CreatedAt.Year(), d.CreatedAt.Month(), d.CreatedAt.Day(), d.CreatedAt.Hour(), d.CreatedAt.Minute(), d.CreatedAt.Second(), d.CreatedAt.Nanosecond(), time.UTC)
 	return &d, nil
 }
 

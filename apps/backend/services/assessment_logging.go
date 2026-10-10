@@ -28,6 +28,14 @@ func assessmentLogger(ctx context.Context) *slog.Logger {
 }
 
 func logAssessmentOutputRejection(ctx context.Context, err error, outputBytes int) {
+	logAssessmentOutputRejectionForSchema(ctx, err, outputBytes, assessmentNarrativeSchemaVersion)
+}
+
+func LogAssessmentAPIOutputRejection(ctx context.Context, err error, outputBytes int) {
+	logAssessmentOutputRejectionForSchema(ctx, err, outputBytes, "learner-assessment-api-output-v1")
+}
+
+func logAssessmentOutputRejectionForSchema(ctx context.Context, err error, outputBytes int, schema string) {
 	errorCode := "invalid_output"
 	if errors.Is(err, ErrAssessmentOutputMalformed) {
 		errorCode = "malformed_output"
@@ -41,7 +49,7 @@ func logAssessmentOutputRejection(ctx context.Context, err error, outputBytes in
 		slog.String("error_code", errorCode),
 		slog.String("validation_reason", reason),
 		slog.Int("output_bytes", max(0, outputBytes)),
-		slog.String("schema_version", assessmentNarrativeSchemaVersion),
+		slog.String("schema_version", schema),
 	}
 	if diagnostic != nil {
 		if diagnostic.Rule != "" {

@@ -214,12 +214,19 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 	var validated models.AssessmentProseReport
 	if err == nil {
 		validated, err = ValidateAssessmentProviderOutput(validationOutput, payload.ProviderInput)
+		if isAPI && err != nil {
+			var diagnostic *AssessmentOutputValidationError
+			if errors.As(err, &diagnostic) && diagnostic.Section != "" {
+				err = diagnostic.at(diagnostic.Section, 1, diagnostic.SentenceIndex)
+			}
+		}
 	}
 	if err != nil {
-		logAssessmentOutputRejection(ctx, err, len(providerOutput))
 		if isAPI {
+			LogAssessmentAPIOutputRejection(ctx, err, len(providerOutput))
 			return w.failAPIOutput(ctx, job, "invalid_output", providerOutput, err)
 		}
+		logAssessmentOutputRejection(ctx, err, len(providerOutput))
 		if errors.Is(err, ErrAssessmentOutputMalformed) {
 			return w.failClaim(ctx, job, "malformed_output", assessmentFailureWait)
 		}
