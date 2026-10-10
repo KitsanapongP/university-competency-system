@@ -249,6 +249,7 @@ type AssessmentReportRecord struct {
 }
 
 type AssessmentReportState struct {
+	RejectedDraft      *AssessmentRejectedDraft       `json:"rejected_draft,omitempty"`
 	GenerationState    string                         `json:"generation_state"`
 	Completeness       string                         `json:"completeness"`
 	IsStale            bool                           `json:"is_stale,omitempty"`

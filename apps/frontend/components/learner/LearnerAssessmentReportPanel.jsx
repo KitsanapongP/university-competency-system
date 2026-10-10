@@ -18,6 +18,7 @@ import {
 import { buildAssessmentEvidenceCatalog } from '../../lib/learner-assessment-evidence.mjs';
 import { isAssessmentNarrative } from '../../lib/learner-assessment-narrative.mjs';
 import { LearnerAssessmentNarrative } from './LearnerAssessmentNarrative';
+import { LearnerAssessmentRejectedDraft } from './LearnerAssessmentRejectedDraft';
 import styles from './LearnerAssessmentReportPanel.module.css';
 
 function reportContent(report) {
@@ -80,6 +81,14 @@ function availabilityReason(reason, t) {
 function jobErrorMessage(code, t) {
     const labels = {
         provider_timeout: t('assessment_error_provider_timeout'),
+		provider_authentication: t('assessment_error_api_auth'),
+		provider_configuration: t('assessment_error_api_configuration'),
+		provider_request_rejected: t('assessment_error_api_request'),
+		provider_rate_limited: t('assessment_error_api_rate_limit'),
+		api_quota_exhausted: t('assessment_error_api_quota'),
+		provider_refusal: t('assessment_error_api_refusal'),
+		truncated_output: t('assessment_error_output_truncated'),
+		empty_output: t('assessment_error_malformed_output'),
         provider_unavailable: t('assessment_error_provider_unavailable'),
         model_not_found: t('assessment_error_model_missing'),
         invalid_output: t('assessment_error_invalid_output'),
@@ -490,6 +499,8 @@ export default function LearnerAssessmentReportPanel({ semester, onGenerationAct
                     {t('assessment_report_format_changed')}
                 </p>
             )}
+
+            {!isLoading && <LearnerAssessmentRejectedDraft draft={data?.rejected_draft} language={language} t={t} />}
 
             {report && content && (
                 <div className={styles.report}>

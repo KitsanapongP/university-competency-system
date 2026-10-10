@@ -59,11 +59,16 @@ type AssessmentJobStore interface {
 	SupersedeActive(context.Context, uint64, uint, string) error
 }
 
+type AssessmentDraftStore interface {
+	GetLatestDraft(context.Context, uint64, uint) (*models.AssessmentRejectedDraft, error)
+}
+
 type LearnerAssessmentReportService struct {
 	Builder           AssessmentSnapshotBuilder
 	Reports           AssessmentReportStore
 	Jobs              AssessmentJobStore
 	GenerationEnabled bool
+	Drafts            AssessmentDraftStore
 	Now               func() time.Time
 }
 
@@ -77,12 +82,31 @@ func NewLearnerAssessmentReportService(
 	}
 }
 
-func (s *LearnerAssessmentReportService) Get(ctx context.Context, userID uint64, semester uint) (models.AssessmentReportState, error) {
+func (s *LearnerAssessmentReportService) Get(ctx context.Context, userID uint64, semester uint) (state models.AssessmentReportState, resultErr error) {
 	snapshot, err := s.buildSnapshot(ctx, userID, semester)
 	if err != nil {
 		return models.AssessmentReportState{}, err
 	}
-	state := assessmentReportStateFromSnapshot(snapshot)
+	state = assessmentReportStateFromSnapshot(snapshot)
+	defer func() {
+		if resultErr != nil || s.Drafts == nil {
+			return
+		}
+		draft, draftErr := s.Drafts.GetLatestDraft(ctx, snapshot.Scope.EnrollmentCurriculumID, semester)
+		if draftErr != nil {
+			resultErr = draftErr
+			return
+		}
+		if draft == nil {
+			return
+		}
+		draft.IsStale = draft.SourceHash != snapshot.Metadata.SourceHash
+		draft.PreviousAttempt = state.Job != nil && draft.JobID != state.Job.JobID
+		if draft.IsStale {
+			draft.Preview = ""
+		}
+		state.RejectedDraft = draft
+	}()
 	if snapshot.Completeness == "none" {
 		state.GenerationState = AssessmentReportInsufficientData
 		return state, nil

@@ -7,6 +7,31 @@
   color: var(--text);
 }
 
+.rejectedDraft {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--warning, #b7791f);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text);
+}
+
+.rejectedDraft p, .rejectedDraft h4 { margin: 0; }
+.draftWarning { display: flex; gap: 10px; align-items: flex-start; }
+.draftWarning svg { flex: 0 0 auto; color: var(--warning, #b7791f); }
+.draftWarning h4 { font-size: 0.95rem; margin-bottom: 6px; }
+.draftWarning p { line-height: 1.6; }
+.draftLocation { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; font-size: 0.85rem; }
+.draftLocation dt { color: var(--text-muted); }
+.draftLocation dd { margin: 0; overflow-wrap: anywhere; }
+.draftDetails summary { cursor: pointer; color: var(--primary); }
+.draftDetails summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.draftDetails code { display: block; margin-top: 8px; overflow-wrap: anywhere; }
+.draftPreview { margin: 12px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.8; }
+
 .header {
   display: flex;
   align-items: flex-start;
