@@ -20,6 +20,7 @@ export function LearnerAssessmentRejectedDraft({ draft, language, t }) {
             {draft.previous_attempt && <p>{t('assessment_draft_previous')}</p>}
             {draft.is_stale && <p>{t('assessment_draft_stale')}</p>}
             <p>{assessmentDraftReason(violation, language)}</p>
+            {(violation.reason === 'pii_detected' || preview.includes('[redacted]')) && <p className={styles.muted}>{t('assessment_draft_redacted')}</p>}
             <p className={styles.muted}>{t('assessment_draft_first_error')}</p>
             <dl className={styles.draftLocation}>
                 {violation.section && <><dt>{t('assessment_draft_section')}</dt><dd>{['strengths', 'development', 'observations'].includes(violation.section) ? t(`assessment_report_${violation.section}`) : violation.section}</dd></>}
