@@ -26,6 +26,17 @@ type AssessmentSnapshotRebuilder interface {
 	BuildForEnrollmentCurriculum(context.Context, uint64, uint) (*models.LearnerAssessmentSnapshot, error)
 }
 
+type AssessmentAPICallStore interface {
+	Reserve(context.Context, models.AssessmentJob, string, string, int, time.Duration) (uint64, error)
+	Finish(context.Context, uint64, *int, *int) error
+}
+
+type assessmentAPIJobStore interface {
+	DeferAPICall(context.Context, models.AssessmentJob, time.Duration) error
+	MarkFailedWithDraft(context.Context, models.AssessmentJob, string, time.Duration, models.AssessmentRejectedDraft) error
+	CompleteAPIReport(context.Context, models.AssessmentJob, models.AssessmentReportRecord, *repositories.AssessmentReportRepository) error
+}
+
 type LearnerAssessmentWorker struct {
 	Jobs             AssessmentWorkerJobStore
 	Reports          *repositories.AssessmentReportRepository
@@ -35,6 +46,8 @@ type LearnerAssessmentWorker struct {
 	AttemptTimeout   time.Duration
 	ContextBudget    AssessmentContextBudget
 	GenerationConfig AssessmentGenerationConfig
+	APICalls         AssessmentAPICallStore
+	APIDailyLimit    int
 	Now              func() time.Time
 }
 
@@ -155,20 +168,40 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 	if isAPI {
 		schema = AssessmentAPIOutputJSONSchema(payload.ProviderInput)
 	}
-	if streamingProvider, ok := w.Provider.(StreamingAssessmentProvider); ok {
-		providerOutput, providerErr = streamingProvider.GenerateWithProgress(
-			ctx,
-			systemPrompt,
-			userPrompt,
-			schema,
-			func() error {
-				return w.Jobs.UpdateProgress(ctx, job.JobID, job.LeaseToken, "generating", true)
-			},
-		)
+	if isAPI {
+		if w.APICalls == nil {
+			return w.failClaim(ctx, job, "provider_configuration", assessmentFailureWait)
+		}
+		providerOutput, providerErr = w.generateAPIOutput(ctx, job, systemPrompt, userPrompt, schema)
+		if errors.Is(providerErr, repositories.ErrAssessmentAPIBusy) {
+			if store, ok := w.Jobs.(assessmentAPIJobStore); ok {
+				return store.DeferAPICall(ctx, job, 5*time.Second)
+			}
+			return w.failClaim(ctx, job, "provider_busy", assessmentFailureWait)
+		}
+		if errors.Is(providerErr, repositories.ErrAssessmentAPIQuota) {
+			return w.failClaim(ctx, job, "api_quota_exhausted", time.Until(w.now().Truncate(24*time.Hour).Add(24*time.Hour)))
+		}
 	} else {
-		providerOutput, providerErr = w.Provider.Generate(ctx, systemPrompt, userPrompt, schema)
+		if streamingProvider, ok := w.Provider.(StreamingAssessmentProvider); ok {
+			providerOutput, providerErr = streamingProvider.GenerateWithProgress(
+				ctx,
+				systemPrompt,
+				userPrompt,
+				schema,
+				func() error {
+					return w.Jobs.UpdateProgress(ctx, job.JobID, job.LeaseToken, "generating", true)
+				},
+			)
+		} else {
+			providerOutput, providerErr = w.Provider.Generate(ctx, systemPrompt, userPrompt, schema)
+		}
 	}
 	if providerErr != nil {
+		var failure AssessmentProviderError
+		if isAPI && len(providerOutput) > 0 && errors.As(providerErr, &failure) && !failure.Retryable {
+			return w.failAPIOutput(ctx, job, "invalid_output", providerOutput, assessmentValidationFailure(assessmentReasonInvalidJSONStructure, "output", ""))
+		}
 		return w.handleProviderError(ctx, job, providerErr)
 	}
 	if err := w.Jobs.UpdateProgress(ctx, job.JobID, job.LeaseToken, "validating", false); err != nil {
@@ -184,6 +217,9 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 	}
 	if err != nil {
 		logAssessmentOutputRejection(ctx, err, len(providerOutput))
+		if isAPI {
+			return w.failAPIOutput(ctx, job, "invalid_output", providerOutput, err)
+		}
 		if errors.Is(err, ErrAssessmentOutputMalformed) {
 			return w.failClaim(ctx, job, "malformed_output", assessmentFailureWait)
 		}
@@ -224,7 +260,41 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 		SchemaVersion:             snapshot.Metadata.SchemaVersion,
 		GeneratedAt:               w.now(),
 	}
+	if isAPI {
+		if store, ok := w.Jobs.(assessmentAPIJobStore); ok {
+			return store.CompleteAPIReport(ctx, job, report, w.Reports)
+		}
+		return w.failClaim(ctx, job, "provider_configuration", assessmentFailureWait)
+	}
 	return w.Jobs.CompleteSuccessfully(ctx, job.JobID, job.LeaseToken, report, w.Reports)
+}
+
+func (w *LearnerAssessmentWorker) generateAPIOutput(ctx context.Context, job models.AssessmentJob, system, user string, schema json.RawMessage) ([]byte, error) {
+	id, err := w.APICalls.Reserve(ctx, job, w.GenerationConfig.Provider, w.GenerationConfig.Model, w.APIDailyLimit, w.AttemptTimeout+60*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	usage := AssessmentAPIUsage{}
+	callContext := withAssessmentAPIUsage(ctx, &usage)
+	var output []byte
+	if p, ok := w.Provider.(StreamingAssessmentProvider); ok {
+		output, err = p.GenerateWithProgress(callContext, system, user, schema, func() error { return w.Jobs.UpdateProgress(ctx, job.JobID, job.LeaseToken, "generating", true) })
+	} else {
+		output, err = w.Provider.Generate(callContext, system, user, schema)
+	}
+	finishContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if finishErr := w.APICalls.Finish(finishContext, id, usage.InputTokens, usage.OutputTokens); finishErr != nil {
+		return nil, AssessmentProviderError{Code: "provider_accounting_failed"}
+	}
+	return output, err
+}
+
+func (w *LearnerAssessmentWorker) failAPIOutput(ctx context.Context, job models.AssessmentJob, code string, raw []byte, validationErr error) error {
+	if store, ok := w.Jobs.(assessmentAPIJobStore); ok {
+		return store.MarkFailedWithDraft(ctx, job, code, assessmentFailureWait, BuildAssessmentRejectedDraft(raw, validationErr, job))
+	}
+	return w.failClaim(ctx, job, "provider_configuration", assessmentFailureWait)
 }
 
 func (w *LearnerAssessmentWorker) handleProviderError(ctx context.Context, job models.AssessmentJob, err error) error {

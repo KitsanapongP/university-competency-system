@@ -60,6 +60,10 @@ func main() {
 	worker := services.NewLearnerAssessmentWorker(jobRepo, reportRepo, provider, sourceBuilder)
 	worker.ContextBudget = budget
 	worker.GenerationConfig = generationConfig
+	if generationConfig.Provider != "ollama" {
+		worker.APICalls = &repositories.AssessmentAPIRepository{DB: db}
+		worker.APIDailyLimit = cfg.AssessmentAPIDailyLimit
+	}
 	worker.LeaseDuration = cfg.AssessmentWorkerLeaseDuration
 	worker.AttemptTimeout = attemptTimeout + 60*time.Second
 

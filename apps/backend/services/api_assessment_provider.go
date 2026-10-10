@@ -100,6 +100,11 @@ func (p *APIAssessmentProvider) GenerateWithProgress(ctx context.Context, system
 	var total int
 	var done bool
 	usage := AssessmentAPIUsage{}
+	defer func() {
+		if dst, ok := ctx.Value(assessmentUsageContextKey{}).(*AssessmentAPIUsage); ok {
+			*dst = usage
+		}
+	}()
 	dispatch := func() error {
 		if len(data) == 0 {
 			return nil
