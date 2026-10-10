@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 )
 
 type AssessmentProvider interface {
@@ -22,9 +23,10 @@ type StreamingAssessmentProvider interface {
 }
 
 type AssessmentProviderError struct {
-	Code      string
-	Retryable bool
-	Cause     error
+	Code       string
+	Retryable  bool
+	Cause      error
+	RetryAfter time.Duration
 }
 
 func (e AssessmentProviderError) Error() string {

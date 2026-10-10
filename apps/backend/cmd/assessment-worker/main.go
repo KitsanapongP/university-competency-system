@@ -19,12 +19,15 @@ import (
 func main() {
 	_ = godotenv.Load(".env")
 	cfg := config.Load()
-	if cfg.AssessmentOllamaModelDigest == "" {
-		log.Fatal("assessment worker requires LEARNER_ASSESSMENT_OLLAMA_MODEL_DIGEST; run the synthetic model evaluation and pin the reviewed digest")
+	budget, generationConfig, err := services.AssessmentRuntime(cfg)
+	if err != nil {
+		log.Fatal(err)
 	}
-	installedDigest, err := services.ResolveOllamaModelDigest(context.Background(), cfg.AssessmentOllamaURL, services.DefaultAssessmentModel())
-	if err != nil || installedDigest != cfg.AssessmentOllamaModelDigest {
-		log.Fatal("assessment worker model digest does not match the pinned configuration")
+	if generationConfig.Provider == "ollama" {
+		installedDigest, digestErr := services.ResolveOllamaModelDigest(context.Background(), cfg.AssessmentOllamaURL, services.DefaultAssessmentModel())
+		if digestErr != nil || installedDigest != cfg.AssessmentOllamaModelDigest {
+			log.Fatal("assessment worker model digest does not match the pinned configuration")
+		}
 	}
 	db, err := appdb.NewMySQL(cfg)
 	if err != nil {
@@ -36,21 +39,11 @@ func main() {
 	readinessRepo := repositories.NewCooperativeReadinessRepository(db)
 	curriculumRepo := repositories.NewCurriculumRepository(db)
 	sourceBuilder := services.NewAssessmentSourceBuilder(db, sourceRepo, readinessRepo, curriculumRepo)
-	budget := services.AssessmentContextBudget{
-		ContextTokens:       cfg.AssessmentContextTokens,
-		OutputReserveTokens: cfg.AssessmentOutputReserveTokens,
-		SafetyMarginTokens:  cfg.AssessmentTokenSafetyMargin,
-	}
-	generationConfig := services.AssessmentGenerationConfig{
-		ModelDigest:  cfg.AssessmentOllamaModelDigest,
-		ThinkEnabled: cfg.AssessmentOllamaThink,
-		KeepAlive:    cfg.AssessmentOllamaKeepAlive,
-	}
 	sourceBuilder.ContextBudget = budget
 	sourceBuilder.GenerationConfig = generationConfig
 	jobRepo := repositories.NewAssessmentJobRepository(db)
 	reportRepo := repositories.NewAssessmentReportRepository(db)
-	provider := services.NewOllamaAssessmentProvider(
+	var provider services.AssessmentProvider = services.NewOllamaAssessmentProvider(
 		cfg.AssessmentOllamaURL,
 		services.DefaultAssessmentModel(),
 		cfg.AssessmentOllamaTimeout,
@@ -59,11 +52,16 @@ func main() {
 		cfg.AssessmentOutputReserveTokens,
 		cfg.AssessmentContextTokens,
 	)
+	attemptTimeout := cfg.AssessmentOllamaTimeout
+	if generationConfig.Provider != "ollama" {
+		provider = services.NewAPIAssessmentProvider(generationConfig.Provider, generationConfig.Model, cfg.AssessmentAPIKey, cfg.AssessmentAPITimeout, cfg.AssessmentAPIIdleTimeout, cfg.AssessmentOutputReserveTokens)
+		attemptTimeout = cfg.AssessmentAPITimeout
+	}
 	worker := services.NewLearnerAssessmentWorker(jobRepo, reportRepo, provider, sourceBuilder)
 	worker.ContextBudget = budget
 	worker.GenerationConfig = generationConfig
 	worker.LeaseDuration = cfg.AssessmentWorkerLeaseDuration
-	worker.AttemptTimeout = cfg.AssessmentOllamaTimeout + 60*time.Second
+	worker.AttemptTimeout = attemptTimeout + 60*time.Second
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -71,7 +69,7 @@ func main() {
 	if pollInterval <= 0 {
 		pollInterval = 3 * time.Second
 	}
-	log.Printf("learner assessment worker started (provider=ollama model=%s)", services.DefaultAssessmentModel())
+	log.Printf("learner assessment worker started (provider=%s model=%s)", generationConfig.Provider, generationConfig.Model)
 	for ctx.Err() == nil {
 		processed, processErr := worker.ProcessOne(ctx)
 		if processErr != nil {

@@ -226,6 +226,9 @@ func (w *LearnerAssessmentWorker) handleProviderError(ctx context.Context, job m
 			}
 			return w.failClaim(ctx, job, providerErr.Code, wait)
 		}
+		if providerErr.RetryAfter > 0 && job.AttemptCount < job.MaxAttempts {
+			return w.Jobs.QueueRetry(ctx, job.JobID, job.LeaseToken, providerErr.RetryAfter)
+		}
 		return w.retryClaim(ctx, job, providerErr.Code, err)
 	}
 	return w.retryClaim(ctx, job, "provider_unavailable", err)
