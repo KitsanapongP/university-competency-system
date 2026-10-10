@@ -11,6 +11,7 @@ type AssessmentBilingualText struct {
 }
 
 type AssessmentProviderInput struct {
+	Curriculum       *AssessmentBilingualText       `json:"curriculum,omitempty"`
 	Semester         uint                           `json:"semester"`
 	TargetYearBE     uint64                         `json:"target_year_be"`
 	Completeness     string                         `json:"completeness"`
@@ -46,6 +47,7 @@ type AssessmentProviderReadinessResult struct {
 }
 
 type AssessmentProviderCourse struct {
+	Source          string   `json:"source,omitempty"`
 	EvidenceRef     string   `json:"evidence_ref"`
 	OccurrenceCount int      `json:"occurrence_count"`
 	CourseCode      string   `json:"course_code"`

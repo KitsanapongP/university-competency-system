@@ -133,7 +133,7 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 		!reflect.DeepEqual(prepared.Diagnostics, payload.Diagnostics) {
 		return w.failClaim(ctx, job, "invalid_job_snapshot", assessmentFailureWait)
 	}
-	systemPrompt, userPrompt, err := BuildAssessmentPrompt(payload.ProviderInput)
+	systemPrompt, userPrompt, err := BuildAssessmentPromptForProvider(payload.ProviderInput, snapshot.Metadata.Provider)
 	if err != nil {
 		return w.failClaim(ctx, job, "invalid_job_snapshot", assessmentFailureWait)
 	}
@@ -151,6 +151,10 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 	var providerOutput []byte
 	var providerErr error
 	schema := AssessmentOutputJSONSchema(payload.ProviderInput)
+	isAPI := snapshot.Metadata.Provider != "ollama"
+	if isAPI {
+		schema = AssessmentAPIOutputJSONSchema(payload.ProviderInput)
+	}
 	if streamingProvider, ok := w.Provider.(StreamingAssessmentProvider); ok {
 		providerOutput, providerErr = streamingProvider.GenerateWithProgress(
 			ctx,
@@ -170,7 +174,14 @@ func (w *LearnerAssessmentWorker) processClaimed(ctx context.Context, job models
 	if err := w.Jobs.UpdateProgress(ctx, job.JobID, job.LeaseToken, "validating", false); err != nil {
 		return err
 	}
-	validated, err := ValidateAssessmentProviderOutput(providerOutput, payload.ProviderInput)
+	validationOutput := providerOutput
+	if isAPI {
+		validationOutput, err = NormalizeAssessmentAPIOutput(providerOutput)
+	}
+	var validated models.AssessmentProseReport
+	if err == nil {
+		validated, err = ValidateAssessmentProviderOutput(validationOutput, payload.ProviderInput)
+	}
 	if err != nil {
 		logAssessmentOutputRejection(ctx, err, len(providerOutput))
 		if errors.Is(err, ErrAssessmentOutputMalformed) {

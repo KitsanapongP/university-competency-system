@@ -96,31 +96,33 @@ func PrepareAssessmentContext(snapshot *models.LearnerAssessmentSnapshot, budget
 	}
 	provenance := make(map[string][]string)
 	var courseRefs map[string]string
-	input.AcademicEvidence, courseRefs = aggregateProviderCourses(input.AcademicEvidence, provenance)
-	for competencyIndex := range input.CompetencyScores {
-		competency := &input.CompetencyScores[competencyIndex]
-		for scoreIndex := range competency.CourseScores {
-			if reference := courseRefs[competency.CourseScores[scoreIndex].CourseRef]; reference != "" {
-				competency.CourseScores[scoreIndex].CourseRef = reference
+	if snapshot.Metadata.Provider == "" || snapshot.Metadata.Provider == "ollama" {
+		input.AcademicEvidence, courseRefs = aggregateProviderCourses(input.AcademicEvidence, provenance)
+		for competencyIndex := range input.CompetencyScores {
+			competency := &input.CompetencyScores[competencyIndex]
+			for scoreIndex := range competency.CourseScores {
+				if reference := courseRefs[competency.CourseScores[scoreIndex].CourseRef]; reference != "" {
+					competency.CourseScores[scoreIndex].CourseRef = reference
+				}
 			}
+			competency.CourseScores = aggregateProviderCourseScores(competency.CourseScores, provenance)
 		}
-		competency.CourseScores = aggregateProviderCourseScores(competency.CourseScores, provenance)
-	}
-	var activityRefs map[string]string
-	input.ActivityEvidence, activityRefs = aggregateProviderActivities(input.ActivityEvidence, provenance)
-	for competencyIndex := range input.CompetencyScores {
-		for scoreIndex := range input.CompetencyScores[competencyIndex].ActivityScores {
-			score := &input.CompetencyScores[competencyIndex].ActivityScores[scoreIndex]
-			if reference := activityRefs[score.ActivityEvidenceRef]; reference != "" {
-				score.ActivityEvidenceRef = reference
-			}
-			if reference := activityRefs[score.EvidenceRef]; reference != "" {
-				score.EvidenceRef = reference
+		var activityRefs map[string]string
+		input.ActivityEvidence, activityRefs = aggregateProviderActivities(input.ActivityEvidence, provenance)
+		for competencyIndex := range input.CompetencyScores {
+			for scoreIndex := range input.CompetencyScores[competencyIndex].ActivityScores {
+				score := &input.CompetencyScores[competencyIndex].ActivityScores[scoreIndex]
+				if reference := activityRefs[score.ActivityEvidenceRef]; reference != "" {
+					score.ActivityEvidenceRef = reference
+				}
+				if reference := activityRefs[score.EvidenceRef]; reference != "" {
+					score.EvidenceRef = reference
+				}
 			}
 		}
 	}
 	canonicalizeAssessmentProviderInput(&input)
-	systemPrompt, userPrompt, err := BuildAssessmentPrompt(input)
+	systemPrompt, userPrompt, err := BuildAssessmentPromptForProvider(input, snapshot.Metadata.Provider)
 	if err != nil {
 		return PreparedAssessmentContext{}, err
 	}

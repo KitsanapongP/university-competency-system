@@ -29,6 +29,7 @@ func BuildAssessmentProviderInput(snapshot *models.LearnerAssessmentSnapshot) (m
 		return models.AssessmentProviderInput{}, fmt.Errorf("assessment snapshot is required")
 	}
 	input := models.AssessmentProviderInput{
+		Curriculum:       snapshot.Curriculum,
 		Semester:         snapshot.Semester,
 		TargetYearBE:     snapshot.TargetYearBE,
 		Completeness:     snapshot.Completeness,
@@ -51,6 +52,9 @@ func BuildAssessmentProviderInput(snapshot *models.LearnerAssessmentSnapshot) (m
 			GradeScheme:     item.GradeScheme,
 			Grade:           sanitizeAssessmentText(item.Grade),
 		})
+		if snapshot.Metadata.Provider != "" && snapshot.Metadata.Provider != "ollama" {
+			input.AcademicEvidence[len(input.AcademicEvidence)-1].Source = item.Source
+		}
 	}
 	for _, item := range snapshot.CourseScores {
 		competency := models.AssessmentProviderCompetency{

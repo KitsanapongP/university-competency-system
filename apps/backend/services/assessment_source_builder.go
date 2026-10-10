@@ -136,6 +136,15 @@ func (b *AssessmentSourceBuilder) build(
 		Availability:     availability,
 	}
 	snapshot.Metadata = assessmentSourceMetadata(contextBudget, b.GenerationConfig)
+	if snapshot.Metadata.Provider != "ollama" {
+		var names models.AssessmentBilingualText
+		if err := tx.QueryRowContext(ctx, `SELECT curriculum_name_th, COALESCE(curriculum_name_en, '') FROM edu_curricula WHERE curriculum_id = ? AND deleted_at IS NULL`, scope.CurriculumID).Scan(&names.TH, &names.EN); err != nil {
+			return nil, err
+		}
+		names.TH = sanitizeAssessmentText(names.TH)
+		names.EN = assessmentTextWithFallback(names.EN, names.TH)
+		snapshot.Curriculum = &names
+	}
 	snapshot.Metadata.SourceHash, err = calculateAssessmentSourceHash(snapshot)
 	if err != nil {
 		return nil, err

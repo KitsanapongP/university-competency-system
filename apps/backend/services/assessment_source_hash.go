@@ -46,6 +46,7 @@ type assessmentHashVersions struct {
 }
 
 type assessmentHashPayload struct {
+	Curriculum   *models.AssessmentBilingualText       `json:"curriculum,omitempty"`
 	HashVersion  string                                `json:"hash_version"`
 	Scope        assessmentHashScope                   `json:"scope"`
 	Semester     uint                                  `json:"semester"`
@@ -190,6 +191,7 @@ func calculateAssessmentSourceHash(snapshot *models.LearnerAssessmentSnapshot) (
 	sort.Slice(availability, func(i, j int) bool { return availability[i].Source < availability[j].Source })
 	metadata := snapshot.Metadata
 	payload := assessmentHashPayload{
+		Curriculum:  snapshot.Curriculum,
 		HashVersion: "sha256-json-v2",
 		Scope: assessmentHashScope{
 			PersonID:               snapshot.Scope.PersonID,

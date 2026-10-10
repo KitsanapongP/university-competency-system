@@ -137,6 +137,7 @@ type AssessmentActivityScore struct {
 }
 
 type LearnerAssessmentSnapshot struct {
+	Curriculum       *AssessmentBilingualText       `json:"curriculum,omitempty"`
 	Scope            LearnerAssessmentScope         `json:"-"`
 	Semester         uint                           `json:"semester"`
 	TargetYearBE     uint64                         `json:"target_year_be"`
