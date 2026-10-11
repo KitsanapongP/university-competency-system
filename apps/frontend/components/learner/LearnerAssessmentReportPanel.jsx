@@ -82,6 +82,8 @@ function jobErrorMessage(code, t) {
     const labels = {
         provider_timeout: t('assessment_error_provider_timeout'),
 		provider_authentication: t('assessment_error_api_auth'),
+        provider_model_unavailable: t('assessment_error_api_model'),
+        provider_token_quota_exhausted: t('assessment_error_api_token_quota'),
 		provider_configuration: t('assessment_error_api_configuration'),
 		provider_request_rejected: t('assessment_error_api_request'),
 		provider_rate_limited: t('assessment_error_api_rate_limit'),
