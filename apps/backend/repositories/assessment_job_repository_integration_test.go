@@ -241,8 +241,21 @@ func TestAssessmentJobRepositoryMySQLConcurrencyAndFencing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	for range 2 {
+		if err := jobs.UpdateProgress(ctx, staleClaim.JobID, staleClaim.LeaseToken, "preparing", false); err != nil {
+			t.Fatalf("repeated preparing progress must retain ownership: %v", err)
+		}
+	}
 	if err := jobs.UpdateProgress(ctx, staleClaim.JobID, staleClaim.LeaseToken, "generating", true); err != nil {
 		t.Fatal(err)
+	}
+	for range 2 {
+		if err := jobs.UpdateProgress(ctx, staleClaim.JobID, staleClaim.LeaseToken, "generating", true); err != nil {
+			t.Fatalf("throttled provider activity must retain ownership: %v", err)
+		}
+	}
+	if err := jobs.UpdateProgress(ctx, staleClaim.JobID, "wrong-token", "generating", false); !errors.Is(err, ErrAssessmentLeaseLost) {
+		t.Fatalf("wrong worker token error = %v, want lease lost", err)
 	}
 	progress, err := jobs.GetForUser(ctx, ownerUserID, staleClaim.JobID)
 	if err != nil || progress.ProgressPhase != "generating" || progress.LastProviderActivityAt == nil {

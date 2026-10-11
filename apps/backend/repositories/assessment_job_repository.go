@@ -164,7 +164,29 @@ func (r *AssessmentJobRepository) UpdateProgress(
 		WHERE job_id = ? AND status = 'running' AND lease_token = ?
 			AND lease_expires_at > UTC_TIMESTAMP()`,
 		phase, phase, activity, jobID, leaseToken)
-	return assessmentRequireOwnedRows(result, err)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 1 {
+		return nil
+	}
+	if rows != 0 {
+		return ErrAssessmentLeaseLost
+	}
+	// MySQL reports zero changed rows for repeated phases and throttled activity.
+	var ownedJobID uint64
+	err = r.DB.QueryRowContext(ctx, `
+		SELECT job_id FROM ai_report_jobs
+		WHERE job_id = ? AND status = 'running' AND lease_token = ?
+			AND lease_expires_at > UTC_TIMESTAMP()`, jobID, leaseToken).Scan(&ownedJobID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrAssessmentLeaseLost
+	}
+	return err
 }
 
 func (r *AssessmentJobRepository) ReconcileStaleForUser(ctx context.Context, userID, jobID uint64) error {
@@ -467,12 +489,12 @@ type assessmentJobScanner interface {
 func scanAssessmentJob(scanner assessmentJobScanner) (models.AssessmentJob, error) {
 	var job models.AssessmentJob
 	var snapshot []byte
-	var leaseToken, errorCode sql.NullString
+	var leaseToken, errorCode, progressPhase sql.NullString
 	var phaseStartedAt, lastProviderActivityAt sql.NullTime
 	var leaseExpiresAt, heartbeatAt, nextAttemptAt, failureWaitUntil, startedAt, finishedAt sql.NullTime
 	err := scanner.Scan(
 		&job.JobID, &job.EnrollmentCurriculumID, &job.Semester, &job.TargetYearBE,
-		&job.InputHash, &snapshot, &job.Status, &job.ProgressPhase, &phaseStartedAt,
+		&job.InputHash, &snapshot, &job.Status, &progressPhase, &phaseStartedAt,
 		&lastProviderActivityAt, &job.AttemptCount, &job.MaxAttempts,
 		&leaseToken, &leaseExpiresAt, &heartbeatAt, &nextAttemptAt, &failureWaitUntil,
 		&job.RequestedAt, &startedAt, &finishedAt, &errorCode,
@@ -486,8 +508,20 @@ func scanAssessmentJob(scanner assessmentJobScanner) (models.AssessmentJob, erro
 	job.InputSnapshot = append(job.InputSnapshot[:0], snapshot...)
 	job.LeaseToken = leaseToken.String
 	job.ErrorCode = errorCode.String
-	job.PhaseStartedAt = nullableAssessmentTime(phaseStartedAt)
-	job.LastProviderActivityAt = nullableAssessmentTime(lastProviderActivityAt)
+	job.ProgressPhase = progressPhase.String
+	if job.ProgressPhase == "" {
+		// Jobs created before progress tracking have no phase recorded.
+		switch job.Status {
+		case "queued", "failed":
+			job.ProgressPhase = job.Status
+		case "running":
+			job.ProgressPhase = "preparing"
+		case "succeeded":
+			job.ProgressPhase = "completed"
+		}
+	}
+	job.PhaseStartedAt = nullableAssessmentUTCDateTime(phaseStartedAt)
+	job.LastProviderActivityAt = nullableAssessmentUTCDateTime(lastProviderActivityAt)
 	job.LeaseExpiresAt = nullableAssessmentTime(leaseExpiresAt)
 	job.HeartbeatAt = nullableAssessmentTime(heartbeatAt)
 	job.NextAttemptAt = nullableAssessmentTime(nextAttemptAt)
@@ -503,6 +537,19 @@ func nullableAssessmentTime(value sql.NullTime) *time.Time {
 	}
 	copy := value.Time
 	return &copy
+}
+
+func nullableAssessmentUTCDateTime(value sql.NullTime) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	wallTime := value.Time
+	utc := time.Date(
+		wallTime.Year(), wallTime.Month(), wallTime.Day(),
+		wallTime.Hour(), wallTime.Minute(), wallTime.Second(), wallTime.Nanosecond(),
+		time.UTC,
+	)
+	return &utc
 }
 
 func assessmentRequireOwnedRows(result sql.Result, err error) error {
