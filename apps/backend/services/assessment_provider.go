@@ -27,6 +27,7 @@ type AssessmentProviderError struct {
 	Retryable  bool
 	Cause      error
 	RetryAfter time.Duration
+	HTTPStatus int
 }
 
 func (e AssessmentProviderError) Error() string {

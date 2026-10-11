@@ -21,7 +21,7 @@ func AssessmentRuntime(c config.Config) (AssessmentContextBudget, AssessmentGene
 		return b, g, nil
 	}
 	switch g.Provider {
-	case "deepseek", "openai", "gemini":
+	case "kku", "deepseek", "openai", "gemini":
 	default:
 		return b, g, errors.New("unsupported assessment provider")
 	}

@@ -106,7 +106,7 @@ func assessmentSourceMetadata(budget AssessmentContextBudget, configs ...Assessm
 			Base          string
 			Timeout, Idle int
 			Temperature   string
-		}{metadata.ProviderConfigFingerprint, config.TimeoutSeconds, config.IdleTimeoutSeconds, map[string]string{"deepseek": "0-thinking-disabled", "gemini": "0", "openai": "provider-default"}[metadata.Provider]})
+		}{metadata.ProviderConfigFingerprint, config.TimeoutSeconds, config.IdleTimeoutSeconds, map[string]string{"kku": "0-chat-completions-json-prompt-v1", "deepseek": "0-thinking-disabled", "gemini": "0", "openai": "provider-default"}[metadata.Provider]})
 		digest := sha256.Sum256(settings)
 		metadata.ProviderConfigFingerprint = hex.EncodeToString(digest[:])
 	}

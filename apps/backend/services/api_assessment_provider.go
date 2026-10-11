@@ -37,7 +37,7 @@ type APIAssessmentProvider struct {
 }
 
 func NewAPIAssessmentProvider(provider, model, key string, timeout, idle time.Duration, outputTokens int) *APIAssessmentProvider {
-	endpoint := map[string]string{"deepseek": "https://api.deepseek.com/chat/completions", "openai": "https://api.openai.com/v1/responses", "gemini": "https://generativelanguage.googleapis.com/v1beta/models/" + url.PathEscape(model) + ":streamGenerateContent?alt=sse"}[provider]
+	endpoint := map[string]string{"kku": "https://gen.ai.kku.ac.th/api/v1/chat/completions", "deepseek": "https://api.deepseek.com/chat/completions", "openai": "https://api.openai.com/v1/responses", "gemini": "https://generativelanguage.googleapis.com/v1beta/models/" + url.PathEscape(model) + ":streamGenerateContent?alt=sse"}[provider]
 	return &APIAssessmentProvider{Provider: provider, Model: model, apiKey: key, endpoint: endpoint, timeout: timeout, idleTimeout: idle, outputTokens: outputTokens, client: &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 
@@ -54,6 +54,13 @@ func (p *APIAssessmentProvider) requestBody(system, user string, schema json.Raw
 	case "deepseek":
 		return map[string]any{"model": p.Model, "messages": []any{map[string]string{"role": "system", "content": system + "\nReturn JSON."}, map[string]string{"role": "user", "content": user}}, "stream": true, "stream_options": map[string]bool{"include_usage": true}, "response_format": map[string]string{"type": "json_object"}, "max_tokens": p.outputTokens, "temperature": 0, "thinking": map[string]string{"type": "disabled"}}, nil
 	case "openai":
+	case "kku":
+		var model any = p.Model
+		if id, err := strconv.ParseUint(p.Model, 10, 64); err == nil && id > 0 {
+			model = id
+		}
+		// KKU documents Chat Completions, but not JSON mode or strict schemas.
+		return map[string]any{"model": model, "messages": []any{map[string]string{"role": "system", "content": system + "\nReturn only JSON matching the provided schema, without Markdown fences."}, map[string]string{"role": "user", "content": user}}, "stream": true, "max_tokens": p.outputTokens, "temperature": 0}, nil
 		return map[string]any{"model": p.Model, "instructions": system, "input": user, "stream": true, "store": false, "max_output_tokens": p.outputTokens, "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "learner_assessment", "strict": true, "schema": shape}}}, nil
 	case "gemini":
 		return map[string]any{"systemInstruction": map[string]any{"parts": []any{map[string]string{"text": system}}}, "contents": []any{map[string]any{"role": "user", "parts": []any{map[string]string{"text": user}}}}, "generationConfig": map[string]any{"responseMimeType": "application/json", "responseJsonSchema": shape, "maxOutputTokens": p.outputTokens, "temperature": 0}}, nil
@@ -95,6 +102,9 @@ func (p *APIAssessmentProvider) GenerateWithProgress(ctx context.Context, system
 		return nil, apiHTTPError(resp)
 	}
 	if !strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
+		if p.Provider == "kku" {
+			return nil, kkuAPIHTTPError(resp)
+		}
 		return nil, AssessmentProviderError{Code: "provider_protocol"}
 	}
 	scanner := bufio.NewScanner(io.LimitReader(resp.Body, assessmentAPIResponseLimit+1))
@@ -186,7 +196,7 @@ func apiTransportError(request, parent context.Context) error {
 }
 
 func apiHTTPError(resp *http.Response) error {
-	e := AssessmentProviderError{Code: "provider_request_rejected"}
+	e := AssessmentProviderError{Code: "provider_request_rejected", HTTPStatus: resp.StatusCode}
 	switch resp.StatusCode {
 	case 401, 403:
 		e.Code = "provider_authentication"
@@ -213,7 +223,7 @@ func apiHTTPError(resp *http.Response) error {
 // Parse only final-answer deltas. Reasoning content and provider error text are ignored.
 func (p *APIAssessmentProvider) parseEvent(raw []byte, usage *AssessmentAPIUsage) (string, bool, error) {
 	switch p.Provider {
-	case "deepseek":
+	case "deepseek", "kku":
 		var e struct {
 			Error   json.RawMessage `json:"error"`
 			Choices []struct {
@@ -246,6 +256,9 @@ func (p *APIAssessmentProvider) parseEvent(raw []byte, usage *AssessmentAPIUsage
 			return "", false, AssessmentProviderError{Code: "provider_refusal"}
 		}
 		if c.FinishReason == "length" {
+			if p.Provider == "kku" {
+				return "", false, kkuAPIMessageError(e.Error, 0)
+			}
 			return c.Delta.Content, false, AssessmentProviderError{Code: "truncated_output"}
 		}
 		return c.Delta.Content, c.FinishReason == "stop", nil

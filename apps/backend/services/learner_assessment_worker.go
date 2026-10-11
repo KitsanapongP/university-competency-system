@@ -307,6 +307,7 @@ func (w *LearnerAssessmentWorker) failAPIOutput(ctx context.Context, job models.
 func (w *LearnerAssessmentWorker) handleProviderError(ctx context.Context, job models.AssessmentJob, err error) error {
 	var providerErr AssessmentProviderError
 	if errors.As(err, &providerErr) {
+		assessmentLogger(ctx).WarnContext(ctx, "assessment provider request failed", "provider", w.GenerationConfig.Provider, "error_code", providerErr.Code, "http_status", providerErr.HTTPStatus, "retryable", providerErr.Retryable)
 		if !providerErr.Retryable {
 			wait := assessmentFailureWait
 			if providerErr.Code == "context_exceeded" {

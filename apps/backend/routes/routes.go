@@ -113,7 +113,7 @@ func New(db *sql.DB, cfg config.Config) http.Handler {
 	assessmentJobRepo := repositories.NewAssessmentJobRepository(db)
 	assessmentReportSvc := services.NewLearnerAssessmentReportService(assessmentSourceBuilder, assessmentReportRepo, assessmentJobRepo)
 	assessmentReportSvc.GenerationEnabled = assessmentConfigError == nil
-	if cfg.AssessmentAPIEnabled && (assessmentGenerationConfig.Provider == "deepseek" || assessmentGenerationConfig.Provider == "openai" || assessmentGenerationConfig.Provider == "gemini") {
+	if cfg.AssessmentAPIEnabled && (assessmentGenerationConfig.Provider == "kku" || assessmentGenerationConfig.Provider == "deepseek" || assessmentGenerationConfig.Provider == "openai" || assessmentGenerationConfig.Provider == "gemini") {
 		assessmentReportSvc.Drafts = &repositories.AssessmentAPIRepository{DB: db}
 	}
 	assessmentReportHandler := &controllers.LearnerAssessmentController{Service: assessmentReportSvc, Jobs: assessmentJobRepo}
