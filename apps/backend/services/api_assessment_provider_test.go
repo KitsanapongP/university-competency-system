@@ -166,7 +166,7 @@ func TestAPIStreamResponseIsBounded(t *testing.T) {
 	p.endpoint = server.URL
 	out, err := p.Generate(context.Background(), "system", "user", json.RawMessage(`{}`))
 	var failure AssessmentProviderError
-	if !errors.As(err, &failure) || failure.Code != "output_too_large" || len(out) > assessmentAPIResponseLimit {
+	if !errors.As(err, &failure) || failure.Code != "output_too_large" || len(out) > assessmentAPIOutputLimit {
 		t.Fatalf("unbounded output/error: %d %v", len(out), err)
 	}
 }

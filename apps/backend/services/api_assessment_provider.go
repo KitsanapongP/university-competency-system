@@ -13,7 +13,10 @@ import (
 	"time"
 )
 
-const assessmentAPIResponseLimit = 256 << 10
+const (
+	assessmentAPIStreamLimit = 2 << 20
+	assessmentAPIOutputLimit = 256 << 10
+)
 
 type AssessmentAPIUsage struct{ InputTokens, OutputTokens *int }
 type assessmentUsageContextKey struct{}
@@ -51,9 +54,6 @@ func (p *APIAssessmentProvider) requestBody(system, user string, schema json.Raw
 		return nil, AssessmentProviderError{Code: "provider_configuration"}
 	}
 	switch p.Provider {
-	case "deepseek":
-		return map[string]any{"model": p.Model, "messages": []any{map[string]string{"role": "system", "content": system + "\nReturn JSON."}, map[string]string{"role": "user", "content": user}}, "stream": true, "stream_options": map[string]bool{"include_usage": true}, "response_format": map[string]string{"type": "json_object"}, "max_tokens": p.outputTokens, "temperature": 0, "thinking": map[string]string{"type": "disabled"}}, nil
-	case "openai":
 	case "kku":
 		var model any = p.Model
 		if id, err := strconv.ParseUint(p.Model, 10, 64); err == nil && id > 0 {
@@ -61,6 +61,9 @@ func (p *APIAssessmentProvider) requestBody(system, user string, schema json.Raw
 		}
 		// KKU documents Chat Completions, but not JSON mode or strict schemas.
 		return map[string]any{"model": model, "messages": []any{map[string]string{"role": "system", "content": system + "\nReturn only JSON matching the provided schema, without Markdown fences."}, map[string]string{"role": "user", "content": user}}, "stream": true, "max_tokens": p.outputTokens, "temperature": 0}, nil
+	case "deepseek":
+		return map[string]any{"model": p.Model, "messages": []any{map[string]string{"role": "system", "content": system + "\nReturn JSON."}, map[string]string{"role": "user", "content": user}}, "stream": true, "stream_options": map[string]bool{"include_usage": true}, "response_format": map[string]string{"type": "json_object"}, "max_tokens": p.outputTokens, "temperature": 0, "thinking": map[string]string{"type": "disabled"}}, nil
+	case "openai":
 		return map[string]any{"model": p.Model, "instructions": system, "input": user, "stream": true, "store": false, "max_output_tokens": p.outputTokens, "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "learner_assessment", "strict": true, "schema": shape}}}, nil
 	case "gemini":
 		return map[string]any{"systemInstruction": map[string]any{"parts": []any{map[string]string{"text": system}}}, "contents": []any{map[string]any{"role": "user", "parts": []any{map[string]string{"text": user}}}}, "generationConfig": map[string]any{"responseMimeType": "application/json", "responseJsonSchema": shape, "maxOutputTokens": p.outputTokens, "temperature": 0}}, nil
@@ -99,20 +102,29 @@ func (p *APIAssessmentProvider) GenerateWithProgress(ctx context.Context, system
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, apiHTTPError(resp)
-	}
-	if !strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
 		if p.Provider == "kku" {
 			return nil, kkuAPIHTTPError(resp)
 		}
+		return nil, apiHTTPError(resp)
+	}
+	if !strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
 		return nil, AssessmentProviderError{Code: "provider_protocol"}
 	}
-	scanner := bufio.NewScanner(io.LimitReader(resp.Body, assessmentAPIResponseLimit+1))
-	scanner.Buffer(make([]byte, 4096), assessmentAPIResponseLimit+1)
+	// Count raw bytes, including SSE framing and reasoning, independently of the answer.
+	stream := &io.LimitedReader{R: resp.Body, N: assessmentAPIStreamLimit + 1}
+	scanner := bufio.NewScanner(stream)
+	scanner.Buffer(make([]byte, 4096), assessmentAPIStreamLimit+2)
 	var output strings.Builder
 	var data []string
-	var total int
 	var done bool
+	streamBytes := func() int { return assessmentAPIStreamLimit + 1 - int(stream.N) }
+	limitExceeded := func(kind string, observed, limit int) error {
+		assessmentLogger(ctx).WarnContext(ctx, "assessment API response limit exceeded",
+			"provider", p.Provider, "error_code", "output_too_large", "http_status", resp.StatusCode,
+			"limit_kind", kind, "observed_bytes", observed, "limit_bytes", limit,
+			"stream_bytes", streamBytes(), "answer_bytes", output.Len())
+		return AssessmentProviderError{Code: "output_too_large", HTTPStatus: resp.StatusCode}
+	}
 	usage := AssessmentAPIUsage{}
 	defer func() {
 		if dst, ok := ctx.Value(assessmentUsageContextKey{}).(*AssessmentAPIUsage); ok {
@@ -132,11 +144,11 @@ func (p *APIAssessmentProvider) GenerateWithProgress(ctx context.Context, system
 		if eventErr != nil {
 			return eventErr
 		}
+		if output.Len()+len(delta) > assessmentAPIOutputLimit {
+			return limitExceeded("answer", output.Len()+len(delta), assessmentAPIOutputLimit)
+		}
 		output.WriteString(delta)
 		done = done || finished
-		if output.Len() > assessmentAPIResponseLimit {
-			return AssessmentProviderError{Code: "output_too_large"}
-		}
 		if progress != nil {
 			return progress()
 		}
@@ -144,9 +156,8 @@ func (p *APIAssessmentProvider) GenerateWithProgress(ctx context.Context, system
 	}
 	for scanner.Scan() {
 		line := scanner.Text()
-		total += len(line) + 1
-		if total > assessmentAPIResponseLimit {
-			return []byte(output.String()), AssessmentProviderError{Code: "output_too_large"}
+		if streamBytes() > assessmentAPIStreamLimit {
+			return []byte(output.String()), limitExceeded("stream", streamBytes(), assessmentAPIStreamLimit)
 		}
 		idle.Reset(p.idleTimeout)
 		if line == "" {
@@ -159,6 +170,9 @@ func (p *APIAssessmentProvider) GenerateWithProgress(ctx context.Context, system
 			data = append(data, strings.TrimPrefix(strings.TrimPrefix(line, "data:"), " "))
 		}
 	}
+	if streamBytes() > assessmentAPIStreamLimit {
+		return []byte(output.String()), limitExceeded("stream", streamBytes(), assessmentAPIStreamLimit)
+	}
 	if err := scanner.Err(); err != nil {
 		return []byte(output.String()), apiTransportError(requestContext, ctx)
 	}
@@ -168,7 +182,7 @@ func (p *APIAssessmentProvider) GenerateWithProgress(ctx context.Context, system
 	if dst, ok := ctx.Value(assessmentUsageContextKey{}).(*AssessmentAPIUsage); ok {
 		*dst = usage
 	}
-	assessmentLogger(ctx).InfoContext(ctx, "assessment API usage", "provider", p.Provider, "input_tokens", assessmentUsageValue(usage.InputTokens), "output_tokens", assessmentUsageValue(usage.OutputTokens))
+	assessmentLogger(ctx).InfoContext(ctx, "assessment API usage", "provider", p.Provider, "input_tokens", assessmentUsageValue(usage.InputTokens), "output_tokens", assessmentUsageValue(usage.OutputTokens), "stream_bytes", streamBytes(), "answer_bytes", output.Len())
 	if !done {
 		return []byte(output.String()), AssessmentProviderError{Code: "truncated_output"}
 	}
@@ -242,6 +256,9 @@ func (p *APIAssessmentProvider) parseEvent(raw []byte, usage *AssessmentAPIUsage
 			return "", false, AssessmentProviderError{Code: "provider_protocol"}
 		}
 		if len(e.Error) > 0 {
+			if p.Provider == "kku" {
+				return "", false, kkuAPIMessageError(e.Error, 0)
+			}
 			return "", false, AssessmentProviderError{Code: "provider_unavailable", Retryable: true}
 		}
 		if e.Usage != nil {
@@ -256,9 +273,6 @@ func (p *APIAssessmentProvider) parseEvent(raw []byte, usage *AssessmentAPIUsage
 			return "", false, AssessmentProviderError{Code: "provider_refusal"}
 		}
 		if c.FinishReason == "length" {
-			if p.Provider == "kku" {
-				return "", false, kkuAPIMessageError(e.Error, 0)
-			}
 			return c.Delta.Content, false, AssessmentProviderError{Code: "truncated_output"}
 		}
 		return c.Delta.Content, c.FinishReason == "stop", nil
