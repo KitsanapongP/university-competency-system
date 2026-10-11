@@ -11,8 +11,8 @@
 }
 
 .course-modal-box {
-    background: var(--course-card-bg);
-    border: 1px solid var(--course-modal-border, var(--course-border));
+    background: var(--ui-surface);
+    border: 1px solid var(--ui-border-strong);
     border-radius: 16px;
     width: 100%;
     max-height: 90vh;
@@ -34,13 +34,13 @@
     justify-content: space-between;
     gap: 1rem;
     padding: 1.25rem 1.5rem;
-    border-bottom: 1px solid var(--course-border);
+    border-bottom: 1px solid var(--ui-border);
 }
 
 .course-modal-header h3 {
     font-size: 1.125rem;
     font-weight: 600;
-    color: var(--course-text);
+    color: var(--ui-text);
     margin: 0;
 }
 
@@ -60,7 +60,7 @@
     height: 34px;
     border-radius: 10px;
     background: rgba(59, 130, 246, 0.14);
-    color: var(--course-accent-light);
+    color: var(--ui-primary-hover);
 }
 
 .course-modal-icon--danger {
@@ -75,7 +75,7 @@
 
 .course-modal-icon--info {
     background: rgba(59, 130, 246, 0.14);
-    color: var(--course-accent-light);
+    color: var(--ui-primary-hover);
 }
 
 .course-modal-close {
@@ -86,15 +86,15 @@
     height: 32px;
     border: none;
     background: transparent;
-    color: var(--course-text-muted);
+    color: var(--ui-text-muted);
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.15s ease;
 }
 
 .course-modal-close:hover:not(:disabled) {
-    background: var(--course-hover);
-    color: var(--course-text);
+    background: var(--ui-hover);
+    color: var(--ui-text);
 }
 
 .course-modal-close:disabled {
@@ -113,18 +113,18 @@
     justify-content: flex-end;
     gap: 0.75rem;
     padding: 1rem 1.5rem;
-    border-top: 1px solid var(--course-border);
+    border-top: 1px solid var(--ui-border);
 }
 
 .course-modal-message {
-    color: var(--course-text);
+    color: var(--ui-text);
     line-height: 1.65;
     white-space: pre-line;
     margin: 0;
 }
 
 .course-modal-hint {
-    color: var(--course-text-muted);
+    color: var(--ui-text-muted);
     font-size: 0.9rem;
     line-height: 1.6;
     white-space: pre-line;
@@ -134,10 +134,10 @@
 .course-modal-impact {
     margin-top: 1rem;
     padding: 0.875rem;
-    border: 1px solid var(--course-border);
+    border: 1px solid var(--ui-border);
     border-radius: 10px;
-    background: var(--course-bg);
-    color: var(--course-text-muted);
+    background: var(--ui-page-bg);
+    color: var(--ui-text-muted);
     line-height: 1.55;
 }
 
