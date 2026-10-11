@@ -23,6 +23,12 @@ type AssessmentSourceRepository struct {
 	DB *sql.DB
 }
 
+func (r *AssessmentSourceRepository) GetCurriculumNamesWith(ctx context.Context, queryer AssessmentQueryer, curriculumID uint64) (models.AssessmentBilingualText, error) {
+	var names models.AssessmentBilingualText
+	err := queryer.QueryRowContext(ctx, `SELECT name_th, COALESCE(name_en, '') FROM edu_curricula WHERE curriculum_id = ? AND deleted_at IS NULL`, curriculumID).Scan(&names.TH, &names.EN)
+	return names, err
+}
+
 type AssessmentCourseMapping struct {
 	TemplateItemID   uint64
 	CourseID         uint64

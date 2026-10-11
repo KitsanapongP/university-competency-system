@@ -1,8 +1,12 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,11 +14,52 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-sql-driver/mysql"
 	"github.com/spw32767/university-competency-system-backend/models"
 	"github.com/spw32767/university-competency-system-backend/repositories"
 	"github.com/spw32767/university-competency-system-backend/services"
 	"github.com/spw32767/university-competency-system-backend/utils"
 )
+
+func TestLearnerAssessmentInternalErrorLogsOnlySafeCategories(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	private := "private-student@example.local secret-api-key"
+	for _, test := range []struct {
+		name     string
+		err      error
+		category string
+	}{
+		{"database", fmt.Errorf("load assessment curriculum names: %w", &mysql.MySQLError{Number: 1054, Message: private}), "database"},
+		{"internal", errors.New(private), "internal"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			logs.Reset()
+			handler := &LearnerAssessmentController{Service: &learnerAssessmentReportServiceStub{getErr: test.err}}
+			response := learnerAssessmentRequest(handler.GetReport, http.MethodGet, "/?semester=1", "", true)
+			if response.Code != http.StatusInternalServerError {
+				t.Fatalf("expected 500, got %d", response.Code)
+			}
+			var entry map[string]any
+			if err := json.Unmarshal(logs.Bytes(), &entry); err != nil {
+				t.Fatal(err)
+			}
+			if entry["error_type"] != test.category || entry["operation"] != "assessment_report" {
+				t.Fatalf("unexpected diagnostic: %v", entry)
+			}
+			if test.category == "database" && entry["mysql_error_number"] != float64(1054) {
+				t.Fatalf("missing MySQL error number: %v", entry)
+			}
+			for _, sensitive := range []string{private, "secret-api-key", "private-student", "load assessment curriculum names"} {
+				if strings.Contains(logs.String(), sensitive) || strings.Contains(response.Body.String(), sensitive) {
+					t.Fatal("diagnostic exposed private error details")
+				}
+			}
+		})
+	}
+}
 
 type learnerAssessmentReportServiceStub struct {
 	getState         models.AssessmentReportState

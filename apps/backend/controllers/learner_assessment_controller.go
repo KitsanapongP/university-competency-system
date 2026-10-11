@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-sql-driver/mysql"
 	"github.com/spw32767/university-competency-system-backend/models"
 	"github.com/spw32767/university-competency-system-backend/repositories"
 	"github.com/spw32767/university-competency-system-backend/services"
@@ -155,6 +157,15 @@ func writeLearnerAssessmentError(w http.ResponseWriter, err error) {
 			utils.Error(w, http.StatusBadRequest, "BAD_REQUEST", validation.Message)
 			return
 		}
+		// Only record error categories; database messages may contain learner data.
+		attributes := []any{"operation", "assessment_report", "error_code", "SERVER_ERROR"}
+		var databaseErr *mysql.MySQLError
+		if errors.As(err, &databaseErr) {
+			attributes = append(attributes, "error_type", "database", "mysql_error_number", databaseErr.Number)
+		} else {
+			attributes = append(attributes, "error_type", "internal")
+		}
+		slog.Error("assessment report operation failed", attributes...)
 		utils.Error(w, http.StatusInternalServerError, "SERVER_ERROR", "assessment report operation failed")
 	}
 }
